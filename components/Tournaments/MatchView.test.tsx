@@ -194,7 +194,7 @@ it("past the deadline, an unanswered pre-deadline check: rule 1 copy, no Play (#
 
 it("decided by deadline rule: names the rule and marks it applied", () => {
   renderState("decided_by_rule");
-  expect(banner()).toHaveTextContent("Decided by the deadline rule. You won. You advance to the Final.");
+  expect(banner()).toHaveTextContent("Decided by the deadline rule. You advance to the Final.");
   expect(banner()).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
   // D6: the full rules card is gone; one line names the rule.
   expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();

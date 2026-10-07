@@ -81,7 +81,7 @@ const Preview = ({ f }: { f: CreateFormState }) => {
       <Box bg="#2C1831" color="#FAEBD7" p="16px">
         <Chip tone="gold">Preview · signup open</Chip>
         <Text fontFamily="LeagueGothic" fontSize="30px" mt="6px">{f.name.trim() || "Your tournament"}</Text>
-        <Text fontSize="13px" opacity={0.75}>{formatName(f)} · {f.size} players · first to 1</Text>
+        <Text fontSize="13px" opacity={0.75}>{formatName(f)} · {f.size} players · one game per match</Text>
       </Box>
       <Box p="16px" fontSize="14px">
         <Text fontSize="12px" opacity={0.65} mb="8px" textTransform="uppercase" fontFamily="ArchivoNarrow" letterSpacing="0.08em">{f.format === "round_robin" ? "With 4 or more players" : `If all ${f.size} seats fill`}</Text>
@@ -188,7 +188,7 @@ export const CreateView = () => {
                 <Chip>{formatName(form)}</Chip>
                 {form.format === "round_robin" && form.top2Final && <Chip>Top 2 play a final</Chip>}
                 <Chip>{form.size} players</Chip>
-                <Chip>First to 1</Chip>
+                <Chip>One game per match</Chip>
                 <Chip>{WINDOWS.find((w) => w.hours === form.matchWindowHours)?.label} per match</Chip>
                 <Chip>{matchupSummary(form)}</Chip>
               </Flex>
@@ -232,7 +232,7 @@ export const CreateView = () => {
                 <Box>
                   <Label>Time per match</Label>
                   <Seg label="Time per match" value={form.matchWindowHours} onChange={(v) => set({ matchWindowHours: v })} options={WINDOWS.map((w) => ({ id: w.hours, label: w.label }))} />
-                  <Text fontSize="12px" opacity={0.65} mt="4px">Each match is first to 1 — one game decides it. Best-of-3 and best-of-5 are coming later.</Text>
+                  <Text fontSize="12px" opacity={0.65} mt="4px">One game per match: that game decides it. Best-of-3 and best-of-5 are coming later.</Text>
                 </Box>
                 <Box>
                   <Label>Matchups</Label>

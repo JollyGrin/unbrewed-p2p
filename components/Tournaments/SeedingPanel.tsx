@@ -171,8 +171,8 @@ export const SeedingPanel = ({
               </Text>
               <Text fontSize="12px" opacity={0.65} whiteSpace="nowrap">{rr ? "" : opp ? `vs ${opp}` : "bye"}</Text>
               <Flex gap="2px">
-                <Box as="button" type="button" aria-label={`Move ${e?.username ?? "player"} up`} disabled={i === 0 || busy} onClick={() => reorder(moveSeed(order, i, i - 1))} w="32px" h="32px" borderRadius="6px" _disabled={{ opacity: 0.25 }} _hover={{ bg: "rgba(72,40,79,0.08)" }}>↑</Box>
-                <Box as="button" type="button" aria-label={`Move ${e?.username ?? "player"} down`} disabled={i === n - 1 || busy} onClick={() => reorder(moveSeed(order, i, i + 1))} w="32px" h="32px" borderRadius="6px" _disabled={{ opacity: 0.25 }} _hover={{ bg: "rgba(72,40,79,0.08)" }}>↓</Box>
+                <Box as="button" type="button" aria-label={`Move ${e?.username ?? "player"} up`} disabled={i === 0 || busy} onClick={() => reorder(moveSeed(order, i, i - 1))} w="44px" h="44px" borderRadius="6px" _disabled={{ opacity: 0.25 }} _hover={{ bg: "rgba(72,40,79,0.08)" }}>↑</Box>
+                <Box as="button" type="button" aria-label={`Move ${e?.username ?? "player"} down`} disabled={i === n - 1 || busy} onClick={() => reorder(moveSeed(order, i, i + 1))} w="44px" h="44px" borderRadius="6px" _disabled={{ opacity: 0.25 }} _hover={{ bg: "rgba(72,40,79,0.08)" }}>↓</Box>
               </Flex>
             </Flex>
           );

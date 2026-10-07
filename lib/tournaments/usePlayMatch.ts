@@ -14,6 +14,7 @@ import { refreshAccount } from "@/lib/account/useAccount";
 
 import { getMatch, getMatchTicket, rateLimitText, readyForMatch, reportRoomGone, type Result, type TournamentFailure } from "./api";
 import { currentChecks, reseatCooldownText } from "./matchPage";
+import { clockOf } from "./organizer";
 import type { MatchDetail, TicketGrant } from "./types";
 
 export type PlayPhase =
@@ -112,17 +113,56 @@ const pointsAt = (r: Result<TicketGrant>, roomId: string): boolean =>
  *  - `too_soon`: the api's 30s age gate (api #125) — worth ONE wait and retry.
  *  - `unavailable`: a network blip — not an answer, so not remembered (p2p #1269):
  *    the next press asks again instead of sticking on "hasn't released it".
+ *  - `not_mine` (p2p #1279, journeys S1): the room is the OPPONENT's (or the api
+ *    can't tell whose, or has moved on): only its creator may clear it, so a
+ *    joiner's retry can't help — the opponent has to press Play again.
  * Either way the grant that follows goes through `grantAvoiding`, so nothing loops.
  */
-export type DeadRoomReport = "reported" | "legacy" | "too_soon" | "unavailable";
+export type DeadRoomReport = "reported" | "legacy" | "too_soon" | "unavailable" | "not_mine";
+const NOT_MINE = new Set(["not_room_creator", "ambiguous_creator", "room_not_live"]);
 export const reportDeadRoom = async (slug: string, matchId: string, deadRoomId: string): Promise<DeadRoomReport> => {
   const gone = await reportRoomGone(slug, matchId, deadRoomId);
   if (!gone.ok) return gone.reason === "not_found" ? "legacy" : gone.reason === "unavailable" ? "unavailable" : "reported";
-  return !gone.value.cleared && gone.value.reason === "too_soon" ? "too_soon" : "reported";
+  if (gone.value.cleared) return "reported";
+  if (gone.value.reason === "too_soon") return "too_soon";
+  return gone.value.reason && NOT_MINE.has(gone.value.reason) ? "not_mine" : "reported";
 };
 
 /** Only a real answer is remembered for the screen. */
-export const settledReport = (r: DeadRoomReport): r is "reported" | "legacy" => r === "reported" || r === "legacy";
+export const settledReport = (r: DeadRoomReport): r is "reported" | "legacy" | "not_mine" =>
+  r === "reported" || r === "legacy" || r === "not_mine";
+
+/**
+ * The joiner's copy for the opponent's dead room (journeys S1): who must act,
+ * and until when their hold lasts. `ping` only when the Discord bot is live.
+ */
+export const opponentRoomGoneText = (opponent: string | null, holdUntil: string | null, ping: boolean): string =>
+  [
+    `The room ${opponent ?? "your opponent"} opened is gone (the server restarted).`,
+    `${opponent ?? "Your opponent"} needs to press Play again to open a new one${ping ? "; you'll get a ping" : "; check the match page in a minute"}.`,
+    holdUntil ? `Their hold runs out at ${clockOf(holdUntil)}.` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+/**
+ * The same dead room when its recorded creator is the VIEWER (#1279 review):
+ * after an engine restart with both players holding tickets (`ambiguous_creator`)
+ * the api can file the room under either of them.
+ */
+export const OWN_ROOM_GONE = "Your room is gone (the server restarted). Go back to the match and press Play again to open a new one.";
+
+/** Who opened `roomId` and when their hold ends, read off the match (S1). */
+export const deadRoomOwner = (
+  d: MatchDetail,
+  roomId: string,
+): { name: string | null; userId: string | null; holdUntil: string | null } => {
+  const live = d.liveRoom && d.liveRoom.roomId === roomId ? d.liveRoom : null;
+  const check = (d.readyChecks ?? []).find((c) => c.roomId === roomId && c.role === "create");
+  const entryId = live?.readyEntryId ?? check?.entryId ?? null;
+  const side = [d.players?.a, d.players?.b].find((p) => p && p.id === entryId);
+  return { name: side?.username ?? null, userId: side?.userId ?? null, holdUntil: live?.expiresAt ?? check?.expiresAt ?? null };
+};
 
 /** The api's room-gone age gate (ROOM_GONE_MIN_AGE_MS, api #125). */
 export const ROOM_GONE_MIN_AGE_MS = 30 * 1000;

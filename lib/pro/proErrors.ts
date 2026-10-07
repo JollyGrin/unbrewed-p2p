@@ -32,8 +32,8 @@ const MESSAGES: Record<ErrorCode, string> = {
   // v37 (engine #755): tournament tickets. Each one is answered from the match page,
   // which mints a fresh ticket — see lib/pro/tournamentTicket.ts.
   TICKET_INVALID: "This match link isn't valid any more.",
-  TICKET_EXPIRED: "Your seat ticket ran out (they last 15 minutes).",
-  TICKET_MISMATCH: "This ticket doesn't fit this room — it may be for another game, or your seat is already taken.",
+  TICKET_EXPIRED: "Your seat reservation ran out (they last 15 minutes).",
+  TICKET_MISMATCH: "This seat reservation doesn't fit this room — it may be for another game, or your seat is already taken.",
   TICKET_REQUIRED: "This is a tournament room — join it from the match page.",
   MATCHUP_LOCKED: "The organizer set this match's heroes and map, and this pick doesn't match them.",
   TOURNAMENTS_DISABLED: "Tournament games aren't available on this server right now.",

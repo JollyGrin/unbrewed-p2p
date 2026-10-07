@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
+import { fixtureTournament } from "@/lib/tournaments/fixtures";
 
 import { BrowseView } from "./BrowseView";
 
@@ -32,4 +33,17 @@ it("a real empty list is still 'No brackets here'", async () => {
   ) as unknown as typeof fetch;
   render(<ChakraProvider><BrowseView /></ChakraProvider>);
   expect(await screen.findByText(/No brackets here/)).toBeInTheDocument();
+});
+
+it("cards say 'one game per match' and the filter tabs are 44 px tap targets (p2p #1279, P6/S15)", async () => {
+  const t = fixtureTournament({ firstTo: 1, status: "running" });
+  global.fetch = jest.fn(async (url: string) =>
+    url === `${API_URL}/me`
+      ? ({ ok: false, status: 401, json: async () => ({}) } as Response)
+      : ({ ok: true, status: 200, json: async () => ({ tournaments: [t] }) } as Response),
+  ) as unknown as typeof fetch;
+  render(<ChakraProvider><BrowseView /></ChakraProvider>);
+  expect(await screen.findByText(/one game per match/)).toBeInTheDocument();
+  expect(screen.queryByText(/first to 1/)).toBeNull();
+  for (const tab of screen.getAllByRole("tab")) expect(parseFloat(window.getComputedStyle(tab).minHeight)).toBeGreaterThanOrEqual(44);
 });

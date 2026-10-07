@@ -285,7 +285,8 @@ export const MatchBody = ({
             // The eliminated player's "what now?" (UX B5).
             <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="10px" align="center" flexWrap="wrap" data-testid="after-loss">
               <Btn variant="ghost" href={tournamentPath(d.tournament.slug)}>{roundRobin ? "See the standings" : "See the bracket"}</Btn>
-              <Btn variant="ghost" href="/tournaments">Find another tournament</Btn>
+              {/* A round-robin group loser is still in the event (#1279 review). */}
+              {!group && <Btn variant="ghost" href="/tournaments">Find another tournament</Btn>}
             </Flex>
           )}
           {playable && (
@@ -493,7 +494,25 @@ const Banner = ({
       // Speak to the two players (UX B5); a spectator keeps the plain line.
       const lead = state === "decided_by_rule" ? "Decided by the deadline rule. " : "";
       const cancelledEvent = d.tournament.status === "cancelled";
-      if (mine && m.winner === mine) {
+      // No game was won under the deadline rule (#1279 review): never "X won this one".
+      if (mine && m.winner && state === "decided_by_rule") {
+        const iWon = m.winner === mine;
+        text = group
+          ? iWon
+            ? `${lead}You take the win.`
+            : `${lead}${winnerName} takes the win.`
+          : m.stage === "final" || !next
+            ? iWon
+              ? `${lead}You win the tournament. Champion!`
+              : `${lead}${winnerName} wins the tournament. You finish runner-up, thanks for playing.`
+            : cancelledEvent
+              ? iWon
+                ? `${lead}You take the match.`
+                : `${lead}${winnerName} takes the match.`
+              : iWon
+                ? `${lead}You advance to the ${next}.`
+                : `${lead}${winnerName} advances. You're out of the bracket, thanks for playing.`;
+      } else if (mine && m.winner === mine) {
         text = group
           ? `${lead}You won this match.`
           : m.stage === "final" || !next

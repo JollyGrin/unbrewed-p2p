@@ -16,7 +16,7 @@ export const MapChips = ({
     {proMapOptions().map((m) => {
       const sel = value?.id === m.ref.id;
       return (
-        <Box as="button" type="button" key={m.ref.id} role="radio" aria-checked={sel} onClick={() => onPick(m.ref)} px="12px" minH="36px" borderRadius="999px" fontSize="13px" fontWeight={600} bg={sel ? "#E0A82E" : "rgba(72,40,79,0.08)"} color="#2C1831">
+        <Box as="button" type="button" key={m.ref.id} role="radio" aria-checked={sel} onClick={() => onPick(m.ref)} px="12px" minH="44px" borderRadius="999px" fontSize="13px" fontWeight={600} bg={sel ? "#E0A82E" : "rgba(72,40,79,0.08)"} color="#2C1831">
           {m.title}
         </Box>
       );

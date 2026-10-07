@@ -33,7 +33,7 @@ const TournamentCard = ({ t, mine, yours }: { t: Tournament; mine: boolean; your
         </Flex>
         <Text as="h3" fontFamily="LeagueGothic" fontSize="28px" lineHeight="1.05" mt="8px" overflowWrap="anywhere" data-testid="card-title">{t.name}</Text>
         <Text fontSize="13px" opacity={0.75} overflowWrap="anywhere">
-          {formatLabel(t)} · {t.size} players · first to {t.firstTo} · {WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} per match
+          {formatLabel(t)} · {t.size} players · {t.firstTo === 1 ? "one game per match" : `first to ${t.firstTo}`} · {WINDOW_LABEL[t.matchWindowHours] ?? `${t.matchWindowHours}h`} per match
           {t.organizer.username ? ` · by ${t.organizer.username}` : ""}
         </Text>
       </Box>

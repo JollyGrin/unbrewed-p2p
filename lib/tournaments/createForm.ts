@@ -65,7 +65,7 @@ export const PRESETS: Preset[] = [
     blurb: "Casual, quick, fills fast.",
     bullets: [
       "8 players · single elimination",
-      "First to 1 · 48h per match",
+      "One game · 48h per match",
       "Players choose heroes",
     ],
     patch: {
@@ -81,7 +81,7 @@ export const PRESETS: Preset[] = [
     blurb: "Everyone plays everyone.",
     bullets: [
       "4–6 players · round robin",
-      "First to 1 · 1 week per match",
+      "One game · 1 week per match",
       "Same map for everyone",
     ],
     patch: {

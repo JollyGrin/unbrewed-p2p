@@ -254,7 +254,8 @@ import {
   withoutTicketQuery,
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
-import { MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
+import { holdLeftText, MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
+import { gameEndNote, OpponentAwayNote, useTaggedGameEndReason } from "@/components/Pro/TournamentGameNotes";
 import { LazyScreenFallback } from "@/components/Pro/LazyScreenFallback";
 // Rare tournament screens, loaded on demand so their match helpers stay out of the first load (#1265).
 const SeatReplacedScreen = dynamic(() => import("@/components/Pro/SeatReplacedScreen").then((m) => m.SeatReplacedScreen), {
@@ -2555,10 +2556,15 @@ const SplashPanel = ({
           <Box fontSize="2.4rem" opacity={0.5}>
             <TbSword />
           </Box>
-          <Text fontSize="0.85rem">
+          {/* Touch screens have no hover (journeys polish, #1279): the
+              CSS media query picks the copy, so SSR and jsdom agree. */}
+          <Text fontSize="0.85rem" sx={{ "@media (hover: none)": { display: "none" } }} data-testid="splash-hint-mouse">
             Hover a fighter to preview.
             <br />
             Click to lock in.
+          </Text>
+          <Text fontSize="0.85rem" display="none" sx={{ "@media (hover: none)": { display: "block" } }} data-testid="splash-hint-touch">
+            Tap a fighter to preview it and lock it in.
           </Text>
         </Flex>
       ) : (
@@ -5425,7 +5431,21 @@ const LiveGame = ({
   useEffect(() => {
     if (room && taggedLookup.at) rememberTournamentRoom(room, taggedLookup.at);
   }, [room, taggedLookup.at]);
+  // …and found to be one of MY match rooms while this browser still holds a
+  // seat token for it (journeys S6, #1279: the tab's own token died with the
+  // browser, the stored one survived): resume it like a remembered tournament
+  // room. A dead token answers BAD_TOKEN, which is the ticket card — never the
+  // casual join picker, whose ticketless JOIN is a dead end.
+  useEffect(() => {
+    if (joined || !room || hasTicket || reconnectedRef.current || ticketFiredRef.current) return;
+    if (!taggedLookup.at || !getToken(room)) return;
+    reconnectedRef.current = true;
+    joinRoom(room, "");
+    setJoined(true);
+  }, [joined, room, hasTicket, taggedLookup.at, joinRoom]);
   const taggedRoom = tournamentRoom ?? taggedLookup.at;
+  // Why a tournament game ended, from the api once it's over (S10, #1279).
+  const taggedEndReason = useTaggedGameEndReason(tournamentRoom, roomId, !!snapshot?.view.winner);
 
   // UNKNOWN_HERO shouldn't happen when picking from the server list, but if the
   // server rejects the hero, drop back to the picker instead of a dead end.
@@ -5569,7 +5589,7 @@ const LiveGame = ({
   if (!joined && !firedTicket && !ticket && !room && !quickParam && pendingLaunch) {
     return (
       <TicketErrorScreen
-        message="Your match game didn't open before the page reloaded. Get a fresh ticket to pick your hero again."
+        message="Your match game didn't open before the page reloaded. Press Try again to pick your hero again."
         retry
         pendingLaunch
         at={pendingLaunch}
@@ -5583,7 +5603,7 @@ const LiveGame = ({
   if (!joined && !firedTicket && !ticket && room && taggedRoom && !getToken(room)) {
     return (
       <TicketErrorScreen
-        message="This tournament game is open in another tab or device. Get a fresh ticket to take your seat here."
+        message="This tournament game is open in another tab or device. Press Try again to take your seat here."
         retry
         at={taggedRoom}
       />
@@ -5878,6 +5898,7 @@ const LiveGame = ({
         roomId={roomId}
         resolveCard={resolveCard}
         labelFor={snapshot ? (c) => cardLabel(snapshot.view.catalog, c) : undefined}
+        matchHref={taggedRoom ? tournamentMatchHref(taggedRoom) : null}
       />
     );
   }
@@ -5894,12 +5915,12 @@ const LiveGame = ({
       error.code === "ROOM_FULL" ||
       error.code === "BAD_TOKEN")
   ) {
-    return <TicketErrorScreen code={error.code} at={taggedRoom} roomId={firedTicket?.room ?? room ?? roomId} />;
+    return <TicketErrorScreen code={error.code} engineMessage={error.message} at={taggedRoom} roomId={firedTicket?.room ?? room ?? roomId} />;
   }
   // A tagged room we can't place (#1230: a forwarded link, not your match): the
   // engine's answer still reads as the ticket card, pointing at your tournaments.
   if (error && (TICKET_ERROR_CODES as readonly string[]).includes(error.code)) {
-    return <TicketErrorScreen code={error.code} at={null} />;
+    return <TicketErrorScreen code={error.code} engineMessage={error.message} at={null} />;
   }
 
   // Room-level errors surface on a friendly screen with a create-new fallback.
@@ -5921,6 +5942,10 @@ const LiveGame = ({
     );
   }
 
+  // Any other refusal in a tournament tab (S9, #1279: RESUME_FAILED, VERSION,
+  // BAD_MESSAGE…) is the ticket card — copy, a retry and the way back — never
+  // the bare "{code}: {message}" line, which stays for casual rooms.
+  if (error && taggedRoom) return <TicketErrorScreen code={error.code} engineMessage={error.message} at={taggedRoom} roomId={firedTicket?.room ?? room ?? roomId} />;
   if (error)
     return (
       <Text color="red.300" pt="4rem" textAlign="center">
@@ -5972,7 +5997,7 @@ const LiveGame = ({
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
-            ROOM {roomId}
+            {tournamentRoom ? "YOUR MATCH ROOM" : `ROOM ${roomId}`}
           </Text>
           {myWaitingHeroName && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
@@ -6124,13 +6149,33 @@ const LiveGame = ({
               public toggle (the engine refuses SET_VISIBILITY on it). */}
           {tournamentRoom && (
             <Flex direction="column" alignItems="center" gap="0.5rem" data-testid="tournament-waiting">
-              <MatchDecidedBanner at={tournamentRoom}>
-                <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim">
-                  🏆 Tournament match · your seat is held for 15 minutes
-                </Tag>
-                <Text opacity={0.8} textAlign="center" maxW="30rem">
-                  Your opponent joins from the match page. Keep this tab open.
-                </Text>
+              {/* The hold is live (B4, #1279): counted down from the match's
+                  ready check, and replaced once it ran out. "Keep this tab
+                  open" leads: the pre-game seat also goes ~60 s after the
+                  socket drops (P15). */}
+              <MatchDecidedBanner at={tournamentRoom} roomId={roomId}>
+                {(holdLeftMs, matchMap) => (
+                  <>
+                    <Text fontWeight={700} fontSize="1.1rem" textAlign="center" data-testid="tournament-hold-headline">
+                      Keep this tab open
+                    </Text>
+                    <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim" data-testid="tournament-hold">
+                      {holdLeftMs === null
+                        ? "🏆 Tournament match · your seat is held"
+                        : `🏆 Tournament match · seat held · ${holdLeftText(holdLeftMs)}`}
+                    </Tag>
+                    <Text opacity={0.8} textAlign="center" maxW="30rem">
+                      Your opponent joins from the match page. If you close this tab, your seat goes about a minute later.
+                    </Text>
+                    {/* After a reload the room's board is unknown here (E7); the
+                        match's own assignment still names it (journeys polish). */}
+                    {boardUnknown && matchMap && (
+                      <Text opacity={0.8} textAlign="center" data-testid="tournament-board">
+                        Playing on {matchMap.kind === "catalog" ? catalogEntry(matchMap.id)?.title ?? matchMap.id : "the organizer's board"}.
+                      </Text>
+                    )}
+                  </>
+                )}
               </MatchDecidedBanner>
               <Link href={tournamentMatchHref(tournamentRoom)} color="brand.accent">
                 Back to the match page
@@ -6284,6 +6329,22 @@ const LiveGame = ({
     : opponentConnected
     ? null
     : "opponent disconnected";
+  // A tagged duel (S10, #1279): the opponent's abandon clock, said out loud —
+  // the present player wins by staying. The game-over line says why it ended:
+  // the api's endReason, else the engine's own sign (they were still away).
+  const opponentSeat = view.opponent?.id ?? null;
+  const opponentAwayAt =
+    tournamentRoom && !multiplayerView && opponentSeat ? seatPresence[opponentSeat]?.autoForfeitAt ?? null : null;
+  const opponentName = view.opponent?.displayName?.trim() || "Your opponent";
+  const endNote =
+    tournamentRoom && !multiplayerView && view.winner
+      ? gameEndNote(
+          // presence is cleared at game over; the coarse flag keeps "still away"
+          taggedEndReason ?? (view.winner === view.you && !opponentConnected ? "disconnect" : null),
+          view.winner === view.you,
+          opponentName,
+        )
+      : null;
   // RESPOND_PROMPT renders through the PromptPanel; MOVE_FIGHTER,
   // RELOCATE_FIGHTER (engine #535 — the server offers ONE PER candidate origin
   // space) and PLACE_SIDEKICK render as clickable board spaces — listing one
@@ -7283,7 +7344,9 @@ const LiveGame = ({
   const hudProps: ProHudProps = {
     view,
     status,
-    roomId,
+    // A tournament room's code stays private (journeys polish, #1279): no
+    // "Copy join link — room X" chip or menu item; its seats are reserved.
+    roomId: taggedRoom ? null : roomId,
     seatPresence,
     turnTimer,
     turnTimerSeconds: roomInfo?.turnTimerSeconds,
@@ -7528,6 +7591,7 @@ const LiveGame = ({
       rematchHref={tournamentRoom ? null : rematchHref}
       rematchNegotiation={tournamentRoom ? null : rematchNegotiation}
       matchPageHref={tournamentRoom ? tournamentMatchHref(tournamentRoom) : null}
+      endNote={endNote}
       replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
@@ -7563,6 +7627,7 @@ const LiveGame = ({
     >
     <CardPreviewProvider>
     <MatchDecidedBanner at={tournamentRoom} strip />
+    {opponentAwayAt !== null && !view.winner && <OpponentAwayNote name={opponentName} deadline={opponentAwayAt} />}
     <Box h="calc(100svh - var(--match-banner-h, 0px))" overflow="hidden" bg={TABLE_BG} position="relative">
       {/* Playtesting a custom board (this player created it): a near-invisible
           link to submit it to unbrewed. Covers the AI case, where the pre-game
