@@ -359,6 +359,12 @@ export function useTournamentGame(gate: GateTournament | undefined, live: LiveGa
   useEffect(() => {
     if (closedNotice === "removed") closeForGood();
   }, [closedNotice, closeForGood]);
+  // The hold's end is our clock's guess: a join ticket issued just before it
+  // stays good a little longer and the engine sweeps late, so a game that
+  // starts anyway wins over the expiry notice. Being moved out stays final.
+  useEffect(() => {
+    if (snapshot) setClosedNotice((n) => (n === "expired" ? null : n));
+  }, [snapshot]);
 
   const errorScreen = (() => {
     if (!error) return null;

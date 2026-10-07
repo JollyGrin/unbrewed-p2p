@@ -517,9 +517,17 @@ describe("a room that is no longer this player's: only the notice", () => {
     const socket = FakeWebSocket.latest()!;
     await flush(10);
     expect(screen.getByTestId("room-closed")).toHaveTextContent("You are no longer in this match (the organizer changed the bracket).");
-    expect(screen.getByTestId("match-removed-banner").querySelector("a")).toHaveAttribute("href", "/tournaments?t=autumn-skirmish");
+    expect(screen.getByTestId("match-removed-banner").querySelector("a")).toHaveTextContent("Back to the match");
+    expect(screen.getByTestId("match-removed-banner").querySelector("a")).toHaveAttribute("href", "/tournaments?t=autumn-skirmish&m=m2-1");
     expect(board()).toHaveLength(0);
     expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
+    // Being moved out is final: a late snapshot never brings the board back.
+    await act(async () => {
+      socket.onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, type: "STATE", view: inPlay({ you: "p2" }), legalActions: [], events: [] }) });
+    });
+    await flush(4);
+    expect(screen.getByTestId("room-closed")).toBeInTheDocument();
+    expect(board()).toHaveLength(0);
     const sockets = FakeWebSocket.instances.length;
     await act(async () => {
       socket.onclose?.({ code: 1006 });
@@ -543,6 +551,24 @@ describe("a room that is no longer this player's: only the notice", () => {
     expect(document.body).not.toHaveTextContent("Go do something else");
     expect(screen.queryByTestId("lobby-sound-toggle")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link").filter((a) => /back to the match/i.test(a.textContent ?? ""))).toHaveLength(1);
+  });
+
+  it("…but a join that lands after our expiry starts the game: the board shows and the notice goes", async () => {
+    api(() => ({
+      ...openDetail(),
+      liveRoom: null,
+      readyChecks: [{ id: "rc", gameIndex: 0, entryId: "e1", createdAt: iso(Date.now() - 16 * 60_000), expiresAt: iso(Date.now() - 60_000), roomId: "SF2ROOM", outcome: "pending", role: "create" }],
+    }));
+    await mount(LOCKED);
+    await deliver({ type: "ROOM_CREATED", roomId: "SF2ROOM", token: "tok", you: "p1" });
+    await flush(8);
+    expect(screen.getByTestId("hold-expired-banner")).toBeInTheDocument();
+    await deliver({ type: "STATE", view: inPlay(), legalActions: [], events: [] });
+    await flush(4);
+    expect(screen.queryByTestId("room-closed")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hold-expired-banner")).not.toBeInTheDocument();
+    expect(board().length).toBeGreaterThan(0);
+    expect(FakeWebSocket.latest()!.readyState).toBe(FakeWebSocket.OPEN);
   });
 
   it("(control) still in the match: the board stays and the socket stays open", async () => {

@@ -199,8 +199,8 @@ const NoticeBar = forwardRef<HTMLDivElement, { notice: MatchNotice; at: Tourname
   const removed = notice === "removed";
   const expired = notice === "expired";
   const cancelled = notice === "cancelled";
-  // These two point at the tournament: the match itself has nothing left to do.
-  const toTournament = removed || cancelled;
+  // A cancelled tournament's match has nothing left to do: point at the tournament.
+  const toTournament = cancelled;
   return (
     <Flex
       ref={ref}
