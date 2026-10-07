@@ -3,7 +3,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 
-import { JoinPanel } from "./EventView";
+import { JoinPanel, SharePanel } from "./EventView";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
@@ -116,5 +116,56 @@ describe("JoinPanel", () => {
     mount(T, FIVE);
     fireEvent.click(await screen.findByRole("button", { name: /join lab rats open/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/signup has closed/i);
+  });
+});
+
+describe("double clicks send ONE request (p2p #1269)", () => {
+  /** Every write hangs, so the first click's request is still in flight on the second. */
+  const hangWrites = () =>
+    (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? "GET" });
+      if (url === `${API_URL}/me`) return reply(200, { user: { id: "hok", username: "hokuto_shin", avatarUrl: null } });
+      return new Promise(() => {});
+    });
+
+  it("Join", async () => {
+    me = "me";
+    hangWrites();
+    mount(T, FIVE);
+    const join = await screen.findByRole("button", { name: /join lab rats open/i });
+    fireEvent.click(join);
+    fireEvent.click(join);
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
+  });
+
+  it("Leave (Yes, leave)", async () => {
+    me = "me";
+    hangWrites();
+    mount({ ...T, entryCount: 6 }, [...FIVE, entry("hok", 6)]);
+    fireEvent.click(await screen.findByRole("button", { name: /leave tournament/i }));
+    const yes = screen.getByRole("button", { name: /yes, leave/i });
+    fireEvent.click(yes);
+    fireEvent.click(yes);
+    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+});
+
+describe("SharePanel copy (p2p #1269)", () => {
+  const setClipboard = (writeText: () => Promise<void>) =>
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+
+  it("a refused clipboard says so instead of failing silently", async () => {
+    setClipboard(() => Promise.reject(new Error("denied")));
+    render(<ChakraProvider><SharePanel t={T} /></ChakraProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(await screen.findByTestId("copy-failed")).toHaveTextContent("Couldn't copy. Select the text and copy it by hand.");
+  });
+
+  it("a working clipboard says Copied and no error", async () => {
+    setClipboard(() => Promise.resolve());
+    render(<ChakraProvider><SharePanel t={T} /></ChakraProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    expect(screen.queryByTestId("copy-failed")).toBeNull();
   });
 });

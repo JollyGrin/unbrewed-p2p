@@ -22,7 +22,7 @@ import { WINDOW_LABEL, formatLabel, formatWhen, tournamentPath } from "@/lib/tou
 import type { Entry, Match, Standing, Tournament } from "@/lib/tournaments/types";
 
 import { Avatar, timeLeft } from "./Bracket";
-import { useNow } from "@/lib/tournaments/hooks";
+import { useAttentionQueue, useNow } from "@/lib/tournaments/hooks";
 import { LifecyclePanel } from "./LifecyclePanel";
 import { AttentionQueue } from "./OrganizerTools";
 import { Card, Chip, Notice, Page } from "./ui";
@@ -239,6 +239,8 @@ export const RoundRobinEventView = ({
   isOrganizer?: boolean;
   reload?: () => void;
 }) => {
+  // One attention load per page, refreshed with the page poll (p2p #1269).
+  const queue = useAttentionQueue(t.slug, isOrganizer && t.status === "running", matches);
   const view = useMemo(() => buildRoundRobin(t, entries, matches, standings), [t, entries, matches, standings]);
   const now = useNow(30_000);
   const complete = t.status === "complete";
@@ -290,7 +292,7 @@ export const RoundRobinEventView = ({
           <Notice title="This tournament was cancelled">The organizer cancelled it. Results so far are kept below; unfinished matches are cancelled.</Notice>
         </Box>
       )}
-      {isOrganizer && !cancelled && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} />}
+      {isOrganizer && !cancelled && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} queue={queue} />}
       <Standings view={view} t={t} />
 
       {view.final && (

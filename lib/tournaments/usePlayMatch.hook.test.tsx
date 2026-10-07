@@ -6,7 +6,18 @@
 import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 
-import { freshGrant, grantAvoiding, MAX_POLLS, playErrorMessage, POLL_MS, reportDeadRoom, usePlayMatch } from "./usePlayMatch";
+import {
+  freshGrant,
+  grantAvoiding,
+  MAX_POLLS,
+  PLAY_TIMEOUT_MESSAGE,
+  playErrorMessage,
+  POLL_MS,
+  reportDeadRoom,
+  roomReleaseWaitMs,
+  ROOM_GONE_MIN_AGE_MS,
+  usePlayMatch,
+} from "./usePlayMatch";
 import type { MatchDetail, TicketGrant } from "./types";
 import * as api from "./api";
 
@@ -68,7 +79,12 @@ describe("dead-room recovery (#1268, contract item 2)", () => {
     expect(roomGone).toHaveBeenCalledWith("s", "m", "GONE");
     roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false } });
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("reported");
+    // p2p #1269: a network blip is not an answer (the screen asks again next press).
     roomGone.mockResolvedValueOnce({ ok: false, reason: "unavailable" });
+    expect(await reportDeadRoom("s", "m", "GONE")).toBe("unavailable");
+    roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false, reason: "too_soon" } });
+    expect(await reportDeadRoom("s", "m", "GONE")).toBe("too_soon");
+    roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false, reason: "not_room_creator" } });
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("reported");
     roomGone.mockResolvedValueOnce({ ok: false, reason: "not_found" });
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("legacy");
@@ -257,5 +273,29 @@ describe("usePlayMatch", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("p2p #1269", () => {
+  it("a write that timed out says it may have gone through, never 'Couldn't reach the server'", () => {
+    const r = { ok: false as const, reason: "unavailable" as const, code: "timeout", message: "x" };
+    expect(playErrorMessage(r)).toBe(PLAY_TIMEOUT_MESSAGE);
+    expect(PLAY_TIMEOUT_MESSAGE).toMatch(/may still have gone through: check the match page/);
+    expect(playErrorMessage({ ok: false, reason: "unavailable" })).toBe("Couldn't reach the server. Try again.");
+  });
+
+  it("roomReleaseWaitMs: the rest of the 30s gate from the room's create check (+1s), bounded", () => {
+    const now = Date.parse("2026-10-07T12:00:00Z");
+    const d = (agoMs: number, roomId = "GONE", role = "create") =>
+      ({
+        match: { slotA: "e1", slotB: "e2" },
+        readyChecks: [{ entryId: "e1", roomId, role, createdAt: new Date(now - agoMs).toISOString() }],
+      }) as never;
+    expect(roomReleaseWaitMs(d(10_000), "GONE", now)).toBe(21_000);
+    expect(roomReleaseWaitMs(d(60_000), "GONE", now)).toBe(1_000);
+    expect(roomReleaseWaitMs(d(-60_000), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000); // a skewed future check
+    expect(roomReleaseWaitMs(d(10_000, "OTHER"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
+    expect(roomReleaseWaitMs(d(10_000, "GONE", "join"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
+    expect(roomReleaseWaitMs(null, "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
   });
 });

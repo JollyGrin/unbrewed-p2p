@@ -1,7 +1,7 @@
 import { Box, Flex, Input, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { createTournament } from "@/lib/tournaments/api";
@@ -103,6 +103,9 @@ export const CreateView = () => {
   const [form, setForm] = useState<CreateFormState>(() => initialForm());
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [signedOutOnSubmit, setSignedOutOnSubmit] = useState(false);
+  // A second submit before React re-renders the disabled button is still one create.
+  const inFlight = useRef(false);
   const set = (p: Partial<CreateFormState>) => setForm((f) => ({ ...f, ...p }));
 
   const choosePreset = (id: PresetId) => {
@@ -115,18 +118,22 @@ export const CreateView = () => {
   const submit = async (kind: "draft" | "signup") => {
     const found = validateForm(form);
     setProblems(found.map((p) => p.message));
-    if (found.length) return;
+    if (found.length || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
+    setSignedOutOnSubmit(false);
     // The event's map lock carries the board's content hash (#1268).
     const r = await createTournament(await toCreateBodyWithMapHash(form, kind));
+    inFlight.current = false;
     setBusy(false);
     if (r.ok) {
       void router.push(`${tournamentPath(r.value.slug)}${kind === "signup" ? "&share=1" : ""}`);
       return;
     }
+    setSignedOutOnSubmit(r.reason === "unauthorized");
     setProblems([
       r.reason === "unauthorized"
-        ? "Sign in with Discord to create a tournament."
+        ? "Your session ended. Sign in with Discord again to create the tournament."
         : r.message ?? "Couldn't create the tournament. Check the settings and try again.",
     ]);
   };
@@ -269,6 +276,11 @@ export const CreateView = () => {
             {problems.length > 0 && (
               <Box role="alert" color="#B3361F" fontSize="14px">
                 {problems.map((p) => <Text key={p}>{p}</Text>)}
+                {signedOutOnSubmit && (
+                  <Box mt="8px">
+                    <Btn variant="discord" href={signInUrl("/tournaments?new=1")}>Sign in with Discord</Btn>
+                  </Box>
+                )}
               </Box>
             )}
             <Flex gap="10px" justify="space-between" flexWrap="wrap">

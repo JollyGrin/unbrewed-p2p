@@ -55,6 +55,18 @@ describe("draft", () => {
     return waitFor(() => expect(patches()[0].body).toEqual({ status: "signup" }));
   });
 
+  it("double-clicking Open signup sends ONE patch (p2p #1269)", async () => {
+    patchReply = undefined as unknown as Response;
+    (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? "GET", body: null });
+      return new Promise(() => {}); // in flight for good
+    });
+    mount(T({ status: "draft" }));
+    fireEvent.click(screen.getByTestId("open-signup"));
+    fireEvent.click(screen.getByTestId("open-signup"));
+    expect(patches()).toHaveLength(1);
+  });
+
   it("Delete asks first, then PATCHes status cancelled", async () => {
     mount(T({ status: "draft" }));
     fireEvent.click(screen.getByTestId("cancel-toggle"));

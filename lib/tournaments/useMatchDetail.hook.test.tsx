@@ -116,3 +116,41 @@ it("backs off on repeated errors (doubling, capped at 60s) and resets on success
   await tick(10_000); // success: back to 10s
   expect(get).toHaveBeenCalledTimes(8);
 });
+
+describe("p2p #1269", () => {
+  const withId = (id: string) => detail({ id });
+  const idOf = (state: { status: string; value?: { match: { id?: string } } }) =>
+    state.status === "ready" ? state.value!.match.id : state.status;
+
+  it("a slow response that lands after a reload() is dropped (never overwrites the newer one)", async () => {
+    let slow: (v: unknown) => void = () => {};
+    get.mockImplementationOnce(() => new Promise((r) => (slow = r))).mockResolvedValueOnce(withId("new"));
+    const { result } = renderHook(() => useMatchDetail("s", "m"));
+    await tick(0);
+    act(() => result.current[1]()); // reload while the first request is still out
+    await tick(0);
+    expect(idOf(result.current[0] as never)).toBe("new");
+    await act(async () => slow(withId("old")));
+    expect(idOf(result.current[0] as never)).toBe("new");
+  });
+
+  it("a new matchId never shows the previous match's data while it loads", async () => {
+    get.mockResolvedValueOnce(withId("m1")).mockImplementation(() => new Promise(() => {}));
+    const { result, rerender } = renderHook(({ m }) => useMatchDetail("s", m), { initialProps: { m: "m1" } });
+    await tick(0);
+    expect(idOf(result.current[0] as never)).toBe("m1");
+    rerender({ m: "m2" });
+    await tick(0);
+    expect(result.current[0].status).toBe("loading");
+  });
+
+  it("a decided match keeps a slow 60s poll so a correction appears without a reload", async () => {
+    get.mockResolvedValue(detail({ status: "decided" }));
+    renderHook(() => useMatchDetail("s", "m"));
+    await tick(0);
+    await tick(30_000);
+    expect(get).toHaveBeenCalledTimes(1);
+    await tick(30_000);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+});

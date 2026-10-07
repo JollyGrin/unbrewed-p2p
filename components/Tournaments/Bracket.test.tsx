@@ -89,6 +89,32 @@ describe("SeedingPanel", () => {
     expect(reload).toHaveBeenCalled();
   });
 
+  it("double-clicking Start sends ONE save and ONE start (p2p #1269)", async () => {
+    const p = fixtureSignup8();
+    const saved = p.entries.map((e, i) => ({ ...e, seed: i + 1 }));
+    (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? "GET", body: null });
+      // The save answers; the start hangs, so a second click lands while it is in flight.
+      if (url.endsWith("/seeds")) return { ok: true, status: 200, json: async () => ({ entries: [] }) } as Response;
+      return new Promise(() => {});
+    });
+    render(
+      <ChakraProvider>
+        <SeedingPanel t={p.tournament} entries={saved} reload={jest.fn()} />
+      </ChakraProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move crystal_lake_jay up" }));
+    fireEvent.click(screen.getByTestId("start-bracket"));
+    const confirm = screen.getByTestId("confirm-start");
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    await act(async () => {});
+    fireEvent.click(confirm);
+    await act(async () => {});
+    expect(calls.filter((c) => c.url.endsWith("/seeds"))).toHaveLength(1);
+    expect(calls.filter((c) => c.url.endsWith("/start"))).toHaveLength(1);
+  });
+
   it("won't start under half full", () => {
     const p = fixtureSignup8();
     render(
@@ -194,5 +220,34 @@ describe("#1246 N2/N3/N5", () => {
       </ChakraProvider>,
     );
     expect(screen.getByTestId("match-cell")).toHaveTextContent(/Deadline passed · hokuto is holding a seat until \d\d:\d\d/);
+  });
+});
+
+describe("organizer attention queue on the bracket page (p2p #1269)", () => {
+  let attention: number;
+  beforeEach(() => {
+    attention = 0;
+    global.fetch = jest.fn(async (url: string) => {
+      if (url.endsWith("/attention")) attention++;
+      return { ok: true, status: 200, json: async () => ({ items: [] }) } as Response;
+    }) as unknown as typeof fetch;
+  });
+
+  it("is fetched ONCE per page, then again only when the page poll brings new matches", async () => {
+    const p = fixtureRunning8();
+    const ui = (matches: typeof p.matches) => (
+      <ChakraProvider>
+        <BracketEventView t={p.tournament} entries={p.entries} matches={matches} isOrganizer />
+      </ChakraProvider>
+    );
+    const { rerender } = render(ui(p.matches));
+    await act(async () => {});
+    expect(attention).toBe(1);
+    rerender(ui(p.matches)); // a re-render that is not a poll result
+    await act(async () => {});
+    expect(attention).toBe(1);
+    rerender(ui([...p.matches])); // the page poll answered
+    await act(async () => {});
+    expect(attention).toBe(2);
   });
 });

@@ -154,6 +154,11 @@ export interface Match {
   inPlay: boolean;
   /** An undecided match of a cancelled tournament (api #91); its `status` stays raw. Absent = false. */
   cancelled?: boolean;
+  /**
+   * api #126: after an organizer force re-seat, Play stays closed until this time
+   * (`/ready` and `/ticket` answer 409 `reseat_cooldown`). Absent or null = no cooldown.
+   */
+  reseatCooldownUntil?: string | null;
   opensAt: string | null;
   deadlineAt: string | null;
   nextMatchId: string | null;
@@ -213,9 +218,9 @@ export interface MatchDetail {
 }
 
 /**
- * `POST …/ready` and `GET …/ticket`: a signed, opaque join ticket (15 min) and
+ * `POST …/ready` and `POST …/ticket`: a signed, opaque join ticket (15 min) and
  * what to do with it. `join` with `roomId: null` = the other room is still
- * opening; poll `…/ticket` until it has an id.
+ * opening; poll `POST …/ticket` until it has an id.
  */
 export interface TicketGrant {
   action: "create" | "join";

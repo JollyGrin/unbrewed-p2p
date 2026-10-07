@@ -24,8 +24,9 @@
  *
  * Match page (#1218): `/tournaments?t=fixture-match-<state>&m=m2-1`, one slug
  * per state — waiting, opponent-ready, you-ready, in-play, decided,
- * decided-by-rule. `POST …/ready` and `GET …/ticket` grant a dummy ticket
- * (create, or join SF2ROOM when the opponent's room is open).
+ * decided-by-rule. `POST …/ready` and `POST …/ticket` grant a dummy ticket
+ * (create, or join SF2ROOM when the opponent's room is open); `POST …/room-gone`
+ * answers `{cleared: true}` (p2p #1268's dead-room report).
  */
 import { createServer } from "node:http";
 
@@ -78,7 +79,7 @@ createServer((req, res) => {
       : send(me ? 403 : 401, { error: me ? "forbidden" : "unauthorized" });
   const payload = matchFixture(slug) ?? fixture();
   const rest = m[2] ?? "";
-  const mm = rest.match(/^\/matches\/([^/]+)(\/ready|\/ticket)?$/);
+  const mm = rest.match(/^\/matches\/([^/]+)(\/ready|\/ticket|\/room-gone)?$/);
   if (mm) {
     const match = payload.matches.find((x) => x.id === decodeURIComponent(mm[1]));
     if (!match) return send(404, { error: "not_found" });
@@ -99,6 +100,7 @@ createServer((req, res) => {
     if (!me) return send(401, { error: "unauthorized" });
     const slot = detail.players.a?.userId === me.userId ? "a" : detail.players.b?.userId === me.userId ? "b" : null;
     if (!slot) return send(403, { error: "not_in_match", message: "only the match's players can play it" });
+    if (mm[2] === "/room-gone") return send(200, { cleared: true });
     if (match.status !== "open") return send(409, { error: match.inPlay ? "match_in_play" : "match_not_open" });
     const join = !!detail.liveRoom;
     return send(200, {

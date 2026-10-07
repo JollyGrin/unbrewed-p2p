@@ -262,6 +262,29 @@ export const clock = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 };
 
+/**
+ * The re-seat cooldown still running at `now` (api #126), from the match JSON's
+ * `reseatCooldownUntil` or a `409 reseat_cooldown`'s `ticketsExpireAt` (`noticed`),
+ * whichever ends later; null when there is none or it has run out.
+ */
+export const activeReseatCooldown = (m: Pick<Match, "reseatCooldownUntil">, noticed: string | null, now: number): string | null => {
+  const ends = [m.reseatCooldownUntil ?? null, noticed]
+    .filter((x): x is string => !!x && Number.isFinite(Date.parse(x)))
+    .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
+  return ends && Date.parse(ends) > now ? ends : null;
+};
+
+/** "This match was re-seated. Play opens at 18:30 (local time)." */
+export const reseatCooldownText = (until: string): string =>
+  `This match was re-seated. Play opens at ${clock(until)} (local time).`;
+
+/**
+ * An in-play match whose room may have died (p2p #1269): the api reopens it once
+ * the stalled game times out (api #123). Names the organizer when known.
+ */
+export const stalledGameText = (organizer: string | null): string =>
+  `If your game room closed, the match reopens automatically once the stalled game times out, or ask ${organizer ? `the organizer (${organizer})` : "the organizer"} to confirm a result.`;
+
 /** Seat-hold countdown, `M:SS` (the mockup's format); "0:00" once up. */
 export const seatClock = (expiresAt: string | null, now: number): string => {
   const ms = expiresAt ? Math.max(0, Date.parse(expiresAt) - now) : 0;

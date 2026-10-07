@@ -1,7 +1,7 @@
 /** Organizer queue (#1219): item types from fixtures; actions hit the right routes. */
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { FIXTURE_ATTENTION, fixtureRunning8 } from "@/lib/tournaments/fixtures";
 import { mapLockHash } from "@/lib/tournaments/mapHash";
@@ -110,6 +110,35 @@ it("re-deciding a decided match sends replacesWinner", async () => {
   fireEvent.click(screen.getByText("Apply override"));
   await waitFor(() => expect(calls.length).toBe(1));
   expect(calls[0].body.replacesWinner).toBe(decided.winner);
+});
+
+it("double-clicking Apply override sends ONE override (p2p #1269)", async () => {
+  (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method ?? "GET", body: null });
+    return new Promise(() => {}); // in flight for good
+  });
+  const decided = f.matches.find((m) => m.id === "m1-3")!;
+  render(
+    <ChakraProvider>
+      <OverrideForm slug="fixture-8" match={decided} entries={f.entries} onDone={jest.fn()} />
+    </ChakraProvider>,
+  );
+  fireEvent.click(screen.getAllByRole("radio")[0]);
+  const apply = screen.getByText("Apply override");
+  fireEvent.click(apply);
+  fireEvent.click(apply);
+  expect(calls.filter((c) => c.url.endsWith("/override"))).toHaveLength(1);
+});
+
+it("fixing a map says the save pins it, and an edited map needs re-saving (p2p #1269)", async () => {
+  mount();
+  fireEvent.click(await screen.findByText("Set matchup"));
+  fireEvent.click(within(screen.getByRole("group", { name: "Map" })).getByText("Players choose"));
+  expect(screen.queryByTestId("map-pin-hint")).toBeNull(); // nothing pinned
+  fireEvent.click(await screen.findByText("Weathertop"));
+  expect(screen.getByTestId("map-pin-hint")).toHaveTextContent(
+    "Saving pins this map exactly as it is now. If the map is edited later, save the matchup again so games use the new version.",
+  );
 });
 
 it("set matchup puts a rule, never per-game fields", async () => {

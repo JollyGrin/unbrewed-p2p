@@ -58,7 +58,7 @@ const menuItemStyles = {
  * The dark surface is deliberate: it's the readable one on the /pro HUD, and
  * the parchment navbar already renders this same dropdown today.
  */
-const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
+const AccountMenuItems = ({ newTab = false }: { newTab?: boolean }) => {
   const [signingOut, setSigningOut] = useState(false);
   const linkProps = newTab
     ? { target: "_blank", rel: "noopener noreferrer" }
@@ -80,18 +80,7 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   const myCount = tournaments ? myTournamentCount(tournaments.mine.tournaments) : 0;
 
   return (
-    <MenuList
-      bg="brand.surfaceDim"
-      borderColor="brand.accent"
-      color="brand.parchment"
-      minW="9rem"
-      // Bounded to the viewport: a long next-match title must wrap, not widen the page (#1246).
-      maxW="min(20rem, calc(100vw - 1rem))"
-      py="0.25rem"
-      // Above the HUD's own chip/overlay ladder, so the menu isn't painted
-      // under the board furniture on /pro.
-      zIndex={210}
-    >
+    <>
       {next && (
         <MenuItem
           as={NextLink}
@@ -153,9 +142,27 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
       >
         Sign out
       </MenuItem>
-    </MenuList>
+    </>
   );
 };
+
+const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => (
+  <MenuList
+    bg="brand.surfaceDim"
+    borderColor="brand.accent"
+    color="brand.parchment"
+    minW="9rem"
+    // Bounded to the viewport: a long next-match title must wrap, not widen the page (#1246).
+    maxW="min(20rem, calc(100vw - 1rem))"
+    py="0.25rem"
+    // Above the HUD's own chip/overlay ladder, so the menu isn't painted
+    // under the board furniture on /pro.
+    zIndex={210}
+  >
+    {/* The items own the tournaments load: with the Menu's isLazy they mount on open (p2p #1269). */}
+    <AccountMenuItems newTab={newTab} />
+  </MenuList>
+);
 
 /**
  * The optional Discord account affordance (issue #459) — a sign-in pill when
@@ -214,7 +221,10 @@ export const AccountChip = () => {
   }
 
   return (
-    <Menu placement="bottom-end" autoSelect={false}>
+    // isLazy: the list (and its /me/tournaments load) mounts on first open, not
+    // on every page for every signed-in visitor (p2p #1269). The /pro banner
+    // loads on its own; both share loadMyTournaments' 20s cache.
+    <Menu placement="bottom-end" autoSelect={false} isLazy>
       <MenuButton
         as={Button}
         variant="unstyled"

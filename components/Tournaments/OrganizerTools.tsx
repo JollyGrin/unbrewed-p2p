@@ -17,7 +17,7 @@ import {
   rejectGame,
 } from "@/lib/tournaments/api";
 import { matchHref, roundCount } from "@/lib/tournaments/bracket";
-import { useAttention } from "@/lib/tournaments/hooks";
+import { useAttention, type AttentionQueueData } from "@/lib/tournaments/hooks";
 import { ruleWithMapHash } from "@/lib/tournaments/mapHash";
 import { proDeckOptions, proMapOptions } from "@/lib/tournaments/options";
 import {
@@ -359,6 +359,11 @@ export const MatchupForm = ({
               </MapChip>
             ))}
           </Flex>
+          {map && (
+            <Text fontSize="12px" opacity={0.7} mt="6px" data-testid="map-pin-hint">
+              Saving pins this map exactly as it is now. If the map is edited later, save the matchup again so games use the new version.
+            </Text>
+          )}
           <Flex gap="8px" mt="12px" flexWrap="wrap">
             <Btn
               variant="gold"
@@ -496,14 +501,18 @@ export const AttentionQueue = ({
   matches,
   reload,
   now = Date.now(),
+  queue,
 }: {
   t: Tournament;
   entries: Entry[];
   matches: Match[];
   reload: () => void;
   now?: number;
+  /** The page's own load (useAttentionQueue): one request per page, refreshed with its poll (p2p #1269). */
+  queue?: AttentionQueueData;
 }) => {
-  const [data, reloadQueue] = useAttention(t.slug, t.status === "running");
+  const own = useAttention(t.slug, !queue && t.status === "running");
+  const [data, reloadQueue] = queue ?? own;
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [form, setForm] = useState<"override" | "matchup" | null>(null);
   const [rejecting, setRejecting] = useState<{ key: string; gameIndex: number } | null>(null);
