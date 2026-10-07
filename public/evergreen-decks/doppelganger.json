@@ -42,7 +42,10 @@
         "title": "Step for Step",
         "type": "attack",
         "value": 1,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/step-for-step.webp"
+        }
       },
       {
         "afterText": "If you won the combat, your opponent discards 1 card at random.",
@@ -56,7 +59,10 @@
         "title": "The Omen",
         "type": "attack",
         "value": 2,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/the-omen.webp"
+        }
       },
       {
         "afterText": "If you won the combat, deal 1 damage to each opposing fighter adjacent to the Doppelgänger.",
@@ -70,7 +76,10 @@
         "title": "Shatter the Glass",
         "type": "attack",
         "value": 3,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/shatter-the-glass.webp"
+        }
       },
       {
         "afterText": "If the combat had no winner, draw 2 cards.",
@@ -84,7 +93,10 @@
         "title": "Perfect Reflection",
         "type": "defence",
         "value": 2,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/perfect-reflection.webp"
+        }
       },
       {
         "afterText": "If the combat had no winner, the Doppelgänger recovers 2 health. If you lost the combat, draw 1 card.",
@@ -98,7 +110,10 @@
         "title": "Silvered Glass",
         "type": "defence",
         "value": 4,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/silvered-glass.webp"
+        }
       },
       {
         "afterText": "",
@@ -112,7 +127,10 @@
         "title": "Pale Company",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/pale-company.webp"
+        }
       },
       {
         "afterText": "",
@@ -126,7 +144,10 @@
         "title": "Walk Beside You",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/walk-beside-you.webp"
+        }
       },
       {
         "afterText": "",
@@ -140,7 +161,10 @@
         "title": "Hall of Mirrors",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/hall-of-mirrors.webp"
+        }
       },
       {
         "afterText": "If the combat had no winner, you may move the Doppelgänger up to 2 spaces, then draw 1 card.",
@@ -154,7 +178,10 @@
         "title": "Your Own Reflection",
         "type": "versatile",
         "value": 2,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/your-own-reflection.webp"
+        }
       },
       {
         "afterText": "If the combat had no winner: if you played this card as an attack, gain 1 action; otherwise draw 1 card.",
@@ -168,7 +195,10 @@
         "title": "The Glass Between",
         "type": "versatile",
         "value": 3,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/the-glass-between.webp"
+        }
       },
       {
         "afterText": "",
@@ -182,7 +212,10 @@
         "title": "Feint",
         "type": "versatile",
         "value": 2,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/feint.webp"
+        }
       },
       {
         "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
@@ -196,7 +229,10 @@
         "title": "Regroup",
         "type": "versatile",
         "value": 1,
-        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/doppelganger/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/doppelganger/regroup.webp"
+        }
       }
     ]
   },
