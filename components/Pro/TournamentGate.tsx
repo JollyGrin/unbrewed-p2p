@@ -17,7 +17,7 @@
  * tournament bits of the waiting room, the table and the end screen. For a
  * casual game it does nothing that shows.
  */
-import { Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import { MutableRefObject, ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -166,38 +166,59 @@ export const TournamentGate = ({
   // to make: a seat token it loses later (BAD_TOKEN) is its ticket card, never
   // this gate's "open in another tab".
   const liveRef = useRef(false);
+  // A game that mounted before the router was ready (the static export's first
+  // render has no query yet) stays mounted — hidden — under any screen below:
+  // unmounting it would drop its socket and open a second one after the screen.
+  // Decided once, at its first mount, so the tree around it never changes.
+  const keepMountedRef = useRef<boolean | null>(null);
 
-  if (boardProblem && ref) return <TicketErrorScreen message={boardProblem} at={ref} />;
-  // Refreshed at the tournament hero picker: the ticket was single use and no
-  // room exists yet — a fresh ticket, never the casual lobby.
-  if (!launch && !room && !quickParam && pendingLaunch) {
-    return (
-      <TicketErrorScreen
-        message="Your match game didn't open before the page reloaded. Press Try again to pick your hero again."
-        retry
-        pendingLaunch
-        at={pendingLaunch}
-      />
-    );
-  }
-  if (!liveRef.current && room && !launch && !getToken(room)) {
-    // A tournament room this browser has no seat token for: a JOIN_ROOM without
-    // a ticket would only earn TICKET_REQUIRED, so never show the picker — get
-    // a ticket the match page's way (a recorded ready, or a join ticket).
-    if (kind === "tagged" && ref)
+  const screen = ((): ReactNode => {
+    if (boardProblem && ref) return <TicketErrorScreen message={boardProblem} at={ref} />;
+    // Refreshed at the tournament hero picker: the ticket was single use and no
+    // room exists yet — a fresh ticket, never the casual lobby.
+    if (!launch && !room && !quickParam && pendingLaunch) {
       return (
         <TicketErrorScreen
-          message="This tournament game is open in another tab or device. Press Try again to take your seat here."
+          message="Your match game didn't open before the page reloaded. Press Try again to pick your hero again."
           retry
-          at={ref}
+          pendingLaunch
+          at={pendingLaunch}
         />
       );
-    // Still asking the api whether this is one of my match rooms: a JOIN into
-    // one without a ticket is a dead end. Casual after a short wait, whatever happens.
-    if (kind === "lookup") return <Holding testId="room-lookup">OPENING ROOM…</Holding>;
+    }
+    if (!liveRef.current && room && !launch && !getToken(room)) {
+      // A tournament room this browser has no seat token for: a JOIN_ROOM without
+      // a ticket would only earn TICKET_REQUIRED, so never show the picker — get
+      // a ticket the match page's way (a recorded ready, or a join ticket).
+      if (kind === "tagged" && ref)
+        return (
+          <TicketErrorScreen
+            message="This tournament game is open in another tab or device. Press Try again to take your seat here."
+            retry
+            at={ref}
+          />
+        );
+      // Still asking the api whether this is one of my match rooms: a JOIN into
+      // one without a ticket is a dead end. Casual after a short wait, whatever happens.
+      if (kind === "lookup") return <Holding testId="room-lookup">OPENING ROOM…</Holding>;
+    }
+    return null;
+  })();
+  const game = () => children((kind === "ticket" || kind === "tagged") && ref ? { kind, ref, launch } : undefined);
+
+  if (keepMountedRef.current === null && !screen) keepMountedRef.current = !router.isReady;
+  if (keepMountedRef.current) {
+    if (!screen && router.isReady) liveRef.current = true;
+    return (
+      <>
+        {screen}
+        <Box display={screen ? "none" : "contents"}>{game()}</Box>
+      </>
+    );
   }
+  if (screen) return <>{screen}</>;
   if (router.isReady) liveRef.current = true;
-  return <>{children((kind === "ticket" || kind === "tagged") && ref ? { kind, ref, launch } : undefined)}</>;
+  return <>{game()}</>;
 };
 
 /** The live game's state the tournament side reads and drives. */

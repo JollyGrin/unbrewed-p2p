@@ -38,14 +38,14 @@ const HEROES = [
 let SENT: Record<string, unknown>[] = [];
 const sentOfType = (type: string) => SENT.filter((m) => m.type === type);
 
-const fakeRouter = (query: Record<string, string>) =>
+const fakeRouter = (query: Record<string, string>, isReady = true) =>
   ({
     route: "/pro/game",
     pathname: "/pro/game",
     query,
     asPath: `/pro/game?${new URLSearchParams(query).toString()}`,
     basePath: "",
-    isReady: true,
+    isReady,
     isFallback: false,
     isPreview: false,
     isLocaleDomain: false,
@@ -239,5 +239,89 @@ describe("a casual ?room= invite, signed in, no seat token", () => {
     expect(screen.getByText("JOIN ROOM FRIEND")).toBeInTheDocument();
     expect(urlsOf(fetchMock).some((u) => /tournament-room/.test(u))).toBe(false);
     expectNoTournamentUi();
+  });
+});
+
+/**
+ * The static export's order: the first render has no query and the router is
+ * not ready; then it becomes ready with `?room=FRIEND`. The game page must open
+ * ONE socket and mount once, whatever the room check shows in between.
+ */
+describe("the static export's first render (router not ready, no query yet)", () => {
+  const tree = (query: Record<string, string>, isReady: boolean) => (
+    <QueryClientProvider client={client}>
+      <RouterContext.Provider value={fakeRouter(query, isReady)}>
+        <ChakraProvider theme={theme}>
+          <ProGamePage />
+        </ChakraProvider>
+      </RouterContext.Provider>
+    </QueryClientProvider>
+  );
+  let client: QueryClient;
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+
+  /** First render not ready, then ready with the invite; waits for the room check to settle. */
+  const hydrateThenReady = async () => {
+    const view = render(tree({}, false));
+    await flush();
+    expect(FakeWebSocket.instances).toHaveLength(1); // the game mounted on the first render
+    const first = FakeWebSocket.latest()!;
+    await openSocket();
+    await deliver({ type: "HEROES", heroes: HEROES });
+    view.rerender(tree({ room: "FRIEND", hero: "kenshiro" }, true));
+    return { view, first };
+  };
+  const settle = async () => {
+    for (let i = 0; i < 40 && screen.queryByTestId("room-lookup"); i++)
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+    await flush();
+  };
+
+  it("signed in, no token, the api says no: one socket, the game never remounts, the picker joins on it", async () => {
+    api("signed-in", () => json(200, { found: false }));
+    const { first } = await hydrateThenReady();
+    await settle();
+    expect(screen.queryByTestId("room-lookup")).not.toBeInTheDocument();
+    expect(screen.getByText("JOIN ROOM FRIEND")).toBeInTheDocument();
+    expect(FakeWebSocket.instances).toEqual([first]);
+    expect(first.readyState).toBe(FakeWebSocket.OPEN); // never closed by an unmount
+    await click(screen.getByRole("button", { name: "Join" }));
+    expect(sentOfType("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "FRIEND", heroId: "kenshiro" })]);
+    expectNoTournamentUi();
+  });
+
+  it("a guest whose account probe answers only after the router is ready: one socket, the game never remounts", async () => {
+    let answerMe!: () => void;
+    const me = new Promise<void>((r) => (answerMe = r));
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/me")) {
+        await me;
+        return json(401, {});
+      }
+      return json(404, {});
+    }) as unknown as typeof fetch;
+    __resetAccountStoreForTests();
+    const { first } = await hydrateThenReady();
+    await flush();
+    expect(screen.getByTestId("room-lookup")).toBeInTheDocument(); // still asking who this is
+    answerMe();
+    await settle();
+    expect(screen.getByText("JOIN ROOM FRIEND")).toBeInTheDocument();
+    expect(FakeWebSocket.instances).toEqual([first]);
+    expect(first.readyState).toBe(FakeWebSocket.OPEN);
+  });
+
+  it("this tab holds the seat: one socket, and the RECONNECT goes out on it", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-token-FRIEND", "tok");
+    api("signed-in", () => json(200, { found: false }));
+    const { first } = await hydrateThenReady();
+    await settle();
+    expect(FakeWebSocket.instances).toEqual([first]);
+    expect(first.readyState).toBe(FakeWebSocket.OPEN);
+    expect(sentOfType("RECONNECT")).toEqual([expect.objectContaining({ roomId: "FRIEND", token: "tok" })]);
   });
 });
