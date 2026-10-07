@@ -24,7 +24,7 @@ const api = (a: {
   roomGone: (roomId: string) => { cleared: boolean; reason?: string };
   ticket: () => Record<string, unknown>;
   detail?: () => unknown;
-  /** The signed-in viewer's user id (`GET /me`); absent = a guest. */
+  /** The signed-in viewer's user id (`GET /me`); absent = a guest, "pending" = `/me` never answers. */
   me?: string;
 }) => {
   const calls: Calls = [];
@@ -33,6 +33,7 @@ const api = (a: {
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     calls.push({ path, method: init?.method ?? "GET", body });
     const json = (b: unknown) => ({ ok: true, status: 200, headers: new Headers(), json: async () => b });
+    if (String(url).endsWith("/me") && a.me === "pending") return new Promise(() => undefined);
     if (String(url).endsWith("/me"))
       return a.me ? json({ user: { id: a.me, username: "me" } }) : { ok: false, status: 401, headers: new Headers(), json: async () => ({}) };
     if (path === "/room-gone") return json(a.roomGone(body.roomId));
@@ -142,6 +143,54 @@ describe("the viewer's OWN dead room (ambiguous_creator, #1279 review)", () => {
     fireEvent.click(screen.getByText("Try again"));
     await flush();
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("carol needs to press Play again");
+  });
+});
+
+/**
+ * The `myUserId &&` guard (#1283): with no known viewer AND no known owner,
+ * `null === null` must never pick the creator's copy. The comparison is strict:
+ * an owner id of another type than the viewer's string id is NOT the viewer.
+ */
+describe("own-room guard: unknown viewer or unknown owner (#1283)", () => {
+  const OPPONENT_UNKNOWN = "The room your opponent opened is gone (the server restarted). Your opponent needs to press Play again to open a new one; check the match page in a minute.";
+  const tryAgain = async (o: { me?: string; detail?: () => unknown }) => {
+    api({ roomGone: () => ({ cleared: false, reason: "ambiguous_creator" }), ticket: () => ({ roomId: "GONE" }), ...o });
+    mount("GONE");
+    await flush();
+    fireEvent.click(screen.getByText("Try again"));
+    await flush();
+    return screen.getByTestId("ticket-error");
+  };
+
+  it.each([
+    ["a guest whose match fetch fails (owner unknown)", undefined],
+    ["/me still loading and the match fetch fails", "pending"],
+    ["signed in but the match fetch fails", "u-viewer"],
+  ])("%s: the opponent copy, never 'Your room is gone'", async (_, me) => {
+    const card = await tryAgain({ me });
+    expect(card).toHaveTextContent(OPPONENT_UNKNOWN);
+    expect(card).not.toHaveTextContent(OWN_ROOM_GONE);
+  });
+
+  it("a guest on a match that loads: the named opponent's copy", async () => {
+    const card = await tryAgain({ detail: () => carolsRoom() });
+    expect(card).toHaveTextContent("carol needs to press Play again");
+    expect(card).not.toHaveTextContent(OWN_ROOM_GONE);
+  });
+
+  it("/me still loading while the viewer IS the creator: the opponent copy until the account settles", async () => {
+    const d = carolsRoom();
+    const card = await tryAgain({ me: "pending", detail: () => d });
+    expect(card).toHaveTextContent("carol needs to press Play again");
+    expect(card).not.toHaveTextContent(OWN_ROOM_GONE);
+  });
+
+  it("an owner id of another type (number 7 vs the viewer's \"7\") is not the viewer: strict compare", async () => {
+    const d = carolsRoom();
+    d.players.a.userId = 7;
+    const card = await tryAgain({ me: "7", detail: () => d });
+    expect(card).toHaveTextContent("carol needs to press Play again");
+    expect(card).not.toHaveTextContent(OWN_ROOM_GONE);
   });
 });
 
