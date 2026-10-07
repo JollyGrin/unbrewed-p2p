@@ -84,7 +84,12 @@ describe("dead-room recovery (#1268, contract item 2)", () => {
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("unavailable");
     roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false, reason: "too_soon" } });
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("too_soon");
-    roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false, reason: "not_room_creator" } });
+    // #1279 (journeys S1): the opponent's room (or nobody's to clear) — only they can act.
+    for (const reason of ["not_room_creator", "ambiguous_creator", "room_not_live"]) {
+      roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false, reason } });
+      expect(await reportDeadRoom("s", "m", "GONE")).toBe("not_mine");
+    }
+    roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false, reason: "match_in_play" } });
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("reported");
     roomGone.mockResolvedValueOnce({ ok: false, reason: "not_found" });
     expect(await reportDeadRoom("s", "m", "GONE")).toBe("legacy");

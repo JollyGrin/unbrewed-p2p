@@ -288,7 +288,7 @@ describe("engine ticket errors", () => {
       "href",
       "/tournaments?t=autumn-skirmish&m=m2-1",
     );
-    expect(screen.queryByText("Get a fresh ticket and retry") !== null).toBe(retry);
+    expect(screen.queryByText("Try again") !== null).toBe(retry);
     expect(screen.queryByText("Create a new room instead")).not.toBeInTheDocument();
   });
 
@@ -296,7 +296,7 @@ describe("engine ticket errors", () => {
     await mount({ ...LOCKED, room: "GONE" });
     await deliver({ type: "ERROR", code: "ROOM_NOT_FOUND", message: "no room" });
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("This room expired");
-    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Try again")).toBeInTheDocument();
   });
 
   it("the retry re-asks with a RECORDED ready when the answer is create (rule 6), and reloads with it", async () => {
@@ -314,7 +314,7 @@ describe("engine ticket errors", () => {
     Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, assign } });
     await mount(LOCKED);
     await deliver({ type: "ERROR", code: "TICKET_EXPIRED", message: "expired" });
-    await click(screen.getByText("Get a fresh ticket and retry"));
+    await click(screen.getByText("Try again"));
     const calls = fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${String(url)}`);
     expect(calls).toContainEqual(expect.stringMatching(/^POST .*\/tournaments\/autumn-skirmish\/matches\/m2-1\/ready$/));
     // the ticket is a POST now (#1268), never a GET; no room to report on a ticket code
@@ -502,7 +502,7 @@ describe("'Back to game' in a new tab or on another device (review #2)", () => {
     expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
     expect(screen.queryByText("JOIN ROOM SF2ROOM")).not.toBeInTheDocument();
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("another tab or device");
-    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Try again")).toBeInTheDocument();
   });
 
   it("an untagged room keeps the old two-tab rule: another tab's token alone doesn't resume", async () => {
@@ -564,7 +564,7 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
       "href",
       "/tournaments?t=fixture-match-you-ready&m=m2-1",
     );
-    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Try again")).toBeInTheDocument();
     // …and a refresh knows without asking again.
     expect(tournamentRoomOf("SF2ROOM")).toEqual({ slug: "fixture-match-you-ready", matchId: "m2-1" });
     __resetAccountStoreForTests();
@@ -683,7 +683,7 @@ describe("refresh at the tournament hero picker (E1, #1236)", () => {
     await deliver({ type: "HEROES", heroes: HEROES });
     await flush();
     expect(screen.getByTestId("ticket-error")).toBeInTheDocument();
-    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Try again")).toBeInTheDocument();
     expect(screen.getByText("Back to the match")).toBeInTheDocument();
     expect(screen.queryByText("CREATE A ROOM")).not.toBeInTheDocument();
     expect(sentOfType("CREATE_ROOM")).toHaveLength(0); // the ticket is never reused
@@ -740,7 +740,7 @@ describe("a tagged room whose match is decided (C3, #1236)", () => {
     await deliver({ type: "HEROES", heroes: HEROES });
     await flush(8);
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("This match is finished");
-    expect(screen.queryByText("Get a fresh ticket and retry")).not.toBeInTheDocument();
+    expect(screen.queryByText("Try again")).not.toBeInTheDocument();
     expect(screen.getByText("Back to the match")).toBeInTheDocument();
   });
 });
@@ -808,7 +808,7 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
     return assign;
   };
   const retry = async () => {
-    await click(screen.getByText("Get a fresh ticket and retry"));
+    await click(screen.getByText("Try again"));
     await flush();
   };
 
@@ -895,7 +895,7 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
       detail: () => detailWithRoom(29_800), // 0.2s left of the 30s gate (+1s slack)
     });
     const assign = await deadRoomCard();
-    await click(screen.getByText("Get a fresh ticket and retry"));
+    await click(screen.getByText("Try again"));
     await flush();
     expect(screen.getByTestId("room-releasing")).toHaveTextContent(/This match's room closed\. Releasing it in [12] s…/);
     expect(reports(calls)).toBe(1);
@@ -948,7 +948,7 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
       detail: () => detailWithRoom(29_800),
     });
     await deadRoomCard();
-    await click(screen.getByText("Get a fresh ticket and retry"));
+    await click(screen.getByText("Try again"));
     await flush();
     expect(screen.getByTestId("room-releasing")).toBeInTheDocument();
     cleanup();
@@ -987,7 +987,7 @@ describe("a seat the engine released (LV-3, #1250)", () => {
     expect(card).not.toHaveTextContent("BAD_TOKEN");
     expect(card).toHaveTextContent("Your seat was released while you were away. We'll get you back in.");
     expect(card).not.toHaveTextContent(/expired/i);
-    expect(screen.getByText("Get a fresh ticket and retry")).toBeInTheDocument();
+    expect(screen.getByText("Try again")).toBeInTheDocument();
     expect(screen.getByText("Back to the match")).toBeInTheDocument();
     expect(screen.getByText("Play casual instead")).toBeInTheDocument();
     expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
@@ -997,7 +997,7 @@ describe("a seat the engine released (LV-3, #1250)", () => {
     global.fetch = fetchMock as never;
     const assign = jest.fn();
     Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, assign } });
-    await click(screen.getByText("Get a fresh ticket and retry"));
+    await click(screen.getByText("Try again"));
     await flush();
     expect(assign).toHaveBeenCalledWith(expect.stringMatching(/ticket=fresh\.sig.*room=DQJ6|room=DQJ6.*ticket=fresh\.sig/));
   });

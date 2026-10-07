@@ -81,3 +81,9 @@ it("two submits before the button re-renders (Enter, Enter) are still one create
   await act(async () => {});
   expect(posts).toHaveLength(1);
 });
+
+it("says 'one game per match', never 'First to 1' (p2p #1279, UX P6)", async () => {
+  await mount();
+  expect(document.body).not.toHaveTextContent(/first to 1/i);
+  expect(screen.getAllByText(/one game per match/i).length).toBeGreaterThan(0);
+});

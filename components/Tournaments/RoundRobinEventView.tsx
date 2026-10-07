@@ -58,6 +58,8 @@ const Dot = ({ d }: { d: FormDot }) => (
     bg={d === "W" ? "#2F9E68" : d === "L" ? "#D8503A" : "transparent"}
     border={d === "pend" ? "1.5px dashed rgba(72,40,79,0.3)" : "none"}
     title={d === "W" ? "Win" : d === "L" ? "Loss" : "Not played yet"}
+    role="img"
+    aria-label={d === "W" ? "Win" : d === "L" ? "Loss" : "Not played yet"}
   >
     {d === "pend" ? "·" : d}
   </Box>
@@ -186,6 +188,7 @@ const Side = ({ s, align }: { s: RrMatchRow["a"]; align: "left" | "right" }) => 
       overflow="hidden"
       textOverflow="ellipsis"
       opacity={s.result === "lose" ? 0.55 : 1}
+      title={s.name}
     >
       {s.name}
       {s.result === "win" && <Box as="span" display="inline-block" w="6px" h="6px" borderRadius="50%" bg={GOLD} ml="6px" verticalAlign="2px" />}

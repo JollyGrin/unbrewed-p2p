@@ -336,3 +336,11 @@ describe("override refused with tickets_outstanding (api #101)", () => {
     expect(screen.queryByText("Force change")).toBeNull();
   });
 });
+
+it("the matchup form's map chips are 44 px tap targets (p2p #1279, UX S15)", async () => {
+  mount();
+  fireEvent.click(await screen.findByText("Set matchup"));
+  const chips = within(screen.getByRole("group", { name: "Map" })).getAllByRole("button");
+  expect(chips.length).toBeGreaterThan(1);
+  for (const c of chips) expect(parseFloat(window.getComputedStyle(c).minHeight)).toBeGreaterThanOrEqual(44);
+});

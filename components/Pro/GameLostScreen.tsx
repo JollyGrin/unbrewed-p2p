@@ -36,6 +36,7 @@ export const GameLostScreen = ({
   roomId,
   resolveCard,
   labelFor,
+  matchHref = null,
 }: {
   /** newest-first activity feed, exactly as the page stores it (reused by ProLog) */
   entries: ProLogEntry[];
@@ -46,6 +47,8 @@ export const GameLostScreen = ({
   /** last-known art resolver, so log lines still preview their card faces */
   resolveCard?: ResolveCard;
   labelFor?: (instance: CardInstanceId) => string;
+  /** A tournament game (#1279, UX S8): the match page explains what happens next. */
+  matchHref?: string | null;
 }) => {
   const [reportBugOpen, setReportBugOpen] = useState(false);
 
@@ -74,6 +77,17 @@ export const GameLostScreen = ({
           exactly where things stood. Telling us what happened helps us stop it recurring.
         </Text>
       </Box>
+
+      {matchHref && (
+        <Box maxW="34rem">
+          <Text fontSize="0.95rem" opacity={0.85} mb="0.6rem">
+            Your tournament match isn&apos;t lost. The match page shows what happens next.
+          </Text>
+          <Button as={Link} href={matchHref} {...BTN_GOLD} _hover={{ ...BTN_GOLD._hover, textDecoration: "none" }} data-testid="lost-back-to-match">
+            Back to the match
+          </Button>
+        </Box>
+      )}
 
       <Flex direction="column" alignItems="center" gap="0.5rem" mt="0.3rem">
         {DISCORD_REPORT_URL ? (

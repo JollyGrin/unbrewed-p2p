@@ -3,11 +3,11 @@
  * tree from md up, one round at a time (tabs + swipe) below it. Everything it
  * draws comes from `buildBracket` (lib/tournaments/bracket).
  */
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Text, VisuallyHidden } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { useRef, useState } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 
-import { BAND_INK, BAND_MUTED, GOLD, INK, PARCHMENT, WASH } from "@/components/Stats/tokens";
+import { BAND_INK, BAND_MUTED, GOLD, INK, INK_MUTED, PARCHMENT, WASH } from "@/components/Stats/tokens";
 import {
   defaultRoundIndex,
   type BracketView,
@@ -23,7 +23,8 @@ const SURFACE = "#3A2140";
 const DANGER = "#FF6347";
 const DANGER_INK = "#B83A26";
 const GOLD_INK = "#7A5410";
-const SOFT = "rgba(72,40,79,0.55)";
+/** Small captions on parchment: INK_MUTED passes AA (≈4.8:1); 0.55 alpha did not (#1279, UX S12). */
+const SOFT = INK_MUTED;
 const LINE = "rgba(250,235,215,0.22)";
 const GAP = 44;
 /** Room per round-1 cell in the tree; later rounds share the same height. */
@@ -49,7 +50,7 @@ export const Avatar = ({ name, url, size = 30, tbd = false }: { name: string; ur
     border={tbd ? "2px dashed rgba(250,235,215,0.25)" : "none"}
     boxShadow={tbd ? "none" : "inset 0 -3px 0 rgba(0,0,0,.18)"}
   >
-    {tbd ? "?" : url ? <Box as="img" src={url} alt="" w="100%" h="100%" /> : (name[0] ?? "?").toUpperCase()}
+    {tbd ? "?" : url ? <Box as="img" src={url} alt="" w="100%" h="100%" /> : (Array.from(name)[0] ?? "?").toUpperCase()}
   </Box>
 );
 
@@ -94,11 +95,14 @@ const Player = ({ s, tbd }: { s: SlotView; tbd: boolean }) => (
         textOverflow="ellipsis"
         textDecoration={s.result === "lose" ? "line-through" : undefined}
         textDecorationColor="rgba(72,40,79,0.35)"
+        title={s.name}
       >
         {s.name}
         {s.result === "win" && (
           <Box as="span" display="inline-block" w="6px" h="6px" borderRadius="50%" bg={GOLD} ml="7px" verticalAlign="2px" />
         )}
+        {s.result === "win" && <VisuallyHidden>, winner</VisuallyHidden>}
+        {s.result === "lose" && <VisuallyHidden>, eliminated</VisuallyHidden>}
       </Text>
       {s.sub && (
         <Text fontSize="11px" color={tbd ? "rgba(250,235,215,0.45)" : "rgba(72,40,79,0.72)"} whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
@@ -343,19 +347,40 @@ export const RoundTabs = ({ view, now }: { view: BracketView; now: number }) => 
   const startX = useRef<number | null>(null);
   const r = view.rounds[sel];
   const go = (i: number) => setSel(Math.max(0, Math.min(view.rounds.length - 1, i)));
+  const baseId = useId();
+  const tabId = (i: number) => `${baseId}-tab-${i}`;
+  const panelId = `${baseId}-panel`;
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // The ARIA tabs pattern (#1279, UX P13): arrows move between rounds, Home/End jump.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const last = view.rounds.length - 1;
+    const next =
+      e.key === "ArrowRight" ? Math.min(last, sel + 1)
+      : e.key === "ArrowLeft" ? Math.max(0, sel - 1)
+      : e.key === "Home" ? 0
+      : e.key === "End" ? last
+      : null;
+    if (next === null) return;
+    e.preventDefault();
+    go(next);
+    tabsRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
+  };
   return (
     <Box data-testid="round-tabs">
-      <Flex role="tablist" gap="4px" bg="rgba(250,235,215,0.08)" borderRadius="10px" p="4px" mb="14px">
+      <Flex ref={tabsRef} role="tablist" aria-label="Rounds" onKeyDown={onKeyDown} gap="4px" bg="rgba(250,235,215,0.08)" borderRadius="10px" p="4px" mb="14px">
         {view.rounds.map((rv, i) => (
           <Box
             as="button"
             type="button"
             role="tab"
             key={rv.round}
+            id={tabId(i)}
             aria-selected={i === sel}
+            aria-controls={panelId}
+            tabIndex={i === sel ? 0 : -1}
             onClick={() => go(i)}
             flex="1"
-            minH="40px"
+            minH="44px"
             borderRadius="7px"
             fontSize="13px"
             fontWeight={700}
@@ -371,7 +396,8 @@ export const RoundTabs = ({ view, now }: { view: BracketView; now: number }) => 
       {r && (
         <Flex
           role="tabpanel"
-          aria-label={r.name}
+          id={panelId}
+          aria-labelledby={tabId(sel)}
           flexDir="column"
           gap="12px"
           onTouchStart={(e) => (startX.current = e.touches[0]?.clientX ?? null)}

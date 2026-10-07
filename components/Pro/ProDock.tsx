@@ -247,6 +247,8 @@ export interface ProDockProps {
    * action, in Rematch's place: the result lands on the match and bracket.
    */
   matchPageHref?: string | null;
+  /** Why a tournament game ended, under VICTORY / DEFEAT (#1279, UX S10); null = say nothing. */
+  endNote?: string | null;
   /** Upload this match and copy its public share link. Omitted when there is
    *  nothing to upload or nobody to upload as (signed out, bundle not held). */
   onCopyShareLink?: () => void;
@@ -341,6 +343,7 @@ export const ProDock = ({
   rematchNegotiation = null,
   replayHref,
   matchPageHref = null,
+  endNote = null,
   onCopyShareLink,
   shareLinkBusy = false,
   undoPending,
@@ -1155,6 +1158,11 @@ export const ProDock = ({
           >
             {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
           </Text>
+          {endNote && (
+            <Text fontSize="0.85rem" color="brand.parchment" opacity={0.85} textAlign="center" maxW="22rem" data-testid="game-end-note">
+              {endNote}
+            </Text>
+          )}
           {/* One-tap rematch (#TBD): the PRIMARY endgame action — a big, gold,
               thumb-reachable button, because the whole point is cutting a
               phone rematch down from "walk back through the lobby, pick
