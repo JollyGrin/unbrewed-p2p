@@ -8,6 +8,8 @@
  *  - the engine's ticket codes read as copy with a retry and a way back.
  *  - untagged /pro/game is unchanged: no `ticket` key, the old error screen.
  *  - a raw `?room=` into a tagged room on a seatless device is never a dead end (#1230).
+ *  - the screens that need no socket (no seat here, the room lookup, a reload
+ *    mid-launch) come from TournamentGate BEFORE the game page opens a socket.
  *
  * Mount recipe: the shared render-fuzz one (fake WebSocket + fake router), as in
  * rematchRefresh / randomHeroPick.
@@ -33,6 +35,7 @@ import { canonicalJson, mapLockHash, sha256Hex } from "@/lib/tournaments/mapHash
 import { ROOM_STILL_GONE } from "@/lib/tournaments/usePlayMatch";
 import type { PlayerView, ReplayBundle } from "@/lib/pro/protocol";
 import { fixtureMatch, fixtureMyTournaments } from "@/lib/tournaments/fixtures";
+import { TOURNAMENT_ROOM_LOOKUP_MS } from "@/lib/pro/useTournamentRoom";
 import { __resetNextMatchForTests } from "@/lib/tournaments/useNextMatch";
 
 const BASE_VIEW: PlayerView = JSON.parse(
@@ -83,7 +86,18 @@ const deliver = async (msg: Record<string, unknown>) => {
   });
 };
 
-const mount = async (query: Query, opts: { strict?: boolean } = {}) => {
+/** Open the game page's socket (it opens once TournamentGate lets the game mount). */
+const openSocket = async () => {
+  const socket = FakeWebSocket.latest();
+  if (!socket) throw new Error("the page never opened a socket");
+  await act(async () => {
+    socket.readyState = FakeWebSocket.OPEN;
+    socket.onopen?.({});
+  });
+};
+
+/** `socket: false`: TournamentGate holds the page before the game mounts — assert no socket was opened. */
+const mount = async (query: Query, opts: { strict?: boolean; socket?: false } = {}) => {
   const page = (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <RouterContext.Provider value={fakeRouter(query)}>
@@ -94,12 +108,11 @@ const mount = async (query: Query, opts: { strict?: boolean } = {}) => {
     </QueryClientProvider>
   );
   render(opts.strict ? <StrictMode>{page}</StrictMode> : page);
-  const socket = FakeWebSocket.latest();
-  if (!socket) throw new Error("the page never opened a socket");
-  await act(async () => {
-    socket.readyState = FakeWebSocket.OPEN;
-    socket.onopen?.({});
-  });
+  if (opts.socket === false) {
+    expect(FakeWebSocket.latest()).toBeNull();
+    return;
+  }
+  await openSocket();
 };
 
 const click = async (el: Element) => {
@@ -496,8 +509,7 @@ describe("'Back to game' in a new tab or on another device (review #2)", () => {
 
   it("with no token it never sends a ticketless JOIN_ROOM: it offers a fresh ticket", async () => {
     rememberTournamentRoom("SF2ROOM", { slug: "autumn-skirmish", matchId: "m2-1" });
-    await mount({ room: "SF2ROOM" });
-    await deliver({ type: "HEROES", heroes: HEROES });
+    await mount({ room: "SF2ROOM" }, { socket: false }); // no game page, so no picker can show
     await flush();
     expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
     expect(screen.queryByText("JOIN ROOM SF2ROOM")).not.toBeInTheDocument();
@@ -541,24 +553,38 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
     expect(screen.queryByText("Create a new room instead")).not.toBeInTheDocument();
   });
 
-  it("one of MY match rooms (from GET /me/tournaments) skips the picker: back to the match, or a fresh ticket", async () => {
-    const now = new Date().toISOString();
-    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+  /** The api: `/me` signs in as `user`; `GET /me/tournament-room/:roomId` answers `room(roomId)`. */
+  const roomApi = (user: string, room: (roomId: string) => unknown | Promise<never>) => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
-      if (url.endsWith("/me")) return ok({ user: { id: "u3", username: "bountyhuntr" } });
-      if (url.endsWith("/me/tournaments")) return ok(fixtureMyTournaments("you_ready", now));
-      if (url.includes("/matches/m2-1")) return ok(fixtureMatch("you_ready", now).detail);
-      return { ok: false, status: 404, json: async () => ({}) } as Response;
-    }) as unknown as typeof fetch;
+      const ok = (body: unknown) => ({ ok: true, status: 200, headers: new Headers(), json: async () => body }) as Response;
+      if (url.endsWith("/me")) return ok({ user: { id: user, username: user } });
+      const m = url.match(/\/me\/tournament-room\/([^/?]+)$/);
+      if (m) {
+        const body = room(decodeURIComponent(m[1]));
+        return body instanceof Promise ? body : ok(body);
+      }
+      return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) } as Response;
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
     __resetAccountStoreForTests();
     __resetNextMatchForTests();
+    return fetchMock;
+  };
+  const found = (slug: string, matchId = "m2-1") => ({ found: true, tournamentSlug: slug, matchId, gameIndex: 0, slot: "b", role: null });
+  const urlsOf = (fetchMock: jest.Mock) => fetchMock.mock.calls.map(([u]) => String(u));
+  afterEach(() => {
+    __resetAccountStoreForTests();
+    __resetNextMatchForTests();
+  });
 
-    await mount({ room: "SF2ROOM" });
-    await deliver({ type: "HEROES", heroes: HEROES });
+  it("one of MY match rooms (from GET /me/tournament-room) skips the picker: back to the match, or a fresh ticket", async () => {
+    roomApi("u3", (roomId) => (roomId === "SF2ROOM" ? found("fixture-match-you-ready") : { found: false }));
+
+    await mount({ room: "SF2ROOM" }, { socket: false });
     await flush(10);
+    expect(FakeWebSocket.latest()).toBeNull(); // the game page never mounted: no picker, no JOIN_ROOM
     expect(screen.queryByText("JOIN ROOM SF2ROOM")).not.toBeInTheDocument();
-    expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("another tab or device");
     expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute(
       "href",
@@ -567,103 +593,67 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
     expect(screen.getByText("Try again")).toBeInTheDocument();
     // …and a refresh knows without asking again.
     expect(tournamentRoomOf("SF2ROOM")).toEqual({ slug: "fixture-match-you-ready", matchId: "m2-1" });
-    __resetAccountStoreForTests();
-    __resetNextMatchForTests();
   });
 
-  it("a room of a match that ISN'T nextMatch is found by walking my running tournaments", async () => {
-    const now = new Date().toISOString();
-    const mine = fixtureMyTournaments("you_ready", now);
-    const other = fixtureMatch("you_ready", now);
-    const otherDetail = { ...other.detail, liveRoom: { ...other.detail.liveRoom!, roomId: "OTHER" } };
-    const running = { ...mine.tournaments[0], status: "running" as const };
-    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
-      if (url.endsWith("/me")) return ok({ user: { id: "u2", username: "hokuto_shin" } });
-      if (url.endsWith("/me/tournaments"))
-        return ok({ ...mine, tournaments: [running], nextMatch: { ...mine.nextMatch!, match: { ...mine.nextMatch!.match, id: "elsewhere" } } });
-      if (url.includes("/matches/elsewhere")) return ok({ ...other.detail, liveRoom: null, match: { ...other.detail.match, id: "elsewhere" } });
-      if (url.includes("/matches/m2-1")) return ok(otherDetail);
-      if (url.endsWith(`/tournaments/${running.slug}`))
-        return ok({ tournament: running, entries: other.entries, matches: other.matches, standings: null });
-      return { ok: false, status: 404, json: async () => ({}) } as Response;
-    }) as unknown as typeof fetch;
-    __resetAccountStoreForTests();
-    __resetNextMatchForTests();
+  it("a room of a match that ISN'T nextMatch is found by the same one call: no /me/tournaments, no walk", async () => {
+    const running = fixtureMyTournaments("you_ready", new Date().toISOString()).tournaments[0];
+    const fetchMock = roomApi("u2", (roomId) => (roomId === "OTHER" ? found(running.slug) : { found: false }));
 
-    await mount({ room: "OTHER" });
-    await deliver({ type: "HEROES", heroes: HEROES });
+    await mount({ room: "OTHER" }, { socket: false });
     await flush(15);
     expect(sentOfType("JOIN_ROOM")).toHaveLength(0);
     expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute(
       "href",
       `/tournaments?t=${running.slug}&m=m2-1`,
     );
-    __resetAccountStoreForTests();
-    __resetNextMatchForTests();
+    const urls = urlsOf(fetchMock);
+    expect(urls.filter((u) => u.endsWith("/me/tournament-room/OTHER"))).toHaveLength(1);
+    expect(urls.some((u) => u.endsWith("/me/tournaments"))).toBe(false);
+    // No walk over my tournaments: the only match read is the card's own check on the found match.
+    expect(urls.some((u) => /\/tournaments\/[^/]+$/.test(u))).toBe(false);
+    expect(urls.filter((u) => /\/matches\//.test(u)).every((u) => u.endsWith(`/tournaments/${running.slug}/matches/m2-1`))).toBe(true);
   });
 
-  describe("useTaggedRoomLookup never strands a casual ?room= link (#1233 review)", () => {
-    const signedIn = (mine: unknown | Promise<never>) => {
-      const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
-        if (url.endsWith("/me")) return ok({ user: { id: "u9", username: "casual" } });
-        if (url.endsWith("/me/tournaments")) return mine instanceof Promise ? mine : ok(mine);
-        if (url.includes("/matches/m2-1")) return ok(fixtureMatch("you_ready").detail);
-        if (url.includes("/tournaments/")) {
-          const f = fixtureMatch("you_ready");
-          return ok({ tournament: f.tournament, entries: f.entries, matches: f.matches, standings: null });
-        }
-        return { ok: false, status: 404, json: async () => ({}) } as Response;
-      });
-      global.fetch = fetchMock as unknown as typeof fetch;
-      __resetAccountStoreForTests();
-      __resetNextMatchForTests();
-      return fetchMock;
-    };
-    afterEach(() => {
-      __resetAccountStoreForTests();
-      __resetNextMatchForTests();
-    });
-
-    it("no running tournaments: one /me/tournaments call, then the picker — no per-tournament walk", async () => {
-      const fetchMock = signedIn({ tournaments: [], nextMatch: null });
-      await mount({ room: "CASUAL", hero: "kenshiro" });
-      await deliver({ type: "HEROES", heroes: HEROES });
+  describe("the room lookup never strands a casual ?room= link (#1233 review)", () => {
+    it("not a room of mine: one lookup call, then the picker — no /me/tournaments, no per-tournament walk", async () => {
+      const fetchMock = roomApi("u9", () => ({ found: false }));
+      await mount({ room: "CASUAL", hero: "kenshiro" }, { socket: false });
       await flush(10);
+      await openSocket();
+      await deliver({ type: "HEROES", heroes: HEROES });
       expect(screen.getByText("JOIN ROOM CASUAL")).toBeInTheDocument();
       expect(screen.queryByTestId("room-lookup")).not.toBeInTheDocument();
-      const urls = fetchMock.mock.calls.map(([u]) => String(u));
-      expect(urls.filter((u) => u.endsWith("/me/tournaments"))).toHaveLength(1);
-      expect(urls.some((u) => /\/tournaments\/[^/]+(\/matches\/|$)/.test(u.replace(/\/me\/tournaments$/, "")))).toBe(false);
+      const urls = urlsOf(fetchMock);
+      expect(urls.filter((u) => u.endsWith("/me/tournament-room/CASUAL"))).toHaveLength(1);
+      expect(urls.some((u) => u.endsWith("/me/tournaments"))).toBe(false);
+      expect(urls.some((u) => /\/tournaments\/[^/]+(\/matches\/|$)/.test(u))).toBe(false);
       await click(screen.getByRole("button", { name: "Join" }));
       expect(sentOfType("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "CASUAL" })]);
     });
 
     it("a miss (none of my matches has this room) goes to the hero picker", async () => {
-      const now = new Date().toISOString();
-      signedIn(fixtureMyTournaments("you_ready", now)); // my live room is SF2ROOM, not NOTMINE
-      await mount({ room: "NOTMINE", hero: "kenshiro" });
-      await deliver({ type: "HEROES", heroes: HEROES });
+      roomApi("u2", (roomId) => (roomId === "SF2ROOM" ? found("fixture-match-you-ready") : { found: false }));
+      await mount({ room: "NOTMINE", hero: "kenshiro" }, { socket: false });
       await flush(15);
+      await openSocket();
+      await deliver({ type: "HEROES", heroes: HEROES });
       expect(screen.getByText("JOIN ROOM NOTMINE")).toBeInTheDocument();
       expect(screen.queryByTestId("ticket-error")).not.toBeInTheDocument();
       expect(tournamentRoomOf("NOTMINE")).toBeNull();
     });
 
-    it("an api that never answers holds the picker for 3s at most, then shows it", async () => {
-      signedIn(new Promise<never>(() => {}));
-      await mount({ room: "SLOW", hero: "kenshiro" });
-      await deliver({ type: "HEROES", heroes: HEROES });
+    it("an api that never answers holds the picker for 1.5s at most, then shows it", async () => {
+      roomApi("u9", () => new Promise<never>(() => {}));
+      await mount({ room: "SLOW", hero: "kenshiro" }, { socket: false });
       await flush(5);
       expect(screen.getByTestId("room-lookup")).toBeInTheDocument();
       expect(screen.queryByText("JOIN ROOM SLOW")).not.toBeInTheDocument();
       await act(async () => {
-        await new Promise((r) => setTimeout(r, 3100));
+        await new Promise((r) => setTimeout(r, TOURNAMENT_ROOM_LOOKUP_MS + 100));
       });
       expect(screen.queryByTestId("room-lookup")).not.toBeInTheDocument();
+      await openSocket();
+      await deliver({ type: "HEROES", heroes: HEROES });
       expect(screen.getByText("JOIN ROOM SLOW")).toBeInTheDocument();
     }, 10_000);
   });
@@ -736,8 +726,7 @@ describe("a tagged room whose match is decided (C3, #1236)", () => {
         ? ({ ok: true, status: 200, json: async () => decided } as Response)
         : ({ ok: false, status: 404, json: async () => ({}) } as Response),
     ) as unknown as typeof fetch;
-    await mount({ room: "SF2ROOM" });
-    await deliver({ type: "HEROES", heroes: HEROES });
+    await mount({ room: "SF2ROOM" }, { socket: false }); // no seat here: the gate's card, no game page
     await flush(8);
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("This match is finished");
     expect(screen.queryByText("Try again")).not.toBeInTheDocument();
@@ -1000,6 +989,34 @@ describe("a seat the engine released (LV-3, #1250)", () => {
     await click(screen.getByText("Try again"));
     await flush();
     expect(assign).toHaveBeenCalledWith(expect.stringMatching(/ticket=fresh\.sig.*room=DQJ6|room=DQJ6.*ticket=fresh\.sig/));
+  });
+
+  it("the account check answering AFTER the BAD_TOKEN keeps the released-seat card (the gate never takes the room back)", async () => {
+    rememberTournamentRoom("DQJ6", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    let answerMe!: () => void;
+    const me = new Promise<void>((r) => (answerMe = r));
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/me")) {
+        await me;
+        return { ok: true, status: 200, headers: new Headers(), json: async () => ({ user: { id: "u2", username: "hokuto_shin" } }) } as Response;
+      }
+      return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) } as Response;
+    }) as unknown as typeof fetch;
+    __resetAccountStoreForTests();
+    try {
+      await mount({ room: "DQJ6" });
+      await flush();
+      await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+      expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
+      expect(screen.getByTestId("ticket-error")).toHaveTextContent("Your seat was released while you were away");
+      answerMe(); // the account settles: the gate renders again, now with no token for the room
+      await flush(10);
+      expect(screen.getByTestId("ticket-error")).toHaveTextContent("Your seat was released while you were away");
+      expect(screen.queryByText(/open in another tab or device/)).not.toBeInTheDocument();
+    } finally {
+      __resetAccountStoreForTests();
+    }
   });
 
   it("arriving WITH a fresh ticket and a dead stored token: no bare RECONNECT race; BAD_TOKEN → the ticket JOIN re-seats", async () => {

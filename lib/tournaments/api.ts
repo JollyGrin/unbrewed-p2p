@@ -183,6 +183,30 @@ export const getMyTournaments = () =>
     };
   });
 
+/** A tournament room the signed-in caller plays in: the match it belongs to. */
+export interface MyTournamentRoom {
+  slug: string;
+  matchId: string;
+}
+
+/**
+ * Is this `?room=` one of MY tournament rooms? `null` = no (the api answers
+ * every "not a room you play in" the same way). Signed-in only: a guest gets 401.
+ * No ticket comes back: tickets are only issued by the origin-checked POSTs.
+ */
+export const getMyTournamentRoom = (roomId: string, timeoutMs?: number) =>
+  call(
+    `/me/tournament-room/${encodeURIComponent(roomId)}`,
+    undefined,
+    (b): MyTournamentRoom | null => {
+      if (typeof b?.found !== "boolean") throw new Error("bad /me/tournament-room body");
+      return b.found && typeof b.tournamentSlug === "string" && typeof b.matchId === "string"
+        ? { slug: b.tournamentSlug, matchId: b.matchId }
+        : null;
+    },
+    timeoutMs,
+  );
+
 export const getTournament = (slug: string) =>
   call(`/tournaments/${encodeURIComponent(slug)}`, undefined, (b) => ({
     tournament: b.tournament as Tournament,

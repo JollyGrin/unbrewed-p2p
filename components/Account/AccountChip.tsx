@@ -20,8 +20,7 @@ import {
   signOut,
   useAccount,
 } from "@/lib/account/useAccount";
-import { myTournamentCount } from "@/lib/tournaments/browse";
-import { useMyTournaments } from "@/lib/tournaments/useNextMatch";
+import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
 /**
  * The canonical account menu, in canonical order (#712).
@@ -58,70 +57,28 @@ const menuItemStyles = {
  * The dark surface is deliberate: it's the readable one on the /pro HUD, and
  * the parchment navbar already renders this same dropdown today.
  */
-const AccountMenuItems = ({ newTab = false }: { newTab?: boolean }) => {
+const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   const [signingOut, setSigningOut] = useState(false);
   const linkProps = newTab
     ? { target: "_blank", rel: "noopener noreferrer" }
     : {};
 
-  // Tournaments (#1220): nothing here for a guest or an api failure.
-  // Not on the in-game chip (`newTab`): a live game has no business with it.
-  const tournaments = useMyTournaments(!newTab);
-  // The view builder (bracket/match helpers) loads on demand, not with every page (#1265).
-  const [viewMod, setViewMod] = useState<typeof import("@/lib/tournaments/nextMatch") | null>(null);
-  const hasNext = !!tournaments?.next;
-  useEffect(() => {
-    if (hasNext) import("@/lib/tournaments/nextMatch").then(setViewMod, () => {}); // a failed chunk load just skips the card
-  }, [hasNext]);
-  const next =
-    tournaments?.next && viewMod
-      ? viewMod.nextMatchView(tournaments.next.match, tournaments.next.detail, tournaments.next.size, Date.now())
-      : null;
-  const myCount = tournaments ? myTournamentCount(tournaments.mine.tournaments) : 0;
-
   return (
-    <>
-      {next && (
-        <MenuItem
-          as={NextLink}
-          href={next.href}
-          {...linkProps}
-          {...menuItemStyles}
-          data-testid="menu-next-match"
-          flexDir="column"
-          alignItems="flex-start"
-          gap="0.1rem"
-          minW={0}
-          maxW="100%"
-          whiteSpace="normal"
-          borderBottom="1px solid"
-          borderColor="whiteAlpha.300"
-          pb="0.5rem"
-        >
-          <Text as="span" fontSize="0.7rem" letterSpacing="0.08em" textTransform="uppercase" color="brand.accent">
-            Your next match
-          </Text>
-          <Text as="span" fontWeight={700} maxW="100%" wordBreak="break-word" overflowWrap="anywhere">{next.title}</Text>
-          <Text as="span" fontSize="0.8rem" opacity={0.75} maxW="100%" wordBreak="break-word" overflowWrap="anywhere">
-            {[next.tournamentName, next.timeLeft].filter(Boolean).join(" · ")}
-          </Text>
-          {next.notice && (
-            <Text as="span" fontSize="0.8rem" opacity={0.75} whiteSpace="normal" maxW="100%" wordBreak="break-word" overflowWrap="anywhere" data-testid="menu-next-match-notice">
-              {next.notice}
-            </Text>
-          )}
-        </MenuItem>
-      )}
-      {tournaments && (
-        <MenuItem as={NextLink} href="/tournaments" {...linkProps} {...menuItemStyles}>
-          My tournaments
-          {myCount > 0 && (
-            <Text as="span" ml="auto" pl="0.6rem" opacity={0.7}>
-              {myCount}
-            </Text>
-          )}
-        </MenuItem>
-      )}
+    <MenuList
+      bg="brand.surfaceDim"
+      borderColor="brand.accent"
+      color="brand.parchment"
+      minW="9rem"
+      // Bounded to the viewport: a long next-match title must wrap, not widen the page (#1246).
+      maxW="min(20rem, calc(100vw - 1rem))"
+      py="0.25rem"
+      // Above the HUD's own chip/overlay ladder, so the menu isn't painted
+      // under the board furniture on /pro.
+      zIndex={210}
+    >
+      {/* Loads on first open (the Menu is isLazy). Never on the in-game chip
+          (`newTab`): a live game has no business with tournaments. */}
+      {!newTab && <AccountMenuTournaments itemStyles={menuItemStyles} />}
       {ACCOUNT_MENU_LINKS.map((link) => (
         <Fragment key={link.href}>
           {link.dividerBefore && <MenuDivider borderColor="whiteAlpha.300" />}
@@ -142,27 +99,9 @@ const AccountMenuItems = ({ newTab = false }: { newTab?: boolean }) => {
       >
         Sign out
       </MenuItem>
-    </>
+    </MenuList>
   );
 };
-
-const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => (
-  <MenuList
-    bg="brand.surfaceDim"
-    borderColor="brand.accent"
-    color="brand.parchment"
-    minW="9rem"
-    // Bounded to the viewport: a long next-match title must wrap, not widen the page (#1246).
-    maxW="min(20rem, calc(100vw - 1rem))"
-    py="0.25rem"
-    // Above the HUD's own chip/overlay ladder, so the menu isn't painted
-    // under the board furniture on /pro.
-    zIndex={210}
-  >
-    {/* The items own the tournaments load: with the Menu's isLazy they mount on open (p2p #1269). */}
-    <AccountMenuItems newTab={newTab} />
-  </MenuList>
-);
 
 /**
  * The optional Discord account affordance (issue #459) — a sign-in pill when
