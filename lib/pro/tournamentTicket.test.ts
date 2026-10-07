@@ -1,7 +1,10 @@
 /** Tournament ticket query + board handling for /pro/game (#1218). */
 import { catalogEntry } from "./mapCatalog";
 import {
+  assignTicketHref,
+  dropTicketFragment,
   parseTicketQuery,
+  takeTicketFragment,
   ticketBoard,
   ticketGameHref,
   ticketRetryable,
@@ -22,7 +25,11 @@ const LAUNCH: TicketLaunch = {
   map: { kind: "catalog", id: "counts-castle" },
 };
 
-const queryOf = (href: string) => Object.fromEntries(new URL(href, "http://x").searchParams);
+/** The link's query plus its fragment keys — what /pro/game reads (#1268). */
+const queryOf = (href: string) => {
+  const u = new URL(href, "http://x");
+  return { ...Object.fromEntries(u.searchParams), ...Object.fromEntries(new URLSearchParams(u.hash.slice(1))) };
+};
 
 describe("ticket links", () => {
   it("round-trips a create launch through the URL", () => {
@@ -50,6 +57,69 @@ describe("ticket links", () => {
       room: "ABCD",
       debug: "",
     });
+  });
+});
+
+describe("the ticket rides in the fragment (F5, #1268)", () => {
+  afterEach(() => {
+    dropTicketFragment();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("a granted link carries the ticket in #ticket=, never in the query", () => {
+    const u = new URL(ticketGameHref({ ...LAUNCH, ticket: "a+b/c=" }), "http://x");
+    expect(u.searchParams.has("ticket")).toBe(false);
+    expect(u.search).not.toContain("a+b");
+    expect(new URLSearchParams(u.hash.slice(1)).get("ticket")).toBe("a+b/c=");
+  });
+
+  it("an old ?ticket= link still parses (rollout)", () => {
+    expect(parseTicketQuery({ ticket: "payload.sig", tour: "autumn-skirmish", match: "m2-1", lockHero: "kenshiro", lockMap: "catalog:counts-castle" })).toEqual(LAUNCH);
+  });
+
+  it("takeTicketFragment reads it once and takes it out of the address bar at once", () => {
+    window.history.replaceState({ keep: 1 }, "", "/pro/game?tour=s&match=m#ticket=frag.sig&other=1");
+    expect(takeTicketFragment()).toBe("frag.sig");
+    expect(window.location.hash).toBe("#other=1");
+    expect(window.location.search).toBe("?tour=s&match=m");
+    expect(window.history.state).toEqual({ keep: 1 });
+    // StrictMode's second render on the same location still has it…
+    expect(takeTicketFragment()).toBe("frag.sig");
+    // …another location (the launch keys stripped, a later visit) doesn't.
+    window.history.replaceState(null, "", "/pro/game?room=R1");
+    expect(takeTicketFragment()).toBeNull();
+  });
+
+  it("drops the whole fragment when the ticket was all of it; nothing held after dropTicketFragment", () => {
+    window.history.replaceState(null, "", "/pro/game?tour=s&match=m#ticket=x");
+    expect(takeTicketFragment()).toBe("x");
+    expect(window.location.href).toBe("http://localhost/pro/game?tour=s&match=m");
+    dropTicketFragment();
+    expect(takeTicketFragment()).toBeNull();
+  });
+
+  it("no fragment ticket → null", () => {
+    window.history.replaceState(null, "", "/pro/game?tour=s&match=m#ticket=");
+    expect(takeTicketFragment()).toBeNull();
+  });
+
+  it("assignTicketHref reloads when only the fragment differs (a hash change would not load the page)", () => {
+    const assign = jest.fn();
+    const reload = jest.fn();
+    const real = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { href: "http://localhost/pro/game?tour=s&match=m", pathname: "/pro/game", search: "?tour=s&match=m", assign, reload },
+    });
+    try {
+      assignTicketHref("/pro/game?tour=s&match=m#ticket=t");
+      expect(assign).toHaveBeenCalledWith("/pro/game?tour=s&match=m#ticket=t");
+      expect(reload).toHaveBeenCalledTimes(1);
+      assignTicketHref("/pro/game?tour=s&match=m&room=R#ticket=t");
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: real });
+    }
   });
 });
 

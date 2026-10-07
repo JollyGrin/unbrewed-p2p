@@ -18,6 +18,7 @@ import {
 } from "@/lib/tournaments/api";
 import { matchHref, roundCount } from "@/lib/tournaments/bracket";
 import { useAttention } from "@/lib/tournaments/hooks";
+import { ruleWithMapHash } from "@/lib/tournaments/mapHash";
 import { proDeckOptions, proMapOptions } from "@/lib/tournaments/options";
 import {
   NOTE_MAX,
@@ -363,8 +364,9 @@ export const MatchupForm = ({
               variant="gold"
               disabled={busy}
               onClick={() =>
-                run(() =>
-                  putMatchup(slug, match.id, buildMatchupRule({ a, b, map })),
+                run(async () =>
+                  // The map lock carries the board's content hash (#1268).
+                  putMatchup(slug, match.id, await ruleWithMapHash(buildMatchupRule({ a, b, map }))),
                 )
               }
             >

@@ -15,8 +15,10 @@ const GRANT: TicketGrant = {
 
 describe("grantHref", () => {
   it("create → a /pro/game ticket link with no room", () => {
-    const q = new URL(grantHref(GRANT, "s", "m2-1")!, "http://x").searchParams;
-    expect(q.get("ticket")).toBe("p.s");
+    const u = new URL(grantHref(GRANT, "s", "m2-1")!, "http://x");
+    const q = u.searchParams;
+    expect(new URLSearchParams(u.hash.slice(1)).get("ticket")).toBe("p.s");
+    expect(q.has("ticket")).toBe(false); // never in the query (#1268)
     expect(q.get("lockHero")).toBe("kenshiro");
     expect(q.get("lockMap")).toBe("catalog:counts-castle");
     expect(q.has("room")).toBe(false);

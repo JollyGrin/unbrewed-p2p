@@ -5,11 +5,15 @@ import {
   mapSlots,
   matchupToWire,
   toCreateBody,
+  toCreateBodyWithMapHash,
   withFormat,
   validateForm,
   type CreateFormState,
 } from "./createForm";
+import { webcrypto } from "node:crypto";
+
 import { assignment, unsupportedModeMessage } from "./matchup";
+import { mapLockHash } from "./mapHash";
 
 const NOW = new Date("2026-10-05T12:00:00Z");
 const base = (over: Partial<CreateFormState> = {}): CreateFormState => ({
@@ -184,5 +188,28 @@ describe("League night preset copy", () => {
     const league = PRESETS.find((x) => x.id === "league")!;
     expect(league.bullets.join(" ")).toMatch(/1 week per match/);
     expect(league.bullets.join(" ")).not.toMatch(/per round/);
+  });
+});
+
+describe("the event map lock's content hash (#1268)", () => {
+  const jsdomCrypto = globalThis.crypto;
+  afterEach(() => Object.defineProperty(globalThis, "crypto", { configurable: true, value: jsdomCrypto }));
+  const mapForm = () => base({ matchup: "map", mapScope: "event", map: { kind: "catalog", id: "weathertop" } });
+
+  it("a fixed board's lock carries sha256(canonicalJson(the CREATE_ROOM customMap))", async () => {
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: webcrypto });
+    const body = await toCreateBodyWithMapHash(mapForm(), "draft");
+    const hash = await mapLockHash({ kind: "catalog", id: "weathertop" });
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(body).toEqual({ ...toCreateBody(mapForm(), "draft"), matchupRule: { mode: "map", map: { kind: "catalog", id: "weathertop", hash } } });
+  });
+
+  it("no WebCrypto: the same body as before, no hash key — creating never blocks on it", async () => {
+    expect(await toCreateBodyWithMapHash(mapForm())).toEqual(toCreateBody(mapForm()));
+  });
+
+  it("no fixed board: untouched", async () => {
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: webcrypto });
+    expect(await toCreateBodyWithMapHash(base())).toEqual(toCreateBody(base()));
   });
 });

@@ -13,7 +13,8 @@ export interface Person {
   avatarUrl: string;
 }
 
-export type MapRef = { kind: "catalog" | "custom"; id: string };
+/** `hash` (#1268): sha256 of the board CREATE_ROOM sends, on a matchup rule's map lock only. */
+export type MapRef = { kind: "catalog" | "custom"; id: string; hash?: string };
 
 export type MatchupMode = "free" | "fixed" | "map" | "pool" | "draft";
 

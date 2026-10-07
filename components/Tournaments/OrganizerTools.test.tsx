@@ -4,6 +4,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { FIXTURE_ATTENTION, fixtureRunning8 } from "@/lib/tournaments/fixtures";
+import { mapLockHash } from "@/lib/tournaments/mapHash";
 
 import { AttentionQueue, OverrideForm } from "./OrganizerTools";
 
@@ -122,6 +123,26 @@ it("set matchup puts a rule, never per-game fields", async () => {
   expect(put.body).toEqual({
     matchupRule: { mode: "map", map: { kind: "catalog", id: "weathertop" } },
   });
+});
+
+it("set matchup with WebCrypto sends the board's content hash on the map lock (#1268)", async () => {
+  const { webcrypto } = jest.requireActual<typeof import("node:crypto")>("node:crypto");
+  const jsdomCrypto = globalThis.crypto;
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: webcrypto });
+  try {
+    const hash = await mapLockHash({ kind: "catalog", id: "weathertop" });
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    mount();
+    fireEvent.click(await screen.findByText("Set matchup"));
+    fireEvent.click(await screen.findByText("Weathertop"));
+    fireEvent.click(screen.getByText("Save matchup"));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(calls.find((c) => c.method === "PUT")!.body).toEqual({
+      matchupRule: { mode: "map", map: { kind: "catalog", id: "weathertop", hash } },
+    });
+  } finally {
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: jsdomCrypto });
+  }
 });
 
 it("'Not valid…' rejects the game via the reject route, not an override", async () => {
