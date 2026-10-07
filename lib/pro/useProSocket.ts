@@ -504,6 +504,10 @@ export function useProSocket(
   const [rematchNegotiable, setRematchNegotiable] = useState(false);
   const [rematchOffer, setRematchOffer] = useState<RematchOfferState>(REMATCH_IDLE);
   const rematchOfferRef = useRef<RematchOfferState>(REMATCH_IDLE);
+  // True from a REMATCH_* send until the engine answers it. ERROR frames don't
+  // say which request they answer, so this is how an ERROR{VERSION} is known to
+  // be about the rematch rather than the seat.
+  const rematchFrameOutRef = useRef(false);
   const stepRematch = useCallback((event: RematchOfferEvent) => {
     const next = rematchOfferReducer(rematchOfferRef.current, event);
     rematchOfferRef.current = next;
@@ -881,7 +885,7 @@ export function useProSocket(
           gameOverRef.current = !!view.winner;
           // Rematch (p2p #880): a seat bound at v34 (a first visit, before this
           // tab had seen the engine's version) can neither offer nor be offered.
-          // At game over, re-bind it at v35 on this same socket — the same
+          // At game over, re-bind it at PROTOCOL_VERSION on this same socket — the same
           // in-socket RECONNECT the #848 resync uses. It is sent only once THIS
           // STATE is fully handled (both exits below): the flags it arms belong
           // to the RECONNECT's reply, which the resync-reply check then absorbs.
@@ -896,7 +900,7 @@ export function useProSocket(
             if (!room || !token) return;
             resumeExpectedRef.current = true;
             resyncReplyRef.current = true;
-            sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token }, REMATCH_PROTOCOL_VERSION);
+            sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
           };
           {
             // A resync's answer that says nothing new (p2p #869): the view we
@@ -1042,9 +1046,11 @@ export function useProSocket(
           break;
         // Rematch offer/confirm (p2p #880, protocol v35).
         case "REMATCH_OFFERED":
+          rematchFrameOutRef.current = false;
           stepRematch({ type: "OFFERED", from: msg.from, me: seatRef.current });
           break;
         case "REMATCH_READY": {
+          rematchFrameOutRef.current = false;
           const from = roomRef.current;
           const alreadyHere = from !== null && msg.roomId.toUpperCase() === from.toUpperCase();
           if (!alreadyHere) {
@@ -1058,6 +1064,7 @@ export function useProSocket(
           break;
         }
         case "REMATCH_CLOSED":
+          rematchFrameOutRef.current = false;
           stepRematch({
             type: "CLOSED",
             reason: msg.reason,
@@ -1082,7 +1089,17 @@ export function useProSocket(
           // A REMATCH_* the room can't take right now (p2p #880) — most often
           // the other seat is on a client too old to answer. Not a game error.
           if (msg.code === "REMATCH_UNAVAILABLE") {
+            rematchFrameOutRef.current = false;
             stepRematch({ type: "REFUSED", message: msg.message });
+            break;
+          }
+          // An engine that refuses a REMATCH_* frame's version has refused the
+          // rematch, not the game: the seat is still bound and the finished
+          // game is intact, so fail the offer and keep the result on screen.
+          // Falling through would take the terminal path and flag `gameLost`.
+          if (msg.code === "VERSION" && rematchFrameOutRef.current) {
+            rematchFrameOutRef.current = false;
+            stepRematch({ type: "REFUSED", message: "the game server refused it" });
             break;
           }
           // The engine refused a v35 bind: this tab remembered a version the
@@ -1387,6 +1404,7 @@ export function useProSocket(
       clearResumeDeadline();
       pendingCreateBotsRef.current = botsFromCreateRoom(bot, botSeats);
       rematchOfferRef.current = REMATCH_IDLE; // a new room has no rematch in flight
+      rematchFrameOutRef.current = false;
       setRematchOffer(REMATCH_IDLE);
       const msg: ClientMsg = {
         v: PROTOCOL_VERSION,
@@ -1442,6 +1460,7 @@ export function useProSocket(
       roomRef.current = room;
       setRoomId(room);
       rematchOfferRef.current = REMATCH_IDLE;
+      rematchFrameOutRef.current = false;
       setRematchOffer(REMATCH_IDLE);
       // heroId === "" is an explicit resume (refresh flow / recent-rooms strip)
       // and may use any token this browser holds. A join WITH a hero only
@@ -1560,18 +1579,23 @@ export function useProSocket(
   // and on the seat being bound at v35 (#894) — `rematchNegotiable`, read from
   // the ref so no caller has to trust the panel's render gate: a v34 engine
   // answers REMATCH_* with ERROR{VERSION}, and a v34-bound seat can't negotiate.
+  // REMATCH_PROTOCOL_VERSION is only that threshold: each frame goes out at the
+  // version the seat is bound at, because an engine refuses any `v` outside its
+  // accepted window and that window moves on (a {36, 37} engine refuses 35).
   const offerRematch = useCallback(() => {
     const room = roomRef.current;
     if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "idle") return;
     stepRematch({ type: "OFFER" });
-    send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_OFFER", roomId: room });
+    rematchFrameOutRef.current = true;
+    send({ v: boundVersionRef.current, type: "REMATCH_OFFER", roomId: room });
   }, [send, stepRematch]);
 
   const cancelRematch = useCallback(() => {
     const room = roomRef.current;
     if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "offering") return;
     stepRematch({ type: "CANCEL" });
-    send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_CANCEL", roomId: room });
+    rematchFrameOutRef.current = true;
+    send({ v: boundVersionRef.current, type: "REMATCH_CANCEL", roomId: room });
   }, [send, stepRematch]);
 
   const respondToRematch = useCallback(
@@ -1579,7 +1603,8 @@ export function useProSocket(
       const room = roomRef.current;
       if (!room || boundVersionRef.current < REMATCH_PROTOCOL_VERSION || rematchOfferRef.current.phase !== "incoming") return;
       stepRematch({ type: accept ? "ACCEPT" : "DECLINE" });
-      send({ v: REMATCH_PROTOCOL_VERSION, type: "REMATCH_RESPOND", roomId: room, accept });
+      rematchFrameOutRef.current = true;
+      send({ v: boundVersionRef.current, type: "REMATCH_RESPOND", roomId: room, accept });
     },
     [send, stepRematch]
   );
