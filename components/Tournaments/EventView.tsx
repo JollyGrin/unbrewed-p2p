@@ -2,8 +2,8 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useState } from "react";
 
-import { signInUrl, useAccount } from "@/lib/account/useAccount";
-import { joinTournament, leaveTournament, type TournamentFailure } from "@/lib/tournaments/api";
+import { refreshAccount, signInUrl, useAccount } from "@/lib/account/useAccount";
+import { joinTournament, leaveTournament, rateLimitText, type TournamentFailure } from "@/lib/tournaments/api";
 import { useTournament } from "@/lib/tournaments/hooks";
 import { joinState, activeEntries } from "@/lib/tournaments/joinState";
 import { describeTournamentRule } from "@/lib/tournaments/matchup";
@@ -32,6 +32,9 @@ const JOIN_ERRORS: Partial<Record<TournamentFailure, string>> = {
   rate_limited: "Slow down a moment, then try again.",
 };
 
+/** The first character of a name, emoji and astral scripts included (UX S20). */
+export const initialOf = (name: string | null | undefined): string => (Array.from(name ?? "")[0] ?? "?").toUpperCase();
+
 const Seats = ({ t, entries }: { t: Tournament; entries: Entry[] }) => {
   const active = activeEntries(entries);
   return (
@@ -48,7 +51,7 @@ const Seats = ({ t, entries }: { t: Tournament; entries: Entry[] }) => {
           const e = active[i];
           return (
             <Box key={i} title={e?.username ?? "Open seat"} w="34px" h="34px" borderRadius="999px" overflow="hidden" bg={e ? "#48284F" : "transparent"} border={e ? "none" : "2px dashed rgba(72,40,79,0.3)"} color="#FAEBD7" display="grid" placeItems="center" fontWeight={700} fontSize="14px">
-              {e ? (e.avatarUrl ? <Box as="img" src={e.avatarUrl} alt="" w="34px" h="34px" /> : (e.username ?? "?")[0].toUpperCase()) : null}
+              {e ? (e.avatarUrl ? <Box as="img" src={e.avatarUrl} alt="" w="34px" h="34px" /> : initialOf(e.username)) : null}
             </Box>
           );
         })}
@@ -72,20 +75,32 @@ export const JoinPanel = ({
   const { status, account } = useAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signIn, setSignIn] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Discord pings are promised only when the api says the bot is live (UX S4).
+  const discord = t.notifications === "discord";
+  const ready = discord ? "We'll ping you on Discord when your match is ready." : "Check this page for your match: it shows up here when it opens.";
   const userId = status === "signed-in" && account ? account.id : null;
   const state = joinState(t, entries, userId);
 
-  const run = async (fn: () => Promise<{ ok: boolean; reason?: TournamentFailure; code?: string; message?: string }>) => {
+  const run = async (fn: () => Promise<{ ok: boolean; reason?: TournamentFailure; code?: string; message?: string; retryAfter?: number }>) => {
     setBusy(true);
     setError(null);
+    setSignIn(false);
     const r = await fn();
     setBusy(false);
     // already_joined / already left is the state we wanted: just refresh.
     if (!r.ok && r.reason !== "already_joined" && r.reason !== "not_found")
       setError(
-        (r.code === "timeout" && r.message) || (JOIN_ERRORS[r.reason ?? "unavailable"] ?? "Couldn't reach the server. Try again."),
+        (r.code === "timeout" && r.message) ||
+          (r.reason === "rate_limited" && r.retryAfter ? rateLimitText(r) : null) ||
+          (JOIN_ERRORS[r.reason ?? "unavailable"] ?? "Couldn't reach the server. Try again."),
       );
+    // A dead session: offer the way back in and re-probe /me (UX B3).
+    if (!r.ok && r.reason === "unauthorized") {
+      setSignIn(true);
+      void refreshAccount().catch(() => {});
+    }
     reload();
   };
 
@@ -97,7 +112,7 @@ export const JoinPanel = ({
             Sign in with Discord to join
           </Btn>
           <Text fontSize="13px" textAlign="center" opacity={0.7}>
-            You&apos;ll come straight back here to confirm. We use Discord to ping you when your match opens.
+            You&apos;ll come straight back here to confirm.{discord ? " We use Discord to ping you when your match opens." : ""}
           </Text>
         </>
       )}
@@ -117,11 +132,11 @@ export const JoinPanel = ({
           <Flex gap="14px" align="center" bg="rgba(224,168,46,0.18)" borderRadius="10px" p="12px 14px">
             <Text fontFamily="LeagueGothic" fontSize="44px" lineHeight="1" data-testid="seat-no">{state.seat}</Text>
             <Box>
-              <Text fontWeight={700}>You&apos;re seat {state.seat} of {state.of}.</Text>
+              <Text fontWeight={700}>You&apos;re in, player {state.seat} of {state.of}.</Text>
               <Text fontSize="14px" opacity={0.8}>
                 {t.status === "running"
-                  ? `The ${t.format === "round_robin" ? "standings are" : "bracket is"} live. We'll ping you on Discord when your match is ready.`
-                  : `${signupCloseText(t) ? `Signup ${signupCloseText(t)}; then the` : "The"} organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}${signupCloseText(t) ? "" : " when enough players have joined"}. We'll ping you on Discord when your match is ready.`}
+                  ? `The ${t.format === "round_robin" ? "standings are" : "bracket is"} live. ${ready}`
+                  : `${signupCloseText(t) ? `Signup ${signupCloseText(t)}; then the` : "The"} organizer starts the ${t.format === "round_robin" ? "tournament" : "bracket"}${signupCloseText(t) ? "" : " when enough players have joined"}. ${ready}`}
               </Text>
             </Box>
           </Flex>
@@ -149,6 +164,11 @@ export const JoinPanel = ({
         </Text>
       )}
       {error && <Text role="alert" color="#B3361F" fontSize="14px">{error}</Text>}
+      {signIn && (
+        <Btn variant="discord" href={signInUrl(tournamentPath(t.slug))} w="100%" data-testid="join-sign-in">
+          Sign in with Discord
+        </Btn>
+      )}
     </Flex>
   );
 };

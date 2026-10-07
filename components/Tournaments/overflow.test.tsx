@@ -92,7 +92,8 @@ it("the match header's player columns can shrink and wrap a 32-char handle", () 
       <MatchBody d={detail} t={{ ...f.tournament, name: LONG_NAME }} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={Date.parse(FIXTURE_NOW)} phase={{ kind: "idle" }} onPlay={() => {}} />
     </ChakraProvider>,
   );
-  const h3 = screen.getByRole("heading", { level: 3, name: new RegExp(LONG_USER) });
+  // UX S14: player names are plain text, not headings (the state line is the H2).
+  const h3 = screen.getAllByTestId("side-name").find((el) => el.textContent?.includes(LONG_USER))!;
   expect(css(h3)).toMatch(/overflow-wrap:\s*anywhere/);
   expect(css(h3.closest("div")!.parentElement!)).toMatch(/minmax\(0,\s*1fr\)\s*auto\s*minmax\(0,\s*1fr\)/);
 });

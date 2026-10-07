@@ -98,9 +98,9 @@ describe("matchPageState", () => {
   });
 
   it("the organizer fallback names the right player: higher seed, or the round-robin final's better rank", () => {
-    expect(deadlinePassedRule()).toBe("If they don't decide within 24h, the higher seed advances.");
-    expect(deadlinePassedRule("group")).toBe("If they don't decide within 24h, the higher seed wins the match.");
-    expect(deadlinePassedRule("final")).toBe("If they don't decide within 24h, the player ranked higher in the standings wins the tournament.");
+    expect(deadlinePassedRule()).toBe("The organizer decides within 24 hours, otherwise the higher seed advances.");
+    expect(deadlinePassedRule("group")).toBe("The organizer decides within 24 hours, otherwise the higher seed wins the match.");
+    expect(deadlinePassedRule("final")).toBe("The organizer decides within 24 hours, otherwise the player ranked higher in the standings wins the tournament.");
   });
 
   it("a game that started before the deadline stays in play after it (settled rule 3)", () => {
@@ -179,7 +179,7 @@ describe("final smoke fixes (#1239)", () => {
     expect(decisionLine({ ...d, decision: { by: "organizer", note: null, at: null } })).toBe("Decided by the organizer.");
     const rule = fixtureMatch("decided_by_rule").detail;
     expect(decisionLine({ ...rule, decision: { by: "rules", note: null, at: null } })).toBeNull();
-    expect(decidedByRuleLine(rule)).toBe("Decided by Rule 1 · unanswered ready-check.");
+    expect(decidedByRuleLine(rule)).toBe("Decided by Rule 1 · one player was ready, the other never joined.");
   });
 
   it("D5: the cutoff is the deadline plus 24h", () => {

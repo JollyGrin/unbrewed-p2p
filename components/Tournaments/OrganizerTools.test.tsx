@@ -1,4 +1,5 @@
 /** Organizer queue (#1219): item types from fixtures; actions hit the right routes. */
+import { whenText } from "@/lib/tournaments/when";
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -274,7 +275,7 @@ it("awaiting_organizer names who holds a seat when the api sends reason/holdUnti
     readyBy: [m.slotA],
   };
   const [row] = attentionRows([item], f.entries, f.matches, 3, Date.parse("2026-10-05T12:00:00Z"));
-  expect(row.body).toMatch(/pressed Play and holds a seat until \d\d:\d\d; the rules decide after that\./);
+  expect(row.body).toMatch(/pressed Play and holds a seat until \d{1,2}:\d\d( [AP]M)?; the rules decide after that\./);
   const [generic] = attentionRows([{ ...item, reason: "no_ready_check", holdUntil: null, readyBy: [] }], f.entries, f.matches, 3, Date.parse("2026-10-05T12:00:00Z"));
   expect(generic.body).toMatch(/No game was played\. If a player is holding a seat/);
 });
@@ -303,12 +304,11 @@ describe("override refused with tickets_outstanding (api #101)", () => {
     refuse({ error: "tickets_outstanding", message: "raw api text", ticketsExpireAt: EXPIRES, canForce: true });
     const onDone = go();
     const box = await screen.findByTestId("override-tickets-outstanding");
-    const d = new Date(EXPIRES);
-    const local = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    expect(box).toHaveTextContent(`holds a join ticket for the next match until`);
-    expect(box).toHaveTextContent(local);
-    expect(box).toHaveTextContent("(a player can't extend it by pressing Play). Wait: nothing changes now. Try the change again after");
-    expect(box).toHaveTextContent(`Force change: applies now, but the new finalists may not be able to start their game until`);
+    // UX S22: no "join ticket"; the time in the viewer's own format.
+    expect(box).toHaveTextContent(`A player still has a reserved seat in the next match until ${whenText(EXPIRES)}.`);
+    expect(box).toHaveTextContent("Wait, and the change applies cleanly after that. Force it now, and the new players may not be able to start until then.");
+    expect(box).not.toHaveTextContent("ticket");
+    expect(box).not.toHaveTextContent("UTC");
     expect(box).not.toHaveTextContent("keep one alive");
     expect(box).not.toHaveTextContent("raw api text");
     expect(overrides()[0].body.force).toBeUndefined();

@@ -99,12 +99,22 @@ describe("S5: a session that expired mid-game", () => {
   });
 });
 
-it("in play: the page explains a stalled game instead of looping (names the organizer)", () => {
+it("in play for over an hour: the page explains a stalled game instead of looping (names the organizer, never 'confirm')", () => {
   const f = fixture("in_play");
+  f.detail.match.games[0].startedAt = new Date(NOW - 61 * 60_000).toISOString();
   render(body(f.detail, f.tournament));
-  expect(screen.getByTestId("stalled-note")).toHaveTextContent(
-    `If your game room closed, the match reopens automatically once the stalled game times out, or ask the organizer (${f.tournament.organizer.username}) to confirm a result.`,
+  const note = screen.getByTestId("stalled-note");
+  expect(note).toHaveTextContent(
+    `If your game room closed, the match reopens by itself once the stalled game times out (2½ hours after it started), or ask the organizer (${f.tournament.organizer.username}) to decide the match.`,
   );
+  expect(note).not.toHaveTextContent("confirm");
+});
+
+it("a healthy in-play game shows no stalled note (interactions F5)", () => {
+  const f = fixture("in_play");
+  f.detail.match.games[0].startedAt = new Date(NOW - 20 * 60_000).toISOString();
+  render(body(f.detail, f.tournament));
+  expect(screen.queryByTestId("stalled-note")).toBeNull();
 });
 
 describe("force re-seat cooldown (api #126)", () => {

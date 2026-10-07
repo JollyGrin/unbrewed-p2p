@@ -7,9 +7,10 @@
  * the form below only decides which rule to send. What a game then looks like
  * is `assignment()`'s job (./matchup).
  */
-import { WRITE_TIMEOUT_MESSAGE, type AttentionItem, type TournamentFailure } from "./api";
+import { WRITE_TIMEOUT_MESSAGE, rateLimitText, type AttentionItem, type TournamentFailure } from "./api";
 import { matchCode } from "./bracket";
 import type { Entry, MapRef, Match, MatchupRule } from "./types";
+import { spanText, timeText, whenText } from "./when";
 
 export type AttentionTone = "gold" | "ink" | "red";
 
@@ -36,8 +37,8 @@ export interface AttentionRow {
   actions: AttentionAction[];
 }
 
-export const clockOf = (iso: string): string =>
-  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+/** The feature's one clock format (./when). */
+export const clockOf = (iso: string): string => timeText(iso);
 
 const nameOf = (entries: readonly Entry[], id: string | null): string =>
   entries.find((e) => e.id === id)?.username ?? "a player";
@@ -89,7 +90,7 @@ export const attentionRows = (
             tone: "red",
             title: `Your call · ${vs}`,
             context: `${code} · deadline passed`,
-            body: `${lead} You have until the grace period ends; then the higher seed ${verb}.`,
+            body: `${lead} You have until ${whenText(item.until)}; then the higher seed ${verb}. The players can still play until you decide.`,
             due: item.until,
             dueLabel: "left",
             actions: [
@@ -130,14 +131,40 @@ export const attentionRows = (
           },
         ];
       case "unverified_game": {
-        const w = nameOf(entries, item.winnerEntry);
+        // api #129: a tagged game whose finish never arrived and telemetry can't settle.
+        // It has no winner to confirm and no finish to reject (that would 409): the organizer overrides.
+        if (item.source === "room_recovery") {
+          const claimed = [
+            ...new Set(
+              (item.candidates ?? []).flatMap((c) => [c.a === true ? a : null, c.b === true ? b : null]).filter((x): x is string => !!x),
+            ),
+          ];
+          const hint =
+            claimed.length === 1
+              ? `The players' game history suggests ${claimed[0]} won.`
+              : claimed.length > 1
+                ? "Both players' game history claims the win."
+                : "Neither player's game history shows who won.";
+          return [
+            {
+              ...base,
+              tone: "gold",
+              title: `Result unclear · ${code} ${vs}`,
+              context: `${code} · game ${item.gameIndex + 1}'s result never arrived`,
+              body: `The match room closed without reporting a result. ${hint} Open the match and decide it with an override.`,
+              actions: [{ type: "override", label: "Override…" }, open],
+            },
+          ];
+        }
+        const w = nameOf(entries, item.winnerEntry ?? null);
         return [
           {
             ...base,
             tone: "gold",
             title: `Unverified result · ${code} ${vs}`,
             context: `${code} · played in a normal room, not from the match`,
-            body: `${w} won, but the game wasn't started from the match. ${verb === "advances" ? "Nobody advances" : "Nobody gets the win"} until it's confirmed. If you do nothing it auto-confirms 24h after it was detected.`,
+            // api #129 removed the 24h auto-confirm: the organizer's confirm is the only way it counts.
+            body: `${w} won, but the game wasn't started from the match. It only counts if you confirm it; until then ${verb === "advances" ? "nobody advances" : "nobody gets the win"}. If nobody decides, the deadline rules apply.`,
             actions: [
               ...(item.winnerEntry
                 ? [
@@ -184,6 +211,28 @@ export const attentionRows = (
           },
         ];
       }
+      case "stalled_game": {
+        const n = item.gameIndex + 1;
+        return [
+          item.closedAt
+            ? {
+                ...base,
+                tone: "ink",
+                title: `Stalled game closed · ${code} ${vs}`,
+                context: `${code} · game ${n} ended with no result`,
+                body: `Game ${n} ran too long without finishing and was closed with no result${item.startedAt ? ` (it started ${whenText(item.startedAt)})` : ""}. The match is open again, so the players can play it. Override only if you know the result.`,
+                actions: [{ type: "override", label: "Override…" }, open],
+              }
+            : {
+                ...base,
+                tone: "gold",
+                title: `Stalled game · ${code} ${vs}`,
+                context: `${code} · game ${n} still open`,
+                body: `Game ${n}${item.startedAt ? ` started ${whenText(item.startedAt)} and` : ""} hasn't finished. It closes with no result within a minute, and the match reopens for the players. Override if you know the result.`,
+                actions: [{ type: "override", label: "Override…" }, open],
+              },
+        ];
+      }
       case "no_matchup":
         return [
           {
@@ -207,15 +256,11 @@ export const attentionRows = (
     .map(({ r }) => r);
 };
 
-/** "18h left" / "40m left"; "" once the time has passed. */
+/** "18h left" / "1d 1h left" / "40m left"; "" once the time has passed (UX P2: hours roll into days). */
 export const dueText = (iso: string | null, now: number): string => {
   if (!iso) return "";
-  const ms = Date.parse(iso) - now;
-  if (Number.isNaN(ms) || ms <= 0) return "";
-  const h = Math.floor(ms / 3_600_000);
-  return h >= 1
-    ? `${h}h left`
-    : `${Math.max(1, Math.round(ms / 60_000))}m left`;
+  const span = spanText(Date.parse(iso) - now);
+  return span ? `${span} left` : "";
 };
 
 /** The rule the matchup form sends: free / map / fixed, from what was picked. */
@@ -272,12 +317,15 @@ const ERRORS: Record<string, string> = {
 };
 
 export const organizerErrorText = (
-  r: { reason: TournamentFailure; code?: string; message?: string },
+  r: { reason: TournamentFailure; code?: string; message?: string; ticketsExpireAt?: string; retryAfter?: number },
   /** The tournament's status after a re-fetch, when known. */
   status?: string,
 ): string =>
   (r.code === "already_started" && status === "cancelled" ? "This tournament was cancelled." : null) ||
   (r.code && ERRORS[r.code]) ||
+  // The api's own sentences carry UTC times: say them in the viewer's local time (UX S1).
+  (r.code === "tickets_outstanding" && r.ticketsExpireAt ? ticketsOutstandingText(r.ticketsExpireAt) : null) ||
+  (r.code === "reseat_cooldown" && r.ticketsExpireAt ? `This match was re-seated. Play opens at ${timeText(r.ticketsExpireAt)} (local time).` : null) ||
   // round-map refusals arrive as raw api sentences; say them in our own words
   (r.reason === "invalid" && r.message && /round keys|'final' key|roundMaps|round maps/i.test(r.message) ? ROUND_MAPS_COPY : null) ||
   // A refusal we have no copy for (e.g. cancel-running before api #91): show the api's own words.
@@ -285,22 +333,19 @@ export const organizerErrorText = (
   (r.reason === "unauthorized"
     ? "Your session ended. Sign in with Discord again."
     : r.reason === "rate_limited"
-      ? "Slow down a moment, then try again."
+      ? rateLimitText(r)
       : r.reason === "conflict" || r.reason === "invalid"
         ? "The server refused that change."
         : "Couldn't reach the server. Try again.");
 
 /**
- * The organizer-facing text for `409 tickets_outstanding`: when the tickets expire, in the viewer's local time.
- * Force is not instant for the players: the new finalists may be unable to start until the ticket expires.
- * The api names nobody, so the holder is "A player".
+ * The organizer-facing text for `409 tickets_outstanding`: when the reserved seat runs out, in the viewer's
+ * local time (UX S22, no "join ticket"). Force is not instant for the players: the new pair may be unable to
+ * start until then. The api names the holder only from A5 on (`holderEntryId`); before that it is "A player".
  */
 export const ticketsOutstandingText = (ticketsExpireAt: string, holder = "A player"): string => {
-  const d = new Date(ticketsExpireAt);
-  const when = Number.isNaN(d.getTime())
-    ? "a few minutes from now"
-    : `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
-  return `${holder} holds a join ticket for the next match until ${when} (a player can't extend it by pressing Play). Wait: nothing changes now. Try the change again after ${when}. Force change: applies now, but the new finalists may not be able to start their game until ${when}.`;
+  const when = whenText(ticketsExpireAt) || "a few minutes from now";
+  return `${holder} still has a reserved seat in the next match until ${when}. Wait, and the change applies cleanly after that. Force it now, and the new players may not be able to start until then.`;
 };
 
 /**

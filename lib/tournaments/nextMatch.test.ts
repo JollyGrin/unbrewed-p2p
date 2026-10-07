@@ -1,4 +1,5 @@
 import { fixtureMatch, fixtureMyTournaments } from "./fixtures";
+import { dateTime, organizerCutoff } from "./matchPage";
 import { nextMatchView, sizeOf, timeLeftText } from "./nextMatch";
 
 const NOW = Date.parse("2026-10-05T12:00:00Z");
@@ -28,7 +29,7 @@ describe("nextMatchView", () => {
     const v = view("opponent_ready");
     expect(v.state).toBe("opponent_ready");
     expect(v.primary).toBe("join");
-    expect(v.caption).toBe("bountyhuntr is ready · seat held 11:48");
+    expect(v.caption).toBe("bountyhuntr is ready · join within 11 min 48 s");
     expect(v.title).toBe("Semifinal 2 is waiting for you");
   });
 
@@ -36,7 +37,7 @@ describe("nextMatchView", () => {
     const v = view("you_ready");
     expect(v.state).toBe("you_ready");
     expect(v.primary).toBe("view");
-    expect(v.caption).toMatch(/^You're ready · seat held 14:/);
+    expect(v.caption).toBe("You're ready · seat held · 14 min 32 s left");
   });
 
   it("in play now: view match", () => {
@@ -46,14 +47,15 @@ describe("nextMatchView", () => {
     expect(v.primary).toBe("view");
   });
 
-  it("deadline passed: the organizer is deciding — nothing to press (#1230)", () => {
+  it("deadline passed: still playable until the organizer decides, with their cutoff date (UX B1/S3, #1230)", () => {
     const v = view("deadline_passed");
+    const deadlineAt = fixtureMatch("deadline_passed", new Date(NOW).toISOString()).detail.match.deadlineAt;
     expect(v.state).toBe("deadline_passed");
-    expect(v.primary).toBe("view");
-    expect(v.primaryLabel).toBe("View match");
+    expect(v.primary).toBe("ready");
+    expect(v.primaryLabel).toBe("I'm ready to play");
     expect(v.timeLeft).toBeNull();
     expect(v.notice).toBe(
-      "The deadline has passed. The organizer is deciding this match. If they don't decide within 24h, the higher seed advances.",
+      `The deadline has passed. You can still play until the organizer decides. The organizer decides by ${dateTime(organizerCutoff(deadlineAt))}, otherwise the higher seed advances.`,
     );
     expect(v.caption).not.toMatch(/open|next match/i);
   });

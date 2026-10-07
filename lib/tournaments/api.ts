@@ -45,6 +45,10 @@ export type Result<T> =
       /** `409 tickets_outstanding` (api #101): when the blocking join tickets run out, and whether `force` is allowed. */
       ticketsExpireAt?: string;
       canForce?: boolean;
+      /** api A5: the entry whose join ticket blocks a `409 tickets_outstanding`, when the api names it. */
+      holderEntryId?: string;
+      /** A 429's `Retry-After` header, in seconds, when the api sends one. */
+      retryAfter?: number;
     };
 
 /** A GET that has not answered in this long is a network failure (#1265). */
@@ -59,6 +63,18 @@ export const WRITE_TIMEOUT_MS = 30_000;
  */
 export const WRITE_TIMEOUT_MESSAGE =
   "The server didn't answer in time. It may still have gone through: reload the page to check before trying again.";
+
+/** A `Retry-After` header in whole seconds (delta-seconds or an HTTP date); null when absent or unreadable. */
+export const retryAfterSeconds = (h: string | null, now = Date.now()): number | null => {
+  if (!h) return null;
+  const n = Number(h.trim());
+  const s = Number.isFinite(n) ? n : (Date.parse(h) - now) / 1000;
+  return Number.isFinite(s) && s > 0 ? Math.ceil(s) : null;
+};
+
+/** "Too many tries. Try again in 12 s." — or a plain wait without a `Retry-After`. */
+export const rateLimitText = (r: { retryAfter?: number }): string =>
+  r.retryAfter ? `Too many tries. Try again in ${r.retryAfter} s.` : "Too many tries at once. Wait a moment, then try again.";
 
 const call = async <T>(
   path: string,
@@ -125,11 +141,16 @@ const call = async <T>(
                   : "unavailable";
     const extra =
       code === "tickets_outstanding" && typeof body?.ticketsExpireAt === "string"
-        ? { ticketsExpireAt: body.ticketsExpireAt as string, canForce: body.canForce === true }
+        ? {
+            ticketsExpireAt: body.ticketsExpireAt as string,
+            canForce: body.canForce === true,
+            ...(typeof body?.holderEntryId === "string" ? { holderEntryId: body.holderEntryId as string } : {}),
+          }
         : code === "reseat_cooldown" && typeof body?.ticketsExpireAt === "string"
           ? { ticketsExpireAt: body.ticketsExpireAt as string }
           : {};
-    return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}), ...extra };
+    const retryAfter = res.status === 429 ? retryAfterSeconds(res.headers?.get?.("Retry-After") ?? null) : null;
+    return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}), ...extra, ...(retryAfter ? { retryAfter } : {}) };
   } catch {
     return timedOut && !isGet
       ? { ok: false, reason: "unavailable", code: "timeout", message: WRITE_TIMEOUT_MESSAGE }
@@ -342,7 +363,27 @@ export type AttentionItem = {
       winner: string | null;
       decidedBy: string | null;
     }
-  | { kind: "unverified_game"; gameIndex: number; winnerEntry: string | null }
+  | {
+      kind: "unverified_game";
+      gameIndex: number;
+      winnerEntry?: string | null;
+      /**
+       * api #129: `room_recovery` = a tagged game whose finish never arrived;
+       * telemetry found its room but not one clear result. No winner, and the
+       * game is still in play as far as the api knows: the organizer overrides.
+       */
+      source?: "tagged" | "untagged" | "room_recovery";
+      roomId?: string | null;
+      /** room_recovery: each telemetry game seen for the room, and whether each side's history says they won (null = not in it). */
+      candidates?: { gameId: string; endedAt: string; a: boolean | null; b: boolean | null }[];
+      detectedAt?: string;
+    }
+  /**
+   * api #129: a tagged game past the in-play cap with no finish. `closedAt` null
+   * = still open (the loop closes it on its next tick); set = closed with no
+   * result and the match reopened.
+   */
+  | { kind: "stalled_game"; gameIndex: number; roomId?: string | null; startedAt: string | null; closedAt: string | null }
   | { kind: "entrant_left"; entryId: string }
   | { kind: "no_matchup" }
 );

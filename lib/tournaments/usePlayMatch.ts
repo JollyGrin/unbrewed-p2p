@@ -10,8 +10,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { roomForMatch, ticketGameHref } from "@/lib/pro/tournamentTicket";
 
-import { getMatch, getMatchTicket, readyForMatch, reportRoomGone, type Result } from "./api";
-import { currentChecks } from "./matchPage";
+import { refreshAccount } from "@/lib/account/useAccount";
+
+import { getMatch, getMatchTicket, rateLimitText, readyForMatch, reportRoomGone, type Result, type TournamentFailure } from "./api";
+import { currentChecks, reseatCooldownText } from "./matchPage";
 import type { MatchDetail, TicketGrant } from "./types";
 
 export type PlayPhase =
@@ -21,7 +23,8 @@ export type PlayPhase =
   | { kind: "opening" }
   /** This player already holds a live seat for the match: never a second room. */
   | { kind: "seat_held"; roomId: string | null }
-  | { kind: "error"; message: string };
+  /** `reason: "unauthorized"` = the session ended: the page offers "Sign in with Discord" (UX B3). */
+  | { kind: "error"; message: string; reason?: TournamentFailure; code?: string; at?: number };
 
 /** A ready/ticket call that timed out may still have happened server-side (p2p #1269). */
 export const PLAY_TIMEOUT_MESSAGE =
@@ -38,13 +41,21 @@ export const playErrorMessage = (r: Extract<Result<unknown>, { ok: false }>): st
     case "not_found":
       return "This match no longer exists.";
     case "rate_limited":
-      return "Too many tries at once. Wait a moment, then try again.";
+      return rateLimitText(r);
     case "conflict":
       if (r.code === "match_in_play") return "A game for this match is already in play.";
       if (r.code === "seat_held")
         return "Your seat is held in this match's room on another tab or device. Carry on there, or try again here once the 15-minute hold runs out.";
       if (r.code === "not_running") return "This tournament isn't running.";
-      return r.message ? `This match isn't open: ${r.message}.` : "This match isn't open to play.";
+      // The api's own sentence says the time in UTC: say it in the viewer's (UX S1).
+      if (r.code === "reseat_cooldown")
+        return r.ticketsExpireAt ? reseatCooldownText(r.ticketsExpireAt) : "This match was re-seated. Play opens again in a few minutes.";
+      // A stale tab after the match moved on (UX S19): `match_not_open` "the match is decided|pending".
+      if (r.code === "match_not_open" && /decided/i.test(r.message ?? ""))
+        return "This match has already been decided. Reload the page to see the result.";
+      if (r.code === "match_not_open" && /pending/i.test(r.message ?? ""))
+        return "This match isn't open yet: your opponent isn't known.";
+      return "This match isn't open to play right now. Reload the page to see where it stands.";
     default:
       return r.code === "tournaments_disabled"
         ? "Tournament games aren't available right now."
@@ -217,7 +228,9 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
           onSettled?.();
           return false;
         }
-        setPhase({ kind: "error", message: playErrorMessage(r) });
+        setPhase({ kind: "error", message: playErrorMessage(r), reason: r.reason, code: r.code, at: Date.now() });
+        // A dead session: re-probe /me so the page flips to its signed-out layout (UX B3).
+        if (r.reason === "unauthorized") void refreshAccount().catch(() => {});
         onSettled?.();
         return false;
       }
@@ -301,5 +314,15 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
     [router, slug, matchId],
   );
 
-  return { phase, play, retry, backToRoom };
+  /**
+   * Drop a stale error once the situation changed (journeys S3): the banner's
+   * cooldown ended, or the api answered again after a network failure. Never
+   * while a press is in flight; nothing to re-read, unlike `retry`.
+   */
+  const dismiss = useCallback(() => {
+    if (inFlight.current) return;
+    setPhase((p) => (p.kind === "error" ? { kind: "idle" } : p));
+  }, []);
+
+  return { phase, play, retry, backToRoom, dismiss };
 };

@@ -3,10 +3,12 @@
  * gold ring, both avatars, the match and its lines, and one main action.
  * Renders nothing for guests, a player with no open match, or an api failure.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 
-import { useAccount } from "@/lib/account/useAccount";
+import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { noticedReseatCooldown } from "@/lib/tournaments/api";
+import { activeReseatCooldown, reseatCooldownText } from "@/lib/tournaments/matchPage";
 import { loadMapTitles } from "@/lib/tournaments/mapTitle";
 import { usePlayMatch } from "@/lib/tournaments/usePlayMatch";
 import { useNextMatch } from "@/lib/tournaments/useNextMatchView";
@@ -26,7 +28,20 @@ const Pill = ({ children }: { children: React.ReactNode }) => (
 export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView; myName: string; myAvatar?: string }) => {
   const play = usePlayMatch(view.slug, view.matchId);
   const live = view.state === "in_play";
-  const busy = play.phase.kind === "busy" || play.phase.kind === "opening";
+  // A re-seat cooldown (interactions F4): from the match, or a 409 this tab already met.
+  const cooldown = view.primary === "view" ? null : activeReseatCooldown({ reseatCooldownUntil: view.playOpensAt }, noticedReseatCooldown(view.matchId), Date.now());
+  const busy = play.phase.kind === "busy" || play.phase.kind === "opening" || !!cooldown;
+  const notice = cooldown ? reseatCooldownText(cooldown) : view.notice;
+  // A failed press's message belongs to the situation it was pressed in: once the
+  // match moves on (or a re-seat cooldown starts or ends), drop it without a reload (journeys S3).
+  const situation = `${view.state}|${view.primary}|${cooldown ? "cooldown" : ""}`;
+  const { dismiss } = play;
+  const seen = useRef(situation);
+  useEffect(() => {
+    if (seen.current === situation) return;
+    seen.current = situation;
+    dismiss();
+  }, [situation, dismiss]);
   const joinNow = view.state === "opponent_ready";
   return (
     <Box
@@ -52,7 +67,7 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
           </Box>
         </Flex>
         <Box flex="1" minW={{ base: "0", md: "14rem" }}>
-          <Text fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" fontSize="12px" fontWeight={700} color={live ? "#FF8A73" : GOLD}>
+          <Text fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" fontSize="12px" fontWeight={700} color={live ? "#FF8A73" : GOLD} aria-live="polite" data-testid="next-match-caption">
             {live ? "● " : ""}
             {view.caption}
           </Text>
@@ -70,9 +85,9 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
             {view.opponentActive && <Text as="span">{view.opponentActive}</Text>}
             {view.timeLeft && <Text as="span">{view.timeLeft}</Text>}
           </Flex>
-          {view.notice && (
+          {notice && (
             <Text fontSize="13px" color={PARCHMENT} mt="6px" data-testid="next-match-notice">
-              {view.notice}
+              {notice}
             </Text>
           )}
           {play.phase.kind === "seat_held" && <SeatHeldNote dark roomId={play.phase.roomId} onRetry={play.retry} onBack={play.backToRoom} />}
@@ -80,6 +95,12 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
             <Text role="alert" fontSize="13px" color="#FF8A73" mt="6px">
               {play.phase.message}
             </Text>
+          )}
+          {play.phase.kind === "error" && play.phase.reason === "unauthorized" && (
+            // A dead session: the way back in, returning to this page (UX B3).
+            <Box mt="8px">
+              <Btn variant="discord" href={signInUrl(typeof window === "undefined" ? "/pro" : `${window.location.pathname}${window.location.search}`)} data-testid="next-match-sign-in">Sign in with Discord</Btn>
+            </Box>
           )}
         </Box>
         <Flex gap="8px" flexWrap="wrap" justify="flex-end" w={{ base: "100%", md: "auto" }}>

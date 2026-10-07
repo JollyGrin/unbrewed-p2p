@@ -69,7 +69,7 @@ describe("JoinPanel", () => {
   it("joined: 'You're seat 6 of 8' and Leave", async () => {
     me = "me";
     mount({ ...T, entryCount: 6 }, [...FIVE, entry("hok", 6)]);
-    expect(await screen.findByText(/you're seat 6 of 8/i)).toBeInTheDocument();
+    expect(await screen.findByText(/you're in, player 6 of 8/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /leave tournament/i }));
     // Leave needs a second, explicit step (#1242): nothing is sent yet.
     expect(screen.getByTestId("leave-confirm")).toHaveTextContent("Leave this tournament? You can rejoin while signup is open.");
@@ -97,7 +97,7 @@ describe("JoinPanel", () => {
   it("after signup closes there is no Leave", async () => {
     me = "me";
     mount({ ...T, signupOpen: false, status: "running" }, [...FIVE, entry("hok", 6)]);
-    expect(await screen.findByText(/you're seat 6 of 8/i)).toBeInTheDocument();
+    expect(await screen.findByText(/you're in, player 6 of 8/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /leave/i })).toBeNull();
   });
 

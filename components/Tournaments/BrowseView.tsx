@@ -71,7 +71,7 @@ export const BrowseView = () => {
       path="/tournaments"
       eyebrow="Tournaments · async, played on your own time"
       heading={<>Find a bracket.<br />Play when you can.</>}
-      lede="Join during signup. When your match opens, press Play match and we'll ping your opponent on Discord. Results land on the bracket by themselves."
+      lede="Join during signup. When your match opens, press I'm ready to play and your opponent sees you're waiting. Results land on the bracket by themselves."
       action={<Btn variant="gold" href="/tournaments?new=1" minH="52px" fontSize="16px">+ Create tournament</Btn>}
     >
       {all.status === "loading" && <Text opacity={0.7}>Loading tournaments…</Text>}
@@ -89,7 +89,7 @@ export const BrowseView = () => {
                 aria-selected={filter === f.id}
                 onClick={() => setFilter(f.id)}
                 px="14px"
-                minH="36px"
+                minH="44px"
                 borderRadius="999px"
                 fontSize="14px"
                 fontWeight={600}

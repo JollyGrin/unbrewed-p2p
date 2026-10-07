@@ -39,7 +39,7 @@ export const Page = ({
     <PageSeo
       path={path}
       title={`${title} | Unbrewed`}
-      description="Async single-elimination brackets for Unbrewed Pro."
+      description="Async tournaments for Unbrewed Pro: brackets and round robins, played on your own time."
       noindex
     />
     <Box color="brand.secondary">

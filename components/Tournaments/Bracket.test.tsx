@@ -219,7 +219,7 @@ describe("#1246 N2/N3/N5", () => {
         <MatchCell c={view.rounds[0].cells[0]} now={Date.parse("2026-10-05T12:00:00Z")} />
       </ChakraProvider>,
     );
-    expect(screen.getByTestId("match-cell")).toHaveTextContent(/Deadline passed · hokuto is holding a seat until \d\d:\d\d/);
+    expect(screen.getByTestId("match-cell")).toHaveTextContent(/Deadline passed · hokuto is holding a seat until \d{1,2}:\d\d/); // locale clock (UX S2)
   });
 });
 

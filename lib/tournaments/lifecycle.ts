@@ -49,7 +49,7 @@ export const cancelConsequence = (kind: CancelKind, players: number): string =>
   kind === "draft"
     ? "Delete this draft? Nobody has seen it yet. It can't be brought back."
     : kind === "signup"
-      ? `Cancel this tournament? Signup closes for good${players > 0 ? ` and the ${players} player${players === 1 ? "" : "s"} who joined lose their seat` : ""}. This can't be undone.`
+      ? `Cancel this tournament? Signup closes for good${players > 0 ? players === 1 ? " and the 1 player who joined loses their seat" : ` and the ${players} players who joined lose their seat` : ""}. This can't be undone.`
       : "Cancel this running tournament? Matches still to play are called off and no champion is named. This can't be undone.";
 
 /**
