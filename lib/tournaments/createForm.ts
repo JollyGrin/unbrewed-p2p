@@ -14,6 +14,7 @@
 import { FREE_RULE } from "./matchup";
 import { ruleWithMapHash } from "./mapHash";
 import type { CreateTournamentBody, MapRef, MatchupRule } from "./types";
+import { localInputValue } from "./when";
 
 export type MatchupChoice = "free" | "map" | "organizer";
 export type MapScope = "event" | "round";
@@ -106,8 +107,7 @@ export const PRESETS: Preset[] = [
 export const defaultSignupCloses = (from: Date = new Date(), days = 5): string => {
   const d = new Date(from.getTime() + days * 86_400_000);
   d.setMinutes(0, 0, 0);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return localInputValue(d);
 };
 
 export const initialForm = (from?: Date): CreateFormState => ({

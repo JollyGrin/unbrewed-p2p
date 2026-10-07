@@ -16,6 +16,7 @@ import { TAP_TARGET } from "@/lib/pro/mobileLayout";
 import type { PlayerView } from "@/lib/pro/protocol";
 import { tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { getMatch } from "@/lib/tournaments/api";
+import { startPoll, useTicker } from "@/lib/tournaments/poll";
 
 export const opponentAwayText = (name: string, secsLeft: number): string =>
   secsLeft > 0
@@ -24,14 +25,8 @@ export const opponentAwayText = (name: string, secsLeft: number): string =>
 
 /** The opponent's auto-forfeit countdown, off the engine's deadline (never a local counter). */
 export const OpponentAwayNote = ({ name, deadline }: { name: string; deadline: number }) => {
-  const left = () => Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-  const [secs, setSecs] = useState(left);
-  useEffect(() => {
-    setSecs(left());
-    const id = window.setInterval(() => setSecs(left()), 1000);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deadline]);
+  const now = useTicker(1000, Date.now, true, deadline);
+  const secs = Math.max(0, Math.ceil((deadline - now) / 1000));
   return (
     <Box
       role="status"
@@ -89,18 +84,21 @@ export const useTaggedGameEndReason = (at: TournamentRoom | null, roomId: string
     setReason(null);
     if (!over || !slug || !matchId || !roomId) return;
     let alive = true;
-    let timer: number | undefined;
-    const ask = async (tries: number) => {
+    let tries = 2;
+    const stop = startPoll(END_REASON_RETRY_MS, async () => {
       const r = await getMatch(slug, matchId).catch(() => null);
-      if (!alive) return;
+      if (!alive) return "stop";
       const game = r?.ok ? r.value.match.games.find((g) => g.roomId === roomId) : undefined;
-      if (game?.finishedAt) return setReason(game.endReason ?? null);
-      if (tries > 1) timer = window.setTimeout(() => void ask(tries - 1), END_REASON_RETRY_MS);
-    };
-    void ask(2);
+      if (game?.finishedAt) {
+        setReason(game.endReason ?? null);
+        return "stop";
+      }
+      // A miss (or a failed ask) is no reason to back off: the api is a moment behind.
+      return --tries > 0 ? "ok" : "stop";
+    });
     return () => {
       alive = false;
-      window.clearTimeout(timer);
+      stop();
     };
   }, [slug, matchId, roomId, over]);
   return reason;

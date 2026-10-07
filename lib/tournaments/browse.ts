@@ -68,8 +68,14 @@ export const statusChip = (
 };
 
 /**
- * The account-menu count: what the browse "My tournaments" filter lists. The
- * public list never carries cancelled tournaments, so they don't count here either.
+ * The account-menu count, off the `/me/tournaments` rows the menu already has
+ * (no extra request): the events the account plays in or runs, never cancelled
+ * ones. That endpoint lists only signup and running events, so this counts the
+ * ACTIVE ones and is not the length of the browse "My tournaments" filter, which
+ * also lists finished events and drafts.
  */
 export const myTournamentCount = (rows: readonly Tournament[]): number =>
   rows.filter((t) => (t.myEntryId || t.isOrganizer) && t.status !== "cancelled").length;
+
+/** "2 active": the menu says what the number counts (see `myTournamentCount`). */
+export const activeCountText = (n: number): string => `${n} active`;

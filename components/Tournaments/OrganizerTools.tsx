@@ -30,7 +30,7 @@ import {
   ticketsOutstandingText,
   type AttentionAction,
 } from "@/lib/tournaments/organizer";
-import type { Entry, MapRef, Match, Tournament } from "@/lib/tournaments/types";
+import type { Entry, EntryName, MapRef, Match, Tournament } from "@/lib/tournaments/types";
 
 import { Btn, Card, ERROR_RED, ErrorText } from "./ui";
 
@@ -44,7 +44,7 @@ const FIELD = {
   fontSize: "15px",
 } as const;
 
-const nameOf = (entries: readonly Entry[], id: string | null) =>
+const nameOf = (entries: readonly EntryName[], id: string | null) =>
   entries.find((e) => e.id === id)?.username ?? "Player";
 
 type Run = (
@@ -93,7 +93,7 @@ export const OverrideForm = ({
 }: {
   slug: string;
   match: Match;
-  entries: Entry[];
+  entries: readonly EntryName[];
   initialWinner?: string | null;
   initialNote?: string;
   onDone: () => void;
@@ -268,7 +268,7 @@ export const MatchupForm = ({
 }: {
   slug: string;
   match: Match;
-  entries: Entry[];
+  entries: readonly EntryName[];
   onDone: () => void;
 }) => {
   const { heroes } = useProLiveRosterState(PRO_WS_URL);
@@ -427,7 +427,7 @@ export const MatchOrganizerPanel = ({
 }: {
   slug: string;
   match: Match;
-  entries: Entry[];
+  entries: readonly EntryName[];
   reload: () => void;
   /** Past the deadline nobody plays any more, so a matchup is moot (D5). */
   deadlinePassed?: boolean;

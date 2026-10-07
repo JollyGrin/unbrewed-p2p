@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAccount } from "@/lib/account/useAccount";
 import { getMatch } from "@/lib/tournaments/api";
+import { useTicker } from "@/lib/tournaments/poll";
 import { serverNow } from "@/lib/tournaments/serverClock";
 
 import { proErrorMessage, TOURNAMENT_SEAT_RELEASED } from "@/lib/pro/proErrors";
@@ -98,12 +99,8 @@ export const TicketErrorScreen = ({
   const [releaseAt, setReleaseAt] = useState<number | null>(null);
   const cancelWait = useRef<(() => void) | null>(null);
   useEffect(() => () => cancelWait.current?.(), []);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (releaseAt === null) return;
-    const id = window.setInterval(() => tick((n) => n + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [releaseAt]);
+  // Re-renders each second while the release countdown runs.
+  useTicker(1000, Date.now, releaseAt !== null, releaseAt);
   /** Resolves true after `ms`, or false once cancelled (the screen went away). */
   const sleep = (ms: number) =>
     new Promise<boolean>((resolve) => {
