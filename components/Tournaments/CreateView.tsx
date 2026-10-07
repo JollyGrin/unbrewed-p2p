@@ -16,7 +16,7 @@ import {
   initialForm,
   latestFinal,
   matchupSummary,
-  toCreateBody,
+  toCreateBodyWithMapHash,
   validateForm,
   type CreateFormState,
   type MatchupChoice,
@@ -117,7 +117,8 @@ export const CreateView = () => {
     setProblems(found.map((p) => p.message));
     if (found.length) return;
     setBusy(true);
-    const r = await createTournament(toCreateBody(form, kind));
+    // The event's map lock carries the board's content hash (#1268).
+    const r = await createTournament(await toCreateBodyWithMapHash(form, kind));
     setBusy(false);
     if (r.ok) {
       void router.push(`${tournamentPath(r.value.slug)}${kind === "signup" ? "&share=1" : ""}`);

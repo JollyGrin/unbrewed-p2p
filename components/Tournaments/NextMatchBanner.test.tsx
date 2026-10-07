@@ -84,7 +84,7 @@ describe("NextMatchBanner", () => {
     );
     await screen.findByTestId("next-match-banner");
     fireEvent.click(screen.getByRole("button", { name: "I'm ready to play" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith(expect.stringContaining("/pro/game?ticket=t")));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(expect.stringMatching(/^\/pro\/game\?(?!.*[?&]ticket=).*#ticket=t$/)));
   });
 
   it("deadline passed → the organizer is deciding, no ready button (#1230)", async () => {

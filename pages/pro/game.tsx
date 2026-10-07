@@ -240,6 +240,7 @@ import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import {
   forgetPendingPick,
   forgetTournamentRoom,
+  dropTicketFragment,
   parseTicketQuery,
   pendingPick,
   rememberPendingPick,
@@ -249,6 +250,7 @@ import {
   TICKET_ERROR_CODES,
   tournamentMatchHref,
   tournamentRoomOf,
+  takeTicketFragment,
   withoutTicketQuery,
 } from "@/lib/pro/tournamentTicket";
 import type { TicketLaunch, TournamentRoom } from "@/lib/pro/tournamentTicket";
@@ -5320,6 +5322,7 @@ const LiveGame = ({
   useEffect(() => {
     if (!ticket || ticketFiredRef.current) return;
     ticketFiredRef.current = true;
+    dropTicketFragment(); // single use: the launch below holds it from here
     router.replace(
       { pathname: router.pathname, query: withoutTicketQuery(router.query) },
       undefined,
@@ -5891,7 +5894,7 @@ const LiveGame = ({
       error.code === "ROOM_FULL" ||
       error.code === "BAD_TOKEN")
   ) {
-    return <TicketErrorScreen code={error.code} at={taggedRoom} />;
+    return <TicketErrorScreen code={error.code} at={taggedRoom} roomId={firedTicket?.room ?? room ?? roomId} />;
   }
   // A tagged room we can't place (#1230: a forwarded link, not your match): the
   // engine's answer still reads as the ticket card, pointing at your tournaments.
@@ -8079,10 +8082,12 @@ const ProGamePage = () => {
   // CTA arriving: it highlights the Quick Match button on the picker. It never
   // auto-fires — the fighter pick is the one choice we can't make for them.
   const quickParam = router.query.quick !== undefined;
-  // `?ticket=…&tour=…&match=…` is a tournament match's "I'm ready" arriving
+  // `?tour=…&match=…#ticket=…` is a tournament match's "I'm ready" arriving
   // (#1218, lib/pro/tournamentTicket.ts): one tagged CREATE_ROOM, or JOIN_ROOM
-  // into `?room=`. Null on every ordinary load.
-  const ticket = parseTicketQuery(router.query);
+  // into `?room=`. Null on every ordinary load. The ticket leaves the address
+  // bar on the first client render (#1268); an old `?ticket=` link still works.
+  const fragmentTicket = takeTicketFragment();
+  const ticket = parseTicketQuery(fragmentTicket ? { ...router.query, ticket: fragmentTicket } : router.query);
 
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">

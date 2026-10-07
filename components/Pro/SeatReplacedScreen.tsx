@@ -9,7 +9,7 @@ import { Button, Flex, Link, Text } from "@chakra-ui/react";
 import { useState } from "react";
 
 import { getToken } from "@/lib/pro/recentRooms";
-import { tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
+import { assignTicketHref, tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { freshGrant, grantHref, playErrorMessage } from "@/lib/tournaments/usePlayMatch";
 
 const BTN_GOLD = {
@@ -23,7 +23,7 @@ export const SeatReplacedScreen = ({
   roomId,
   at,
   onTakeBack,
-  navigate = (href: string) => window.location.assign(href),
+  navigate = assignTicketHref,
 }: {
   roomId: string | null;
   /** The match this room belongs to; null = a casual room. */

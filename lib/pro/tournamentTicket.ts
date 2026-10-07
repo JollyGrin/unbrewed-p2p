@@ -2,12 +2,17 @@
  * Tournament tickets on /pro/game (#1218, engine #755, protocol v37).
  *
  * The match page presses "I'm ready" (`POST …/ready`) and hands the result to
- * `/pro/game` as query params — the same pattern lib/pro/rematch.ts uses for a
- * one-tap rematch. The page fires ONE CREATE_ROOM (or `?room=` + JOIN_ROOM)
- * carrying the opaque `ticket`, then drops these keys from the URL so a refresh
- * RECONNECTs with the seat token instead of spending the ticket again.
+ * `/pro/game` — the same pattern lib/pro/rematch.ts uses for a one-tap rematch.
+ * The page fires ONE CREATE_ROOM (or `?room=` + JOIN_ROOM) carrying the opaque
+ * `ticket`, then drops these keys from the URL so a refresh RECONNECTs with the
+ * seat token instead of spending the ticket again.
  *
- *   /pro/game?ticket=…&tour=<slug>&match=<matchId>[&lockHero=<heroId>][&lockMap=<kind>:<id>][&room=<roomId>]
+ *   /pro/game?tour=<slug>&match=<matchId>[&lockHero=<heroId>][&lockMap=<kind>:<id>][&room=<roomId>]#ticket=…
+ *
+ * The ticket rides in the FRAGMENT (#1268): never sent to a server, never in a
+ * Referer, and taken out of the address bar on the first client render
+ * (`takeTicketFragment`). The old `?ticket=` form still works for links opened
+ * before the change.
  *
  * `lockHero` set → the hero picker is skipped. `lockMap` follows the engine's
  * map-identity rule (engine #755): `map.id` is the board's ProMapDef slug; an
@@ -58,16 +63,69 @@ const parseMap = (raw: string | null): MapLock | null => {
   return at > 0 && id && (kind === "catalog" || kind === "custom") ? { kind, id } : null;
 };
 
-/** The `/pro/game` link for a ticket the api just granted. */
+/** The `/pro/game` link for a ticket the api just granted: the ticket in the fragment. */
 export function ticketGameHref(launch: TicketLaunch): string {
-  const q = new URLSearchParams({ ticket: launch.ticket, tour: launch.slug, match: launch.matchId });
+  const q = new URLSearchParams({ tour: launch.slug, match: launch.matchId });
   if (launch.heroId) q.set("lockHero", launch.heroId);
   if (launch.map) q.set("lockMap", `${launch.map.kind}:${launch.map.id}`);
   if (launch.room) q.set("room", launch.room);
-  return `/pro/game?${q.toString()}`;
+  return `/pro/game?${q.toString()}#${new URLSearchParams({ ticket: launch.ticket }).toString()}`;
 }
 
-/** A `?ticket=` launch, or null on every other /pro/game load. */
+// The ticket taken from this page load's fragment, held for the location it was
+// read at — StrictMode renders twice, and the second render finds the address
+// bar already clean. Any other location (the page stripped its launch keys, or
+// a later visit) no longer sees it.
+let heldFragment: { ticket: string; at: string } | null = null;
+
+/**
+ * The `#ticket=` of this page load, read ONCE: it leaves the address bar at
+ * once (history.replaceState, so no history entry and no reload), keeping any
+ * other fragment keys. Null on the server and on every load without one.
+ */
+export function takeTicketFragment(): string | null {
+  if (typeof window === "undefined") return null;
+  const { pathname, search, hash } = window.location;
+  const at = pathname + search;
+  const frag = new URLSearchParams(hash.replace(/^#/, ""));
+  const ticket = frag.get("ticket")?.trim();
+  if (ticket) {
+    frag.delete("ticket");
+    const rest = frag.toString();
+    try {
+      window.history.replaceState(window.history.state, "", at + (rest ? `#${rest}` : ""));
+    } catch {
+      /* history blocked: the ticket still works, it just lingers in the bar */
+    }
+    heldFragment = { ticket, at };
+    return ticket;
+  }
+  return heldFragment && heldFragment.at === at ? heldFragment.ticket : null;
+}
+
+/** Forget the held fragment ticket (the launch fired; test reset). */
+export function dropTicketFragment(): void {
+  heldFragment = null;
+}
+
+/**
+ * Full-page navigation to a ticket link. A link that differs from the current
+ * address only by its fragment would be a same-document hash change (no
+ * reload, the ticket never read), so reload in that case.
+ */
+export function assignTicketHref(href: string): void {
+  const next = new URL(href, window.location.href);
+  const here = window.location;
+  const sameDoc = next.pathname === here.pathname && next.search === here.search;
+  window.location.assign(href);
+  if (sameDoc) window.location.reload();
+}
+
+/**
+ * A ticket launch, or null on every other /pro/game load. Pass the fragment's
+ * ticket (`takeTicketFragment`) as `query.ticket`; a bare old `?ticket=` link
+ * parses the same way.
+ */
 export function parseTicketQuery(query: Query): TicketLaunch | null {
   const ticket = one(query.ticket);
   const slug = one(query.tour);

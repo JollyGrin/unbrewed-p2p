@@ -71,6 +71,7 @@ const call = async <T>(
       headers: {
         Accept: "application/json",
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(init?.headers as Record<string, string> | undefined),
       },
     });
     let body: any = null;
@@ -237,9 +238,34 @@ const grant = (b: any): TicketGrant => ({
 export const readyForMatch = (slug: string, matchId: string) =>
   call(`${matchPath(slug, matchId)}/ready`, { method: "POST" }, grant);
 
-/** A fresh ticket, recording nothing (a retry, or waiting on the other room's id). */
+/**
+ * A fresh ticket, recording nothing (a retry, or waiting on the other room's id).
+ * A POST with a JSON content type (hardening contract item 1, #1268) so no
+ * simple cross-site request can mint one; no body. It records nothing, so it
+ * keeps a read's timeout.
+ */
 export const getMatchTicket = (slug: string, matchId: string) =>
-  call(`${matchPath(slug, matchId)}/ticket`, undefined, grant);
+  call(
+    `${matchPath(slug, matchId)}/ticket`,
+    { method: "POST", headers: { "Content-Type": "application/json" } },
+    grant,
+    REQUEST_TIMEOUT_MS,
+  );
+
+/**
+ * The engine answered ROOM_NOT_FOUND for this match's room (an engine restart
+ * while it waited): ask the api to forget it so the next `/ready` creates a
+ * fresh one (hardening contract item 2, #1268). Idempotent; `cleared: false`
+ * = the api still trusts that room (or it already moved on). An api without
+ * the route answers 404 (`not_found`).
+ */
+export const reportRoomGone = (slug: string, matchId: string, roomId: string) =>
+  call(
+    `${matchPath(slug, matchId)}/room-gone`,
+    { method: "POST", body: JSON.stringify({ roomId }) },
+    (b) => ({ cleared: b?.cleared === true }),
+    REQUEST_TIMEOUT_MS,
+  );
 
 /**
  * A game's replay bundle. ASSUMED route: the api's replay route lands at the end

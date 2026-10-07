@@ -2,7 +2,7 @@
  * "I'm ready" / "Join now" on the match page (#1218): `POST …/ready` grants a
  * ticket and says create or join; the page then goes to `/pro/game` with it
  * (lib/pro/tournamentTicket). A `join` whose room is still opening (both pressed
- * at once — settled rule 6) polls `GET …/ticket` until the room has an id, or
+ * at once — settled rule 6) polls `POST …/ticket` until the room has an id, or
  * the api hands back `create` after its 90s grace.
  */
 import { useRouter } from "next/router";
@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { roomForMatch, ticketGameHref } from "@/lib/pro/tournamentTicket";
 
-import { getMatch, getMatchTicket, readyForMatch, type Result } from "./api";
+import { getMatch, getMatchTicket, readyForMatch, reportRoomGone, type Result } from "./api";
 import { currentChecks } from "./matchPage";
 import type { MatchDetail, TicketGrant } from "./types";
 
@@ -61,7 +61,7 @@ export const grantHref = (g: TicketGrant, slug: string, matchId: string): string
       });
 
 /**
- * A ticket for a retry or a poll. `GET …/ticket` records nothing, so it is only
+ * A ticket for a retry or a poll. `POST …/ticket` records nothing, so it is only
  * good for a JOIN (the other room is recorded already) or for the caller's own
  * create that is still opening (`seat_held`, nothing new to record). Whenever
  * the answer is — or turns into — a plain `create`, ask again with `POST
@@ -75,6 +75,43 @@ export const freshGrant = async (slug: string, matchId: string): Promise<Result<
   if (!t.ok || t.value.action === "join" || t.value.decision === "seat_held") return t;
   return readyForMatch(slug, matchId);
 };
+
+export type DeadRoomGrant =
+  | Result<TicketGrant>
+  /** The api still points this match at the room the engine just said is gone. */
+  | { ok: false; reason: "room_still_gone" };
+
+/** Whether a grant (or a seat_held refusal) still sends the player into `roomId`. */
+const pointsAt = (r: Result<TicketGrant>, roomId: string): boolean =>
+  r.ok ? r.value.roomId === roomId && (r.value.action === "join" || r.value.decision === "seat_held") : r.code === "seat_held" && r.roomId === roomId;
+
+/**
+ * The engine answered ROOM_NOT_FOUND for this match's room (#1268, hardening
+ * contract item 2): an engine restart dropped it, but the api still files the
+ * match under it, so `freshGrant` alone answers join/seat_held into the same
+ * dead room forever. Report it with `POST …/room-gone` — ONCE per dead room;
+ * the caller remembers the answer. `legacy` = an api without the route (404):
+ * the caller keeps today's behaviour. Any other failure still counts as
+ * reported, so the guard below stops the loop.
+ */
+export const reportDeadRoom = async (slug: string, matchId: string, deadRoomId: string): Promise<"reported" | "legacy"> => {
+  const gone = await reportRoomGone(slug, matchId, deadRoomId);
+  return !gone.ok && gone.reason === "not_found" ? "legacy" : "reported";
+};
+
+/**
+ * A fresh grant after a dead room was reported — a cleared room makes it a
+ * recorded create. One that still points at the dead room is refused here
+ * instead of sending the player back into it (RECONNECT → ROOM_NOT_FOUND → …).
+ */
+export const grantAvoiding = async (slug: string, matchId: string, deadRoomId: string): Promise<DeadRoomGrant> => {
+  const r = await freshGrant(slug, matchId);
+  return pointsAt(r, deadRoomId) ? { ok: false, reason: "room_still_gone" } : r;
+};
+
+/** Copy for a dead room the api won't let go of yet. */
+export const ROOM_STILL_GONE =
+  "This match's room closed and the server hasn't released it yet. Go back to the match and press Play again in a minute; if it keeps happening, ask the organizer.";
 
 /** The api's 90s wait for an opponent's room to open (ROOM_OPEN_GRACE_MS). */
 export const ROOM_OPEN_GRACE_MS = 90 * 1000;

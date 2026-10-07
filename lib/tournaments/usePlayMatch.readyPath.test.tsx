@@ -98,7 +98,10 @@ const pressAs = async (who: "f" | "h") => {
   await act(async () => result.current.play());
   return result;
 };
-const pushedQuery = () => new URL(String((push.mock.calls as unknown[][])[0][0]), "http://x").searchParams;
+const pushedUrl = () => new URL(String((push.mock.calls as unknown[][])[0][0]), "http://x");
+const pushedQuery = () => pushedUrl().searchParams;
+/** The ticket rides in the fragment (#1268). */
+const pushedTicket = () => new URLSearchParams(pushedUrl().hash.slice(1)).get("ticket");
 
 it("LV-2: f's own create is pending (via the API, never connected); h creates ZHQB after the grace; f's 'Join now' joins ZHQB", async () => {
   caller = "f";
@@ -111,7 +114,7 @@ it("LV-2: f's own create is pending (via the API, never connected); h creates ZH
   const f = await pressAs("f");
   expect(f.current.phase.kind).not.toBe("seat_held");
   expect(pushedQuery().get("room")).toBe("ZHQB");
-  expect(pushedQuery().get("ticket")).toMatch(/^ticket-f-/);
+  expect(pushedTicket()).toMatch(/^ticket-f-/);
 });
 
 it("LV-2: f's own pending create with NO room yet opens f's room from the UI (api: seat_held, roomId null)", async () => {

@@ -3,16 +3,26 @@
  * (TICKET_EXPIRED, MATCHUP_LOCKED, …, protocol v37) as readable copy, with a
  * retry that asks the api for a fresh ticket and reloads /pro/game with it, and
  * a way back to the match page. The retry goes through `freshGrant`: a JOIN may
- * reuse `GET …/ticket`, but a CREATE is always a recorded `POST …/ready`.
+ * reuse `POST …/ticket`, but a CREATE is always a recorded `POST …/ready`. A
+ * room the engine no longer has (ROOM_NOT_FOUND) is reported to the api first
+ * (`POST …/room-gone`, #1268), so the retry can't loop back into it.
  */
 import { Button, Flex, Link, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getMatch } from "@/lib/tournaments/api";
 
 import { proErrorMessage, TOURNAMENT_SEAT_RELEASED } from "@/lib/pro/proErrors";
-import { forgetPendingPick, ticketRetryable, tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
-import { freshGrant, grantHref, playErrorMessage } from "@/lib/tournaments/usePlayMatch";
+import { assignTicketHref, forgetPendingPick, ticketRetryable, tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
+import {
+  freshGrant,
+  grantAvoiding,
+  grantHref,
+  playErrorMessage,
+  reportDeadRoom,
+  ROOM_STILL_GONE,
+  type DeadRoomGrant,
+} from "@/lib/tournaments/usePlayMatch";
 
 const BTN_GOLD = {
   bg: "brand.accent",
@@ -25,14 +35,20 @@ export const TicketErrorScreen = ({
   code,
   message,
   at,
+  roomId = null,
   retry: forceRetry = false,
   pendingLaunch = false,
-  navigate = (href: string) => window.location.assign(href),
+  navigate = assignTicketHref,
 }: {
   /** The engine's ERROR code; absent for a problem found before sending. */
   code?: string;
   /** Overrides the code's copy. */
   message?: string;
+  /**
+   * The room the refused join/reconnect named. With ROOM_NOT_FOUND the retry
+   * reports it dead to the api before asking for a fresh ticket (#1268).
+   */
+  roomId?: string | null;
   /** Offer the retry even with no code (a seat this browser can't resume). */
   retry?: boolean;
   /** The match this room belongs to; null = a tagged room we can't place (#1230). */
@@ -46,6 +62,9 @@ export const TicketErrorScreen = ({
   navigate?: (href: string) => void;
 }) => {
   const [busy, setBusy] = useState(false);
+  // The api's answer to `room-gone` for this dead room: asked once, then reused.
+  const deadReport = useRef<"reported" | "legacy" | null>(null);
+  const deadRoom = code === "ROOM_NOT_FOUND" ? roomId : null;
   const [retryNote, setRetryNote] = useState<string | null>(null);
   // C3 (#1236): once the match is decided no ticket helps — say so, and only link back.
   const [finished, setFinished] = useState(false);
@@ -76,8 +95,13 @@ export const TicketErrorScreen = ({
     if (!at) return;
     setBusy(true);
     setRetryNote(null);
-    const r = await freshGrant(at.slug, at.matchId);
+    let r: DeadRoomGrant;
+    if (deadRoom) {
+      deadReport.current ??= await reportDeadRoom(at.slug, at.matchId, deadRoom);
+      r = deadReport.current === "legacy" ? await freshGrant(at.slug, at.matchId) : await grantAvoiding(at.slug, at.matchId, deadRoom);
+    } else r = await freshGrant(at.slug, at.matchId);
     setBusy(false);
+    if (!r.ok && r.reason === "room_still_gone") return setRetryNote(ROOM_STILL_GONE);
     if (!r.ok) {
       const msg = playErrorMessage(r);
       if (r.reason === "conflict" && r.code === "match_in_play") return setHeadline(msg);

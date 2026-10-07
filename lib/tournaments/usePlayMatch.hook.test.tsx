@@ -6,17 +6,18 @@
 import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 
-import { freshGrant, MAX_POLLS, playErrorMessage, POLL_MS, usePlayMatch } from "./usePlayMatch";
+import { freshGrant, grantAvoiding, MAX_POLLS, playErrorMessage, POLL_MS, reportDeadRoom, usePlayMatch } from "./usePlayMatch";
 import type { MatchDetail, TicketGrant } from "./types";
 import * as api from "./api";
 
 const push = jest.fn(async () => true);
 jest.mock("next/router", () => ({ useRouter: () => ({ push }) }));
-jest.mock("./api", () => ({ getMatchTicket: jest.fn(), readyForMatch: jest.fn(), getMatch: jest.fn() }));
+jest.mock("./api", () => ({ getMatchTicket: jest.fn(), readyForMatch: jest.fn(), getMatch: jest.fn(), reportRoomGone: jest.fn() }));
 
 const ready = api.readyForMatch as jest.Mock;
 const ticket = api.getMatchTicket as jest.Mock;
 const getMatch = api.getMatch as jest.Mock;
+const roomGone = api.reportRoomGone as jest.Mock;
 
 const grant = (over: Partial<TicketGrant>): { ok: true; value: TicketGrant } => ({
   ok: true,
@@ -28,6 +29,7 @@ beforeEach(() => {
   ready.mockReset();
   ticket.mockReset();
   getMatch.mockReset().mockResolvedValue({ ok: false, reason: "unavailable" });
+  roomGone.mockReset();
   window.localStorage.clear();
 });
 
@@ -56,6 +58,38 @@ describe("freshGrant", () => {
 
   it("explains the held seat", () => {
     expect(playErrorMessage({ ok: false, reason: "conflict", code: "seat_held" })).toMatch(/another tab or device/);
+  });
+});
+
+describe("dead-room recovery (#1268, contract item 2)", () => {
+  it("reportDeadRoom posts room-gone; only a 404 (an api without the route) is legacy", async () => {
+    roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: true } });
+    expect(await reportDeadRoom("s", "m", "GONE")).toBe("reported");
+    expect(roomGone).toHaveBeenCalledWith("s", "m", "GONE");
+    roomGone.mockResolvedValueOnce({ ok: true, value: { cleared: false } });
+    expect(await reportDeadRoom("s", "m", "GONE")).toBe("reported");
+    roomGone.mockResolvedValueOnce({ ok: false, reason: "unavailable" });
+    expect(await reportDeadRoom("s", "m", "GONE")).toBe("reported");
+    roomGone.mockResolvedValueOnce({ ok: false, reason: "not_found" });
+    expect(await reportDeadRoom("s", "m", "GONE")).toBe("legacy");
+  });
+
+  it("grantAvoiding: a cleared room's next answer is a recorded create", async () => {
+    ticket.mockResolvedValue(grant({ action: "create", ticket: "unrecorded" }));
+    ready.mockResolvedValue(grant({ action: "create", ticket: "recorded" }));
+    expect(await grantAvoiding("s", "m", "GONE")).toEqual(grant({ action: "create", ticket: "recorded" }));
+  });
+
+  it("grantAvoiding refuses any answer that still points into the dead room", async () => {
+    ticket.mockResolvedValueOnce(grant({ action: "join", roomId: "GONE" }));
+    expect(await grantAvoiding("s", "m", "GONE")).toEqual({ ok: false, reason: "room_still_gone" });
+    ticket.mockResolvedValueOnce(grant({ action: "join", decision: "seat_held", roomId: "GONE" }));
+    expect(await grantAvoiding("s", "m", "GONE")).toEqual({ ok: false, reason: "room_still_gone" });
+    ticket.mockResolvedValueOnce({ ok: false, reason: "conflict", code: "seat_held", roomId: "GONE" });
+    expect(await grantAvoiding("s", "m", "GONE")).toEqual({ ok: false, reason: "room_still_gone" });
+    // another room is a fine answer
+    ticket.mockResolvedValueOnce(grant({ action: "join", roomId: "NEW" }));
+    expect(await grantAvoiding("s", "m", "GONE")).toEqual(grant({ action: "join", roomId: "NEW" }));
   });
 });
 
@@ -142,9 +176,10 @@ describe("usePlayMatch stale-tab guard (#1248, rule = the api's decideReady sinc
     ticket.mockResolvedValue(grant({ action: "join", decision: "seat_held", roomId: "DQJ6", ticket: "fresh", heroId: "alice" }));
     const { result } = renderHook(() => usePlayMatch("s", "m"));
     await act(async () => result.current.backToRoom("DQJ6"));
-    const q = new URL(String((push.mock.calls as unknown[][])[0][0]), "http://x").searchParams;
+    const u = new URL(String((push.mock.calls as unknown[][])[0][0]), "http://x");
+    const q = u.searchParams;
     expect(q.get("room")).toBe("DQJ6");
-    expect(q.get("ticket")).toBe("fresh");
+    expect(new URLSearchParams(u.hash.slice(1)).get("ticket")).toBe("fresh");
     expect(q.get("lockHero")).toBe("alice");
     expect(ready).not.toHaveBeenCalled();
   });

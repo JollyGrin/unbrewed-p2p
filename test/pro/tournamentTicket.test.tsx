@@ -27,7 +27,10 @@ import { RANDOM_HERO_ID } from "@/lib/pro/randomHero";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
-import { rememberTournamentRoom, tournamentRoomOf } from "@/lib/pro/tournamentTicket";
+import { webcrypto } from "node:crypto";
+import { dropTicketFragment, rememberTournamentRoom, tournamentRoomOf } from "@/lib/pro/tournamentTicket";
+import { canonicalJson, mapLockHash, sha256Hex } from "@/lib/tournaments/mapHash";
+import { ROOM_STILL_GONE } from "@/lib/tournaments/usePlayMatch";
 import type { PlayerView, ReplayBundle } from "@/lib/pro/protocol";
 import { fixtureMatch, fixtureMyTournaments } from "@/lib/tournaments/fixtures";
 import { __resetNextMatchForTests } from "@/lib/tournaments/useNextMatch";
@@ -116,6 +119,7 @@ const flush = async (n = 5) => {
 };
 
 const realFetch = global.fetch;
+const REAL_LOCATION = window.location;
 
 const TICKET: Query = { ticket: "payload.sig", tour: "autumn-skirmish", match: "m2-1" };
 const LOCKED: Query = { ...TICKET, lockHero: "kenshiro", lockMap: "catalog:counts-castle" };
@@ -140,6 +144,9 @@ afterEach(() => {
   jest.restoreAllMocks();
   window.sessionStorage.clear();
   window.localStorage.clear();
+  Object.defineProperty(window, "location", { configurable: true, value: REAL_LOCATION });
+  window.history.replaceState(null, "", "/");
+  dropTicketFragment();
 });
 
 describe("create vs join", () => {
@@ -195,6 +202,53 @@ describe("create vs join", () => {
   });
 });
 
+describe("the ticket in the fragment (F5, #1268)", () => {
+  it("a #ticket= link launches with it, and the address bar loses it on the first render", async () => {
+    window.history.replaceState(null, "", "/pro/game?tour=autumn-skirmish&match=m2-1&lockHero=kenshiro&lockMap=catalog:counts-castle#ticket=frag.sig");
+    const { ticket: _none, ...query } = LOCKED;
+    await mount(query);
+    expect(window.location.hash).toBe("");
+    expect(window.location.href).not.toContain("frag.sig");
+    const creates = sentOfType("CREATE_ROOM");
+    expect(creates).toHaveLength(1);
+    expect(creates[0]).toMatchObject({ ticket: "frag.sig", heroId: "kenshiro" });
+    expect(replaceCalls[0].query).toEqual({});
+  });
+
+  it("StrictMode's double render still launches ONE room with the fragment's ticket", async () => {
+    window.history.replaceState(null, "", "/pro/game?tour=autumn-skirmish&match=m2-1&lockHero=kenshiro#ticket=frag.sig");
+    await mount({ tour: "autumn-skirmish", match: "m2-1", lockHero: "kenshiro" }, { strict: true });
+    expect(sentOfType("CREATE_ROOM")).toEqual([expect.objectContaining({ ticket: "frag.sig" })]);
+    expect(window.location.hash).toBe("");
+  });
+
+  it("the fragment's ticket wins over a stale ?ticket=; a ticket-less load stays a casual one", async () => {
+    window.history.replaceState(null, "", "/pro/game?ticket=old.sig&tour=autumn-skirmish&match=m2-1&lockHero=kenshiro#ticket=frag.sig");
+    await mount({ ...LOCKED, ticket: "old.sig" });
+    expect(sentOfType("CREATE_ROOM")).toEqual([expect.objectContaining({ ticket: "frag.sig" })]);
+  });
+
+  it("the CREATE_ROOM's customMap hashes to the organizer's stored map-lock hash (no drift, contract item 3)", async () => {
+    const jsdomCrypto = globalThis.crypto;
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: webcrypto });
+    try {
+      for (const id of ["counts-castle", "weathertop"]) {
+        cleanup();
+        FakeWebSocket.reset();
+        SENT = [];
+        await mount({ ...LOCKED, lockMap: `catalog:${id}` });
+        const [create] = sentOfType("CREATE_ROOM"); // parsed off the wire, as the engine sees it
+        expect((create.customMap as { id: string }).id).toBe(id);
+        const stored = await mapLockHash({ kind: "catalog", id });
+        expect(stored).toMatch(/^[0-9a-f]{64}$/);
+        expect(await sha256Hex(canonicalJson(create.customMap))).toBe(stored);
+      }
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { configurable: true, value: jsdomCrypto });
+    }
+  });
+});
+
 describe("hero picker", () => {
   it("a ticket that leaves the hero open shows the picker with the setup fixed, then sends the ticket", async () => {
     jest.spyOn(Math, "random").mockReturnValue(0);
@@ -246,12 +300,12 @@ describe("engine ticket errors", () => {
   });
 
   it("the retry re-asks with a RECORDED ready when the answer is create (rule 6), and reloads with it", async () => {
-    const fetchMock = jest.fn(async (_url: string, init?: RequestInit) => ({
+    const fetchMock = jest.fn(async (url: string, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       json: async () => ({
         action: "create",
-        ticket: init?.method === "POST" ? "fresh.sig" : "unrecorded.sig",
+        ticket: url.endsWith("/ready") ? "fresh.sig" : "unrecorded.sig",
         gameIndex: 0, slot: "a", heroId: "kenshiro", map: null, ticketExpiresAt: "x", roomId: null,
       }),
     }));
@@ -263,6 +317,10 @@ describe("engine ticket errors", () => {
     await click(screen.getByText("Get a fresh ticket and retry"));
     const calls = fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${String(url)}`);
     expect(calls).toContainEqual(expect.stringMatching(/^POST .*\/tournaments\/autumn-skirmish\/matches\/m2-1\/ready$/));
+    // the ticket is a POST now (#1268), never a GET; no room to report on a ticket code
+    expect(calls).toContainEqual(expect.stringMatching(/^POST .*\/matches\/m2-1\/ticket$/));
+    expect(calls.filter((c) => c.startsWith("GET ") && c.endsWith("/ticket"))).toEqual([]);
+    expect(calls.filter((c) => c.endsWith("/room-gone"))).toEqual([]);
     expect(assign).toHaveBeenCalledWith(expect.stringContaining("ticket=fresh.sig"));
     expect(assign).not.toHaveBeenCalledWith(expect.stringContaining("unrecorded"));
   });
@@ -711,6 +769,104 @@ const grantJson = (over: Record<string, unknown>) => ({
   ok: true,
   status: 200,
   json: async () => ({ action: "join", ticket: "fresh.sig", gameIndex: 0, slot: "a", heroId: "kenshiro", map: null, ticketExpiresAt: "x", roomId: "DQJ6", ...over }),
+});
+
+describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)", () => {
+  type Answers = { roomGone: () => { status: number; body: unknown }; ticket: () => Record<string, unknown>; ready?: () => Record<string, unknown> };
+  const api = (a: Answers) => {
+    const calls: { path: string; method: string; body: unknown }[] = [];
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      const path = String(url).replace(/^.*\/tournaments\/autumn-skirmish\/matches\/m2-1/, "");
+      calls.push({ path, method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (path === "/room-gone") {
+        const r = a.roomGone();
+        return { ok: r.status === 200, status: r.status, json: async () => r.body };
+      }
+      if (path === "/ticket") return grantJson(a.ticket());
+      if (path === "/ready") return grantJson(a.ready?.() ?? { action: "create", roomId: null, ticket: "created.sig" });
+      return { ok: false, status: 404, json: async () => ({}) };
+    }) as never;
+    return calls;
+  };
+  const deadRoomCard = async () => {
+    rememberTournamentRoom("GONE", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.localStorage.setItem("unbrewed-pro-token-GONE", "tok");
+    await mount({ room: "GONE" });
+    await flush();
+    expect(sentOfType("RECONNECT")).toEqual([expect.objectContaining({ roomId: "GONE" })]);
+    await deliver({ type: "ERROR", code: "ROOM_NOT_FOUND", message: "no room" });
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("This room expired");
+    const assign = jest.fn();
+    Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, assign, reload: jest.fn() } });
+    return assign;
+  };
+  const retry = async () => {
+    await click(screen.getByText("Get a fresh ticket and retry"));
+    await flush();
+  };
+
+  it("reports the room gone ONCE, then a cleared room's fresh grant is a recorded create into a NEW room", async () => {
+    const calls = api({
+      roomGone: () => ({ status: 200, body: { cleared: true } }),
+      ticket: () => ({ action: "create", roomId: null, ticket: "unrecorded.sig" }),
+    });
+    const assign = await deadRoomCard();
+    await retry();
+    expect(calls.map((c) => `${c.method} ${c.path}`).filter((c) => !c.startsWith("GET"))).toEqual([
+      "POST /room-gone",
+      "POST /ticket",
+      "POST /ready",
+    ]);
+    expect(calls[calls.findIndex((c) => c.path === "/room-gone")].body).toEqual({ roomId: "GONE" });
+    expect(assign).toHaveBeenCalledTimes(1);
+    const href = String(assign.mock.calls[0][0]);
+    expect(href).toContain("#ticket=created.sig");
+    expect(href).not.toContain("room=GONE");
+  });
+
+  it("the api still points at the dead room: says so, never navigates back in, and never re-reports", async () => {
+    const calls = api({
+      roomGone: () => ({ status: 200, body: { cleared: false } }),
+      ticket: () => ({ action: "join", roomId: "GONE", ticket: "again.sig" }),
+    });
+    const assign = await deadRoomCard();
+    await retry();
+    expect(screen.getByRole("alert")).toHaveTextContent(ROOM_STILL_GONE);
+    await retry();
+    await retry();
+    expect(assign).not.toHaveBeenCalled();
+    expect(calls.filter((c) => c.path === "/room-gone")).toHaveLength(1);
+    expect(calls.filter((c) => c.path === "/ticket")).toHaveLength(3);
+    expect(screen.getByRole("alert")).toHaveTextContent(ROOM_STILL_GONE);
+  });
+
+  it("an api without the route (404): today's behaviour — the plain fresh grant", async () => {
+    const calls = api({
+      roomGone: () => ({ status: 404, body: { error: "not_found" } }),
+      ticket: () => ({ action: "join", roomId: "GONE", ticket: "legacy.sig" }),
+    });
+    const assign = await deadRoomCard();
+    await retry();
+    expect(calls.filter((c) => c.path === "/room-gone")).toHaveLength(1);
+    expect(assign).toHaveBeenCalledWith(expect.stringMatching(/room=GONE.*#ticket=legacy\.sig$/));
+  });
+
+  it("any other engine error never calls room-gone", async () => {
+    const calls = api({
+      roomGone: () => ({ status: 200, body: { cleared: true } }),
+      ticket: () => ({ action: "join", roomId: "GONE", ticket: "fresh.sig" }),
+    });
+    rememberTournamentRoom("GONE", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.localStorage.setItem("unbrewed-pro-token-GONE", "tok");
+    await mount({ room: "GONE" });
+    await flush();
+    await deliver({ type: "ERROR", code: "ROOM_FULL", message: "full" });
+    const assign = jest.fn();
+    Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, assign, reload: jest.fn() } });
+    await retry();
+    expect(calls.filter((c) => c.path === "/room-gone")).toEqual([]);
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("a seat the engine released (LV-3, #1250)", () => {

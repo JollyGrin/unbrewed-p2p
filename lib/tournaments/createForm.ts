@@ -12,6 +12,7 @@
  *                                 through the per-match override.
  */
 import { FREE_RULE } from "./matchup";
+import { ruleWithMapHash } from "./mapHash";
 import type { CreateTournamentBody, MapRef, MatchupRule } from "./types";
 
 export type MatchupChoice = "free" | "map" | "organizer";
@@ -245,6 +246,15 @@ export const toCreateBody = (
   status,
   ...withRoundRobinSettings(f, matchupToWire(f)),
 });
+
+/** The create body with the event map lock's content hash (#1268; none when it can't be made). */
+export const toCreateBodyWithMapHash = async (
+  f: CreateFormState,
+  status: "draft" | "signup" = "signup",
+): Promise<CreateTournamentBody> => {
+  const body = toCreateBody(f, status);
+  return { ...body, matchupRule: await ruleWithMapHash(body.matchupRule) };
+};
 
 /** `settings.top2Final` rides along for round robin only (the api rejects it elsewhere). */
 const withRoundRobinSettings = <T extends { settings?: Record<string, unknown> }>(f: CreateFormState, w: T): T =>
