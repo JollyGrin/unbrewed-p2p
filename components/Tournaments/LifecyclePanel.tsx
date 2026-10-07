@@ -30,7 +30,7 @@ import { organizerErrorText } from "@/lib/tournaments/organizer";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 
 import { MapChips } from "./MapChips";
-import { Btn, Card } from "./ui";
+import { Btn, Card, ERROR_RED, ErrorText } from "./ui";
 
 const FIELD = { w: "100%", minH: "44px", px: "10px", borderRadius: "8px", border: "1px solid rgba(72,40,79,0.3)", bg: "white", fontSize: "15px" } as const;
 
@@ -147,7 +147,7 @@ export const LifecyclePanel = ({
           </Btn>
         )}
         {kind && (
-          <Btn variant="ghost" disabled={busy} data-testid="cancel-toggle" onClick={() => open("cancel")} color="#B3261E">
+          <Btn variant="ghost" disabled={busy} data-testid="cancel-toggle" onClick={() => open("cancel")} color={ERROR_RED}>
             {cancelLabel(kind)}
           </Btn>
         )}
@@ -229,11 +229,11 @@ export const LifecyclePanel = ({
       )}
 
       {problems.length > 0 && (
-        <Box role="alert" color="#B3361F" fontSize="14px" mt="10px">
+        <ErrorText as="div" fontSize="14px" mt="10px">
           {problems.map((p) => <Text key={p}>{p}</Text>)}
-        </Box>
+        </ErrorText>
       )}
-      {error && <Text role="alert" color="#B3261E" fontSize="13px" mt="10px" data-testid="organizer-error">{error}</Text>}
+      {error && <ErrorText mt="10px" data-testid="organizer-error">{error}</ErrorText>}
     </Card>
   );
 };

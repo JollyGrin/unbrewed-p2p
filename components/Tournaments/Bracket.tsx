@@ -19,9 +19,8 @@ import { clockOf } from "@/lib/tournaments/organizer";
 import { deadlinePassed } from "@/lib/tournaments/matchPage";
 import type { Entry } from "@/lib/tournaments/types";
 
-const SURFACE = "#3A2140";
-const DANGER = "#FF6347";
-const DANGER_INK = "#B83A26";
+import { DANGER, DANGER_INK, SURFACE } from "./ui";
+
 const GOLD_INK = "#7A5410";
 /** Small captions on parchment: INK_MUTED passes AA (≈4.8:1); 0.55 alpha did not (#1279, UX S12). */
 const SOFT = INK_MUTED;

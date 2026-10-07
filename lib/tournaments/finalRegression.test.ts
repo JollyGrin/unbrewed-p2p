@@ -18,13 +18,13 @@ describe("a displaced player's ready-check (D2)", () => {
     const d = reseated();
     expect(currentChecks(d)).toHaveLength(0);
     expect(heldRoom(d, NOW)).toBeNull();
-    expect(matchPageState(d, FIXTURE_MATCH_YOU, NOW)).toBe("waiting");
+    expect(matchPageState(d, FIXTURE_MATCH_YOU, NOW).kind).toBe("waiting");
     expect(readyDecision(d, "a", 0, NOW)).toEqual({ kind: "create" });
   });
 
   it("the unmodified fixture still reads opponent_ready / join", () => {
     const d = fixtureMatch("opponent_ready").detail;
-    expect(matchPageState(d, FIXTURE_MATCH_YOU, NOW)).toBe("opponent_ready");
+    expect(matchPageState(d, FIXTURE_MATCH_YOU, NOW).kind).toBe("opponent_ready");
     expect(readyDecision(d, "a", 0, NOW).kind).toBe("join");
   });
 });

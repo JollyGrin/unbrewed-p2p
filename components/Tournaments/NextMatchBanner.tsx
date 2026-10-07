@@ -8,7 +8,8 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { noticedReseatCooldown } from "@/lib/tournaments/api";
-import { activeReseatCooldown, reseatCooldownText } from "@/lib/tournaments/matchPage";
+import { reseatCooldownText } from "@/lib/tournaments/copy";
+import { activeReseatCooldown } from "@/lib/tournaments/matchPage";
 import { loadMapTitles } from "@/lib/tournaments/mapTitle";
 import { usePlayMatch } from "@/lib/tournaments/usePlayMatch";
 import { useNextMatch } from "@/lib/tournaments/useNextMatchView";
@@ -17,7 +18,7 @@ import { BAND_MUTED, GOLD, INK_DEEP, PARCHMENT } from "@/components/Stats/tokens
 
 import { Avatar } from "./Bracket";
 import { SeatHeldNote } from "./SeatHeldNote";
-import { Btn } from "./ui";
+import { Btn, ERROR_RED, ErrorText } from "./ui";
 
 const Pill = ({ children }: { children: React.ReactNode }) => (
   <Text as="span" bg="rgba(224,168,46,0.18)" color={PARCHMENT} fontSize="12px" fontWeight={600} px="10px" py="3px" borderRadius="999px" whiteSpace="nowrap">
@@ -57,7 +58,7 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
       px={{ base: "16px", md: "22px" }}
       py="18px"
       mb="2rem"
-      boxShadow={`inset 0 0 0 ${joinNow ? 2 : 1.5}px ${live ? "#B3361F" : GOLD}, 0 2px 8px rgba(20,8,24,0.18)`}
+      boxShadow={`inset 0 0 0 ${joinNow ? 2 : 1.5}px ${live ? ERROR_RED : GOLD}, 0 2px 8px rgba(20,8,24,0.18)`}
     >
       <Flex align="center" gap={{ base: "14px", md: "20px" }} flexWrap={{ base: "wrap", md: "nowrap" }}>
         <Flex flexShrink={0}>
@@ -92,9 +93,10 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
           )}
           {play.phase.kind === "seat_held" && <SeatHeldNote dark roomId={play.phase.roomId} onRetry={play.retry} onBack={play.backToRoom} />}
           {play.phase.kind === "error" && (
-            <Text role="alert" fontSize="13px" color="#FF8A73" mt="6px">
+            // A lighter red: this banner sits on the dark band.
+            <ErrorText color="#FF8A73" mt="6px">
               {play.phase.message}
-            </Text>
+            </ErrorText>
           )}
           {play.phase.kind === "error" && play.phase.reason === "unauthorized" && (
             // A dead session: the way back in, returning to this page (UX B3).

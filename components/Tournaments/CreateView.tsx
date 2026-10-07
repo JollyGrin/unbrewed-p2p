@@ -24,7 +24,7 @@ import {
 } from "@/lib/tournaments/createForm";
 import { formatWhen, tournamentPath } from "@/lib/tournaments/share";
 import { MapChips } from "./MapChips";
-import { Btn, Card, Chip, Notice, Page } from "./ui";
+import { Btn, Card, Chip, ErrorText, Notice, Page } from "./ui";
 
 const Label = ({ children }: { children: React.ReactNode }) => (
   <Text as="label" display="block" fontSize="12px" fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" opacity={0.7} mb="6px">
@@ -274,14 +274,14 @@ export const CreateView = () => {
             </Text>
 
             {problems.length > 0 && (
-              <Box role="alert" color="#B3361F" fontSize="14px">
+              <ErrorText as="div" fontSize="14px">
                 {problems.map((p) => <Text key={p}>{p}</Text>)}
                 {signedOutOnSubmit && (
                   <Box mt="8px">
                     <Btn variant="discord" href={signInUrl("/tournaments?new=1")}>Sign in with Discord</Btn>
                   </Box>
                 )}
-              </Box>
+              </ErrorText>
             )}
             <Flex gap="10px" justify="space-between" flexWrap="wrap">
               {custom ? (

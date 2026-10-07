@@ -2,7 +2,8 @@
 import { rateLimitText, retryAfterSeconds, type AttentionItem } from "./api";
 import { buildBracket, countsGame } from "./bracket";
 import { fixtureMatch, fixtureMyTournaments, fixtureRunning8 } from "./fixtures";
-import { clock, gameRows, matchPageState, reseatCooldownText } from "./matchPage";
+import { reseatCooldownText } from "./copy";
+import { gameRows, matchPageState } from "./matchPage";
 import { nextMatchView, sizeOf } from "./nextMatch";
 import { attentionRows, dueText, organizerErrorText, ticketsOutstandingText } from "./organizer";
 import type { Game, MatchDetail } from "./types";
@@ -54,9 +55,9 @@ describe("matchPageState after the deadline (UX B1)", () => {
       liveRoom: room,
       readyChecks: [{ id: "rc", gameIndex: 0, entryId: "e2", createdAt: iso(NOW - 5 * MIN), expiresAt: room.expiresAt, roomId: "LATE", outcome: "pending", role: "create" }],
     };
-    expect(matchPageState(d, "u3", NOW)).toBe("opponent_ready");
-    expect(matchPageState(d, "u2", NOW)).toBe("you_ready");
-    expect(matchPageState(f.detail, "u2", NOW)).toBe("deadline_passed");
+    expect(matchPageState(d, "u3", NOW).kind).toBe("opponent_ready");
+    expect(matchPageState(d, "u2", NOW).kind).toBe("you_ready");
+    expect(matchPageState(f.detail, "u2", NOW).kind).toBe("deadline_passed");
   });
 });
 
@@ -100,7 +101,7 @@ describe("playErrorMessage (UX S1, S19, rate limits)", () => {
     const until = iso(NOW + 30 * MIN);
     const msg = playErrorMessage({ ok: false, reason: "conflict", code: "reseat_cooldown", message: "play opens at 12:30 UTC", ticketsExpireAt: until });
     expect(msg).toBe(reseatCooldownText(until));
-    expect(msg).toContain(clock(until));
+    expect(msg).toContain(timeText(until));
     expect(msg).not.toContain("UTC");
   });
 

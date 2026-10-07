@@ -1,5 +1,6 @@
 import { fixtureMatch, fixtureMyTournaments } from "./fixtures";
-import { dateTime, organizerCutoff } from "./matchPage";
+import { organizerCutoff } from "./matchPage";
+import { whenText as dateTime } from "./when";
 import { nextMatchView, sizeOf, timeLeftText } from "./nextMatch";
 
 const NOW = Date.parse("2026-10-05T12:00:00Z");

@@ -15,6 +15,20 @@ import {
   RULE,
 } from "@/components/Stats/tokens";
 
+/** The dark band behind closed-match banners and the bracket legend. */
+export const SURFACE = "#3A2140";
+/** Tomato: dots, rings and live accents; too light for text on parchment. */
+export const DANGER = "#FF6347";
+/** The darker live red for text and white-on-red fills (≈4.9:1 under white, UX S12). */
+export const DANGER_INK = "#B83A26";
+/** Error text and destructive actions on parchment, and the "live" chip under white text. */
+export const ERROR_RED = "#B3261E";
+
+/** An error line, announced when it appears. */
+export const ErrorText = (props: React.ComponentProps<typeof Text>) => (
+  <Text role="alert" color={ERROR_RED} fontSize="13px" {...props} />
+);
+
 export const Page = ({
   title,
   path,
@@ -85,7 +99,7 @@ export const Chip = ({
   tone?: "plain" | "live" | "soon" | "done" | "gold";
   children: React.ReactNode;
 }) => {
-  const bg = { plain: "rgba(72,40,79,0.1)", live: "#B3361F", soon: "rgba(224,168,46,0.3)", done: "rgba(72,40,79,0.18)", gold: GOLD }[tone];
+  const bg = { plain: "rgba(72,40,79,0.1)", live: ERROR_RED, soon: "rgba(224,168,46,0.3)", done: "rgba(72,40,79,0.18)", gold: GOLD }[tone];
   const dark = onDark && tone !== "live" && tone !== "gold";
   return (
     <Text as="span" bg={dark ? "rgba(250,235,215,0.16)" : bg} color={tone === "live" ? "white" : tone === "gold" ? INK_DEEP : dark ? PARCHMENT : INK} fontSize="12px" fontWeight={600} px="9px" py="2px" borderRadius="999px" whiteSpace="nowrap">

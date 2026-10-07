@@ -23,7 +23,7 @@ import {
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 
 import { Avatar } from "./Bracket";
-import { Btn, Card } from "./ui";
+import { Btn, Card, ErrorText } from "./ui";
 
 const START_ERRORS: Record<string, string> = {
   timeout: WRITE_TIMEOUT_MESSAGE,
@@ -208,7 +208,7 @@ export const SeedingPanel = ({
                 : "Order saved."}
         </Text>
       </Flex>
-      {error && <Text role="alert" color="#B3361F" fontSize="14px" mt="10px">{error}</Text>}
+      {error && <ErrorText fontSize="14px" mt="10px">{error}</ErrorText>}
     </Card>
   );
 };

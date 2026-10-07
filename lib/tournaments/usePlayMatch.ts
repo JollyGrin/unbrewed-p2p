@@ -13,7 +13,8 @@ import { roomForMatch, ticketGameHref } from "@/lib/pro/tournamentTicket";
 import { refreshAccount } from "@/lib/account/useAccount";
 
 import { getMatch, getMatchTicket, rateLimitText, readyForMatch, reportRoomGone, type Result, type TournamentFailure } from "./api";
-import { currentChecks, reseatCooldownText } from "./matchPage";
+import { reseatCooldownText } from "./copy";
+import { currentChecks } from "./matchPage";
 import { clockOf } from "./organizer";
 import type { MatchDetail, TicketGrant } from "./types";
 
@@ -240,7 +241,7 @@ export const readyDecision = (d: MatchDetail, slot: "a" | "b", gameIndex: number
 };
 
 /** The api's answer that the caller's own room is open: hold, never a second seat. */
-const heldRoom = (g: TicketGrant): string | null => (g.decision === "seat_held" ? g.roomId : null);
+const grantedSeatRoom = (g: TicketGrant): string | null => (g.decision === "seat_held" ? g.roomId : null);
 
 export const POLL_MS = 3000;
 /** 40 × 3s = 2 minutes: past the api's 90s grace for an opening room. */
@@ -275,7 +276,7 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
         return false;
       }
       // The caller's own room is open (p2p #1250): say so, with the way back.
-      const held = heldRoom(r.value);
+      const held = grantedSeatRoom(r.value);
       if (held) {
         setPhase({ kind: "seat_held", roomId: held });
         onSettled?.();
@@ -315,7 +316,7 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
         if (
           mine.kind === "seat_held" &&
           mine.roomId &&
-          (t.value.decision === undefined || heldRoom(t.value) === mine.roomId)
+          (t.value.decision === undefined || grantedSeatRoom(t.value) === mine.roomId)
         ) {
           setPhase({ kind: "seat_held", roomId: mine.roomId });
           onSettled?.();

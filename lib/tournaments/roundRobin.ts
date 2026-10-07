@@ -7,8 +7,6 @@
 import { DECIDED_NOTE, cellState, countsGame, type CellState } from "./bracket";
 import type { Entry, Match, Standing, Tournament } from "./types";
 
-export const isRoundRobin = (t: Pick<Tournament, "format">): boolean => t.format === "round_robin";
-
 /** Group rounds the api schedules: n − 1, or n when odd (one player sits out each round). */
 export const roundRobinRounds = (players: number): number => (players % 2 === 0 ? players - 1 : players);
 

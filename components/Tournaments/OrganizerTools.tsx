@@ -32,7 +32,7 @@ import {
 } from "@/lib/tournaments/organizer";
 import type { Entry, MapRef, Match, Tournament } from "@/lib/tournaments/types";
 
-import { Btn, Card } from "./ui";
+import { Btn, Card, ERROR_RED, ErrorText } from "./ui";
 
 const FIELD = {
   w: "100%",
@@ -73,15 +73,9 @@ const useRun = (onDone: () => void) => {
 
 const ErrorLine = ({ text }: { text: string | null }) =>
   text ? (
-    <Text
-      role="alert"
-      color="#B3261E"
-      fontSize="13px"
-      mt="8px"
-      data-testid="organizer-error"
-    >
+    <ErrorText mt="8px" data-testid="organizer-error">
       {text}
-    </Text>
+    </ErrorText>
   ) : null;
 
 export const IN_PLAY_WARNING =
@@ -493,7 +487,7 @@ export const MatchOrganizerPanel = ({
 const ICON: Record<string, string> = {
   gold: "#E0A82E",
   ink: "#48284F",
-  red: "#B3261E",
+  red: ERROR_RED,
 };
 
 /** "Needs your attention": first thing the organizer sees while it's non-empty. */
@@ -612,7 +606,7 @@ export const AttentionQueue = ({
                     <Text
                       fontSize="12px"
                       fontWeight={700}
-                      color={row.tone === "red" ? "#B3261E" : "inherit"}
+                      color={row.tone === "red" ? ERROR_RED : "inherit"}
                     >
                       {left}
                     </Text>
