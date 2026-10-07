@@ -10,7 +10,9 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { fixtureMatch } from "../../lib/tournaments/fixtures";
-import { ROOM_STILL_GONE } from "../../lib/tournaments/usePlayMatch";
+import { clockOf } from "../../lib/tournaments/organizer";
+import { __resetAccountStoreForTests } from "../../lib/account/useAccount";
+import { OWN_ROOM_GONE, ROOM_STILL_GONE } from "../../lib/tournaments/usePlayMatch";
 
 import { TicketErrorScreen } from "./TicketErrorScreen";
 
@@ -22,6 +24,8 @@ const api = (a: {
   roomGone: (roomId: string) => { cleared: boolean; reason?: string };
   ticket: () => Record<string, unknown>;
   detail?: () => unknown;
+  /** The signed-in viewer's user id (`GET /me`); absent = a guest. */
+  me?: string;
 }) => {
   const calls: Calls = [];
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
@@ -29,6 +33,8 @@ const api = (a: {
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     calls.push({ path, method: init?.method ?? "GET", body });
     const json = (b: unknown) => ({ ok: true, status: 200, headers: new Headers(), json: async () => b });
+    if (String(url).endsWith("/me"))
+      return a.me ? json({ user: { id: a.me, username: "me" } }) : { ok: false, status: 401, headers: new Headers(), json: async () => ({}) };
     if (path === "/room-gone") return json(a.roomGone(body.roomId));
     if (path === "/ticket" || path === "/ready")
       return json({ action: "join", ticket: "t.sig", gameIndex: 0, slot: "b", heroId: null, map: null, ticketExpiresAt: "x", roomId: null, ...a.ticket() });
@@ -56,6 +62,7 @@ const carolsRoom = (notifications?: string) => {
   return d;
 };
 
+beforeEach(() => __resetAccountStoreForTests());
 afterEach(() => {
   cleanup();
   global.fetch = realFetch;
@@ -81,7 +88,7 @@ describe("the opponent's dead room (journeys S1)", () => {
       fireEvent.click(screen.getByText("Try again"));
       await flush();
       const card = screen.getByTestId("ticket-error");
-      const until = new Date("2026-10-07T14:29:00Z").toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const until = clockOf("2026-10-07T14:29:00Z"); // the feature's one time formatter
       expect(card).toHaveTextContent(
         `The room carol opened is gone (the server restarted). carol needs to press Play again to open a new one; check the match page in a minute. Their hold runs out at ${until}.`,
       );
@@ -108,6 +115,33 @@ describe("the opponent's dead room (journeys S1)", () => {
     fireEvent.click(screen.getByText("Try again"));
     await flush();
     expect(navigate).toHaveBeenCalledWith(expect.stringContaining("room=NEW1"));
+  });
+});
+
+describe("the viewer's OWN dead room (ambiguous_creator, #1279 review)", () => {
+  it("never tells the room's creator to wait for themself", async () => {
+    const d = carolsRoom();
+    api({ roomGone: () => ({ cleared: false, reason: "ambiguous_creator" }), ticket: () => ({ roomId: "GONE" }), detail: () => d, me: d.players.a.userId });
+    mount("GONE");
+    await flush();
+    fireEvent.click(screen.getByText("Try again"));
+    await flush();
+    const card = screen.getByTestId("ticket-error");
+    expect(card).toHaveTextContent(OWN_ROOM_GONE);
+    expect(OWN_ROOM_GONE).toBe("Your room is gone (the server restarted). Go back to the match and press Play again to open a new one.");
+    expect(card).not.toHaveTextContent("carol needs to press Play again");
+    expect(screen.queryByText("Try again")).not.toBeInTheDocument();
+    expect(screen.getByText("Back to the match")).toBeInTheDocument();
+  });
+
+  it("(control) signed in as the OTHER player: the opponent's copy", async () => {
+    const d = carolsRoom();
+    api({ roomGone: () => ({ cleared: false, reason: "ambiguous_creator" }), ticket: () => ({ roomId: "GONE" }), detail: () => d, me: d.players.b.userId });
+    mount("GONE");
+    await flush();
+    fireEvent.click(screen.getByText("Try again"));
+    await flush();
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("carol needs to press Play again");
   });
 });
 

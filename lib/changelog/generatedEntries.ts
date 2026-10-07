@@ -2,42 +2,11 @@
 // Regenerated on every next.config.js load (next dev, next build, jest via next/jest).
 import type { ChangelogEntry } from "./types";
 
-import entry0 from "../../content/changelog/2026-08-17-cairne-and-gerry-graduate.json";
-import entry1 from "../../content/changelog/2026-08-17-rules-fixes-mid-august.json";
-import entry2 from "../../content/changelog/2026-08-20-account-first-bag.json";
-import entry3 from "../../content/changelog/2026-08-20-cosmetic-rewards.json";
-import entry4 from "../../content/changelog/2026-08-20-kenshiro.json";
-import entry5 from "../../content/changelog/2026-08-20-opening-hand-mulligan.json";
-import entry6 from "../../content/changelog/2026-08-21-nostromo-and-bog-maps.json";
-import entry7 from "../../content/changelog/2026-08-21-step-by-step-movement.json";
-import entry8 from "../../content/changelog/2026-08-22-cecil-palmer.json";
-import entry9 from "../../content/changelog/2026-08-22-skull-kid.json";
-import entry10 from "../../content/changelog/2026-08-23-boba-fett.json";
-import entry11 from "../../content/changelog/2026-08-23-ellen-ripley.json";
-import entry12 from "../../content/changelog/2026-08-23-quick-match.json";
-import entry13 from "../../content/changelog/2026-08-23-vader-maul-luke-graduate.json";
-import entry14 from "../../content/changelog/2026-08-25-pro-slow-mode.json";
-import entry15 from "../../content/changelog/2026-08-25-random-fighter-and-stage.json";
-import entry16 from "../../content/changelog/2026-08-25-replay-share-links.json";
-import entry17 from "../../content/changelog/2026-08-26-pro-on-your-phone.json";
-import entry18 from "../../content/changelog/2026-08-27-badges.json";
-import entry19 from "../../content/changelog/2026-08-28-items-on-or-off.json";
-import entry20 from "../../content/changelog/2026-08-28-wedding-crashers-map.json";
-import entry21 from "../../content/changelog/2026-09-02-appa-and-momo.json";
-import entry22 from "../../content/changelog/2026-09-04-fan-battlefields.json";
-import entry23 from "../../content/changelog/2026-09-04-jason-voorhees.json";
-import entry24 from "../../content/changelog/2026-09-05-lobby-setup-rail.json";
-import entry25 from "../../content/changelog/2026-09-05-skull-kid-and-cecil-graduate.json";
-import entry26 from "../../content/changelog/2026-09-07-rules-fixes-late-august.json";
-import entry27 from "../../content/changelog/2026-09-09-leon-s-kennedy.json";
-import entry28 from "../../content/changelog/2026-09-13-ripley-jason-boba-graduate.json";
-import entry29 from "../../content/changelog/2026-09-14-irl-mode.json";
-import entry30 from "../../content/changelog/2026-09-16-pro-touch-controls.json";
-import entry31 from "../../content/changelog/2026-09-16-the-narrator.json";
-import entry32 from "../../content/changelog/2026-09-27-stats-dashboard.json";
-import entry33 from "../../content/changelog/2026-09-27-tabletop-view.json";
-import entry34 from "../../content/changelog/2026-10-05-3d-table.json";
+import entry0 from "../../content/changelog/2026-09-09-leon-s-kennedy.json";
+import entry1 from "../../content/changelog/2026-09-14-irl-mode.json";
+import entry2 from "../../content/changelog/2026-09-27-stats-dashboard.json";
+import entry3 from "../../content/changelog/2026-09-27-tabletop-view.json";
 
 // Cast needed: JSON imports infer `tags` as string[], not ChangelogTag[].
 // entries.ts validates the real shape at runtime.
-export const rawChangelogEntries = [entry0, entry1, entry2, entry3, entry4, entry5, entry6, entry7, entry8, entry9, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17, entry18, entry19, entry20, entry21, entry22, entry23, entry24, entry25, entry26, entry27, entry28, entry29, entry30, entry31, entry32, entry33, entry34] as ChangelogEntry[];
+export const rawChangelogEntries = [entry0, entry1, entry2, entry3] as ChangelogEntry[];

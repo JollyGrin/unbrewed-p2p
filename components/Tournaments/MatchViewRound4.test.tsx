@@ -134,9 +134,31 @@ describe("UX B5: a decided match speaks to the two players", () => {
     expect(bannerText()).toHaveTextContent("hokuto_shin won the final. You finish runner-up, thanks for playing.");
   });
 
-  it("a rule-decided match says it to the loser too", () => {
+  it("a rule-decided match says it to the loser too — nobody 'won this one' (#1279 review)", () => {
     draw(state("decided_by_rule").detail, { as: "u3" });
-    expect(bannerText()).toHaveTextContent("Decided by the deadline rule. hokuto_shin won this one. You're out of the bracket");
+    expect(bannerText()).toHaveTextContent(
+      "Decided by the deadline rule. hokuto_shin advances. You're out of the bracket, thanks for playing.",
+    );
+    expect(bannerText()).not.toHaveTextContent("won this one");
+  });
+
+  it("…and to the winner: they advance, no game was won (#1279 review)", () => {
+    draw(state("decided_by_rule").detail);
+    expect(bannerText()).toHaveTextContent("Decided by the deadline rule. You advance to the Final.");
+    expect(bannerText()).not.toHaveTextContent("You won");
+  });
+
+  it("a round-robin GROUP loser is still in the event: only 'See the standings' (#1279 review)", () => {
+    const f = state("decided");
+    const d: MatchDetail = { ...f.detail, match: { ...f.detail.match, stage: "group" } };
+    const r = draw(d, { as: "u3" });
+    const after = screen.getByTestId("after-loss");
+    expect(within(after).getByText("See the standings")).toBeInTheDocument();
+    expect(within(after).queryByText("Find another tournament")).toBeNull();
+    r.unmount();
+    // the round-robin FINAL's loser is done with the event: both stay
+    draw({ ...f.detail, match: { ...f.detail.match, stage: "final", nextMatchId: null, nextSlot: null } }, { as: "u3" });
+    expect(within(screen.getByTestId("after-loss")).getByText("Find another tournament")).toBeInTheDocument();
   });
 });
 

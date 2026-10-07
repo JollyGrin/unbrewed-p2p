@@ -14,6 +14,7 @@
 import { Button, Flex, Link, Text } from "@chakra-ui/react";
 import { useEffect, useRef, useState } from "react";
 
+import { useAccount } from "@/lib/account/useAccount";
 import { getMatch } from "@/lib/tournaments/api";
 import { serverNow } from "@/lib/tournaments/serverClock";
 
@@ -25,6 +26,7 @@ import {
   grantAvoiding,
   grantHref,
   opponentRoomGoneText,
+  OWN_ROOM_GONE,
   playErrorMessage,
   releasingText,
   reportDeadRoom,
@@ -82,6 +84,8 @@ export const TicketErrorScreen = ({
   navigate?: (href: string) => void;
 }) => {
   const [busy, setBusy] = useState(false);
+  const account = useAccount();
+  const myUserId = account.status === "signed-in" ? account.account?.id ?? null : null;
   // The api's answer to `room-gone`, kept per dead ROOM (journeys S2, #1279): a
   // second dead room on the same screen is asked about afresh, and gets its own
   // too_soon wait. Only a real answer is kept: a network blip asks again next
@@ -166,11 +170,13 @@ export const TicketErrorScreen = ({
       if (!r.ok && r.reason === "room_still_gone" && report === "not_mine") {
         // The opponent's room: say who has to act and until when, never loop back in.
         const d = await getMatch(at.slug, at.matchId).catch(() => null);
-        const owner = d?.ok ? deadRoomOwner(d.value, deadRoom) : { name: null, holdUntil: null };
+        const owner = d?.ok ? deadRoomOwner(d.value, deadRoom) : { name: null, userId: null, holdUntil: null };
         const ping = d?.ok ? (d.value.tournament as { notifications?: string }).notifications === "discord" : false;
         setBusy(false);
         setOpponentGone(true);
-        return setHeadline(opponentRoomGoneText(owner.name, owner.holdUntil, ping));
+        // The api may file the room under the viewer (both held tickets): never
+        // tell someone to wait for themself.
+        return setHeadline(myUserId && owner.userId === myUserId ? OWN_ROOM_GONE : opponentRoomGoneText(owner.name, owner.holdUntil, ping));
       }
     } else r = await freshGrant(at.slug, at.matchId);
     setBusy(false);

@@ -145,13 +145,23 @@ export const opponentRoomGoneText = (opponent: string | null, holdUntil: string 
     .filter(Boolean)
     .join(" ");
 
+/**
+ * The same dead room when its recorded creator is the VIEWER (#1279 review):
+ * after an engine restart with both players holding tickets (`ambiguous_creator`)
+ * the api can file the room under either of them.
+ */
+export const OWN_ROOM_GONE = "Your room is gone (the server restarted). Go back to the match and press Play again to open a new one.";
+
 /** Who opened `roomId` and when their hold ends, read off the match (S1). */
-export const deadRoomOwner = (d: MatchDetail, roomId: string): { name: string | null; holdUntil: string | null } => {
+export const deadRoomOwner = (
+  d: MatchDetail,
+  roomId: string,
+): { name: string | null; userId: string | null; holdUntil: string | null } => {
   const live = d.liveRoom && d.liveRoom.roomId === roomId ? d.liveRoom : null;
   const check = (d.readyChecks ?? []).find((c) => c.roomId === roomId && c.role === "create");
   const entryId = live?.readyEntryId ?? check?.entryId ?? null;
   const side = [d.players?.a, d.players?.b].find((p) => p && p.id === entryId);
-  return { name: side?.username ?? null, holdUntil: live?.expiresAt ?? check?.expiresAt ?? null };
+  return { name: side?.username ?? null, userId: side?.userId ?? null, holdUntil: live?.expiresAt ?? check?.expiresAt ?? null };
 };
 
 /** The api's room-gone age gate (ROOM_GONE_MIN_AGE_MS, api #125). */
