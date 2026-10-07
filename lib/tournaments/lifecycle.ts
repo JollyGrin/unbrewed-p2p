@@ -11,6 +11,7 @@ import { mapSlots, rekeyRoundMaps, sizesFor } from "./createForm";
 import { signupWindowOpen } from "./joinState";
 import { formatWhen } from "./share";
 import type { MapRef, Tournament } from "./types";
+import { localInputValue } from "./when";
 
 /** "closes Mon, 5 Oct, 18:00" while it is ahead of us, "closed …" once passed. */
 export const signupCloseText = (t: Pick<Tournament, "signupClosesAt">, now: number = Date.now()): string => {
@@ -34,9 +35,7 @@ export const UNDER_FILLED_COPY = "Not enough players to start. Extend signup, or
 export const toLocalInput = (iso: string | null): string => {
   if (!iso) return "";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return Number.isNaN(d.getTime()) ? "" : localInputValue(d);
 };
 
 export type CancelKind = "draft" | "signup" | "running";

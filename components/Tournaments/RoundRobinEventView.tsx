@@ -9,6 +9,7 @@ import { useMemo } from "react";
 
 import { BAND_MUTED, GOLD, INK, PARCHMENT } from "@/components/Stats/tokens";
 import { matchHref } from "@/lib/tournaments/bracket";
+import { dueText } from "@/lib/tournaments/organizer";
 import { describeRule } from "@/lib/tournaments/matchup";
 import { mapTitle } from "@/lib/tournaments/options";
 import {
@@ -21,7 +22,7 @@ import {
 import { WINDOW_LABEL, formatLabel, formatWhen, tournamentPath } from "@/lib/tournaments/share";
 import type { Entry, Match, Standing, Tournament } from "@/lib/tournaments/types";
 
-import { Avatar, timeLeft } from "./Bracket";
+import { Avatar } from "./Bracket";
 import { useAttentionQueue, useNow } from "@/lib/tournaments/hooks";
 import { LifecyclePanel } from "./LifecyclePanel";
 import { AttentionQueue } from "./OrganizerTools";
@@ -198,7 +199,7 @@ const Side = ({ s, align }: { s: RrMatchRow["a"]; align: "left" | "right" }) => 
 
 const MatchRow = ({ slug, m, now }: { slug: string; m: RrMatchRow; now: number }) => {
   const chip = stateChip(m);
-  const left = m.state === "decided" ? null : timeLeft(m.deadlineAt, now);
+  const left = m.state === "decided" ? "" : dueText(m.deadlineAt, now);
   return (
     <Flex
       as={NextLink}
@@ -220,7 +221,7 @@ const MatchRow = ({ slug, m, now }: { slug: string; m: RrMatchRow; now: number }
         <Side s={m.b} align="right" />
       </Flex>
       <Flex gap="8px" align="center" ml="auto" flexShrink={0}>
-        {left && <Text fontSize="12px" opacity={0.7} whiteSpace="nowrap">{left} left</Text>}
+        {left && <Text fontSize="12px" opacity={0.7} whiteSpace="nowrap">{left}</Text>}
         <Chip tone={chip.tone}>{chip.label}</Chip>
       </Flex>
     </Flex>

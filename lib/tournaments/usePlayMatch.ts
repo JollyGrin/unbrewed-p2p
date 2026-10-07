@@ -165,21 +165,33 @@ export const deadRoomOwner = (
   return { name: side?.username ?? null, userId: side?.userId ?? null, holdUntil: live?.expiresAt ?? check?.expiresAt ?? null };
 };
 
-/** The api's room-gone age gate (ROOM_GONE_MIN_AGE_MS, api #125). */
+/**
+ * The api's room clocks, as an api build too old to send them on the match
+ * detail (`roomGoneMinAgeMs`, `roomOpenGraceMs`) runs them. A newer api's own
+ * values always win: see `roomClocks`.
+ */
 export const ROOM_GONE_MIN_AGE_MS = 30 * 1000;
+export const ROOM_OPEN_GRACE_MS = 90 * 1000;
+
+/** The api's room clocks for this match: its own values, else the fallbacks above. */
+export const roomClocks = (d: MatchDetail | null | undefined): { goneMinAgeMs: number; openGraceMs: number } => ({
+  goneMinAgeMs: d?.tournament?.roomGoneMinAgeMs ?? ROOM_GONE_MIN_AGE_MS,
+  openGraceMs: d?.tournament?.roomOpenGraceMs ?? ROOM_OPEN_GRACE_MS,
+});
 
 /**
- * How long until the age gate lets `roomId` go: 30s from the room's create
- * check (its ticket was issued then), plus 1s of slack — never more than 31s,
- * and the full 31s when the match doesn't show the check.
+ * How long until the api's room-gone age gate lets `roomId` go: the gate from
+ * the room's create check (its ticket was issued then), plus 1s of slack —
+ * never more than gate + 1s, and all of it when the match doesn't show the check.
  */
 export const roomReleaseWaitMs = (d: MatchDetail | null, roomId: string, now: number): number => {
+  const gate = roomClocks(d).goneMinAgeMs;
   const created = (d ? currentChecks(d) : [])
     .filter((c) => c.roomId === roomId && c.role === "create")
     .map((c) => Date.parse(c.createdAt))
     .filter(Number.isFinite);
   const from = created.length ? Math.min(...created) : now;
-  return Math.min(ROOM_GONE_MIN_AGE_MS, Math.max(0, from + ROOM_GONE_MIN_AGE_MS - now)) + 1000;
+  return Math.min(gate, Math.max(0, from + gate - now)) + 1000;
 };
 
 /** "This match's room closed. Releasing it in 12 s…" */
@@ -198,9 +210,6 @@ export const grantAvoiding = async (slug: string, matchId: string, deadRoomId: s
 /** Copy for a dead room the api won't let go of yet. */
 export const ROOM_STILL_GONE =
   "This match's room closed and the server hasn't released it yet. Go back to the match and press Play again in a minute; if it keeps happening, ask the organizer.";
-
-/** The api's 90s wait for an opponent's room to open (ROOM_OPEN_GRACE_MS). */
-export const ROOM_OPEN_GRACE_MS = 90 * 1000;
 
 export type ReadyDecision =
   | { kind: "create" }
@@ -233,7 +242,7 @@ export const readyDecision = (d: MatchDetail, slot: "a" | "b", gameIndex: number
   if (own && own.roomId !== null) return { kind: "seat_held", roomId: own.roomId };
   const theirs = opponent !== null ? newestLiveCreate(opponent) : undefined;
   const fromOpponent: ReadyDecision =
-    !theirs || (theirs.roomId === null && now - Date.parse(theirs.createdAt) >= ROOM_OPEN_GRACE_MS)
+    !theirs || (theirs.roomId === null && now - Date.parse(theirs.createdAt) >= roomClocks(d).openGraceMs)
       ? { kind: "create" }
       : { kind: "join", roomId: theirs.roomId };
   if (own && fromOpponent.kind === "create") return { kind: "seat_held", roomId: null };
@@ -244,8 +253,11 @@ export const readyDecision = (d: MatchDetail, slot: "a" | "b", gameIndex: number
 const grantedSeatRoom = (g: TicketGrant): string | null => (g.decision === "seat_held" ? g.roomId : null);
 
 export const POLL_MS = 3000;
-/** 40 × 3s = 2 minutes: past the api's 90s grace for an opening room. */
-export const MAX_POLLS = 40;
+/** How long "opening" keeps asking after the api's grace for an opening room ran out. */
+export const POLL_PAST_GRACE_MS = 30 * 1000;
+/** Polls of POLL_MS that outlast `openGraceMs` by POLL_PAST_GRACE_MS (90 s grace: 40 × 3 s = 2 minutes). */
+export const maxPollsFor = (openGraceMs: number): number => Math.ceil((openGraceMs + POLL_PAST_GRACE_MS) / POLL_MS);
+export const MAX_POLLS = maxPollsFor(ROOM_OPEN_GRACE_MS);
 
 export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => void) => {
   const router = useRouter();
@@ -253,6 +265,8 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
   const alive = useRef(true);
   // One press at a time: a double click must not record two ready-checks.
   const inFlight = useRef(false);
+  // Sized from the api's grace, read off the match each press.
+  const maxPolls = useRef(MAX_POLLS);
   // Set in the body too: StrictMode (dev) mounts, unmounts and remounts, so a
   // cleanup-only effect would leave the flag false and never navigate (#1230).
   useEffect(() => {
@@ -287,7 +301,7 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
         void router.push(href);
         return true;
       }
-      if (polls >= MAX_POLLS) {
+      if (polls >= maxPolls.current) {
         setPhase({ kind: "error", message: "The other room didn't open. Try again." });
         onSettled?.(); // the match has moved on meanwhile: show what it is now
         return false;
@@ -311,6 +325,7 @@ export const usePlayMatch = (slug: string, matchId: string, onSettled?: () => vo
       // `POST /ready` answers join (the opponent's newer room), create, or
       // seat_held — never a second room.
       const [d, t] = await Promise.all([getMatch(slug, matchId), getMatchTicket(slug, matchId)]);
+      maxPolls.current = maxPollsFor(roomClocks(d.ok ? d.value : null).openGraceMs);
       if (alive.current && d.ok && t.ok) {
         const mine = readyDecision(d.value, t.value.slot, t.value.gameIndex, Date.now());
         if (

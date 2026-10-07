@@ -233,7 +233,7 @@ describe("organizer attention queue on the bracket page (p2p #1269)", () => {
     }) as unknown as typeof fetch;
   });
 
-  it("is fetched ONCE per page, then again only when the page poll brings new matches", async () => {
+  it("is fetched ONCE per page, then again only when the page poll brings changed matches", async () => {
     const p = fixtureRunning8();
     const ui = (matches: typeof p.matches) => (
       <ChakraProvider>
@@ -246,7 +246,10 @@ describe("organizer attention queue on the bracket page (p2p #1269)", () => {
     rerender(ui(p.matches)); // a re-render that is not a poll result
     await act(async () => {});
     expect(attention).toBe(1);
-    rerender(ui([...p.matches])); // the page poll answered
+    rerender(ui(p.matches.map((m) => ({ ...m })))); // the page poll answered, nothing changed
+    await act(async () => {});
+    expect(attention).toBe(1);
+    rerender(ui(p.matches.map((m, i) => (i === 0 ? { ...m, status: m.status === "decided" ? ("open" as const) : ("decided" as const) } : m)))); // a match moved on
     await act(async () => {});
     expect(attention).toBe(2);
   });

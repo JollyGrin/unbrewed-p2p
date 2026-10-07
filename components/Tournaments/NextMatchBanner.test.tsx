@@ -160,6 +160,24 @@ describe("AccountChip menu", () => {
     expect(next).not.toHaveTextContent("left");
   });
 
+  it("labels the count as active events, and hides it at zero", async () => {
+    serve({ mine: "opponent_ready" });
+    const { unmount } = wrap(<AccountChip />);
+    fireEvent.click(await screen.findByLabelText("Account: hokuto_shin"));
+    await screen.findByTestId("menu-next-match");
+    const link = screen.getByText("My tournaments");
+    expect(screen.getByTestId("menu-active-count")).toHaveTextContent(/^1 active$/);
+    expect(link).toContainElement(screen.getByTestId("menu-active-count"));
+    unmount();
+    __resetAccountStoreForTests();
+    __resetNextMatchForTests();
+    serve({ mine: "none" });
+    wrap(<AccountChip />);
+    fireEvent.click(await screen.findByLabelText("Account: hokuto_shin"));
+    expect(await screen.findByText("My tournaments")).toBeInTheDocument();
+    expect(screen.queryByTestId("menu-active-count")).toBeNull();
+  });
+
   it("shows no tournament items when the api is down", async () => {
     serve({ mine: "down" });
     wrap(<AccountChip />);

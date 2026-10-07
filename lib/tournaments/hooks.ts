@@ -1,5 +1,5 @@
 /** Small load-once hooks over ./api (component state; no shared store needed). */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getMatch,
@@ -9,7 +9,7 @@ import {
   listTournaments,
   type Result,
 } from "./api";
-import { NOT_FOUND_LIMIT, useFailureCount, usePoll } from "./poll";
+import { NOT_FOUND_LIMIT, useFailureCount, usePoll, useTicker } from "./poll";
 import { serverNow } from "./serverClock";
 import type { Entry, Match, MatchDetail, Standing, Tournament } from "./types";
 
@@ -48,6 +48,22 @@ function useLoad<T>(
   return [state, reload];
 }
 
+/**
+ * The last ready result for `key` in place of `loaded` whenever `keepOn(status)`
+ * says so: a poll that fails (or is in flight) keeps showing the last good data,
+ * and a different key never shows the previous one's data.
+ */
+export function useKeepLastGood<T>(
+  loaded: Loaded<T>,
+  key: string,
+  keepOn: (status: Loaded<T>["status"]) => boolean,
+): Loaded<T> {
+  const last = useRef<{ key: string; loaded: Loaded<T> } | null>(null);
+  if (loaded.status === "ready") last.current = { key, loaded };
+  const kept = last.current?.key === key ? last.current.loaded : null;
+  return kept && keepOn(loaded.status) ? kept : loaded;
+}
+
 export const useTournamentList = (signedIn: boolean) => {
   const [all, reloadAll] = useLoad(() => listTournaments(), "all");
   const [mine] = useLoad(
@@ -73,10 +89,7 @@ export const SETTLED_POLL_MS = 60_000;
  */
 export const useTournament = (slug: string | null, pollMs = 10_000) => {
   const [loaded, reload] = useLoad<TournamentData>(slug ? () => getTournament(slug) : null, slug ?? "");
-  const last = useRef<{ slug: string | null; loaded: Loaded<TournamentData> } | null>(null);
-  if (loaded.status === "ready") last.current = { slug, loaded };
-  const state =
-    loaded.status === "unavailable" && last.current?.slug === slug ? last.current.loaded : loaded;
+  const state = useKeepLastGood(loaded, slug ?? "", (s) => s === "unavailable");
   const status = state.status === "ready" ? state.value.tournament.status : null;
   const streak = useFailureCount(loaded.status, loaded);
   usePoll(
@@ -98,10 +111,7 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
   const [loaded, reload] = useLoad<MatchDetail>(() => getMatch(slug, matchId), key);
   // A poll that fails (or is still in flight) keeps showing the last good match —
   // of THIS match only: a new matchId never shows the previous match's data.
-  const last = useRef<{ key: string; loaded: Loaded<MatchDetail> } | null>(null);
-  if (loaded.status === "ready") last.current = { key, loaded };
-  const kept = last.current?.key === key ? last.current.loaded : null;
-  const state = loaded.status !== "ready" && kept ? kept : loaded;
+  const state = useKeepLastGood(loaded, key, (s) => s !== "ready");
   const streak = useFailureCount(loaded.status, loaded);
   // Cancelled (the match or its tournament) and two 404s in a row are final: stop asking.
   const stopped =
@@ -113,14 +123,7 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
 };
 
 /** Now on the api's clock (lib/tournaments/serverClock), re-read every `ms` — for countdowns. */
-export const useNow = (ms = 1000): number => {
-  const [now, setNow] = useState(() => serverNow());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(serverNow()), ms);
-    return () => window.clearInterval(id);
-  }, [ms]);
-  return now;
-};
+export const useNow = (ms = 1000): number => useTicker(ms, serverNow);
 /** Organizer-only queue; pass `enabled=false` for everyone else (no request). */
 export const useAttention = (slug: string, enabled: boolean) =>
   useLoad<AttentionItem[]>(
@@ -132,11 +135,14 @@ export type AttentionQueueData = readonly [Loaded<AttentionItem[]>, () => void];
 
 /**
  * The event page's ONE attention-queue load (p2p #1269), refreshed whenever the
- * page's own poll brings new `matches` (never on the first render: the load
- * itself covers that). A failed refresh keeps the last good queue.
+ * page's own poll brings matches that actually changed (never on the first
+ * render: the load itself covers that). Every poll hands over a new `matches`
+ * array, so the refresh keys on its content, not its identity. A failed
+ * refresh keeps the last good queue.
  */
 export const useAttentionQueue = (slug: string, enabled: boolean, matches: unknown): AttentionQueueData => {
   const [loaded, reload] = useAttention(slug, enabled);
+  const version = useMemo(() => JSON.stringify(matches ?? null), [matches]);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -145,8 +151,6 @@ export const useAttentionQueue = (slug: string, enabled: boolean, matches: unkno
     }
     if (enabled) reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matches]);
-  const last = useRef<Loaded<AttentionItem[]> | null>(null);
-  if (loaded.status === "ready") last.current = loaded;
-  return [loaded.status !== "ready" && last.current && enabled ? last.current : loaded, reload] as const;
+  }, [version]);
+  return [useKeepLastGood(loaded, "attention", (s) => enabled && s !== "ready"), reload] as const;
 };

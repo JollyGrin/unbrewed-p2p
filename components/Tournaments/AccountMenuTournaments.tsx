@@ -7,7 +7,7 @@ import { MenuItem, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useEffect, useState } from "react";
 
-import { myTournamentCount } from "@/lib/tournaments/browse";
+import { activeCountText, myTournamentCount } from "@/lib/tournaments/browse";
 import { useMyTournaments } from "@/lib/tournaments/useNextMatch";
 
 export const AccountMenuTournaments = ({ itemStyles }: { itemStyles: Record<string, unknown> }) => {
@@ -60,8 +60,8 @@ export const AccountMenuTournaments = ({ itemStyles }: { itemStyles: Record<stri
         <MenuItem as={NextLink} href="/tournaments" {...itemStyles}>
           My tournaments
           {myCount > 0 && (
-            <Text as="span" ml="auto" pl="0.6rem" opacity={0.7}>
-              {myCount}
+            <Text as="span" ml="auto" pl="0.6rem" opacity={0.7} data-testid="menu-active-count">
+              {activeCountText(myCount)}
             </Text>
           )}
         </MenuItem>

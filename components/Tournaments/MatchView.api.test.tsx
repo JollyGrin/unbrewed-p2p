@@ -71,7 +71,7 @@ describe("a cancelled tournament (#1260)", () => {
 });
 
 describe("account menu count (#1260)", () => {
-  it("counts what the browse filter lists: no cancelled tournaments", () => {
+  it("counts the events the account plays in or runs, never cancelled ones", () => {
     const t = (status: string, extra: object) => ({ id: status + Math.random(), status, ...extra }) as any;
     expect(
       myTournamentCount([

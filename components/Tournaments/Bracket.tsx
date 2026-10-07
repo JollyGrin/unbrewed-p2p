@@ -15,7 +15,7 @@ import {
   type RoundView,
   type SlotView,
 } from "@/lib/tournaments/bracket";
-import { clockOf } from "@/lib/tournaments/organizer";
+import { clockOf, dueText } from "@/lib/tournaments/organizer";
 import { deadlinePassed } from "@/lib/tournaments/matchPage";
 import type { Entry } from "@/lib/tournaments/types";
 
@@ -52,19 +52,6 @@ export const Avatar = ({ name, url, size = 30, tbd = false }: { name: string; ur
     {tbd ? "?" : url ? <Box as="img" src={url} alt="" w="100%" h="100%" /> : (Array.from(name)[0] ?? "?").toUpperCase()}
   </Box>
 );
-
-/** "1d 17h", "5h 12m", "12m". */
-export const timeLeft = (deadline: string | null, now: number): string | null => {
-  if (!deadline) return null;
-  const ms = Date.parse(deadline) - now;
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const m = Math.floor(ms / 60_000);
-  const d = Math.floor(m / 1440);
-  const h = Math.floor((m % 1440) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m % 60}m`;
-  return `${m}m`;
-};
 
 const Caption = (props: React.ComponentProps<typeof Text>) => (
   <Text fontFamily="ArchivoNarrow" fontSize="11px" letterSpacing="0.1em" textTransform="uppercase" {...props} />
@@ -163,7 +150,7 @@ const Mu = ({ children }: { children: React.ReactNode }) => (
 
 export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
   const tbd = c.state === "waiting";
-  const left = c.state === "ready" || c.state === "in_play" ? timeLeft(c.deadlineAt, now) : null;
+  const left = c.state === "ready" || c.state === "in_play" ? dueText(c.deadlineAt, now) : "";
   const rule = c.state === "decided" && !!c.note?.rule;
   // D4: an open match past its deadline is no longer "waiting for a game" (same state as the match page's deadline_passed).
   const late = c.state === "ready" && deadlinePassed(c.deadlineAt, now);
@@ -223,7 +210,7 @@ export const MatchCell = ({ c, now }: { c: CellView; now: number }) => {
         <Text as="span">{late ? deadlineLabel(c) : c.foot}</Text>
         {left && (
           <Text as="span" fontWeight={700} color={GOLD_INK} whiteSpace="nowrap" sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {left} left
+            {left}
           </Text>
         )}
       </Flex>

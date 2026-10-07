@@ -10,12 +10,15 @@ import {
   freshGrant,
   grantAvoiding,
   MAX_POLLS,
+  maxPollsFor,
   PLAY_TIMEOUT_MESSAGE,
   playErrorMessage,
   POLL_MS,
   reportDeadRoom,
   roomReleaseWaitMs,
   ROOM_GONE_MIN_AGE_MS,
+  ROOM_OPEN_GRACE_MS,
+  readyDecision,
   usePlayMatch,
 } from "./usePlayMatch";
 import type { MatchDetail, TicketGrant } from "./types";
@@ -302,5 +305,49 @@ describe("p2p #1269", () => {
     expect(roomReleaseWaitMs(d(10_000, "OTHER"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
     expect(roomReleaseWaitMs(d(10_000, "GONE", "join"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
     expect(roomReleaseWaitMs(null, "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
+  });
+});
+
+describe("the api's room clocks (match detail roomOpenGraceMs / roomGoneMinAgeMs)", () => {
+  const now = Date.parse("2026-10-07T12:00:00Z");
+  const detail = (clocks: { roomOpenGraceMs?: number; roomGoneMinAgeMs?: number }, checks: object[] = []) =>
+    ({ match: { slotA: "e1", slotB: "e2" }, tournament: { status: "running", ...clocks }, readyChecks: checks, liveRoom: null }) as never as MatchDetail;
+
+  it("the opening poll outlasts the grace it is sized from: 40 × 3 s for the 90 s fallback", () => {
+    expect(MAX_POLLS).toBe(40);
+    expect(maxPollsFor(ROOM_OPEN_GRACE_MS)).toBe(40);
+    for (const grace of [0, 30_000, 90_000, 91_000, 180_000]) expect(maxPollsFor(grace) * POLL_MS).toBeGreaterThan(grace);
+  });
+
+  it("roomReleaseWaitMs waits out the api's own gate, the 30 s fallback only when it sends none", () => {
+    const check = { entryId: "e1", roomId: "GONE", role: "create", createdAt: new Date(now - 10_000).toISOString() };
+    expect(roomReleaseWaitMs(detail({ roomGoneMinAgeMs: 60_000 }, [check]), "GONE", now)).toBe(51_000);
+    expect(roomReleaseWaitMs(detail({ roomGoneMinAgeMs: 60_000 }), "GONE", now)).toBe(61_000);
+    expect(roomReleaseWaitMs(detail({}, [check]), "GONE", now)).toBe(21_000);
+  });
+
+  it("readyDecision: an opponent's opening room is waited on for the api's grace, else the 90 s fallback", () => {
+    const opening = { entryId: "e2", gameIndex: 0, role: "create", outcome: "pending", roomId: null, createdAt: new Date(now - 40_000).toISOString(), expiresAt: new Date(now + 600_000).toISOString() };
+    expect(readyDecision(detail({ roomOpenGraceMs: 30_000 }, [opening]), "a", 0, now)).toEqual({ kind: "create" });
+    expect(readyDecision(detail({}, [opening]), "a", 0, now)).toEqual({ kind: "join", roomId: null });
+  });
+
+  it("the opening poll gives up after the polls the api's grace sizes, not the fallback's 40", async () => {
+    jest.useFakeTimers();
+    try {
+      getMatch.mockResolvedValue({ ok: true, value: detail({ roomOpenGraceMs: 30_000 }) });
+      ready.mockResolvedValue(grant({ action: "join", roomId: null }));
+      ticket.mockResolvedValue(grant({ action: "join", roomId: null }));
+      const { result } = renderHook(() => usePlayMatch("s", "m"));
+      await act(async () => void result.current.play());
+      const polls = maxPollsFor(30_000);
+      expect(polls).toBe(20);
+      await act(async () => jest.advanceTimersByTimeAsync(POLL_MS * (polls - 1)));
+      expect(result.current.phase.kind).toBe("opening");
+      await act(async () => jest.advanceTimersByTimeAsync(POLL_MS * 2));
+      expect(result.current.phase).toEqual({ kind: "error", message: "The other room didn't open. Try again." });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

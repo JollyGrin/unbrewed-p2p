@@ -87,6 +87,9 @@ export interface Entry {
   leftAt: string | null;
 }
 
+/** What a name lookup needs of an entry (the match page has names only). */
+export type EntryName = Pick<Entry, "id" | "username">;
+
 /** The body `POST /tournaments` takes. Presets are a client concern. */
 export interface CreateTournamentBody {
   name: string;
@@ -217,11 +220,27 @@ export interface Decision {
   at: string | null;
 }
 
+/**
+ * What the match page reads about the event. The api sends it all on the match
+ * detail (so the page needs no second poll of the whole tournament); older
+ * builds sent only id/slug/name/status/notifications.
+ */
+export type MatchTournamentInfo = Pick<Tournament, "name" | "size" | "latestPossibleFinal" | "organizer" | "settings" | "status" | "notifications">;
+
 /** `GET /tournaments/:slug/matches/:id`. */
 export interface MatchDetail {
   match: Match;
   tournament: Pick<Tournament, "id" | "slug" | "name" | "status"> &
-    Partial<Pick<Tournament, "size" | "latestPossibleFinal" | "organizer" | "notifications">>;
+    Partial<Pick<Tournament, "size" | "latestPossibleFinal" | "organizer" | "notifications" | "settings">> & {
+      /** Whether the caller organizes the event (false signed out). */
+      viewerIsOrganizer?: boolean;
+      /** Names of the seated entries and, for the organizer, of any ticket holder. */
+      entryNames?: Record<string, string | null>;
+      /** The api's wait for an opponent's room to open before `/ready` lets the caller create. */
+      roomOpenGraceMs?: number;
+      /** How old a room and its ticket must be before `/room-gone` is honoured. */
+      roomGoneMinAgeMs?: number;
+    };
   players: { a: MatchPlayer | null; b: MatchPlayer | null };
   /** Absent on older api builds = null. */
   decision?: Decision | null;

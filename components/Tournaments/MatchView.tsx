@@ -71,7 +71,7 @@ import {
 } from "@/lib/tournaments/matchPage";
 import { dayText, timeText, whenText } from "@/lib/tournaments/when";
 import { tournamentPath } from "@/lib/tournaments/share";
-import type { Entry, Game, MatchDetail, MatchPlayer, Tournament } from "@/lib/tournaments/types";
+import type { EntryName, Game, MatchDetail, MatchPlayer, MatchTournamentInfo } from "@/lib/tournaments/types";
 import { backTo, SeatHeldNote } from "./SeatHeldNote";
 import { usePlayMatch, type PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
@@ -109,10 +109,36 @@ export const staleNetworkError = (p: Extract<PlayPhase, { kind: "error" }>, now:
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The event as the match detail carries it, with the organizer's name list;
+ * null from an older api, whose match page polls the whole tournament instead.
+ */
+export const eventOfDetail = (
+  d: MatchDetail,
+): { info: MatchTournamentInfo; viewerIsOrganizer: boolean; entries: EntryName[] } | null => {
+  const t = d.tournament;
+  if (typeof t.viewerIsOrganizer !== "boolean" || !t.entryNames || !t.organizer || t.size === undefined) return null;
+  return {
+    info: {
+      name: t.name,
+      size: t.size,
+      latestPossibleFinal: t.latestPossibleFinal ?? null,
+      organizer: t.organizer,
+      settings: t.settings ?? {},
+      status: t.status,
+      notifications: t.notifications,
+    },
+    viewerIsOrganizer: t.viewerIsOrganizer,
+    entries: Object.entries(t.entryNames).map(([id, username]) => ({ id, username })),
+  };
+};
+
 export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) => {
   const { status, account } = useAccount();
   const [detail, reload] = useMatchDetail(slug, matchId);
-  const [event, reloadEvent] = useTournament(slug);
+  const fromDetail = detail.status === "ready" ? eventOfDetail(detail.value) : null;
+  // Only an older api (no event on the match detail) costs the second poll.
+  const [event, reloadEvent] = useTournament(detail.status === "ready" && !fromDetail ? slug : null);
   const now = useNow();
   const play = usePlayMatch(slug, matchId, reload);
   const myUserId = status === "signed-in" && account ? account.id : null;
@@ -126,7 +152,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
   const crumbs = (here: string) => (
     <>
       <NextLink href="/tournaments">Tournaments</NextLink> / <NextLink href={tournamentPath(slug)}>
-        {event.status === "ready" ? event.value.tournament.name : "Tournament"}
+        {fromDetail ? fromDetail.info.name : event.status === "ready" ? event.value.tournament.name : "Tournament"}
       </NextLink> / {here}
     </>
   );
@@ -153,7 +179,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
   return (
     <MatchBody
       d={detail.value}
-      t={event.status === "ready" ? event.value.tournament : null}
+      t={fromDetail ? fromDetail.info : event.status === "ready" ? event.value.tournament : null}
       myUserId={myUserId}
       signedOut={status === "guest"}
       now={now}
@@ -164,7 +190,11 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
       noticedCooldown={noticedReseatCooldown(matchId)}
       crumbs={crumbs}
       organizer={
-        event.status === "ready" && isOrganizerOf(event.value.tournament, myUserId)
+        fromDetail
+          ? fromDetail.viewerIsOrganizer
+            ? { entries: fromDetail.entries, reload }
+            : undefined
+          : event.status === "ready" && isOrganizerOf(event.value.tournament, myUserId)
           ? {
               entries: event.value.entries,
               reload: () => {
@@ -196,8 +226,8 @@ export const MatchBody = ({
   organizer,
 }: {
   d: MatchDetail;
-  /** The full tournament (size, organizer, latest possible final), once loaded. */
-  t: Tournament | null;
+  /** The event (size, organizer, latest possible final), once loaded. */
+  t: MatchTournamentInfo | null;
   myUserId: string | null;
   signedOut: boolean;
   now: number;
@@ -211,7 +241,7 @@ export const MatchBody = ({
   noticedCooldown?: string | null;
   crumbs?: (here: string) => React.ReactNode;
   /** Only passed for the tournament's organizer (MatchView gates it): set matchup / override (#1219). */
-  organizer?: { entries: Entry[]; reload: () => void };
+  organizer?: { entries: readonly EntryName[]; reload: () => void };
 }) => {
   const [watching, setWatching] = useState<Game | null>(null);
   const m = d.match;
@@ -914,7 +944,7 @@ const StickyPlay = ({
 
 // ---------------------------------------------------------------------------
 
-const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: Tournament | null; side: "a" | "b" | null; onReplay: (() => void) | null }) => {
+const MatchupPanel = ({ d, t, side, onReplay }: { d: MatchDetail; t: MatchTournamentInfo | null; side: "a" | "b" | null; onReplay: (() => void) | null }) => {
   const m = d.match;
   const mu = matchupLine(m.matchup);
   const thumb = m.matchup.map ? catalogEntry(m.matchup.map.id)?.thumbnailUrl : undefined;
@@ -1126,7 +1156,7 @@ const GameLine = ({
 
 // ---------------------------------------------------------------------------
 
-const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | null; state: MatchPageState; now: number }) => {
+const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: MatchTournamentInfo | null; state: MatchPageState; now: number }) => {
   const m = d.match;
   const parts = deadlineParts(m.deadlineAt, now);
   const decided = !isOpen(state);

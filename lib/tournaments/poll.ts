@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** Shared polling rules (#1265): back off on errors, pause while the tab is hidden. */
 
@@ -13,11 +13,16 @@ export const tabHidden = (): boolean => typeof document !== "undefined" && docum
 export type PollVerdict = "ok" | "fail" | "stop";
 
 /**
- * Runs `tick` once now, then every `baseMs` (backed off after failures), never while the tab
- * is hidden, and once straight away when it becomes visible. `tick` returns
+ * Runs `tick` once now (or first after one interval with `{ immediate: false }`),
+ * then every `baseMs` (backed off after failures), never while the tab is
+ * hidden, and once straight away when it becomes visible. `tick` returns
  * "stop" to end the polling for good. Returns the cancel function.
  */
-export const startPoll = (baseMs: number, tick: () => Promise<PollVerdict>): (() => void) => {
+export const startPoll = (
+  baseMs: number,
+  tick: () => Promise<PollVerdict>,
+  { immediate = true }: { immediate?: boolean } = {},
+): (() => void) => {
   let alive = true;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -44,7 +49,8 @@ export const startPoll = (baseMs: number, tick: () => Promise<PollVerdict>): (()
     }
   };
   document.addEventListener("visibilitychange", onVisible);
-  void run();
+  if (immediate) void run();
+  else schedule();
   return () => {
     alive = false;
     clearTimeout(timer);
@@ -53,33 +59,44 @@ export const startPoll = (baseMs: number, tick: () => Promise<PollVerdict>): (()
 };
 
 /**
- * The hook side of the same rules: calls `reload` every backed-off interval
- * while enabled and visible, and once when the tab becomes visible again.
- * `failures` is the count of consecutive failed loads (it doubles the delay).
+ * The hook side of the same rules, on `startPoll`: calls `reload` every
+ * backed-off interval while enabled and visible, and once when the tab becomes
+ * visible again (the caller's own load covers the first fetch). `failures` is
+ * the count of consecutive failed loads (it doubles the delay).
  */
 export const usePoll = (enabled: boolean, baseMs: number, failures: number, reload: () => void) => {
   useEffect(() => {
     if (!enabled || baseMs <= 0) return;
-    const delay = pollDelay(baseMs, failures);
-    let id: number | undefined;
-    const start = () => {
-      window.clearInterval(id);
-      id = window.setInterval(() => {
-        if (!tabHidden()) reload();
-      }, delay);
-    };
-    const onVisible = () => {
-      if (tabHidden()) return;
-      reload();
-      start(); // restart the clock so a second fetch doesn't follow within moments
-    };
-    start();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return startPoll(
+      pollDelay(baseMs, failures),
+      async () => {
+        reload();
+        return "ok";
+      },
+      { immediate: false },
+    );
   }, [enabled, baseMs, failures, reload]);
+};
+
+/**
+ * The one ticker countdowns share: `read()` (wall clock by default) re-sampled
+ * every `ms` while `enabled`, and afresh whenever `restartOn` changes.
+ */
+export const useTicker = (
+  ms = 1000,
+  read: () => number = Date.now,
+  enabled = true,
+  restartOn?: unknown,
+): number => {
+  const [now, setNow] = useState(read);
+  useEffect(() => {
+    if (!enabled) return;
+    setNow(read());
+    const id = window.setInterval(() => setNow(read()), ms);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ms, enabled, restartOn]);
+  return now;
 };
 
 /** A 404 is final only the second time in a row (one can be a deploy or replication blip). */
