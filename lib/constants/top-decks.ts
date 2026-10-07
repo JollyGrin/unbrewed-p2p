@@ -355,7 +355,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/pk1x/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/pk1x/cardback.webp",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)
@@ -551,7 +551,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     sourceUrl: "https://unmatched.cards/decks/p82X/versions/EZYf44",
     likes: 2,
     highlightColour: "#ce9272",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/p82X/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/p82X/cardback.webp",
   },
   {
     // Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce (issue
