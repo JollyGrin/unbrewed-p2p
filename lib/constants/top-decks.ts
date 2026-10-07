@@ -551,7 +551,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     sourceUrl: "https://unmatched.cards/decks/p82X/versions/EZYf44",
     likes: 2,
     highlightColour: "#ce9272",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/p82X/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/p82X/cardback.webp",
   },
   {
     // Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce (issue
