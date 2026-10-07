@@ -2414,8 +2414,9 @@ describe("useProSocket — a dead seat token never strands a tournament seat (p2
   });
 
   const frames = (ws: FakeWebSocket) => ws.sent.map((s) => JSON.parse(s));
-  const boot = () => {
-    const hook = renderHook(() => useProSocket("ws://test"));
+  /** `tournamentRooms`: the rooms the page knows as tournament rooms (none = every room is casual). */
+  const boot = (tournamentRooms: string[] = []) => {
+    const hook = renderHook(() => useProSocket("ws://test", false, false, (r) => tournamentRooms.includes(r)));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
     return { hook, ws };
@@ -2456,13 +2457,27 @@ describe("useProSocket — a dead seat token never strands a tournament seat (p2
     expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
   });
 
-  it("a plain BAD_TOKEN forgets the dead token, so the next visit doesn't RECONNECT with it again", () => {
+  it("a plain BAD_TOKEN in a tournament room forgets the dead token, so the next visit doesn't RECONNECT with it again", () => {
     window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
-    const { hook, ws } = boot();
+    const { hook, ws } = boot(["DQJ6"]);
     act(() => hook.result.current.joinRoom("DQJ6", ""));
     act(() => ws.emit({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" }));
     expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
     expect(hook.result.current.error?.code).toBe("BAD_TOKEN");
+  });
+
+  it("a casual room's BAD_TOKEN keeps the stored token and surfaces the error, exactly as before tournaments", () => {
+    window.localStorage.setItem("unbrewed-pro-token-CAS2", "dead");
+    window.sessionStorage.setItem("unbrewed-pro-token-CAS2", "dead");
+    const { hook, ws } = boot(["DQJ6"]); // some OTHER room is a tournament room
+    act(() => hook.result.current.joinRoom("CAS2", ""));
+    expect(frames(ws).at(-1)).toEqual({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: "CAS2", token: "dead" });
+    act(() => ws.emit({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" }));
+    expect(window.localStorage.getItem("unbrewed-pro-token-CAS2")).toBe("dead");
+    expect(window.sessionStorage.getItem("unbrewed-pro-token-CAS2")).toBe("dead");
+    expect(hook.result.current.error).toEqual({ code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+    expect(hook.result.current.seatReleasedRoom).toBeNull();
+    expect(ws.sentTypes).not.toContain("JOIN_ROOM");
   });
 
   it("a ticket with no stored token JOINs straight away (single-use ticket, no RECONNECT)", () => {
@@ -2505,9 +2520,10 @@ describe("useProSocket — a seat taken over by another tab stops this one (p2p 
     FakeWebSocket.last = null;
   });
 
-  const seated = () => {
+  /** Seated in T1; `tournament: false` = T1 is a casual room. */
+  const seated = ({ tournament = true } = {}) => {
     window.localStorage.setItem("unbrewed-pro-token-T1", "tok");
-    const hook = renderHook(() => useProSocket("ws://test"));
+    const hook = renderHook(() => useProSocket("ws://test", false, false, (r) => tournament && r === "T1"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
     act(() => hook.result.current.joinRoom("T1", ""));
@@ -2545,6 +2561,21 @@ describe("useProSocket — a seat taken over by another tab stops this one (p2p 
     closeWith(ws, 4001, "seat_replaced");
     act(() => hook.result.current.takeSeatBack());
     expect(hook.result.current.seatReplaced).toBe(false);
+    expect(FakeWebSocket.instances).toBe(before + 1);
+    const next = FakeWebSocket.last!;
+    act(() => next.open());
+    expect(next.sent.map((s) => JSON.parse(s)).find((m) => m.type === "RECONNECT")).toMatchObject({ roomId: "T1", token: "tok" });
+  });
+
+  it.each([
+    ["code 4001", 4001, ""],
+    ["reason seat_replaced", 1000, "seat_replaced"],
+  ])("a casual room's close with %s reconnects on the usual backoff, exactly as before tournaments", (_label, code, reason) => {
+    const { hook, ws } = seated({ tournament: false });
+    const before = FakeWebSocket.instances;
+    closeWith(ws, code, reason);
+    expect(hook.result.current.seatReplaced).toBe(false);
+    act(() => jest.advanceTimersByTime(10_000));
     expect(FakeWebSocket.instances).toBe(before + 1);
     const next = FakeWebSocket.last!;
     act(() => next.open());

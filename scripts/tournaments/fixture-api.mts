@@ -17,7 +17,8 @@
  * Next-match banner (#1220): `--as=u2 --next=<state>` answers `/me/tournaments`
  * with SF2 as hokuto_shin's next match — waiting, opponent_ready, you_ready,
  * in_play — or `--next=none` (no open match) / `--next=down` (a 500). The
- * match-detail route for that tournament is served by the same fixture.
+ * match-detail route for that tournament is served by the same fixture, and
+ * `/me/tournament-room/:roomId` finds that match's live room or game rooms.
  *
  * Round robin (#1221): fixture-rr-4, fixture-rr-5, fixture-rr-6 (top-2 final, one dropped),
  * fixture-rr-final (final open), fixture-rr-complete.
@@ -65,6 +66,16 @@ createServer((req, res) => {
     if (nextArg === "down") return send(500, { error: "internal" });
     if (nextArg === "none") return send(200, { tournaments: [], nextMatch: null });
     return send(200, fixtureMyTournaments(nextArg as "waiting", new Date().toISOString()));
+  }
+  const roomLookup = url.pathname.match(/^\/me\/tournament-room\/([^/]+)$/);
+  if (roomLookup) {
+    // Is this one of the signed-in player's match rooms: the next match's live room or a game's room.
+    if (!me) return send(401, { error: "unauthorized" });
+    const roomId = decodeURIComponent(roomLookup[1]);
+    const next = nextArg === "none" || nextArg === "down" ? null : fixtureMatch(nextArg as "waiting", new Date().toISOString());
+    const d = next?.detail;
+    const hit = d && (d.liveRoom?.roomId === roomId || d.match.games.some((g) => g.roomId === roomId));
+    return send(200, hit ? { found: true, tournamentSlug: d.tournament.slug, matchId: d.match.id, gameIndex: 0, slot: "b", role: null } : { found: false });
   }
   if (url.pathname === "/tournaments")
     return send(200, { tournaments: Object.values(FIXTURES).map((f) => f().tournament) });

@@ -427,6 +427,8 @@ export const SEAT_REPLACED_CLOSE_CODE = 4001;
 export const isSeatReplacedClose = (e?: { code?: number; reason?: string } | null): boolean =>
   !!e && (e.code === SEAT_REPLACED_CLOSE_CODE || e.reason === "seat_replaced");
 
+const notATournamentRoom = () => false;
+
 export function useProSocket(
   wsUrl: string | undefined,
   debug = false,
@@ -436,9 +438,18 @@ export function useProSocket(
    * through a ref (like `debug`) so flipping it never re-creates `connect` and
    * drops a live socket. `false` (the default) leaves the pacing layer inert.
    */
-  slowMode = false
+  slowMode = false,
+  /**
+   * Whether a room is a tournament room. Only those forget a seat token the
+   * engine answered BAD_TOKEN to, and only those stay closed on a
+   * seat-replaced close: a casual room keeps both behaviours it always had.
+   * Read through a ref, like `debug`. Default: no room is.
+   */
+  isTournamentRoom: (roomId: string) => boolean = notATournamentRoom
 ): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
+  const isTournamentRoomRef = useRef(isTournamentRoom);
+  isTournamentRoomRef.current = isTournamentRoom;
   // Read via ref so toggling debug never re-creates `connect` (which would drop
   // and re-open the socket). debug is fixed per page load in practice.
   const debugRef = useRef(debug);
@@ -1186,9 +1197,11 @@ export function useProSocket(
           resumingRef.current = false;
           setServerRestarting(false);
           clearResumeDeadline();
-          // A dead seat token stays dead (p2p #1250): forget it, or every later
-          // visit RECONNECTs with it again instead of taking a fresh ticket.
-          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED" || msg.code === "BAD_TOKEN") && room) forgetRoom(room);
+          // A tournament room's dead seat token stays dead: forget it, or every
+          // later visit RECONNECTs with it again instead of taking a fresh ticket.
+          // A casual room's BAD_TOKEN keeps the token, as it always has.
+          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED") && room) forgetRoom(room);
+          else if (msg.code === "BAD_TOKEN" && room && isTournamentRoomRef.current(room)) forgetRoom(room);
           setError({ code: msg.code, message: msg.message });
           // If this terminal failure struck a game we were actually playing, it's
           // a genuine loss (resume rejected / room gone / seat token dead) — show
@@ -1208,9 +1221,10 @@ export function useProSocket(
       setResyncing(false);
       resyncReplyRef.current = false;
       clearResumeReplyDeadline();
-      // Another tab or device took the seat (engine #761): stay closed. An
-      // automatic reconnect would take it back, and that tab would do the same.
-      if (isSeatReplacedClose(e)) {
+      // Another tab or device took a tournament seat (engine #761): stay closed.
+      // An automatic reconnect would take it back, and that tab would do the
+      // same. A casual room reconnects on any close, as it always has.
+      if (isSeatReplacedClose(e) && roomRef.current && isTournamentRoomRef.current(roomRef.current)) {
         seatReplacedRef.current = true;
         setSeatReplaced(true);
         return;

@@ -75,7 +75,8 @@ const deliver = async (msg: Record<string, unknown>) => {
   });
 };
 
-const mount = async (query: Query, opts: { strict?: boolean } = {}) => {
+/** `socket: false`: TournamentGate holds the page before the game mounts — assert no socket was opened. */
+const mount = async (query: Query, opts: { strict?: boolean; socket?: false } = {}) => {
   const page = (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <RouterContext.Provider value={fakeRouter(query)}>
@@ -86,6 +87,10 @@ const mount = async (query: Query, opts: { strict?: boolean } = {}) => {
     </QueryClientProvider>
   );
   render(opts.strict ? <StrictMode>{page}</StrictMode> : page);
+  if (opts.socket === false) {
+    expect(FakeWebSocket.latest()).toBeNull();
+    return;
+  }
   const socket = FakeWebSocket.latest();
   if (!socket) throw new Error("the page never opened a socket");
   await act(async () => {
@@ -343,6 +348,9 @@ describe("back to a tournament room after the browser died (journeys S6)", () =>
       const ok = (body: unknown) => ({ ok: true, status: 200, headers: new Headers(), json: async () => body }) as Response;
       if (url.endsWith("/me")) return ok({ user: { id: "u3", username: "bountyhuntr" } });
       if (url.endsWith("/me/tournaments")) return ok(fixtureMyTournaments("in_play", now));
+      // this player's in-play match owns the room (GET /me/tournament-room/:roomId)
+      if (url.endsWith(`/me/tournament-room/${ROOM}`))
+        return ok({ found: true, tournamentSlug: fixtureMyTournaments("in_play", now).nextMatch!.tournament.slug, matchId: "m2-1", gameIndex: 0, slot: "a", role: null });
       if (url.includes("/matches/m2-1")) return ok(fixtureMatch("in_play", now).detail);
       return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) } as Response;
     }) as unknown as typeof fetch;
@@ -372,8 +380,7 @@ describe("back to a tournament room after the browser died (journeys S6)", () =>
 
   it("no token at all: the ticket card, never the casual join picker", async () => {
     signedIn();
-    await mount({ room: ROOM });
-    await deliver({ type: "HEROES", heroes: HEROES });
+    await mount({ room: ROOM }, { socket: false }); // the gate's card: the game page never mounts
     await flush(10);
     expect(screen.queryByText(`JOIN ROOM ${ROOM}`)).not.toBeInTheDocument();
     expect(screen.getByTestId("ticket-error")).toHaveTextContent("another tab or device");

@@ -1,14 +1,20 @@
 /**
- * Tournament-only lines in a running game (p2p #1279, UX S10): the opponent's
- * disconnect clock in a tagged duel ("they forfeit in 14:59 … Stay in the
- * room."), and why the game ended when it wasn't a plain knockout. Untagged
- * rooms never mount any of this.
+ * Tournament-only pieces of a running game (p2p #1279, UX S10): the waiting
+ * room's hold, the opponent's disconnect clock in a tagged duel ("they forfeit
+ * in 14:59 … Stay in the room."), why the game ended when it wasn't a plain
+ * knockout, and the way back to the match page from the end and lost-game
+ * screens. The shared game screens take these as slots; untagged rooms never
+ * mount any of this.
  */
-import { Box, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Link, Tag, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 
+import { holdLeftText, MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
 import { fmtCountdown } from "@/components/Pro/ProHud";
-import type { TournamentRoom } from "@/lib/pro/tournamentTicket";
+import { catalogEntry } from "@/lib/pro/mapCatalog";
+import { TAP_TARGET } from "@/lib/pro/mobileLayout";
+import type { PlayerView } from "@/lib/pro/protocol";
+import { tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
 import { getMatch } from "@/lib/tournaments/api";
 
 export const opponentAwayText = (name: string, secsLeft: number): string =>
@@ -99,3 +105,105 @@ export const useTaggedGameEndReason = (at: TournamentRoom | null, roomId: string
   }, [slug, matchId, roomId, over]);
   return reason;
 };
+
+/**
+ * The creator's waiting room in a tournament room. It is private and seats only
+ * the match's other player, who joins from the match page: no invite link, no
+ * public toggle (the engine refuses SET_VISIBILITY on it). The hold is live,
+ * counted down from the match's ready check and replaced once it ran out.
+ * "Keep this tab open" leads: the pre-game seat also goes ~60 s after the
+ * socket drops.
+ */
+export const TournamentWaiting = ({ at, roomId, boardUnknown }: { at: TournamentRoom; roomId: string | null; boardUnknown: boolean }) => (
+  <Flex direction="column" alignItems="center" gap="0.5rem" data-testid="tournament-waiting">
+    <MatchDecidedBanner at={at} roomId={roomId}>
+      {(holdLeftMs, matchMap) => (
+        <>
+          <Text fontWeight={700} fontSize="1.1rem" textAlign="center" data-testid="tournament-hold-headline">
+            Keep this tab open
+          </Text>
+          <Tag px="0.75rem" py="0.4rem" fontFamily="SpaceGrotesk" letterSpacing="0.04em" bg="brand.accent" color="brand.surfaceDim" data-testid="tournament-hold">
+            {holdLeftMs === null
+              ? "🏆 Tournament match · your seat is held"
+              : `🏆 Tournament match · seat held · ${holdLeftText(holdLeftMs)}`}
+          </Tag>
+          <Text opacity={0.8} textAlign="center" maxW="30rem">
+            Your opponent joins from the match page. If you close this tab, your seat goes about a minute later.
+          </Text>
+          {/* After a reload the room's board is unknown here; the match's own
+              assignment still names it. */}
+          {boardUnknown && matchMap && (
+            <Text opacity={0.8} textAlign="center" data-testid="tournament-board">
+              Playing on {matchMap.kind === "catalog" ? catalogEntry(matchMap.id)?.title ?? matchMap.id : "the organizer's board"}.
+            </Text>
+          )}
+        </>
+      )}
+    </MatchDecidedBanner>
+    <Link href={tournamentMatchHref(at)} color="brand.accent">
+      Back to the match page
+    </Link>
+  </Flex>
+);
+
+/**
+ * Above the table in a tournament game: the match's decided/hold strip, and in
+ * a duel the opponent's forfeit clock while they are away.
+ */
+export const TournamentGameStrip = ({ at, view, awayDeadline }: { at: TournamentRoom; view: PlayerView; awayDeadline: number | null }) => (
+  <>
+    <MatchDecidedBanner at={at} strip />
+    {awayDeadline !== null && !view.winner && <OpponentAwayNote name={opponentNameOf(view)} deadline={awayDeadline} />}
+  </>
+);
+
+export const opponentNameOf = (view: PlayerView): string => view.opponent?.displayName?.trim() || "Your opponent";
+
+/**
+ * A tournament game's end-screen action, in Rematch's place: the next game of
+ * the match is a new ticket from the match page (the engine refuses a rematch).
+ */
+export const BackToMatchButton = ({ at }: { at: TournamentRoom }) => (
+  <Button
+    as={Link}
+    href={tournamentMatchHref(at)}
+    minH={TAP_TARGET}
+    px="1.4rem"
+    mt="0.3rem"
+    mb="0.15rem"
+    bg="brand.accent"
+    color="brand.surfaceDim"
+    fontWeight={700}
+    data-testid="back-to-match"
+    _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
+    _active={{ bg: "brand.accentDeep" }}
+  >
+    Back to the match
+  </Button>
+);
+
+const LOST_BTN_GOLD = {
+  size: "md" as const,
+  bg: "brand.accent",
+  color: "brand.surfaceDim",
+  _hover: { bg: "brand.accentDeep" },
+  _active: { bg: "brand.accentDeep" },
+};
+
+/** "We lost your game" in a tournament: the match isn't lost, the match page says what's next. */
+export const LostGameMatchNote = ({ at }: { at: TournamentRoom }) => (
+  <Box maxW="34rem">
+    <Text fontSize="0.95rem" opacity={0.85} mb="0.6rem">
+      Your tournament match isn&apos;t lost. The match page shows what happens next.
+    </Text>
+    <Button
+      as={Link}
+      href={tournamentMatchHref(at)}
+      {...LOST_BTN_GOLD}
+      _hover={{ ...LOST_BTN_GOLD._hover, textDecoration: "none" }}
+      data-testid="lost-back-to-match"
+    >
+      Back to the match
+    </Button>
+  </Box>
+);
