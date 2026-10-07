@@ -5,7 +5,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 
 import { MatchBody } from "./MatchView";
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
-import type { MatchPageState } from "@/lib/tournaments/matchPage";
+import { clock, dateTime, organizerCutoff, type MatchPageState } from "@/lib/tournaments/matchPage";
 import type { MatchDetail } from "@/lib/tournaments/types";
 import type { PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
@@ -55,7 +55,7 @@ it("waiting for a game: open window, 'I'm ready to play'", () => {
 it("opponent ready (join now): the seat clock and Join now", () => {
   renderState("opponent_ready");
   expect(banner()).toHaveTextContent("bountyhuntr is ready to play. Your seat is held.");
-  expect(banner()).toHaveTextContent("Join within 11:48");
+  expect(banner()).toHaveTextContent("Join within 11 min 48 s");
   const box = screen.getByTestId("play-box");
   expect(box).toHaveTextContent("bountyhuntr is waiting in your room");
   expect(box).toHaveTextContent("You'll load straight in as Kenshiro on Count's Castle.");
@@ -69,6 +69,8 @@ it("you're ready (seat held): countdown and a way back to the room this browser 
   renderState("you_ready");
   expect(banner()).toHaveTextContent("You're ready.");
   expect(screen.getByTestId("seat-clock")).toHaveTextContent("14:32");
+  expect(screen.getByTestId("seat-clock")).toHaveAttribute("aria-label", "14 minutes 32 seconds left");
+  expect(banner()).toHaveTextContent("Seat held · 14 min 32 s left");
   expect(screen.getAllByText("Back to your room")[0].closest("a")).toHaveAttribute("href", "/pro/game?room=SF2ROOM");
 });
 
@@ -116,7 +118,8 @@ it("in play now on another device: no rejoin promise it can't keep", () => {
 
 it("decided: the winner advances, the score, the replay chip", async () => {
   renderState("decided");
-  expect(banner()).toHaveTextContent("Decided. hokuto_shin advances to the Final.");
+  // hokuto_shin is the viewer and the winner (UX B5).
+  expect(banner()).toHaveTextContent("You won. You advance to the Final.");
   expect(screen.getByTestId("match-score")).toHaveTextContent("1–0");
   expect(screen.queryByTestId("play-box")).not.toBeInTheDocument();
   expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument(); // C5 (#1236)
@@ -138,21 +141,23 @@ it("decided: no Replay chip until the api reports replayAvailable", () => {
   expect(screen.queryByText("Watch the replay")).not.toBeInTheDocument();
 });
 
-it("deadline passed, organizer deciding: no Play button, the 24h rule, deadline closed (#1230)", () => {
-  renderState("deadline_passed");
+it("deadline passed, organizer deciding: play stays open until they decide, the cutoff date (UX B1, #1230)", () => {
+  const onPlay = jest.fn();
+  renderState("deadline_passed", { onPlay });
+  const f = fixtureMatch("deadline_passed");
   expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_passed");
-  expect(banner()).toHaveTextContent("The deadline has passed. The organizer is deciding this match.");
+  expect(banner()).toHaveTextContent("The deadline has passed. You can still play until the organizer decides.");
   // deadline = now - 1h, so the organizer's cutoff is now + 23h (D5).
-  expect(banner()).toHaveTextContent("If they don't decide by Tue 6 Oct, 13:00, the higher seed advances.");
+  expect(banner()).toHaveTextContent(`The organizer decides by ${dateTime(organizerCutoff(f.detail.match.deadlineAt))}, otherwise the higher seed advances.`);
   expect(banner()).not.toHaveTextContent("Play any time");
-  expect(screen.queryByTestId("play-box")).not.toBeInTheDocument();
-  expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
-  expect(screen.queryByText("I'm ready to play")).not.toBeInTheDocument();
-  expect(screen.getByTestId("sticky-play")).toHaveTextContent("See the bracket");
+  expect(screen.getByTestId("play-box")).toHaveTextContent("The deadline has passed, but you can still play until the organizer decides.");
+  fireEvent.click(within(screen.getByTestId("play-box")).getByTestId("play-button"));
+  expect(onPlay).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId("sticky-play")).toHaveTextContent("I'm ready to play");
   expect(screen.getByTestId("deadline-card")).toHaveTextContent("Closed");
 });
 
-it("past the deadline with a live pre-deadline hold: no join CTA, names the holder (#1253)", () => {
+it("past the deadline with a live pre-deadline hold: the other player can still join, named holder, no 'they' (UX B1, #1253)", () => {
   const f = fixtureMatch("opponent_ready");
   const pressedAt = Date.parse(f.detail.readyChecks[0].createdAt);
   const d = { ...f.detail, match: { ...f.detail.match, deadlineAt: new Date(pressedAt + 5 * 60_000).toISOString() } };
@@ -162,9 +167,12 @@ it("past the deadline with a live pre-deadline hold: no join CTA, names the hold
     </ChakraProvider>,
   );
   expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_hold");
-  expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
-  expect(screen.queryByText("Join now")).not.toBeInTheDocument();
-  expect(banner()).toHaveTextContent(/Deadline passed\. .+ pressed Play and holds a seat until .+; if they don't join, they advance \(rule 1\)\./);
+  const until = clock(d.liveRoom!.expiresAt);
+  expect(banner()).toHaveTextContent(`bountyhuntr is waiting in your room until ${until}. If you don't join, bountyhuntr advances.`);
+  expect(banner()).not.toHaveTextContent(/\bthey\b/);
+  expect(within(screen.getByTestId("play-box")).getByTestId("play-button")).toHaveTextContent("Join now");
+  expect(screen.getByTestId("play-box")).toHaveTextContent(`bountyhuntr is waiting in your room until ${until}`);
+  expect(screen.getByTestId("sticky-play")).toHaveTextContent(/Join now · \d+:\d\d left/);
   expect(banner()).not.toHaveTextContent("Play any time");
   expect(banner()).not.toHaveTextContent("organizer");
 });
@@ -180,17 +188,17 @@ it("past the deadline, an unanswered pre-deadline check: rule 1 copy, no Play (#
   );
   expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_passed");
   expect(banner()).toHaveTextContent("bountyhuntr was ready and you never joined, so bountyhuntr advances.");
-  expect(banner()).toHaveTextContent("Rule 1 · unanswered ready-check");
+  expect(banner()).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
   expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
 });
 
 it("decided by deadline rule: names the rule and marks it applied", () => {
   renderState("decided_by_rule");
-  expect(banner()).toHaveTextContent("Decided by the deadline rule. hokuto_shin advances.");
-  expect(banner()).toHaveTextContent("Rule 1 · unanswered ready-check");
+  expect(banner()).toHaveTextContent("Decided by the deadline rule. You won. You advance to the Final.");
+  expect(banner()).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
   // D6: the full rules card is gone; one line names the rule.
   expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();
-  expect(screen.getByTestId("decided-by-rule")).toHaveTextContent("Decided by Rule 1 · unanswered ready-check.");
+  expect(screen.getByTestId("decided-by-rule")).toHaveTextContent("Decided by Rule 1 · one player was ready, the other never joined.");
   expect(screen.getByTestId("games-list")).toHaveTextContent("No game was played before");
   expect(screen.getByTestId("ready-checks")).toHaveTextContent("Your opponent didn't join");
 });
@@ -251,7 +259,7 @@ describe("final smoke fixes (#1239)", () => {
     );
     expect(banner()).toHaveTextContent("The deadline has passed. You are deciding this match.");
     expect(banner()).not.toHaveTextContent("The organizer is deciding");
-    expect(banner()).toHaveTextContent("Decide by Tue 6 Oct, 13:00, or the higher seed advances.");
+    expect(banner()).toHaveTextContent(`Decide by ${dateTime(organizerCutoff(f.detail.match.deadlineAt))}, or the higher seed advances. The players can still play until you do.`);
     expect(screen.getByTestId("organizer-panel")).toHaveTextContent("Override result");
     expect(screen.getByTestId("organizer-panel")).not.toHaveTextContent("Set matchup");
   });
@@ -275,8 +283,9 @@ describe("final smoke fixes (#1239)", () => {
   it("D6: one numbering — Rule 1 / Rule 2 — in the card and the banner", () => {
     const { unmount } = renderState("waiting");
     const card = screen.getByText("If the deadline passes").parentElement!;
-    expect(card).toHaveTextContent("Rule 1 · unanswered ready-check");
-    expect(card).toHaveTextContent("Rule 2 · otherwise the organizer decides within 24h");
+    expect(card).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
+    expect(card).toHaveTextContent(`Rule 2 · otherwise the organizer decides by ${dateTime(organizerCutoff(fixtureMatch("waiting").detail.match.deadlineAt))}`);
+    expect(card).toHaveTextContent("You can still play after the deadline until the organizer decides.");
     unmount();
     const d = fixtureMatch("decided_by_rule").detail;
     d.match.decidedBy = "deadline_higher_seed";
@@ -292,7 +301,7 @@ describe("final smoke fixes (#1239)", () => {
     expect(banner()).not.toHaveTextContent("advances");
   });
 
-  it("D9: a decided players-choose match with no recorded heroes or board points at the replay", () => {
+  it("D9: a decided players-choose match with no recorded heroes or board points at the replay", async () => {
     const f = fixtureMatch("decided");
     const d: MatchDetail = {
       ...f.detail,
@@ -303,7 +312,7 @@ describe("final smoke fixes (#1239)", () => {
     expect(screen.queryByText(/Dealt at random/)).not.toBeInTheDocument();
     expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("Heroes and board: see the replay");
     fireEvent.click(screen.getByTestId("matchup-replay-link"));
-    expect(screen.getByTestId("replay-open")).toBeInTheDocument();
+    expect(await screen.findByTestId("replay-open")).toBeInTheDocument();
   });
 
   it("D9: a decided match with no game says so instead of describing a random board", () => {
@@ -357,7 +366,7 @@ describe("api #91", () => {
     });
     expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("Decided by the organizer (the game's result was overridden)");
     expect(screen.getAllByTestId("game-row")[0]).toHaveTextContent("won (not counted: overridden)");
-    expect(screen.getByTestId("deadline-card")).toHaveTextContent(/Decided \w{3} 5 Oct/);
+    expect(screen.getByTestId("deadline-card")).toHaveTextContent(`Decided ${dateTime("2026-10-05T12:34:00Z")}`);
   });
 
   it("a game recorded after the decision is labelled and not counted", () => {
@@ -422,7 +431,8 @@ describe("api #91", () => {
       </ChakraProvider>,
     );
     const note = within(screen.getByTestId("play-box")).getByTestId("seat-held-note");
-    expect(note).toHaveTextContent("Your seat is held in room ABC123");
+    expect(note).toHaveTextContent("Your seat is held in this match's room.");
+    expect(note).not.toHaveTextContent("ABC123"); // UX S6: no room code
     expect(within(note).getByText("Back to your room").closest("a")).toHaveAttribute("href", "/pro/game?room=ABC123");
     fireEvent.click(within(note).getByText("Check again"));
     expect(onRetry).toHaveBeenCalledTimes(1);

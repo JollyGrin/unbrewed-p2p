@@ -4,6 +4,7 @@ import { describeTournamentRule } from "./matchup";
 import { mapTitle } from "./mapTitle";
 import { hasTop2Final } from "./roundRobin";
 import type { Tournament } from "./types";
+import { whenText } from "./when";
 
 export const WINDOW_LABEL: Record<number, string> = {
   24: "24h",
@@ -25,19 +26,8 @@ const FORMAT_LABEL: Record<Tournament["format"], string> = {
 export const formatLabel = (t: Pick<Tournament, "format">): string =>
   FORMAT_LABEL[t.format] ?? t.format;
 
-export const formatWhen = (iso: string | null): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleString(undefined, {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-};
+/** The feature's one date/time format (./when). */
+export const formatWhen = (iso: string | null): string => whenText(iso);
 
 /**
  * Escape Discord Markdown in a user-supplied string so a hostile name like

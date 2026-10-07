@@ -117,14 +117,16 @@ export const OverrideForm = ({
   });
   const gameInPlayRef = useRef(false);
   // 409 tickets_outstanding (api #101): wait it out, or force it (inline confirm).
-  const [tickets, setTickets] = useState<string | null>(null);
+  const [tickets, setTickets] = useState<{ until: string; holder?: string } | null>(null);
   const [forcing, setForcing] = useState(false);
   const apply = async (w: string, force = false) => {
     setTickets(null);
     await run(async () => {
       const r = await overrideMatch(slug, match.id, overrideBody(match, w, note, force));
       if (!r.ok && r.code === "tickets_outstanding" && r.canForce && r.ticketsExpireAt) {
-        setTickets(r.ticketsExpireAt);
+        // api A5 names whose seat blocks it (`holderEntryId`); older builds name nobody.
+        const holder = r.holderEntryId ? entries.find((e) => e.id === r.holderEntryId)?.username ?? undefined : undefined;
+        setTickets({ until: r.ticketsExpireAt, holder });
         setForcing(false);
         // handled below as its own notice, not the generic error line
         return { ok: false, handled: true };
@@ -207,7 +209,7 @@ export const OverrideForm = ({
           )}
           {tickets && (
             <Box mt="8px" p="10px 12px" borderRadius="8px" bg="rgba(224,168,46,0.18)" fontSize="14px" role="alert" data-testid="override-tickets-outstanding">
-              <Text>{ticketsOutstandingText(tickets)}</Text>
+              <Text>{ticketsOutstandingText(tickets.until, tickets.holder)}</Text>
               <Flex gap="8px" mt="8px" flexWrap="wrap">
                 {forcing ? (
                   <>
@@ -408,7 +410,7 @@ const MapChip = ({
     type="button"
     aria-pressed={sel}
     onClick={onClick}
-    minH="36px"
+    minH="44px"
     px="12px"
     borderRadius="999px"
     fontSize="13px"

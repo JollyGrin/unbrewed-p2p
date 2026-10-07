@@ -13,6 +13,7 @@ import { heroDisplayName } from "@/lib/stats/roster";
 import { matchHref } from "./links";
 import { mapTitle } from "./mapTitle";
 import type { DecidedBy, Entry, Game, Match, Tournament } from "./types";
+import { dayText } from "./when";
 
 /** "Final", "Semifinals", "Quarterfinals", "Round of 16". */
 export const roundName = (round: number, rounds: number): string => {
@@ -63,7 +64,7 @@ export const DECIDED_NOTE: Record<DecidedBy, DecidedNote> = {
   organizer: { tag: "Organizer decided", rule: "Decided by the organizer." },
   deadline_ready_check: {
     tag: "By deadline rule",
-    rule: "Rule 1 · unanswered ready-check. The player who pressed Play advances.",
+    rule: "Rule 1 · one player was ready, the other never joined. The player who pressed Play advances.",
   },
   deadline_higher_seed: {
     tag: "By deadline rule",
@@ -160,14 +161,14 @@ export const seedOrder = (size: number): number[] => {
   return order;
 };
 
-/** A game that counts toward the score: finished, not rejected, not recorded after the organizer decided. */
 /** A game that was in play when the organizer decided the match and finished afterwards (api `recordedAfterDecision`). */
 export const hasLateGame = (m: Match): boolean => m.games.some((g) => !!g.recordedAfterDecision);
 /** The bracket cell's short form: its footer already says "Decided by the organizer". */
 export const LATE_GAME_CELL_NOTE = "a game finished afterwards (not counted)";
 export const LATE_GAME_NOTE = "Decided by the organizer; a game that was in progress finished afterwards (not counted)";
 
-export const countsGame = (g: Game): boolean => !!g.finishedAt && !g.rejectedAt && !g.recordedAfterDecision;
+/** A game with a result: finished with a winner (never abandoned / swept / stalled, journeys S8), not rejected, not recorded after the organizer decided. */
+export const countsGame = (g: Game): boolean => !!g.finishedAt && !!g.winnerEntry && !g.rejectedAt && !g.recordedAfterDecision;
 
 /**
  * A game that shows in a decided match's score. Nothing scores once the organizer
@@ -196,13 +197,7 @@ export const cellState = (m: Match): CellState => {
 const wins = (m: Match, entryId: string | null): number =>
   entryId ? m.games.filter((g) => scoredGame(m, g) && g.winnerEntry === entryId).length : 0;
 
-const shortDay = (iso: string | null): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-};
+const shortDay = (iso: string | null): string => dayText(iso);
 
 export const buildBracket = (
   t: Pick<Tournament, "slug" | "size" | "status">,
@@ -277,12 +272,12 @@ export const buildBracket = (
       case "in_play":
         return "In play now";
       case "unverified":
-        return "Untagged game · organizer to confirm";
+        return "Played outside the match room · organizer to confirm";
       case "ready":
         return "Waiting for a game";
       default: {
         const need = [m.slotA, m.slotB].filter((s) => !s).length;
-        return need === 2 ? "Opens when both feeders are decided" : "Opens when the other match is decided";
+        return need === 2 ? "Opens when both earlier matches are decided" : "Opens when the other match is decided";
       }
     }
   };

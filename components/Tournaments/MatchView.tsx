@@ -9,7 +9,7 @@
 import { Box, Flex, Grid, Text } from "@chakra-ui/react";
 import dynamic from "next/dynamic";
 import NextLink from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/components/Stats/tokens";
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
@@ -24,22 +24,25 @@ import {
   clock,
   dateTime,
   DEADLINE_PASSED_ORGANIZER_TEXT,
+  DEADLINE_PASSED_SPECTATOR_TEXT,
   DEADLINE_PASSED_TEXT,
   decidedByRuleLine,
   decisionLine,
   deadlineHolder,
+  deadlineHoldUntil,
   deadlineOutcome,
   deadlineParts,
   deadlinePassed,
   deadlinePassedOrganizerRule,
   deadlinePassedRule,
   deadlineReadyCheckText,
+  endReasonText,
   gameLength,
+  gameLooksStalled,
   gameRows,
   currentChecks,
   heldRoom,
   lastSeen,
-  MATCH_STATE_NAME,
   matchPageState,
   matchTitle,
   matchupLine,
@@ -50,8 +53,11 @@ import {
   playerName,
   readyCheckLine,
   reseatCooldownText,
+  RULE_1_LINE,
   score,
   seatClock,
+  seatLeft,
+  seatLeftSpoken,
   shortDate,
   stalledGameText,
   windowSpent,
@@ -93,6 +99,11 @@ const caption = {
 export const seatHref = (roomId: string | null): string | null =>
   roomId && getToken(roomId) ? `/pro/game?room=${encodeURIComponent(roomId)}` : null;
 
+/** A press that failed on the network (not a timeout: that one may have gone through) and is old enough to drop once the api answers again. */
+export const STALE_ERROR_MS = 5_000;
+export const staleNetworkError = (p: Extract<PlayPhase, { kind: "error" }>, now: number): boolean =>
+  p.reason === "unavailable" && p.code !== "timeout" && p.code !== "tournaments_disabled" && now - (p.at ?? 0) >= STALE_ERROR_MS;
+
 // ---------------------------------------------------------------------------
 
 export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) => {
@@ -102,6 +113,13 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
   const now = useNow();
   const play = usePlayMatch(slug, matchId, reload);
   const myUserId = status === "signed-in" && account ? account.id : null;
+  // "Couldn't reach the server" goes once the api answers a later poll (journeys S3). The poll
+  // that a failed press triggers itself doesn't count: the message stays up for a few seconds.
+  const loaded = detail.status === "ready" ? detail.value : null;
+  const { phase: playPhase, dismiss } = play;
+  useEffect(() => {
+    if (loaded && playPhase.kind === "error" && staleNetworkError(playPhase, Date.now())) dismiss();
+  }, [loaded, playPhase, dismiss]);
   const crumbs = (here: string) => (
     <>
       <NextLink href="/tournaments">Tournaments</NextLink> / <NextLink href={tournamentPath(slug)}>
@@ -118,7 +136,13 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
         ) : detail.status === "not_found" ? (
           <Notice title="Match not found">This match doesn&apos;t exist, or the tournament was removed.</Notice>
         ) : (
-          <Notice title="Couldn't load the match">The tournaments server didn&apos;t answer. Try again in a moment.</Notice>
+          <>
+            <Notice title="Couldn't load the match">The tournaments server didn&apos;t answer. Retrying automatically…</Notice>
+            <Flex mt="16px" gap="10px" flexWrap="wrap">
+              <Btn variant="gold" onClick={reload} data-testid="match-retry">Try again</Btn>
+              <Btn href={tournamentPath(slug)} variant="ghost">Back to the tournament</Btn>
+            </Flex>
+          </>
         )}
       </Page>
     );
@@ -216,6 +240,17 @@ export const MatchBody = ({
   // session expired and the page no longer knows which side we are (S5).
   const seatLink = state === "in_play" ? seatHref(roomId) : null;
   const cooldown = activeReseatCooldown(m, noticedCooldown, now);
+  // Play stays open after the deadline until the organizer decides (UX B1);
+  // only rule 1 about to apply leaves nothing to press.
+  const lateOpen = state === "deadline_passed" && deadlineOutcome(d, now).kind === "organizer";
+  // The other player of a pre-deadline hold that outlived the deadline: they can still join it.
+  const holder = state === "deadline_hold" ? deadlineHolder(d, now) : null;
+  const holderName = playerName(holder === m.slotA ? d.players.a : holder === m.slotB ? d.players.b : null);
+  const holdUntil = state === "deadline_hold" ? clock(deadlineHoldUntil(d, holder, now)) : "";
+  // Discord pings are promised only when the api says the bot is live (UX S4).
+  const discord = (t?.notifications ?? d.tournament.notifications) === "discord";
+  const past = deadlinePassed(m.deadlineAt, now);
+  const href = matchHref(d.tournament.slug, m.id);
 
   return (
     <Page
@@ -226,8 +261,8 @@ export const MatchBody = ({
       lede={
         <>
           One game decides it
-          {m.opensAt ? ` · window opened ${dateTime(m.opensAt)}` : ""}
-          {cancelled ? " · Cancelled" : m.deadlineAt ? ` · closes ${dateTime(m.deadlineAt)}` : ""}
+          {m.opensAt ? ` · opened ${dateTime(m.opensAt)}` : ""}
+          {cancelled ? " · Cancelled" : m.deadlineAt ? ` · ${past ? "closed" : "closes"} ${dateTime(m.deadlineAt)}` : ""}
         </>
       }
     >
@@ -239,16 +274,28 @@ export const MatchBody = ({
         data-state={state}
       >
         <Card overflow="hidden" p={0}>
-          <Banner state={state} d={d} title={title} next={next} group={group} oppName={oppName} side={side} now={now} unverified={unverified} winnerName={playerName(winner)} isOrganizer={!!organizer} />
+          <Banner state={state} d={d} title={title} next={next} group={group} oppName={oppName} side={side} now={now} unverified={unverified} winnerName={playerName(winner)} isOrganizer={!!organizer} discord={discord} />
           {decisionText && (
             <Text px={{ base: "14px", md: "22px" }} py="10px" fontSize="14px" fontWeight={600} bg={WASH} data-testid="decision-note" overflowWrap="anywhere">
               {decisionText}
             </Text>
           )}
           <Versus d={d} state={state} side={side} now={now} />
+          {side && (state === "decided" || state === "decided_by_rule") && m.winner && m.winner !== (side === "a" ? m.slotA : m.slotB) && (
+            // The eliminated player's "what now?" (UX B5).
+            <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="10px" align="center" flexWrap="wrap" data-testid="after-loss">
+              <Btn variant="ghost" href={tournamentPath(d.tournament.slug)}>{roundRobin ? "See the standings" : "See the bracket"}</Btn>
+              <Btn variant="ghost" href="/tournaments">Find another tournament</Btn>
+            </Flex>
+          )}
           {playable && (
             <PlayBox
-              state={state}
+              state={lateOpen ? "waiting" : state}
+              late={lateOpen}
+              holderName={holderName}
+              holdUntil={holdUntil}
+              discord={discord}
+              signInHref={href}
               phase={phase}
               onPlay={onPlay}
               onRetry={onRetry}
@@ -257,7 +304,7 @@ export const MatchBody = ({
               myHero={myHero}
               mapName={mu.map}
               heroesLocked={mu.heroesLocked}
-              seatHeld={room ? seatClock(room.expiresAt, now) : null}
+              seatHeld={room ? { clock: seatClock(room.expiresAt, now), spoken: seatLeftSpoken(room.expiresAt, now) } : null}
               roomId={roomId}
               code={title}
               cooldown={cooldown}
@@ -269,13 +316,14 @@ export const MatchBody = ({
               <Btn variant="gold" href={seatLink}>Back to game</Btn>
             </Flex>
           )}
-          {!side && signedOut && (state === "waiting" || state === "opponent_ready" || state === "in_play") && seated && (
+          {!side && signedOut && (state === "waiting" || state === "opponent_ready" || state === "in_play" || state === "deadline_hold" || lateOpen) && seated && (
             <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="12px" align="center" justify="space-between" flexWrap="wrap" data-testid="sign-in-prompt">
               <Text fontSize="14px">{state === "in_play" ? "Playing this match? Sign in to get back to your game." : "Playing this match? Sign in to press Play."}</Text>
-              <Btn variant="discord" href={signInUrl(matchHref(d.tournament.slug, m.id))}>Sign in with Discord</Btn>
+              <Btn variant="discord" href={signInUrl(href)}>Sign in with Discord</Btn>
             </Flex>
           )}
-          {state === "in_play" && (side || signedOut || seatLink) && (
+          {/* Only when it may be true: a game running this long, or one the api marks stalled (F5). */}
+          {state === "in_play" && (side || signedOut || seatLink) && gameLooksStalled(d, now) && (
             <Text mx={{ base: "12px", md: "32px" }} mb="8px" px="4px" fontSize="13px" color={INK_MUTED} overflowWrap="anywhere" data-testid="stalled-note">
               {stalledGameText(t?.organizer.username ?? null)}
             </Text>
@@ -292,11 +340,6 @@ export const MatchBody = ({
               Watching live is coming later. The replay appears here when the game ends.
             </Text>
           )}
-          {state === "decided" && replayGame && (
-            <Flex justify="center" pb="28px">
-              <Btn variant="ink" onClick={() => setWatching(replayGame)}>Watch the replay</Btn>
-            </Flex>
-          )}
         </Card>
 
         <Flex flexDir="column" gap="16px">
@@ -310,7 +353,7 @@ export const MatchBody = ({
           ) : (
             state !== "decided" && state !== "cancelled" && <RulesCard d={d} state={state} group={group} />
           )}
-          <ReadyChecksCard d={d} myUserId={myUserId} hideReady={cancelled} />
+          <ReadyChecksCard d={d} myUserId={myUserId} hideReady={cancelled} now={now} />
           {next && state !== "cancelled" && (
             <Card p="18px">
               <Text fontWeight={700} fontSize="15px" mb="8px">Winner goes to</Text>
@@ -324,7 +367,7 @@ export const MatchBody = ({
       </Grid>
 
       <StickyPlay
-        state={state}
+        state={lateOpen ? "waiting" : state}
         side={playable ? side : null}
         phase={phase}
         onPlay={onPlay}
@@ -350,7 +393,8 @@ const BANNER_LOOK: Record<MatchPageState, { bg: string; color: string }> = {
   waiting: { bg: WASH, color: INK },
   opponent_ready: { bg: GOLD, color: INK_DEEP },
   you_ready: { bg: INK_DEEP, color: PARCHMENT },
-  in_play: { bg: DANGER, color: "white" },
+  // White on tomato fails AA (UX S12): the darker danger ink passes (≈4.9:1).
+  in_play: { bg: DANGER_INK, color: "white" },
   deadline_passed: { bg: SURFACE, color: PARCHMENT },
   deadline_hold: { bg: SURFACE, color: PARCHMENT },
   decided: { bg: POS, color: "white" },
@@ -370,6 +414,7 @@ const Banner = ({
   unverified,
   winnerName,
   isOrganizer,
+  discord,
 }: {
   /** Round-robin group match: nobody "advances", the winner takes the match. */
   group: boolean;
@@ -384,25 +429,36 @@ const Banner = ({
   winnerName: string;
   /** The viewer is the tournament's organizer. */
   isOrganizer: boolean;
+  /** The Discord bot pings this tournament's players (api A5 `notifications`). */
+  discord: boolean;
 }) => {
   const m = d.match;
   const room = heldRoom(d, now);
-  const deadline = m.deadlineAt ? `${shortDate(m.deadlineAt).split(" ")[0]} ${clock(m.deadlineAt)}` : "the deadline";
+  const mine = side === "a" ? m.slotA : side === "b" ? m.slotB : null;
+  const deadline = m.deadlineAt ? dateTime(m.deadlineAt) : "the deadline";
+  const [youAdvance, advances] = group ? ["win the match", "wins the match"] : m.stage === "final" || !next ? ["win the tournament", "wins the tournament"] : ["advance", "advances"];
   let text: string;
   let small: string;
   switch (state) {
     case "opponent_ready":
       text = `${oppName} is ready to play. Your seat is held.`;
-      small = `Join within ${seatClock(room?.expiresAt ?? null, now)}`;
+      small = `Join within ${seatLeft(room?.expiresAt ?? null, now)}`;
       break;
-    case "you_ready":
-      text = `You're ready. We let ${oppName} know.`;
-      small = `Seat held ${seatClock(room?.expiresAt ?? null, now)}`;
+    case "you_ready": {
+      // The holder of a pre-deadline hold that outlived the deadline (UX B1).
+      const holdingPast = deadlineOutcome(d, now).kind === "hold" && deadlineHolder(d, now) === mine;
+      text = holdingPast
+        ? `You're waiting in your room until ${clock(room?.expiresAt ?? null)}. If nobody joins, you ${youAdvance}.`
+        : discord
+          ? `You're ready. We let ${oppName} know on Discord.`
+          : `You're ready. ${oppName} can join from this page.`;
+      small = `Seat held · ${seatLeft(room?.expiresAt ?? null, now)} left`;
       break;
+    }
     case "in_play": {
       const started = m.games.find((g) => g.startedAt && !g.finishedAt)?.startedAt ?? null;
       text = started ? `In play now. Started ${clock(started)}.` : "In play now.";
-      small = "Live spectating isn't available yet";
+      small = `${title} · one game`;
       break;
     }
     case "cancelled":
@@ -412,66 +468,98 @@ const Banner = ({
     case "deadline_hold": {
       const holder = deadlineHolder(d, now);
       const holderName = playerName(holder === m.slotA ? d.players.a : d.players.b);
-      const until = clock(heldRoom(d, now)?.expiresAt ?? currentChecks(d).find((c) => c.entryId === holder)?.expiresAt ?? null);
-      text = `Deadline passed. ${holderName} pressed Play and holds a seat${until ? ` until ${until}` : ""}; if they don't join, they ${group ? "win the match" : "advance"} (rule 1).`;
-      small = "Rule 1 · unanswered ready-check";
+      const otherName = playerName(holder === m.slotA ? d.players.b : d.players.a);
+      const until = clock(deadlineHoldUntil(d, holder, now));
+      text = mine
+        ? `${holderName} is waiting in your room${until ? ` until ${until}` : ""}. If you don't join, ${holderName} ${advances}.`
+        : `The deadline has passed. ${holderName} pressed Play and is waiting${until ? ` until ${until}` : ""}; if ${otherName} doesn't join, ${holderName} ${advances}.`;
+      small = RULE_1_LINE;
       break;
     }
     case "deadline_passed": {
       const out = deadlineOutcome(d, now);
       if (out.kind === "ready_check") {
-        const mine = side === "a" ? m.slotA : side === "b" ? m.slotB : null;
         text = deadlineReadyCheckText(d, out.winner, mine);
-        small = "Rule 1 · unanswered ready-check";
+        small = RULE_1_LINE;
       } else {
         const cutoff = organizerCutoff(m.deadlineAt);
-        text = isOrganizer ? DEADLINE_PASSED_ORGANIZER_TEXT : DEADLINE_PASSED_TEXT;
+        text = isOrganizer ? DEADLINE_PASSED_ORGANIZER_TEXT : mine ? DEADLINE_PASSED_TEXT : DEADLINE_PASSED_SPECTATOR_TEXT;
         small = isOrganizer ? deadlinePassedOrganizerRule(m.stage, cutoff) : deadlinePassedRule(m.stage, cutoff);
       }
       break;
     }
     case "decided":
-      text = group
-        ? `Decided. ${winnerName} wins the match.`
-        : !next
-        ? `Decided. ${winnerName} wins the tournament.`
-        : d.tournament.status === "cancelled"
-        ? `Decided. ${winnerName} won the match.`
-        : `Decided. ${winnerName} advances to the ${next}.`;
+    case "decided_by_rule": {
+      // Speak to the two players (UX B5); a spectator keeps the plain line.
+      const lead = state === "decided_by_rule" ? "Decided by the deadline rule. " : "";
+      const cancelledEvent = d.tournament.status === "cancelled";
+      if (mine && m.winner === mine) {
+        text = group
+          ? `${lead}You won this match.`
+          : m.stage === "final" || !next
+            ? `${lead}You won the tournament. Champion!`
+            : cancelledEvent
+              ? `${lead}You won the match.`
+              : `${lead}You won. You advance to the ${next}.`;
+      } else if (mine && m.winner) {
+        text = group
+          ? `${lead}${winnerName} won this one.`
+          : m.stage === "final" || !next
+            ? `${lead}${winnerName} won the final. You finish runner-up, thanks for playing.`
+            : cancelledEvent
+              ? `${lead}${winnerName} won the match.`
+              : `${lead}${winnerName} won this one. You're out of the bracket, thanks for playing.`;
+      } else if (state === "decided_by_rule") {
+        text = group
+          ? `Decided by the deadline rule. ${winnerName} takes the win.`
+          : !next || m.stage === "final"
+            ? `Decided by the deadline rule. ${winnerName} wins the tournament.`
+            : `Decided by the deadline rule. ${winnerName} advances.`;
+      } else {
+        text = group
+          ? `Decided. ${winnerName} wins the match.`
+          : !next
+            ? `Decided. ${winnerName} wins the tournament.`
+            : cancelledEvent
+              ? `Decided. ${winnerName} won the match.`
+              : `Decided. ${winnerName} advances to the ${next}.`;
+      }
       small =
-        m.decidedBy === "organizer"
-          ? "Decided by the organizer"
-          : m.decidedBy === "bye"
-            ? "Bye"
-            : m.decidedBy === "unverified_confirmed"
-              ? "Result confirmed"
-              : `${title} · ${shortDate(m.games.at(-1)?.finishedAt ?? null)}`;
+        state === "decided_by_rule"
+          ? m.decidedBy === "deadline_ready_check"
+            ? RULE_1_LINE
+            : "Rule 2 · organizer did not decide in 24h"
+          : m.decidedBy === "organizer"
+            ? "Decided by the organizer"
+            : m.decidedBy === "bye"
+              ? "Bye"
+              : m.decidedBy === "unverified_confirmed"
+                ? "Result confirmed"
+                : `${title} · ${shortDate(m.games.at(-1)?.finishedAt ?? null)}`;
       break;
-    case "decided_by_rule":
-      text = group
-        ? `Decided by the deadline rule. ${winnerName} takes the win.`
-        : !next || m.stage === "final"
-          ? `Decided by the deadline rule. ${winnerName} wins the tournament.`
-          : `Decided by the deadline rule. ${winnerName} advances.`;
-      small =
-        m.decidedBy === "deadline_ready_check"
-          ? "Rule 1 · unanswered ready-check"
-          : "Rule 2 · organizer did not decide in 24h";
-      break;
-    default:
+    }
+    default: {
+      const last = m.games.at(-1);
+      const noResult = !!last?.finishedAt && !last.winnerEntry && !last.rejectedAt && !last.recordedAfterDecision;
       if (!m.slotA || !m.slotB) {
         text = "Waiting for both players.";
       } else if (unverified) {
-        text = "A result is waiting for confirmation. It confirms itself 24h after it was found unless the organizer rejects it.";
+        // api #129: no auto-confirm any more. Only the organizer's confirm makes it count (interactions S1).
+        text = "A result is waiting for the organizer. It only counts if they confirm it; until then the match stays open.";
       } else if (room) {
         const ready = room.readyEntryId === m.slotA ? d.players.a : d.players.b;
         text = `${playerName(ready)} is ready and waiting for an opponent.`;
+      } else if (noResult) {
+        text = side
+          ? `Game ${last!.gameIndex + 1} ended with no result. Play again any time before ${deadline}.`
+          : `Game ${last!.gameIndex + 1} ended with no result. The match is open again until ${deadline}.`;
       } else {
         text = side
           ? `Your ${title.toLowerCase()} is open. Play any time before ${deadline}.`
-          : `${playerName(d.players.a)} and ${playerName(d.players.b)} haven't played yet.`;
+          : `${playerName(d.players.a)} and ${playerName(d.players.b)} haven't played yet.${m.deadlineAt ? ` The match closes ${deadline}.` : ""}`;
       }
       small = `${title} · one game`;
+    }
   }
   const look = BANNER_LOOK[state];
   return (
@@ -486,9 +574,9 @@ const Banner = ({
       bg={look.bg}
       color={look.color}
       data-testid="match-banner"
-      title={MATCH_STATE_NAME[state]}
     >
-      <Text as="span">{text}</Text>
+      {/* The state line is the page's H2 (UX S14) and is announced when it changes (S13); the countdown is not. */}
+      <Text as="h2" fontSize="inherit" fontWeight="inherit" m={0} aria-live="polite" data-testid="match-banner-text">{text}</Text>
       <Text as="span" ml={{ base: 0, md: "auto" }} w={{ base: "100%", md: "auto" }} fontWeight={400} fontSize="13px" opacity={0.85} whiteSpace={{ md: "nowrap" }}>
         {small}
       </Text>
@@ -519,7 +607,7 @@ const Side = ({
         <Box position="absolute" bottom="4px" right="4px" w={{ base: "14px", md: "20px" }} h={{ base: "14px", md: "20px" }} borderRadius="50%" bg={POS} border={`4px solid ${PARCHMENT}`} />
       )}
     </Box>
-    <Text as="h3" fontSize={{ base: "15px", md: "22px" }} fontWeight={700} mt="6px" overflowWrap="anywhere">
+    <Text fontSize={{ base: "15px", md: "22px" }} fontWeight={700} mt="6px" overflowWrap="anywhere" data-testid="side-name">
       {playerName(p)} {you && <Text as="span" color={INK_MUTED} fontWeight={400}>(you)</Text>}
     </Text>
     {hero && (
@@ -589,6 +677,11 @@ const PlayBox = ({
   roomId,
   code,
   cooldown,
+  late = false,
+  holderName = "",
+  holdUntil = "",
+  discord = false,
+  signInHref,
 }: {
   state: MatchPageState;
   phase: PlayPhase;
@@ -599,13 +692,24 @@ const PlayBox = ({
   myHero: string | null;
   mapName: string | null;
   heroesLocked: boolean;
-  seatHeld: string | null;
+  /** The seat-hold countdown: `M:SS` for the big clock, and the same in words for a screen reader. */
+  seatHeld: { clock: string; spoken: string } | null;
   roomId: string | null;
   code: string;
   /** A re-seat cooldown's end (api #126): Play stays disabled until then. */
   cooldown: string | null;
+  /** Past the deadline, still playable until the organizer decides (UX B1). */
+  late?: boolean;
+  /** deadline_hold: who is waiting in the room, and until when. */
+  holderName?: string;
+  holdUntil?: string;
+  /** The Discord bot is live for this tournament (UX S4). */
+  discord?: boolean;
+  /** Where "Sign in with Discord" returns to after a dead session (UX B3). */
+  signInHref: string;
 }) => {
-  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "deadline_hold" || state === "cancelled") return null;
+  // Rule 1 about to apply (deadline_passed reaches here only then) and decided matches: nothing to press.
+  if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "cancelled") return null;
   const busy = phase.kind === "busy" || phase.kind === "opening" || !!cooldown;
   const status =
     cooldown ? (
@@ -620,9 +724,17 @@ const PlayBox = ({
     ) : phase.kind === "seat_held" ? (
       <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} onBack={onBack} />
     ) : phase.kind === "error" ? (
-      <Text fontSize="13px" mt="8px" color={DANGER_INK} fontWeight={600} role="alert" data-testid="play-error">
-        {phase.message}
-      </Text>
+      <>
+        <Text fontSize="13px" mt="8px" color={DANGER_INK} fontWeight={600} role="alert" data-testid="play-error">
+          {phase.message}
+        </Text>
+        {phase.reason === "unauthorized" && (
+          // A dead session: the way back in, to this same match (UX B3).
+          <Box mt="8px">
+            <Btn variant="discord" href={signInUrl(signInHref)} data-testid="play-sign-in">Sign in with Discord</Btn>
+          </Box>
+        )}
+      </>
     ) : null;
   const backHref = seatHref(roomId);
 
@@ -631,11 +743,15 @@ const PlayBox = ({
   let action: React.ReactNode;
   switch (state) {
     case "opponent_ready":
+    case "deadline_hold":
       look = { bg: "rgba(224,168,46,0.18)", boxShadow: `inset 0 0 0 2px ${GOLD}` };
       body = (
         <>
-          <Text as="h4" fontSize="17px" fontWeight={700} mb="4px">{oppName} is waiting in your room</Text>
+          <Text as="h3" fontSize="17px" fontWeight={700} mb="4px">
+            {state === "deadline_hold" ? `${holderName} is waiting in your room${holdUntil ? ` until ${holdUntil}` : ""}` : `${oppName} is waiting in your room`}
+          </Text>
           <Text fontSize="13px" color={INK_MUTED}>
+            {state === "deadline_hold" ? `The deadline has passed, but you can still join. If you don't, ${holderName} advances. ` : ""}
             Only your account can take the other seat.{" "}
             {myHero ? `You'll load straight in as ${myHero}${mapName ? ` on ${mapName}` : ""}.` : "You'll pick your hero, then the game starts."}
           </Text>
@@ -647,15 +763,17 @@ const PlayBox = ({
       look = { bg: INK_DEEP, color: PARCHMENT };
       body = (
         <>
-          <Text fontFamily="LeagueGothic" fontSize="56px" lineHeight="0.85" color={GOLD} sx={{ fontVariantNumeric: "tabular-nums" }} data-testid="seat-clock">
-            {seatHeld}
+          {/* M:SS reads like a clock time: say "left", and say it in words to a screen reader (UX B2). */}
+          <Text fontFamily="LeagueGothic" fontSize="56px" lineHeight="0.85" color={GOLD} sx={{ fontVariantNumeric: "tabular-nums" }} role="timer" aria-label={seatHeld?.spoken} data-testid="seat-clock">
+            {seatHeld?.clock}
+            <Text as="span" fontSize="24px" color={BAND_MUTED} ml="6px" aria-hidden>left</Text>
           </Text>
           <Text fontSize="13px" color={BAND_MUTED} mt="6px">
             Your seat is held. The game starts in your room as soon as {oppName} joins.
           </Text>
           <Flex gap="6px 18px" flexWrap="wrap" mt="10px" fontSize="12px">
             <Text>✓ Room reserved for {code}</Text>
-            <Text>✓ {oppName} told</Text>
+            {discord && <Text>✓ {oppName} told on Discord</Text>}
             <Text opacity={0.7}>○ Waiting for {oppName}</Text>
           </Flex>
         </>
@@ -671,7 +789,7 @@ const PlayBox = ({
       look = { bg: "rgba(255,99,71,0.1)", boxShadow: "inset 0 0 0 1.5px rgba(255,99,71,0.5)" };
       body = (
         <>
-          <Text as="h4" fontSize="17px" fontWeight={700} mb="4px">Your game is running</Text>
+          <Text as="h3" fontSize="17px" fontWeight={700} mb="4px">Your game is running</Text>
           <Text fontSize="13px" color={INK_MUTED}>
             {backHref
               ? "Lost the tab? Rejoin the same room. The result and replay land here when the game ends."
@@ -684,9 +802,12 @@ const PlayBox = ({
     default:
       body = (
         <>
-          <Text as="h4" fontSize="17px" fontWeight={700} mb="4px">Ready when you are</Text>
+          <Text as="h3" fontSize="17px" fontWeight={700} mb="4px">Ready when you are</Text>
           <Text fontSize="13px" color={INK_MUTED}>
-            We&apos;ll open a private room for this match, hold your seat for 15 minutes, and let {oppName} know.{" "}
+            {late ? "The deadline has passed, but you can still play until the organizer decides. " : ""}
+            {discord
+              ? `We'll open a private room for this match, hold your seat for 15 minutes, and let ${oppName} know on Discord.`
+              : `We'll open a private room for this match and hold your seat for 15 minutes. ${oppName} sees you're ready on this page.`}{" "}
             {heroesLocked ? "Heroes are set, so there's no hero picker." : "You'll pick your hero next."}
           </Text>
         </>
@@ -751,9 +872,10 @@ const StickyPlay = ({
   let btn: React.ReactNode = null;
   if (side && phase.kind === "seat_held") btn = <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} onBack={onBack} />;
   else if (side && state === "waiting") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>I&apos;m ready to play</Btn>;
-  else if (side && state === "opponent_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Join now{seatHeld ? ` · ${seatHeld}` : ""}</Btn>;
-  else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back} onClick={backTo(roomId, onBack)}>Seat held {seatHeld} · Back to room</Btn>;
-  else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
+  // "· 11:48 left": a countdown, never mistakable for a clock time (UX B2).
+  else if (side && (state === "opponent_ready" || state === "deadline_hold")) btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Join now{seatHeld ? ` · ${seatHeld} left` : ""}</Btn>;
+  else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back} onClick={backTo(roomId, onBack)}>Back to room · {seatHeld} left</Btn>;
+  else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld} left</Btn>;
   // A seat token for the room is enough: a lapsed session still gets back in (S5).
   else if (state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
@@ -877,6 +999,7 @@ const GamesList = ({
   onReplay: (g: Game) => void;
 }) => {
   const m = d.match;
+  const open = state !== "decided" && state !== "decided_by_rule" && state !== "cancelled";
   const empty =
     state === "decided_by_rule"
       ? `No game was played before ${dateTime(m.deadlineAt)}.`
@@ -886,8 +1009,8 @@ const GamesList = ({
   return (
     <Box px={{ base: "12px", md: "32px" }} pt={{ base: "18px", md: "22px" }} pb={{ base: "22px", md: "30px" }} data-testid="games-list">
       <Flex justify="space-between" align="baseline" mb="6px">
-        <Text as="h4" fontWeight={700}>Games</Text>
-        <Text {...caption}>First to {m.firstTo}</Text>
+        <Text as="h3" fontWeight={700}>Games</Text>
+        <Text {...caption}>{m.firstTo === 1 ? "One game" : `First to ${m.firstTo}`}</Text>
       </Flex>
       {rows.length === 0 && (
         <GameLine gn="—" pending>
@@ -898,7 +1021,7 @@ const GamesList = ({
         <GameLine
           key={r.game.gameIndex}
           // "In play now" shows no game number (settled rule 8).
-          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" || r.state === "after_decision" || r.state === "overridden" ? "✕" : String(r.n)}
+          gn={r.state === "in_play" ? "—" : r.state === "won" ? "✓" : r.state === "rejected" || r.state === "after_decision" || r.state === "overridden" || r.state === "no_result" ? "✕" : String(r.n)}
           pending={r.state === "in_play"}
           meta={
             r.state === "in_play"
@@ -914,8 +1037,8 @@ const GamesList = ({
                 bg={INK}
                 color={PARCHMENT}
                 borderRadius="999px"
-                px="11px"
-                py="4px"
+                px="14px"
+                minH="44px"
                 fontSize="12px"
                 fontWeight={700}
                 whiteSpace="nowrap"
@@ -937,9 +1060,15 @@ const GamesList = ({
             <>{AFTER_DECISION_LABEL}</>
           ) : r.state === "rejected" ? (
             <>Result rejected by the organizer · not counted</>
+          ) : r.state === "no_result" ? (
+            // Both left, swept or stalled (interactions S1): nothing to confirm, the match plays again.
+            <>
+              Game {r.n} ended with no result{endReasonText(r.game) ? ` (${endReasonText(r.game)})` : ""}.
+              {open ? " Play again." : ""}
+            </>
           ) : (
             <>
-              <Text as="span" fontWeight={700}>{r.winnerName ?? "Unknown"}</Text> won{r.state === "overridden" ? " (not counted: overridden)" : ""}{r.heroes ? ` · ${r.heroes}` : ""}
+              <Text as="span" fontWeight={700}>{r.winnerName ?? "Unknown"}</Text> won{endReasonText(r.game) ? ` (${endReasonText(r.game)})` : ""}{r.state === "overridden" ? " (not counted: overridden)" : ""}{r.heroes ? ` · ${r.heroes}` : ""}
               {r.game.source === "untagged" ? " · played outside the match room" : ""}
             </>
           )}
@@ -975,7 +1104,11 @@ const GameLine = ({
     data-testid="game-row"
   >
     <Text fontFamily="LeagueGothic" fontSize="26px" color="rgba(72,40,79,0.55)" lineHeight="1">{gn}</Text>
-    <Text color={pending ? INK_MUTED : INK} minW={0}>{children}</Text>
+    <Box minW={0}>
+      <Text color={pending ? INK_MUTED : INK}>{children}</Text>
+      {/* Phones get the date / length / id line too, under the result (journeys polish). */}
+      {meta && <Text display={{ base: "block", md: "none" }} fontSize="12px" color={INK_MUTED} mt="2px" data-testid="game-meta-phone">{meta}</Text>}
+    </Box>
     <Text display={{ base: "none", md: "block" }} fontSize="12px" color={INK_MUTED} textAlign="right" whiteSpace="nowrap">{meta}</Text>
     <Box>{trail}</Box>
   </Grid>
@@ -995,19 +1128,32 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
       <Text as="span" fontSize="24px" color={INK_MUTED} ml="2px" mr="6px">{u}</Text>
     </>
   );
+  // Zero units dropped, so the last hour reads "12 m", not "0 d 0 h 12 m" (UX P1).
+  const countdown = parts
+    ? ([[parts.d, "d"], [parts.h, "h"], [parts.m, "m"]] as const).filter(([n], i, all) => n > 0 || (i === 2 && all.every(([x]) => x === 0)))
+    : [];
   return (
     <Card p="22px" data-testid="deadline-card">
       <Text {...caption} mb="6px">Match deadline</Text>
       <Text fontFamily="LeagueGothic" fontSize={decided ? "44px" : "64px"} lineHeight="0.9" sx={{ fontVariantNumeric: "tabular-nums" }} color={state === "decided" ? POS_INK : INK}>
-        {state === "cancelled" ? "Cancelled" : state === "decided" ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !parts ? "Closed" : <>{unit(parts.d, "d")}{unit(parts.h, "h")}{unit(parts.m, "m")}</>}
+        {state === "cancelled" ? "Cancelled" : state === "decided" ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !parts ? "Closed" : <>{countdown.map(([n, u]) => <span key={u}>{unit(n, u)}</span>)}</>}
       </Text>
       <Flex h="8px" borderRadius="999px" bg={TRACK} overflow="hidden" mt="14px" mb="8px">
         <Box bg={state === "decided" ? POS : decided ? INK : GOLD} w={`${decided ? (state === "decided" ? windowSpent(m.opensAt, m.deadlineAt, Date.parse(finished ?? "") || now) : 100) : windowSpent(m.opensAt, m.deadlineAt, now)}%`} />
       </Flex>
       <Flex justify="space-between" fontSize="12px" color={INK_MUTED} gap="8px">
         <Text>{state === "decided" && finished ? `Decided ${dateTime(finished)}` : `Opened ${shortDate(m.opensAt)}`}</Text>
-        <Text textAlign="right">{m.deadlineAt ? `${state === "cancelled" ? "" : (decided && state !== "decided") || state === "deadline_passed" ? "Closed " : ""}${state === "cancelled" ? "Cancelled" : dateTime(m.deadlineAt)}` : ""}</Text>
+        <Text textAlign="right">
+          {m.deadlineAt
+            ? state === "cancelled"
+              ? "Cancelled"
+              : `${state === "decided" ? "was due " : decided || deadlinePassed(m.deadlineAt, now) ? "Closed " : "Closes "}${dateTime(m.deadlineAt)}`
+            : ""}
+        </Text>
       </Flex>
+      {m.deadlineAt && !decided && (
+        <Text fontSize="11px" color={INK_MUTED} textAlign="right" data-testid="local-time-hint">(your local time)</Text>
+      )}
       {t?.latestPossibleFinal && t.status !== "cancelled" && (
         <Text fontSize="12px" color={INK_MUTED} mt="12px" pt="10px" borderTop={RULE} data-testid="latest-final">
           Latest possible final: <b>{dateTime(t.latestPossibleFinal)}</b>
@@ -1019,6 +1165,7 @@ const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: Tournament | nu
 
 const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPageState; group?: boolean }) => {
   const hit = state === "decided_by_rule" ? d.match.decidedBy : null;
+  const cutoff = organizerCutoff(d.match.deadlineAt);
   const rrFinal = d.match.stage === "final";
   const higher = (() => {
     // A round-robin top-2 final goes to the better standings rank: slot A (#1).
@@ -1038,26 +1185,27 @@ const RulesCard = ({ d, state, group = false }: { d: MatchDetail; state: MatchPa
     <Card p="18px">
       <Text {...caption} mb="8px">If the deadline passes</Text>
       <Box as="ol" m={0} p={0} display="flex" flexDir="column" gap="4px">
-        {li(hit === "deadline_ready_check", <><b>Rule 1 · unanswered ready-check.</b> If one player pressed Play and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
-        {li(hit === "deadline_higher_seed", <><b>Rule 2 · otherwise the organizer decides</b> within 24h. If they don&apos;t, {rrFinal ? "the player ranked higher in the standings" : "the higher seed"}{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : rrFinal ? "wins the tournament" : "advances"}.</>)}
+        {li(hit === "deadline_ready_check", <><b>{RULE_1_LINE}.</b> If one player pressed Play before the deadline and the other never joined, the player who was ready {group ? "wins the match" : "advances"}.</>)}
+        {li(hit === "deadline_higher_seed", <><b>Rule 2 · otherwise the organizer decides</b> {cutoff ? `by ${dateTime(cutoff)}` : "within 24 hours"}. If they don&apos;t, {rrFinal ? "the player ranked higher in the standings" : "the higher seed"}{higher ? <> (<b>{playerName(higher)}</b>)</> : ""} {group ? "wins the match" : rrFinal ? "wins the tournament" : "advances"}.</>)}
       </Box>
-      <Text fontSize="12px" color={INK_MUTED} mt="8px">A game that started before the deadline finishes and counts.</Text>
+      {/* The decided product rule (UX B1): play stays open after the deadline until the organizer decides. */}
+      <Text fontSize="12px" color={INK_MUTED} mt="8px">You can still play after the deadline until the organizer decides. A game that starts before then finishes and counts.</Text>
     </Card>
   );
 };
 
-const ReadyChecksCard = ({ d, myUserId, hideReady = false }: { d: MatchDetail; myUserId: string | null; hideReady?: boolean }) => {
+const ReadyChecksCard = ({ d, myUserId, hideReady = false, now }: { d: MatchDetail; myUserId: string | null; hideReady?: boolean; now: number }) => {
   // A cancelled match has nobody "ready now": drop the pending lines (#1248).
   const checks = hideReady ? currentChecks(d).filter((rc) => rc.outcome !== "pending") : currentChecks(d);
   return (
   <Card p="18px" data-testid="ready-checks">
-    <Text {...caption} mb="8px">Ready-checks</Text>
+    <Text {...caption} mb="8px">Who pressed Play</Text>
     {checks.length === 0 ? (
       <Text fontSize="13px" color={INK_MUTED}>None yet</Text>
     ) : (
       <Flex as="ul" flexDir="column" gap="6px" listStyleType="none" m={0} p={0}>
         {checks.map((rc) => {
-          const l = readyCheckLine(d, rc, myUserId);
+          const l = readyCheckLine(d, rc, myUserId, now);
           return (
             <Flex as="li" key={rc.id} align="center" gap="8px" fontSize="13px">
               <Box w="8px" h="8px" borderRadius="50%" flexShrink={0} bg={l.missed ? DANGER : POS} />

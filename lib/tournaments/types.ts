@@ -51,6 +51,12 @@ export interface Tournament {
   entryCount: number;
   signupOpen: boolean;
   latestPossibleFinal: string | null;
+  /**
+   * api A5: whether the Discord bot pings this tournament's players. Only
+   * `"discord"` lets the page promise a Discord ping; `"none"` or absent (an
+   * older api) gets the "check this page" copy instead (UX S4).
+   */
+  notifications?: "discord" | "none";
   /** Only on `/me/tournaments` rows. */
   isOrganizer?: boolean;
   myEntryId?: string | null;
@@ -123,6 +129,12 @@ export interface Game {
    * it never counts toward the score or the winner. Absent on an older api = false.
    */
   recordedAfterDecision?: boolean;
+  /**
+   * api A5: why the game ended when it was not a normal finish — `disconnect`
+   * (a forfeit win), `abandoned` (both left), `swept` / `stalled` (closed with no
+   * result). Null or absent = a normal finish, or an older api.
+   */
+  endReason?: string | null;
 }
 
 export type MatchStatus = "pending" | "open" | "in_play" | "decided";
@@ -209,7 +221,7 @@ export interface Decision {
 export interface MatchDetail {
   match: Match;
   tournament: Pick<Tournament, "id" | "slug" | "name" | "status"> &
-    Partial<Pick<Tournament, "size" | "latestPossibleFinal" | "organizer">>;
+    Partial<Pick<Tournament, "size" | "latestPossibleFinal" | "organizer" | "notifications">>;
   players: { a: MatchPlayer | null; b: MatchPlayer | null };
   /** Absent on older api builds = null. */
   decision?: Decision | null;

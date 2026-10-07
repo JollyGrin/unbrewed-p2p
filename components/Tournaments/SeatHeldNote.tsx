@@ -1,5 +1,5 @@
 /**
- * "Your seat is held in room CODE" (#1248): shown instead of ever POSTing
+ * "Your seat is held in this match's room" (#1248; no room code, UX S6): shown instead of ever POSTing
  * `…/ready` a second time when this player already holds a live seat for the
  * match (a stale tab, or the api's `seat_held` decision).
  */
@@ -39,7 +39,7 @@ export const SeatHeldNote = ({
   return (
     <Flex flexDir="column" gap="8px" mt="8px" data-testid="seat-held-note" role="status">
       <Text fontSize="13px" fontWeight={600} color={dark ? "#FF8A73" : undefined}>
-        {roomId ? `Your seat is held in room ${roomId}.` : "Your seat is held in a room that's still opening."} Carry on there, or check again if it has closed.
+        {roomId ? "Your seat is held in this match's room." : "Your seat is held in a room that's still opening."} Carry on there, or check again if it has closed.
       </Text>
       <Flex gap="8px" flexWrap="wrap">
         {href && (

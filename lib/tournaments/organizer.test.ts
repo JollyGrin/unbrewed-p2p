@@ -26,14 +26,15 @@ describe("attentionRows", () => {
       "deadline_passed",
     ]);
   });
-  it("unverified: one-click confirm for the winner, auto-confirm in 24h copy", () => {
+  it("unverified: one-click confirm for the winner; no auto-confirm promise (api #129, interactions S2)", () => {
     const r = rows.find((x) => x.key.startsWith("unverified_game"))!;
     expect(r.actions[0]).toMatchObject({
       type: "confirm",
       gameIndex: 0,
       label: "Confirm for crystal_lake_jay",
     });
-    expect(r.body).toMatch(/auto-confirms 24h/);
+    expect(r.body).toMatch(/It only counts if you confirm it/);
+    expect(r.body).not.toMatch(/auto-confirm|24h/);
   });
   it("entrant left: forfeit goes to the remaining player", () => {
     const r = rows.find((x) => x.key.startsWith("entrant_left"))!;
@@ -133,11 +134,11 @@ describe("round-robin unverified copy (K1)", () => {
       rr.matches,
       3,
     );
-    expect(out[0].body).toMatch(/Nobody gets the win until it's confirmed/);
+    expect(out[0].body).toMatch(/until then nobody gets the win/);
     expect(out[0].body).not.toMatch(/advances/);
   });
   it("knockout keeps 'Nobody advances'", () => {
-    expect(rows.find((x) => x.key.startsWith("unverified_game"))!.body).toMatch(/Nobody advances/);
+    expect(rows.find((x) => x.key.startsWith("unverified_game"))!.body).toMatch(/nobody advances/);
   });
 });
 
@@ -155,7 +156,7 @@ describe("D3: awaiting_organizer copy (#1239)", () => {
   it("names the player holding a live seat when ready-checks are present", () => {
     const m = f.matches[0];
     const body = row({ readyChecks: [{ entryId: m.slotA, expiresAt: "2026-10-05T11:10:00Z", outcome: "pending" }] }).body;
-    expect(body).toMatch(/pressed Play and holds a seat until \d\d:\d\d; the rules decide after that/);
+    expect(body).toMatch(/pressed Play and holds a seat until \d{1,2}:\d\d( [AP]M)?; the rules decide after that/);
   });
 
   it("an expired hold falls back to the generic copy", () => {

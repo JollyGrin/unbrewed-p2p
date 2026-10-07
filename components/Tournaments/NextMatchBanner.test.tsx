@@ -87,15 +87,15 @@ describe("NextMatchBanner", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith(expect.stringMatching(/^\/pro\/game\?(?!.*[?&]ticket=).*#ticket=t$/)));
   });
 
-  it("deadline passed → the organizer is deciding, no ready button (#1230)", async () => {
+  it("deadline passed → play stays open until the organizer decides, by the cutoff date (UX B1/S3, #1230)", async () => {
     serve({ mine: "deadline_passed" });
     wrap(<NextMatchBanner />);
     const b = await screen.findByTestId("next-match-banner");
     expect(b).toHaveAttribute("data-state", "deadline_passed");
-    expect(b).toHaveTextContent("The deadline has passed. The organizer is deciding this match.");
-    expect(b).toHaveTextContent("within 24h, the higher seed advances");
-    expect(screen.queryByRole("button", { name: "I'm ready to play" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View match" })).toBeInTheDocument();
+    expect(b).toHaveTextContent("The deadline has passed. You can still play until the organizer decides.");
+    expect(b).toHaveTextContent(/The organizer decides by .+, otherwise the higher seed advances\./);
+    expect(b).not.toHaveTextContent("24h");
+    expect(screen.getByRole("button", { name: "I'm ready to play" })).toBeEnabled();
   });
 
   it("opponent ready → Join now with the seat clock", async () => {
@@ -103,7 +103,7 @@ describe("NextMatchBanner", () => {
     wrap(<NextMatchBanner />);
     const b = await screen.findByTestId("next-match-banner");
     expect(b).toHaveAttribute("data-state", "opponent_ready");
-    expect(b).toHaveTextContent(/bountyhuntr is ready · seat held \d+:\d\d/);
+    expect(b).toHaveTextContent(/bountyhuntr is ready · join within \d+ min( \d+ s)?/);
     expect(screen.getByRole("button", { name: "Join now" })).toBeEnabled();
   });
 
@@ -156,7 +156,7 @@ describe("AccountChip menu", () => {
     wrap(<AccountChip />);
     fireEvent.click(await screen.findByLabelText("Account: hokuto_shin"));
     const next = await screen.findByTestId("menu-next-match");
-    expect(next).toHaveTextContent("The deadline has passed. The organizer is deciding this match.");
+    expect(next).toHaveTextContent("The deadline has passed. You can still play until the organizer decides.");
     expect(next).not.toHaveTextContent("left");
   });
 

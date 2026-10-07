@@ -5,7 +5,9 @@
  * Six states, named as mockup v2 names them (Dean, 2026-10-05):
  * waiting for a game · opponent ready (join now) · you're ready (seat held) ·
  * in play now · decided · decided by deadline rule — plus deadline passed
- * (organizer deciding, #1230): nothing to play, the api hasn't decided yet.
+ * (organizer deciding, #1230). Play stays OPEN after the deadline until the
+ * organizer decides (decided product rule, 2026-10-07, UX B1): a game started
+ * then still counts; with no game and no decision the higher seed advances.
  *
  * A match is `firstTo` + an ordered `games[]` (never one game id); a game's
  * heroes/map are its own `assignment`, else the match's `matchup`.
@@ -15,6 +17,7 @@ import { heroDisplayName } from "@/lib/stats/roster";
 import { DECIDED_NOTE, countsGame, scoredGame, roundCount, roundName } from "./bracket";
 import { mapTitle } from "./mapTitle";
 import type { Assignment, Game, Match, MatchDetail, MatchPlayer } from "./types";
+import { dayText, minSecSpoken, minSecText, timeText, whenText } from "./when";
 
 export type MatchPageState =
   | "waiting"
@@ -27,7 +30,7 @@ export type MatchPageState =
   | "decided_by_rule"
   | "cancelled";
 
-/** The names the mockup and the ticket use. */
+/** The names the mockup and the ticket use (internal: never shown to players). */
 export const MATCH_STATE_NAME: Record<MatchPageState, string> = {
   waiting: "waiting for a game",
   opponent_ready: "opponent ready (join now)",
@@ -102,33 +105,33 @@ export const deadlineOutcome = (d: MatchDetail, now: number): DeadlineOutcome =>
   return { kind: "organizer" };
 };
 
-/** The deadline-passed copy (#1230), shared by the match page, the /pro banner and the account menu. */
-export const DEADLINE_PASSED_TEXT = "The deadline has passed. The organizer is deciding this match.";
 /**
- * The organizer's fallback. A round-robin top-2 final goes to the better
- * standings rank (slot A, #1), not the original seed.
+ * The deadline-passed copy (#1230, UX B1), shared by the match page, the /pro
+ * banner and the account menu: play stays open until the organizer decides.
  */
-export const deadlinePassedRule = (stage?: Match["stage"], cutoff?: string | null): string => {
-  const when = cutoff ? `by ${dateTime(cutoff)}` : "within 24h";
-  return stage === "group"
-    ? `If they don't decide ${when}, the higher seed wins the match.`
+export const DEADLINE_PASSED_TEXT = "The deadline has passed. You can still play until the organizer decides.";
+/** The same for someone who isn't playing this match. */
+export const DEADLINE_PASSED_SPECTATOR_TEXT = "The deadline has passed. They can still play until the organizer decides.";
+
+/** What happens with no game and no decision. A round-robin top-2 final goes to the better standings rank (slot A, #1). */
+const fallbackOutcome = (stage?: Match["stage"]): string =>
+  stage === "group"
+    ? "the higher seed wins the match"
     : stage === "final"
-      ? `If they don't decide ${when}, the player ranked higher in the standings wins the tournament.`
-      : `If they don't decide ${when}, the higher seed advances.`;
-};
+      ? "the player ranked higher in the standings wins the tournament"
+      : "the higher seed advances";
+
+/** "The organizer decides by Tue, Oct 6, 1:00 PM, otherwise the higher seed advances." (UX S3: always the date when known.) */
+export const deadlinePassedRule = (stage?: Match["stage"], cutoff?: string | null): string =>
+  `The organizer decides ${cutoff ? `by ${dateTime(cutoff)}` : "within 24 hours"}, otherwise ${fallbackOutcome(stage)}.`;
 
 /** The organizer's own view (D5): they are the one deciding, with the cutoff spelled out. */
 export const DEADLINE_PASSED_ORGANIZER_TEXT = "The deadline has passed. You are deciding this match.";
-export const deadlinePassedOrganizerRule = (stage?: Match["stage"], cutoff?: string | null): string => {
-  const when = cutoff ? `by ${dateTime(cutoff)}` : "within 24h";
-  const after =
-    stage === "group"
-      ? "the higher seed wins the match"
-      : stage === "final"
-        ? "the player ranked higher in the standings wins the tournament"
-        : "the higher seed advances";
-  return `Decide ${when}, or ${after}.`;
-};
+export const deadlinePassedOrganizerRule = (stage?: Match["stage"], cutoff?: string | null): string =>
+  `Decide ${cutoff ? `by ${dateTime(cutoff)}` : "within 24 hours"}, or ${fallbackOutcome(stage)}. The players can still play until you do.`;
+
+/** Rule 1, in plain words (UX S6). */
+export const RULE_1_LINE = "Rule 1 · one player was ready, the other never joined";
 
 /** Rule 1 waiting on the loop: "The deadline has passed. bob was ready and carol never joined, so bob advances." */
 export const deadlineReadyCheckText = (d: MatchDetail, winner: string, myEntry: string | null): string => {
@@ -145,6 +148,10 @@ export const deadlineReadyCheckText = (d: MatchDetail, winner: string, myEntry: 
   if (myEntry) return `${lead} ${playerName(won)} was ready and you never joined, so ${playerName(won)} ${verb}.`;
   return `${lead} ${playerName(won)} was ready and ${playerName(lost)} never joined, so ${playerName(won)} ${verb}.`;
 };
+
+/** When the live pre-deadline hold of `holder` runs out: its room's expiry, else its check's. */
+export const deadlineHoldUntil = (d: MatchDetail, holder: string | null, now: number): string | null =>
+  heldRoom(d, now)?.expiresAt ?? currentChecks(d).find((c) => c.entryId === holder && c.outcome === "pending")?.expiresAt ?? null;
 
 /** Entry of the player whose pre-deadline seat hold is still live (past the deadline), or null. */
 export const deadlineHolder = (d: MatchDetail, now: number): string | null => {
@@ -165,13 +172,14 @@ export const matchPageState = (d: MatchDetail, myUserId: string | null, now: num
   if (m.cancelled) return "cancelled";
   // A game that started before the deadline finishes and counts (settled rule 3).
   if (m.inPlay || m.status === "in_play") return "in_play";
-  // Past the deadline only a live pre-deadline seat hold keeps the match playable.
+  // Rule 1 is about to apply (the loop's next tick): nothing left to play.
   const outcome = deadlineOutcome(d, now).kind;
-  if (outcome === "ready_check" || outcome === "organizer") return "deadline_passed";
+  if (outcome === "ready_check") return "deadline_passed";
   const room = heldRoom(d, now);
   const side = mySide(d, myUserId);
-  // Past the deadline the holder still has their seat, but the other player can't
-  // join it: the holder wins by rule 1 if they never show (p2p #1253).
+  // A pre-deadline seat hold still live past the deadline (p2p #1253): the
+  // holder keeps waiting in their room (you_ready); everyone else sees the hold,
+  // and the other player can still join it (UX B1).
   if (outcome === "hold") {
     const holder = deadlineHolder(d, now);
     const mine = side === "a" ? m.slotA : side === "b" ? m.slotB : null;
@@ -181,6 +189,8 @@ export const matchPageState = (d: MatchDetail, myUserId: string | null, now: num
     const mine = side === "a" ? m.slotA : m.slotB;
     return room.readyEntryId === mine ? "you_ready" : "opponent_ready";
   }
+  // Past the deadline with no hold: still playable until the organizer decides.
+  if (outcome === "organizer") return room ? "waiting" : "deadline_passed";
   return "waiting";
 };
 
@@ -238,29 +248,14 @@ export const lastSeen = (iso: string | null | undefined, now: number): { online:
   return { online: false, text: `Last seen in this match ${shortDate(iso)}` };
 };
 
-/** "Mon 5 Oct". */
-export const shortDate = (iso: string | null): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-};
+/** "Mon, Oct 5" — the feature's one date format (./when). */
+export const shortDate = (iso: string | null): string => dayText(iso);
 
-/** "Wed 7 Oct, 14:00". */
-export const dateTime = (iso: string | null): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${shortDate(iso)}, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
-};
+/** "Wed, Oct 7, 2:00 PM" — the feature's one date/time format (./when). */
+export const dateTime = (iso: string | null): string => whenText(iso);
 
-/** "21:04". */
-export const clock = (iso: string | null): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-};
+/** "9:04 PM" — the feature's one clock format (./when). */
+export const clock = (iso: string | null): string => timeText(iso);
 
 /**
  * The re-seat cooldown still running at `now` (api #126), from the match JSON's
@@ -280,17 +275,37 @@ export const reseatCooldownText = (until: string): string =>
 
 /**
  * An in-play match whose room may have died (p2p #1269): the api reopens it once
- * the stalled game times out (api #123). Names the organizer when known.
+ * the stalled game times out (api #123, 2.5 h after it started). Names the
+ * organizer when known. The organizer can't "confirm" a tagged game: they
+ * decide the match (override), so that is what it says (interactions F5).
  */
 export const stalledGameText = (organizer: string | null): string =>
-  `If your game room closed, the match reopens automatically once the stalled game times out, or ask ${organizer ? `the organizer (${organizer})` : "the organizer"} to confirm a result.`;
+  `If your game room closed, the match reopens by itself once the stalled game times out (2½ hours after it started), or ask ${organizer ? `the organizer (${organizer})` : "the organizer"} to decide the match.`;
 
-/** Seat-hold countdown, `M:SS` (the mockup's format); "0:00" once up. */
+/** A healthy game says nothing about stalling: only one running this long (or one the api marks stalled) does (F5). */
+export const STALL_NOTE_AFTER_MS = 60 * 60_000;
+export const gameLooksStalled = (d: MatchDetail, now: number): boolean => {
+  const live = d.match.games.find((g) => g.startedAt && !g.finishedAt);
+  if (!live) return false;
+  if (live.endReason === "stalled" || live.endReason === "swept") return true;
+  const started = Date.parse(live.startedAt ?? "");
+  return Number.isFinite(started) && now - started > STALL_NOTE_AFTER_MS;
+};
+
+/** Seat-hold countdown, `M:SS` (the mockup's format, for the big clock and buttons); "0:00" once up. */
 export const seatClock = (expiresAt: string | null, now: number): string => {
   const ms = expiresAt ? Math.max(0, Date.parse(expiresAt) - now) : 0;
   const s = Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/** Seat-hold time left in words (UX B2), never mistakable for a clock time: "14 min 32 s". */
+export const seatLeft = (expiresAt: string | null, now: number): string =>
+  minSecText(expiresAt ? Date.parse(expiresAt) - now : 0);
+
+/** The same for a screen reader: "14 minutes 32 seconds left". */
+export const seatLeftSpoken = (expiresAt: string | null, now: number): string =>
+  `${minSecSpoken(expiresAt ? Date.parse(expiresAt) - now : 0)} left`;
 
 /** Match-deadline countdown parts: days, hours, minutes; null once passed. */
 export const deadlineParts = (deadline: string | null, now: number) => {
@@ -325,10 +340,10 @@ export const decisionLine = (d: MatchDetail): string | null => {
   return null;
 };
 
-/** The one rule line a rule-decided match keeps (D6): "Decided by Rule 1 · unanswered ready-check". */
+/** The one rule line a rule-decided match keeps (D6): "Decided by Rule 1 · one player was ready, the other never joined". */
 export const decidedByRuleLine = (d: MatchDetail): string | null =>
   d.match.decidedBy === "deadline_ready_check"
-    ? "Decided by Rule 1 · unanswered ready-check."
+    ? `Decided by ${RULE_1_LINE}.`
     : d.match.decidedBy === "deadline_higher_seed"
       ? `Decided by Rule 2 · ${d.match.stage === "final" ? "the organizer did not decide in 24h, so the better standings rank won" : "the organizer did not decide in 24h, so the higher seed won"}.`
       : null;
@@ -343,7 +358,8 @@ export interface GameRow {
   game: Game;
   /** 1-based, as players count. */
   n: number;
-  state: "in_play" | "won" | "unverified" | "rejected" | "after_decision" | "overridden";
+  /** `no_result`: finished with no winner (both left, swept, stalled — interactions S1): the match plays again. */
+  state: "in_play" | "won" | "unverified" | "no_result" | "rejected" | "after_decision" | "overridden";
   winnerName: string | null;
   heroes: string | null;
 }
@@ -366,11 +382,39 @@ export const gameRows = (d: MatchDetail): GameRow[] => {
     return {
       game: g,
       n: g.gameIndex + 1,
-      state: g.rejectedAt ? "rejected" : (g.recordedAfterDecision || (decided && !g.verified && d.match.decidedBy !== "unverified_confirmed")) && g.finishedAt ? "after_decision" : !g.finishedAt ? "in_play" : g.verified ? (overriddenGame(d.match, g) ? "overridden" : "won") : "unverified",
+      state: g.rejectedAt
+        ? "rejected"
+        : (g.recordedAfterDecision || (decided && !g.verified && !!g.winnerEntry && d.match.decidedBy !== "unverified_confirmed")) && g.finishedAt
+          ? "after_decision"
+          : !g.finishedAt
+            ? "in_play"
+            : // Never "unverified": a game with no winner has nothing to confirm (interactions S1).
+              !g.winnerEntry
+              ? "no_result"
+              : g.verified
+                ? overriddenGame(d.match, g)
+                  ? "overridden"
+                  : "won"
+                : "unverified",
       winnerName: winner ? playerName(winner) : null,
       heroes: mu.heroA && mu.heroB ? `${mu.heroA} vs ${mu.heroB}` : null,
     };
   });
+};
+
+/** Why a game ended, when the api says (api A5 `endReason`): "opponent disconnected", "both players left", …; null for a normal finish. */
+export const endReasonText = (g: Pick<Game, "endReason">): string | null => {
+  switch (g.endReason) {
+    case "disconnect":
+      return "opponent disconnected";
+    case "abandoned":
+      return "both players left";
+    case "swept":
+    case "stalled":
+      return "the game stalled and was closed";
+    default:
+      return null;
+  }
 };
 
 /** "24 min" between a game's start and finish. */
@@ -392,6 +436,7 @@ export const readyCheckLine = (
   d: MatchDetail,
   rc: MatchDetail["readyChecks"][number],
   myUserId: string | null,
+  now: number = Date.now(),
 ): { text: string; at: string; missed: boolean } => {
   const p = rc.entryId === d.match.slotA ? d.players.a : rc.entryId === d.match.slotB ? d.players.b : null;
   const you = !!p && p.userId === myUserId;
@@ -407,9 +452,14 @@ export const readyCheckLine = (
           ? "You didn't join"
           : `${who} ${verb} · no answer`
       : rc.outcome === "pending"
-        ? `${who} ${you ? "are" : "is"} ready now`
+        ? // The hold ran out and the api's sweep hasn't marked it yet (UX P11).
+          Date.parse(rc.expiresAt) <= now
+          ? you
+            ? "Your hold ran out"
+            : `${who}'s hold ran out`
+          : `${who} ${you ? "are" : "is"} ready now`
         : `${who} ${verb}`;
-  return { text, at: `${shortDate(rc.createdAt)} ${clock(rc.createdAt)}`, missed: rc.outcome === "unanswered" };
+  return { text, at: dateTime(rc.createdAt), missed: rc.outcome === "unanswered" };
 };
 
 /**

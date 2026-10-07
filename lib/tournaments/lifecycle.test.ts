@@ -48,7 +48,7 @@ describe("cancel copy", () => {
     expect(cancelKind({ status: "draft" })).toBe("draft");
     expect(cancelKind({ status: "running" })).toBe("running");
     expect(cancelKind({ status: "complete" })).toBeNull();
-    expect(cancelConsequence("signup", 1)).toMatch(/the 1 player who joined lose their seat/);
+    expect(cancelConsequence("signup", 1)).toMatch(/the 1 player who joined loses their seat/);
     expect(cancelConsequence("running", 0)).toMatch(/can't be undone/);
   });
 });
