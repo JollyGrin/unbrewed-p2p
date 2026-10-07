@@ -11,7 +11,7 @@ import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { __resetReseatCooldownsForTests } from "@/lib/tournaments/api";
 import { FIXTURE_MATCH_YOU, fixtureMatch, fixtureMyTournaments } from "@/lib/tournaments/fixtures";
-import { clock } from "@/lib/tournaments/matchPage";
+import { timeText as clock } from "@/lib/tournaments/when";
 import { nextMatchView, sizeOf } from "@/lib/tournaments/nextMatch";
 import type { Entry, Tournament } from "@/lib/tournaments/types";
 

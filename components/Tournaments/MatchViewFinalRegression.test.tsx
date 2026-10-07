@@ -5,7 +5,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 
 import { MatchBody } from "./MatchView";
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
-import type { MatchPageState } from "@/lib/tournaments/matchPage";
+import type { MatchPageKind } from "@/lib/tournaments/matchPage";
 import type { MatchDetail } from "@/lib/tournaments/types";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
@@ -14,7 +14,7 @@ jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div /> }));
 
 const NOW = Date.parse(FIXTURE_NOW);
 
-const show = (state: MatchPageState, tweak: (d: MatchDetail) => MatchDetail = (d) => d) => {
+const show = (state: MatchPageKind, tweak: (d: MatchDetail) => MatchDetail = (d) => d) => {
   const f = fixtureMatch(state);
   return render(
     <ChakraProvider>

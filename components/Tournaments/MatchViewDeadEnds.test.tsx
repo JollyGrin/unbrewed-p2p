@@ -7,7 +7,8 @@ import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { __resetReseatCooldownsForTests } from "@/lib/tournaments/api";
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
-import { clock, type MatchPageState } from "@/lib/tournaments/matchPage";
+import type { MatchPageKind } from "@/lib/tournaments/matchPage";
+import { timeText as clock } from "@/lib/tournaments/when";
 import type { MatchDetail, Tournament } from "@/lib/tournaments/types";
 
 import { MatchBody, MatchView } from "./MatchView";
@@ -37,7 +38,7 @@ const body = (
     />
   </ChakraProvider>
 );
-const fixture = (state: MatchPageState) => fixtureMatch(state);
+const fixture = (state: MatchPageKind) => fixtureMatch(state);
 
 afterEach(() => window.localStorage.clear());
 

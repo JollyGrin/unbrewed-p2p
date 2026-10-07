@@ -8,25 +8,20 @@
  * they decide (UX B1), unless rule 1 is about to apply.
  */
 import { matchHref, sizeOf } from "./links";
+import { DEADLINE_PASSED_TEXT, deadlinePassedRule, deadlineReadyCheckText, lastSeen, reseatCooldownText } from "./copy";
 import {
   activeReseatCooldown,
-  clock,
-  DEADLINE_PASSED_TEXT,
   deadlineHolder,
   deadlineHoldUntil,
   deadlineOutcome,
   deadlinePassed,
-  deadlinePassedRule,
-  deadlineReadyCheckText,
   heldRoom,
-  lastSeen,
   matchTitle,
   matchupLine,
   organizerCutoff,
-  reseatCooldownText,
   seatLeft,
 } from "./matchPage";
-import { spanText } from "./when";
+import { spanText, timeText } from "./when";
 import type { MatchDetail, NextMatch } from "./types";
 
 export type NextMatchState = "open" | "opponent_ready" | "you_ready" | "in_play" | "deadline_passed";
@@ -82,7 +77,7 @@ export { sizeOf };
 const holdNotice = (detail: MatchDetail, myEntry: string, state: "opponent_ready" | "you_ready", now: number): string | null => {
   if (deadlineOutcome(detail, now).kind !== "hold") return null;
   const holder = deadlineHolder(detail, now);
-  const until = clock(deadlineHoldUntil(detail, holder, now));
+  const until = timeText(deadlineHoldUntil(detail, holder, now));
   const name = holder === detail.match.slotA ? detail.players.a?.username : detail.players.b?.username;
   const verb = detail.match.stage === "group" ? ["win the match", "wins the match"] : detail.match.stage === "final" ? ["win the tournament", "wins the tournament"] : ["advance", "advances"];
   if (state === "you_ready" && holder === myEntry) return `You're waiting in your room until ${until}. If nobody joins, you ${verb[0]}.`;

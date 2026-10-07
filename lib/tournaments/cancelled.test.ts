@@ -17,7 +17,7 @@ describe("cancelled matches", () => {
   it("cancelled wins over a raw in_play status in the cell, the page and the next-match view", () => {
     const d = cancelledDetail();
     expect(cellState({ ...d.match, status: "in_play", inPlay: true })).toBe("cancelled");
-    expect(matchPageState(d, FIXTURE_MATCH_YOU, NOW)).toBe("cancelled");
+    expect(matchPageState(d, FIXTURE_MATCH_YOU, NOW).kind).toBe("cancelled");
     const v = nextMatchView(
       { tournament: { id: "t", slug: "s", name: "N" }, match: { ...d.match, inPlay: true }, myEntryId: d.match.slotA!, opponent: null },
       null,

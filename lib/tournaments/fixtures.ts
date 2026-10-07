@@ -9,7 +9,7 @@
 import { roundCount, seedOrder } from "./bracket";
 import type { AttentionItem } from "./api";
 import { assignment } from "./matchup";
-import type { MatchPageState } from "./matchPage";
+import type { MatchPageKind } from "./matchPage";
 import type {
   DecidedBy,
   Entry,
@@ -311,7 +311,7 @@ export const FIXTURE_MATCH_YOU = "u2";
  * Count's Castle, set by the organizer.
  */
 export const fixtureMatch = (
-  state: MatchPageState,
+  state: MatchPageKind,
   now: string = FIXTURE_NOW,
 ): FixturePayload & { detail: MatchDetail } => {
   const rule: MatchupRule = { mode: "map", map: { kind: "catalog", id: "counts-castle" } };
@@ -415,7 +415,7 @@ export const fixtureMyTournaments = (
   };
 };
 
-export const MATCH_FIXTURE_STATES: MatchPageState[] = [
+export const MATCH_FIXTURE_STATES: MatchPageKind[] = [
   "waiting",
   "opponent_ready",
   "you_ready",

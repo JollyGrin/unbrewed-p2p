@@ -1,17 +1,13 @@
 /** The match page's model (#1218): the six states and their lines, from fixtures. */
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch, MATCH_FIXTURE_STATES } from "./fixtures";
+import { decidedByRuleLine, decisionLine, deadlinePassedRule, deadlineReadyCheckText, readyCheckLine } from "./copy";
 import {
-  decidedByRuleLine,
-  decisionLine,
   organizerCutoff,
   replaySeatNames,
   deadlineOutcome,
-  deadlinePassedRule,
-  deadlineReadyCheckText,
   gameRows,
   matchPageState,
   matchTitle,
-  readyCheckLine,
   score,
   seatClock,
 } from "./matchPage";
@@ -20,30 +16,30 @@ const NOW = Date.parse(FIXTURE_NOW);
 
 describe("matchPageState", () => {
   it.each(MATCH_FIXTURE_STATES)("the %s fixture renders as itself for the player", (state) => {
-    expect(matchPageState(fixtureMatch(state).detail, FIXTURE_MATCH_YOU, NOW)).toBe(state);
+    expect(matchPageState(fixtureMatch(state).detail, FIXTURE_MATCH_YOU, NOW).kind).toBe(state);
   });
 
   it("a spectator never sees a player's ready states", () => {
-    expect(matchPageState(fixtureMatch("opponent_ready").detail, "someone-else", NOW)).toBe("waiting");
-    expect(matchPageState(fixtureMatch("you_ready").detail, null, NOW)).toBe("waiting");
-    expect(matchPageState(fixtureMatch("in_play").detail, null, NOW)).toBe("in_play");
+    expect(matchPageState(fixtureMatch("opponent_ready").detail, "someone-else", NOW).kind).toBe("waiting");
+    expect(matchPageState(fixtureMatch("you_ready").detail, null, NOW).kind).toBe("waiting");
+    expect(matchPageState(fixtureMatch("in_play").detail, null, NOW).kind).toBe("in_play");
   });
 
   it("the other player sees the same room as 'opponent ready'", () => {
-    expect(matchPageState(fixtureMatch("you_ready").detail, "u3", NOW)).toBe("opponent_ready");
+    expect(matchPageState(fixtureMatch("you_ready").detail, "u3", NOW).kind).toBe("opponent_ready");
   });
 
   it("a seat hold whose 15 minutes are up is back to waiting", () => {
-    expect(matchPageState(fixtureMatch("opponent_ready").detail, FIXTURE_MATCH_YOU, NOW + 16 * 60_000)).toBe("waiting");
+    expect(matchPageState(fixtureMatch("opponent_ready").detail, FIXTURE_MATCH_YOU, NOW + 16 * 60_000).kind).toBe("waiting");
   });
 
   it("deadline passed with no game: the organizer is deciding, for players and spectators (#1230)", () => {
     const d = fixtureMatch("waiting").detail;
     const late = NOW + 27 * 3_600_000; // the fixture's deadline is 26h out
-    expect(matchPageState(d, FIXTURE_MATCH_YOU, late)).toBe("deadline_passed");
-    expect(matchPageState(d, null, late)).toBe("deadline_passed");
+    expect(matchPageState(d, FIXTURE_MATCH_YOU, late).kind).toBe("deadline_passed");
+    expect(matchPageState(d, null, late).kind).toBe("deadline_passed");
     // A seat held past the deadline is no longer joinable.
-    expect(matchPageState(fixtureMatch("opponent_ready").detail, FIXTURE_MATCH_YOU, late)).toBe("deadline_passed");
+    expect(matchPageState(fixtureMatch("opponent_ready").detail, FIXTURE_MATCH_YOU, late).kind).toBe("deadline_passed");
   });
 
   describe("past the deadline, the api's rule 1 first (#1233 review, deadline.ts resolveDeadline)", () => {
@@ -57,9 +53,9 @@ describe("matchPageState", () => {
 
     it("A ready 5 min before the deadline: B arriving after it cannot join (p2p #1253)", () => {
       expect(deadlineOutcome(d, afterDeadline)).toEqual({ kind: "hold" });
-      expect(matchPageState(d, FIXTURE_MATCH_YOU, afterDeadline)).toBe("deadline_hold"); // B: no join CTA
-      expect(matchPageState(d, "u3", afterDeadline)).toBe("you_ready"); // A: seat held
-      expect(matchPageState(d, null, afterDeadline)).toBe("deadline_hold"); // spectator: sees the hold
+      expect(matchPageState(d, FIXTURE_MATCH_YOU, afterDeadline).kind).toBe("deadline_hold"); // B: no join CTA
+      expect(matchPageState(d, "u3", afterDeadline).kind).toBe("you_ready"); // A: seat held
+      expect(matchPageState(d, null, afterDeadline).kind).toBe("deadline_hold"); // spectator: sees the hold
     });
 
     it("…B's own post-deadline press doesn't count against them", () => {
@@ -70,13 +66,13 @@ describe("matchPageState", () => {
           { ...d.readyChecks[0], id: "rc-b", entryId: "e2", role: "join" as const, createdAt: new Date(afterDeadline).toISOString(), expiresAt: new Date(afterDeadline + 15 * MIN).toISOString() },
         ],
       };
-      expect(matchPageState(joined, FIXTURE_MATCH_YOU, afterDeadline)).toBe("deadline_hold");
+      expect(matchPageState(joined, FIXTURE_MATCH_YOU, afterDeadline).kind).toBe("deadline_hold");
     });
 
     it("A's hold runs out unanswered (the loop hasn't swept it yet): A wins by ready-check, no organizer copy", () => {
       const expired = Date.parse(d.readyChecks[0].expiresAt) + 1;
       expect(deadlineOutcome(d, expired)).toEqual({ kind: "ready_check", winner: "e3" });
-      expect(matchPageState(d, FIXTURE_MATCH_YOU, expired)).toBe("deadline_passed");
+      expect(matchPageState(d, FIXTURE_MATCH_YOU, expired).kind).toBe("deadline_passed");
       expect(deadlineReadyCheckText(d, "e3", "e2")).toBe(
         "The deadline has passed. bountyhuntr was ready and you never joined, so bountyhuntr advances.",
       );
@@ -104,14 +100,14 @@ describe("matchPageState", () => {
   });
 
   it("a game that started before the deadline stays in play after it (settled rule 3)", () => {
-    expect(matchPageState(fixtureMatch("in_play").detail, FIXTURE_MATCH_YOU, NOW + 27 * 3_600_000)).toBe("in_play");
+    expect(matchPageState(fixtureMatch("in_play").detail, FIXTURE_MATCH_YOU, NOW + 27 * 3_600_000).kind).toBe("in_play");
   });
 
   it("only the deadline rules are 'decided by deadline rule'", () => {
     const d = fixtureMatch("decided").detail;
     for (const by of ["organizer", "bye", "unverified_confirmed", "result"] as const)
-      expect(matchPageState({ ...d, match: { ...d.match, decidedBy: by } }, null, NOW)).toBe("decided");
-    expect(matchPageState({ ...d, match: { ...d.match, decidedBy: "deadline_higher_seed" } }, null, NOW)).toBe("decided_by_rule");
+      expect(matchPageState({ ...d, match: { ...d.match, decidedBy: by } }, null, NOW).kind).toBe("decided");
+    expect(matchPageState({ ...d, match: { ...d.match, decidedBy: "deadline_higher_seed" } }, null, NOW).kind).toBe("decided_by_rule");
   });
 });
 
@@ -158,7 +154,7 @@ it("ready-checks read from the viewer's side", () => {
 
 describe("lastSeen", () => {
   const now = Date.parse("2026-10-05T12:00:00Z");
-  const { lastSeen } = jest.requireActual("./matchPage");
+  const { lastSeen } = jest.requireActual("./copy");
   it("is null when never seen in the match", () => {
     expect(lastSeen(null, now)).toBeNull();
     expect(lastSeen(undefined, now)).toBeNull();

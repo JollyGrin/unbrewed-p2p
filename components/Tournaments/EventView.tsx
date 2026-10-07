@@ -23,7 +23,7 @@ import { BracketEventView } from "./BracketEventView";
 import { RoundRobinEventView } from "./RoundRobinEventView";
 import { LifecyclePanel } from "./LifecyclePanel";
 import { SeedingPanel } from "./SeedingPanel";
-import { Btn, Card, Chip, Notice, Page } from "./ui";
+import { Btn, Card, Chip, ErrorText, Notice, Page } from "./ui";
 
 const JOIN_ERRORS: Partial<Record<TournamentFailure, string>> = {
   signup_closed: "Signup has closed.",
@@ -163,7 +163,7 @@ export const JoinPanel = ({
           {t.status === "signup" ? "Signup has closed." : t.status === "running" ? "This bracket is underway." : t.status === "cancelled" ? (deletedDraft ? "This draft was deleted." : "This tournament was cancelled.") : "This tournament is over."}
         </Text>
       )}
-      {error && <Text role="alert" color="#B3361F" fontSize="14px">{error}</Text>}
+      {error && <ErrorText fontSize="14px">{error}</ErrorText>}
       {signIn && (
         <Btn variant="discord" href={signInUrl(tournamentPath(t.slug))} w="100%" data-testid="join-sign-in">
           Sign in with Discord
@@ -199,9 +199,9 @@ export const SharePanel = ({ t }: { t: Tournament }) => {
         </Flex>
         <Text fontSize="13px" opacity={0.7} mt="8px">Anyone with the link can see the event. Joining needs a Discord sign-in.</Text>
         {copyFailed && (
-          <Text role="alert" fontSize="13px" color="#B3361F" mt="8px" data-testid="copy-failed">
+          <ErrorText mt="8px" data-testid="copy-failed">
             Couldn&apos;t copy. Select the text and copy it by hand.
-          </Text>
+          </ErrorText>
         )}
       </Card>
       <Card p="20px">

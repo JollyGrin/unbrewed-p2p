@@ -7,7 +7,8 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { render, screen, within } from "@testing-library/react";
 
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
-import { clock, dateTime, type MatchPageState } from "@/lib/tournaments/matchPage";
+import type { MatchPageKind } from "@/lib/tournaments/matchPage";
+import { timeText as clock, whenText as dateTime } from "@/lib/tournaments/when";
 import type { Game, MatchDetail, Tournament } from "@/lib/tournaments/types";
 import type { PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
@@ -37,7 +38,7 @@ const draw = (
       />
     </ChakraProvider>,
   );
-const state = (s: MatchPageState) => fixtureMatch(s);
+const state = (s: MatchPageKind) => fixtureMatch(s);
 const banner = () => screen.getByTestId("match-banner");
 const bannerText = () => screen.getByTestId("match-banner-text");
 

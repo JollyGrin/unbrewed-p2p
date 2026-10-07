@@ -5,7 +5,8 @@ import { ChakraProvider } from "@chakra-ui/react";
 
 import { MatchBody } from "./MatchView";
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
-import { clock, dateTime, organizerCutoff, type MatchPageState } from "@/lib/tournaments/matchPage";
+import { organizerCutoff, type MatchPageKind } from "@/lib/tournaments/matchPage";
+import { timeText as clock, whenText as dateTime } from "@/lib/tournaments/when";
 import type { MatchDetail } from "@/lib/tournaments/types";
 import type { PlayPhase } from "@/lib/tournaments/usePlayMatch";
 
@@ -16,7 +17,7 @@ jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div data-testid="replay-
 const NOW = Date.parse(FIXTURE_NOW);
 
 const renderState = (
-  state: MatchPageState,
+  state: MatchPageKind,
   opts: { as?: string | null; phase?: PlayPhase; onPlay?: () => void; onBack?: (roomId: string) => void; signedOut?: boolean } = {},
 ) => {
   const f = fixtureMatch(state);
