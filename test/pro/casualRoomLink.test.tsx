@@ -20,7 +20,7 @@ import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { PlayerView, ReplayBundle } from "@/lib/pro/protocol";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
-import { tournamentRoomOf } from "@/lib/pro/tournamentTicket";
+import { rememberTournamentRoom, tournamentRoomOf } from "@/lib/pro/tournamentTicket";
 import { TOURNAMENT_ROOM_LOOKUP_MS } from "@/lib/pro/useTournamentRoom";
 import { __resetNextMatchForTests } from "@/lib/tournaments/useNextMatch";
 
@@ -234,12 +234,95 @@ describe("a casual ?room= invite, signed in, no seat token", () => {
 
   it("a guest never asks: no lookup call and no hold", async () => {
     const fetchMock = api("guest", () => json(200, { found: false }));
-    await openInvite();
+    const waited = await openInvite();
+    // never held behind "OPENING ROOM…": the picker comes well inside the fail-open window
+    expect(waited).toBeLessThan(TOURNAMENT_ROOM_LOOKUP_MS / 2);
     await flush();
     expect(screen.getByText("JOIN ROOM FRIEND")).toBeInTheDocument();
     expect(urlsOf(fetchMock).some((u) => /tournament-room/.test(u))).toBe(false);
     expectNoTournamentUi();
   });
+
+  it("a found:true that lands after the fail-open window never turns the settled casual room into a tournament one", async () => {
+    let late = 0;
+    api("signed-in", () => new Promise<Response>((r) => {
+      late = window.setTimeout(() => r(json(200, { found: true, tournamentSlug: "someone-elses", matchId: "m1-0", gameIndex: 0, slot: "a", role: null })), TOURNAMENT_ROOM_LOOKUP_MS + 300);
+    }) as never);
+    const waited = await openInvite();
+    expect(waited).toBeGreaterThanOrEqual(TOURNAMENT_ROOM_LOOKUP_MS - 50);
+    expect(screen.getByText("JOIN ROOM FRIEND")).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 600)); // the late answer arrives
+    });
+    await flush();
+    expect(late).not.toBe(0);
+    expect(tournamentRoomOf("FRIEND")).toBeNull(); // not remembered as a tournament room
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(screen.getByText("JOIN ROOM FRIEND")).toBeInTheDocument();
+    expectNoTournamentUi();
+    // …and the casual room's own errors stay casual, never the ticket card
+    await click(screen.getByRole("button", { name: "Join" }));
+    await deliver({ type: "ERROR", code: "ROOM_FULL", message: "full" });
+    expect(screen.getByText("Create a new room instead")).toBeInTheDocument();
+    expectNoTournamentUi();
+  }, 10_000);
+});
+
+/**
+ * The page hands useProSocket its tournament-room test. A casual room must keep
+ * the casual socket behaviour (BAD_TOKEN keeps the token, any close reconnects);
+ * a remembered tournament room gets the tournament one — through the real page.
+ */
+describe("the page's tournament-room test for the socket", () => {
+  const seat = async (room: string) => {
+    window.sessionStorage.setItem(`unbrewed-pro-token-${room}`, "tok");
+    api("guest", () => json(200, { found: false }));
+    mount({ room });
+    await flush();
+    await openSocket();
+    expect(sentOfType("RECONNECT")).toEqual([expect.objectContaining({ roomId: room, token: "tok" })]);
+  };
+  const closeWith4001 = async () => {
+    const socket = FakeWebSocket.latest()!;
+    await act(async () => {
+      socket.readyState = FakeWebSocket.CLOSED;
+      socket.onclose?.({ code: 4001, reason: "seat_replaced" });
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1500)); // past the first backoff step
+    });
+  };
+
+  it("a casual room's BAD_TOKEN keeps this tab's token", async () => {
+    await seat("CASUAL1");
+    await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+    expect(window.sessionStorage.getItem("unbrewed-pro-token-CASUAL1")).toBe("tok");
+    expect(screen.getByText(/BAD_TOKEN/)).toBeInTheDocument();
+    expectNoTournamentUi();
+  });
+
+  it("a casual room's 4001 close reconnects like any other close", async () => {
+    await seat("CASUAL2");
+    await deliver({ type: "ROOM_JOINED", roomId: "CASUAL2", token: "tok", you: "p1", seats: ["p1"], requiredPlayers: 2, formatId: "duel" });
+    await closeWith4001();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(screen.queryByTestId("seat-replaced")).not.toBeInTheDocument();
+  });
+
+  it("(control) a remembered tournament room: BAD_TOKEN forgets the token, and a 4001 close stays closed", async () => {
+    rememberTournamentRoom("TOUR1", { slug: "autumn-skirmish", matchId: "m2-1" });
+    await seat("TOUR1");
+    await deliver({ type: "ROOM_JOINED", roomId: "TOUR1", token: "tok", you: "p1", seats: ["p1"], requiredPlayers: 2, formatId: "duel" });
+    await closeWith4001();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(screen.getByTestId("seat-replaced")).toBeInTheDocument();
+    cleanup();
+    FakeWebSocket.reset();
+    SENT = [];
+    await seat("TOUR1");
+    await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+    expect(window.sessionStorage.getItem("unbrewed-pro-token-TOUR1")).toBeNull();
+  }, 10_000);
 });
 
 /**

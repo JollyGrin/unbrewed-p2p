@@ -991,6 +991,34 @@ describe("a seat the engine released (LV-3, #1250)", () => {
     expect(assign).toHaveBeenCalledWith(expect.stringMatching(/ticket=fresh\.sig.*room=DQJ6|room=DQJ6.*ticket=fresh\.sig/));
   });
 
+  it("the account check answering AFTER the BAD_TOKEN keeps the released-seat card (the gate never takes the room back)", async () => {
+    rememberTournamentRoom("DQJ6", { slug: "autumn-skirmish", matchId: "m2-1" });
+    window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
+    let answerMe!: () => void;
+    const me = new Promise<void>((r) => (answerMe = r));
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/me")) {
+        await me;
+        return { ok: true, status: 200, headers: new Headers(), json: async () => ({ user: { id: "u2", username: "hokuto_shin" } }) } as Response;
+      }
+      return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) } as Response;
+    }) as unknown as typeof fetch;
+    __resetAccountStoreForTests();
+    try {
+      await mount({ room: "DQJ6" });
+      await flush();
+      await deliver({ type: "ERROR", code: "BAD_TOKEN", message: "Reconnect token not recognized" });
+      expect(window.localStorage.getItem("unbrewed-pro-token-DQJ6")).toBeNull();
+      expect(screen.getByTestId("ticket-error")).toHaveTextContent("Your seat was released while you were away");
+      answerMe(); // the account settles: the gate renders again, now with no token for the room
+      await flush(10);
+      expect(screen.getByTestId("ticket-error")).toHaveTextContent("Your seat was released while you were away");
+      expect(screen.queryByText(/open in another tab or device/)).not.toBeInTheDocument();
+    } finally {
+      __resetAccountStoreForTests();
+    }
+  });
+
   it("arriving WITH a fresh ticket and a dead stored token: no bare RECONNECT race; BAD_TOKEN → the ticket JOIN re-seats", async () => {
     rememberTournamentRoom("DQJ6", { slug: "autumn-skirmish", matchId: "m2-1" });
     window.localStorage.setItem("unbrewed-pro-token-DQJ6", "dead");
