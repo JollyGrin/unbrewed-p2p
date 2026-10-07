@@ -359,6 +359,11 @@ export const MatchupForm = ({
               </MapChip>
             ))}
           </Flex>
+          {map && (
+            <Text fontSize="12px" opacity={0.7} mt="6px" data-testid="map-pin-hint">
+              Saving pins this map exactly as it is now. If the map is edited later, save the matchup again so games use the new version.
+            </Text>
+          )}
           <Flex gap="8px" mt="12px" flexWrap="wrap">
             <Btn
               variant="gold"

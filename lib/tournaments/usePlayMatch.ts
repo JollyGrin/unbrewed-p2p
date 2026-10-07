@@ -23,8 +23,13 @@ export type PlayPhase =
   | { kind: "seat_held"; roomId: string | null }
   | { kind: "error"; message: string };
 
+/** A ready/ticket call that timed out may still have happened server-side (p2p #1269). */
+export const PLAY_TIMEOUT_MESSAGE =
+  "The server didn't answer in time. It may still have gone through: check the match page before pressing Play again.";
+
 /** Readable copy for a failed ready / ticket call. */
 export const playErrorMessage = (r: Extract<Result<unknown>, { ok: false }>): string => {
+  if (r.code === "timeout") return PLAY_TIMEOUT_MESSAGE;
   switch (r.reason) {
     case "unauthorized":
       return "Your session ended. Sign in with Discord again.";
@@ -89,15 +94,44 @@ const pointsAt = (r: Result<TicketGrant>, roomId: string): boolean =>
  * The engine answered ROOM_NOT_FOUND for this match's room (#1268, hardening
  * contract item 2): an engine restart dropped it, but the api still files the
  * match under it, so `freshGrant` alone answers join/seat_held into the same
- * dead room forever. Report it with `POST …/room-gone` — ONCE per dead room;
- * the caller remembers the answer. `legacy` = an api without the route (404):
- * the caller keeps today's behaviour. Any other failure still counts as
- * reported, so the guard below stops the loop.
+ * dead room forever. Report it with `POST …/room-gone`.
+ *  - `reported`: the api answered (cleared, or refused for good: not the room's
+ *    creator, room not live, match in play, …). Remember it: never re-report.
+ *  - `legacy`: an api without the route (404): the caller keeps today's behaviour.
+ *  - `too_soon`: the api's 30s age gate (api #125) — worth ONE wait and retry.
+ *  - `unavailable`: a network blip — not an answer, so not remembered (p2p #1269):
+ *    the next press asks again instead of sticking on "hasn't released it".
+ * Either way the grant that follows goes through `grantAvoiding`, so nothing loops.
  */
-export const reportDeadRoom = async (slug: string, matchId: string, deadRoomId: string): Promise<"reported" | "legacy"> => {
+export type DeadRoomReport = "reported" | "legacy" | "too_soon" | "unavailable";
+export const reportDeadRoom = async (slug: string, matchId: string, deadRoomId: string): Promise<DeadRoomReport> => {
   const gone = await reportRoomGone(slug, matchId, deadRoomId);
-  return !gone.ok && gone.reason === "not_found" ? "legacy" : "reported";
+  if (!gone.ok) return gone.reason === "not_found" ? "legacy" : gone.reason === "unavailable" ? "unavailable" : "reported";
+  return !gone.value.cleared && gone.value.reason === "too_soon" ? "too_soon" : "reported";
 };
+
+/** Only a real answer is remembered for the screen. */
+export const settledReport = (r: DeadRoomReport): r is "reported" | "legacy" => r === "reported" || r === "legacy";
+
+/** The api's room-gone age gate (ROOM_GONE_MIN_AGE_MS, api #125). */
+export const ROOM_GONE_MIN_AGE_MS = 30 * 1000;
+
+/**
+ * How long until the age gate lets `roomId` go: 30s from the room's create
+ * check (its ticket was issued then), plus 1s of slack — never more than 31s,
+ * and the full 31s when the match doesn't show the check.
+ */
+export const roomReleaseWaitMs = (d: MatchDetail | null, roomId: string, now: number): number => {
+  const created = (d ? currentChecks(d) : [])
+    .filter((c) => c.roomId === roomId && c.role === "create")
+    .map((c) => Date.parse(c.createdAt))
+    .filter(Number.isFinite);
+  const from = created.length ? Math.min(...created) : now;
+  return Math.min(ROOM_GONE_MIN_AGE_MS, Math.max(0, from + ROOM_GONE_MIN_AGE_MS - now)) + 1000;
+};
+
+/** "This match's room closed. Releasing it in 12 s…" */
+export const releasingText = (seconds: number): string => `This match's room closed. Releasing it in ${seconds} s…`;
 
 /**
  * A fresh grant after a dead room was reported — a cleared room makes it a

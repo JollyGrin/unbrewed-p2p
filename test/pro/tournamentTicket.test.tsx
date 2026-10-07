@@ -772,7 +772,13 @@ const grantJson = (over: Record<string, unknown>) => ({
 });
 
 describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)", () => {
-  type Answers = { roomGone: () => { status: number; body: unknown }; ticket: () => Record<string, unknown>; ready?: () => Record<string, unknown> };
+  type Answers = {
+    roomGone: () => { status: number; body: unknown };
+    ticket: () => Record<string, unknown>;
+    ready?: () => Record<string, unknown>;
+    /** `GET …/matches/m2-1` (the screen's decided-check and the too_soon wait). */
+    detail?: () => unknown;
+  };
   const api = (a: Answers) => {
     const calls: { path: string; method: string; body: unknown }[] = [];
     global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
@@ -784,6 +790,7 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
       }
       if (path === "/ticket") return grantJson(a.ticket());
       if (path === "/ready") return grantJson(a.ready?.() ?? { action: "create", roomId: null, ticket: "created.sig" });
+      if (path === "" && a.detail) return { ok: true, status: 200, json: async () => a.detail!() };
       return { ok: false, status: 404, json: async () => ({}) };
     }) as never;
     return calls;
@@ -849,6 +856,104 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
     await retry();
     expect(calls.filter((c) => c.path === "/room-gone")).toHaveLength(1);
     expect(assign).toHaveBeenCalledWith(expect.stringMatching(/room=GONE.*#ticket=legacy\.sig$/));
+  });
+
+  // p2p #1269 follow-ups (a) + (b).
+  const reports = (calls: { path: string }[]) => calls.filter((c) => c.path === "/room-gone").length;
+  /** The match detail with the dead room's create check made `agoMs` ago. */
+  const detailWithRoom = (agoMs: number) => ({
+    match: { id: "m2-1", status: "open", slotA: "e1", slotB: "e2", games: [] },
+    tournament: { slug: "autumn-skirmish", status: "running" },
+    players: {},
+    readyChecks: [
+      { id: "rc", gameIndex: 0, entryId: "e1", createdAt: new Date(Date.now() - agoMs).toISOString(), expiresAt: new Date(Date.now() + 600_000).toISOString(), roomId: "GONE", outcome: "pending", role: "create" },
+    ],
+    liveRoom: null,
+  });
+  const wait = (ms: number) => act(() => new Promise((r) => setTimeout(r, ms)));
+
+  it("a network blip on room-gone is not remembered: the next press reports again", async () => {
+    let n = 0;
+    const calls = api({
+      roomGone: () => (n++ === 0 ? { status: 503, body: {} } : { status: 200, body: { cleared: true } }),
+      ticket: () => ({ action: "join", roomId: "GONE", ticket: "again.sig" }),
+    });
+    await deadRoomCard();
+    await retry();
+    expect(screen.getByRole("alert")).toHaveTextContent(ROOM_STILL_GONE);
+    await retry();
+    expect(reports(calls)).toBe(2);
+    await retry();
+    expect(reports(calls)).toBe(2); // the real answer is kept
+  });
+
+  it("too_soon: says it is releasing the room, waits out the age gate, retries ONCE, then goes on", async () => {
+    let n = 0;
+    const calls = api({
+      roomGone: () => (n++ === 0 ? { status: 200, body: { cleared: false, reason: "too_soon" } } : { status: 200, body: { cleared: true } }),
+      ticket: () => ({ action: "create", roomId: null, ticket: "unrecorded.sig" }),
+      detail: () => detailWithRoom(29_800), // 0.2s left of the 30s gate (+1s slack)
+    });
+    const assign = await deadRoomCard();
+    await click(screen.getByText("Get a fresh ticket and retry"));
+    await flush();
+    expect(screen.getByTestId("room-releasing")).toHaveTextContent(/This match's room closed\. Releasing it in [12] s…/);
+    expect(reports(calls)).toBe(1);
+    await wait(1400);
+    await flush();
+    expect(reports(calls)).toBe(2);
+    expect(screen.queryByTestId("room-releasing")).toBeNull();
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining("#ticket=created.sig"));
+  });
+
+  it("too_soon twice: no second wait, no loop — the still-gone copy", async () => {
+    const calls = api({
+      roomGone: () => ({ status: 200, body: { cleared: false, reason: "too_soon" } }),
+      ticket: () => ({ action: "join", roomId: "GONE", ticket: "again.sig" }),
+      detail: () => detailWithRoom(29_800),
+    });
+    const assign = await deadRoomCard();
+    await retry();
+    await wait(1400);
+    await flush();
+    expect(reports(calls)).toBe(2);
+    expect(screen.getByRole("alert")).toHaveTextContent(ROOM_STILL_GONE);
+    await wait(1400);
+    expect(reports(calls)).toBe(2);
+    // A later press asks once more, but never waits again on this screen.
+    await retry();
+    expect(screen.queryByTestId("room-releasing")).toBeNull();
+    await wait(1400);
+    expect(reports(calls)).toBe(3);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each(["not_room_creator", "room_not_live", "match_in_play"])("%s never waits or retries", async (reason) => {
+    const calls = api({
+      roomGone: () => ({ status: 200, body: { cleared: false, reason } }),
+      ticket: () => ({ action: "join", roomId: "GONE", ticket: "again.sig" }),
+      detail: () => detailWithRoom(0),
+    });
+    await deadRoomCard();
+    await retry();
+    expect(screen.queryByTestId("room-releasing")).toBeNull();
+    await wait(1200);
+    expect(reports(calls)).toBe(1);
+  });
+
+  it("leaving the screen during the wait cancels the retry", async () => {
+    const calls = api({
+      roomGone: () => ({ status: 200, body: { cleared: false, reason: "too_soon" } }),
+      ticket: () => ({ action: "create", roomId: null, ticket: "x.sig" }),
+      detail: () => detailWithRoom(29_800),
+    });
+    await deadRoomCard();
+    await click(screen.getByText("Get a fresh ticket and retry"));
+    await flush();
+    expect(screen.getByTestId("room-releasing")).toBeInTheDocument();
+    cleanup();
+    await wait(1400);
+    expect(reports(calls)).toBe(1);
   });
 
   it("any other engine error never calls room-gone", async () => {

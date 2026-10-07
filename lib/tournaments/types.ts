@@ -218,9 +218,9 @@ export interface MatchDetail {
 }
 
 /**
- * `POST …/ready` and `GET …/ticket`: a signed, opaque join ticket (15 min) and
+ * `POST …/ready` and `POST …/ticket`: a signed, opaque join ticket (15 min) and
  * what to do with it. `join` with `roomId: null` = the other room is still
- * opening; poll `…/ticket` until it has an id.
+ * opening; poll `POST …/ticket` until it has an id.
  */
 export interface TicketGrant {
   action: "create" | "join";

@@ -1,5 +1,5 @@
 /** Hardening contract items 1 + 2 (#1268): the ticket is a POST; the dead-room report. */
-import { getMatchTicket, reportRoomGone } from "./api";
+import { __resetReseatCooldownsForTests, getMatchTicket, noticedReseatCooldown, reportRoomGone } from "./api";
 
 const realFetch = global.fetch;
 let calls: { url: string; init: RequestInit }[] = [];
@@ -38,4 +38,18 @@ it("room-gone posts {roomId} as JSON and reads `cleared`", async () => {
 it("an api without the route answers not_found", async () => {
   answer(404, { error: "not_found" });
   expect(await reportRoomGone("s", "m", "GONE")).toMatchObject({ ok: false, reason: "not_found" });
+});
+
+it("room-gone keeps the api's refusal reason (too_soon gates one retry, p2p #1269)", async () => {
+  answer(200, { cleared: false, reason: "too_soon" });
+  expect(await reportRoomGone("s", "m", "GONE")).toEqual({ ok: true, value: { cleared: false, reason: "too_soon" } });
+});
+
+it("getMatchTicket stays a POST after the rebase, and still notes a reseat cooldown (p2p #1269)", async () => {
+  __resetReseatCooldownsForTests();
+  answer(409, { error: "reseat_cooldown", ticketsExpireAt: "2026-10-07T18:30:00Z" });
+  const r = await getMatchTicket("s", "m9");
+  expect(calls[0].init.method).toBe("POST");
+  expect(r).toMatchObject({ ok: false, code: "reseat_cooldown" });
+  expect(noticedReseatCooldown("m9")).toBe("2026-10-07T18:30:00Z");
 });

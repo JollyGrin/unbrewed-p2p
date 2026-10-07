@@ -5,7 +5,7 @@
  */
 import { API_URL } from "@/lib/account/apiUrl";
 
-import { noteServerDate } from "./serverClock";
+import { noteResponseClock } from "./serverClock";
 
 import type {
   CreateTournamentBody,
@@ -88,7 +88,7 @@ const call = async <T>(
         ...(init?.headers as Record<string, string> | undefined),
       },
     });
-    noteServerDate(res.headers?.get?.("Date"));
+    noteResponseClock(res.headers);
     let body: any = null;
     try {
       body = await res.json();
@@ -300,7 +300,8 @@ export const reportRoomGone = (slug: string, matchId: string, roomId: string) =>
   call(
     `${matchPath(slug, matchId)}/room-gone`,
     { method: "POST", body: JSON.stringify({ roomId }) },
-    (b) => ({ cleared: b?.cleared === true }),
+    // `reason` on a refusal (api #125): too_soon, not_room_creator, room_not_live, match_in_play, …
+    (b) => ({ cleared: b?.cleared === true, ...(typeof b?.reason === "string" ? { reason: b.reason as string } : {}) }),
     REQUEST_TIMEOUT_MS,
   );
 

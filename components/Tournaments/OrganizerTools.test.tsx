@@ -1,7 +1,7 @@
 /** Organizer queue (#1219): item types from fixtures; actions hit the right routes. */
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { FIXTURE_ATTENTION, fixtureRunning8 } from "@/lib/tournaments/fixtures";
 import { mapLockHash } from "@/lib/tournaments/mapHash";
@@ -128,6 +128,17 @@ it("double-clicking Apply override sends ONE override (p2p #1269)", async () => 
   fireEvent.click(apply);
   fireEvent.click(apply);
   expect(calls.filter((c) => c.url.endsWith("/override"))).toHaveLength(1);
+});
+
+it("fixing a map says the save pins it, and an edited map needs re-saving (p2p #1269)", async () => {
+  mount();
+  fireEvent.click(await screen.findByText("Set matchup"));
+  fireEvent.click(within(screen.getByRole("group", { name: "Map" })).getByText("Players choose"));
+  expect(screen.queryByTestId("map-pin-hint")).toBeNull(); // nothing pinned
+  fireEvent.click(await screen.findByText("Weathertop"));
+  expect(screen.getByTestId("map-pin-hint")).toHaveTextContent(
+    "Saving pins this map exactly as it is now. If the map is edited later, save the matchup again so games use the new version.",
+  );
 });
 
 it("set matchup puts a rule, never per-game fields", async () => {
