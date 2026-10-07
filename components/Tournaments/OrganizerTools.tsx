@@ -17,7 +17,7 @@ import {
   rejectGame,
 } from "@/lib/tournaments/api";
 import { matchHref, roundCount } from "@/lib/tournaments/bracket";
-import { useAttention } from "@/lib/tournaments/hooks";
+import { useAttention, type AttentionQueueData } from "@/lib/tournaments/hooks";
 import { ruleWithMapHash } from "@/lib/tournaments/mapHash";
 import { proDeckOptions, proMapOptions } from "@/lib/tournaments/options";
 import {
@@ -496,14 +496,18 @@ export const AttentionQueue = ({
   matches,
   reload,
   now = Date.now(),
+  queue,
 }: {
   t: Tournament;
   entries: Entry[];
   matches: Match[];
   reload: () => void;
   now?: number;
+  /** The page's own load (useAttentionQueue): one request per page, refreshed with its poll (p2p #1269). */
+  queue?: AttentionQueueData;
 }) => {
-  const [data, reloadQueue] = useAttention(t.slug, t.status === "running");
+  const own = useAttention(t.slug, !queue && t.status === "running");
+  const [data, reloadQueue] = queue ?? own;
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [form, setForm] = useState<"override" | "matchup" | null>(null);
   const [rejecting, setRejecting] = useState<{ key: string; gameIndex: number } | null>(null);

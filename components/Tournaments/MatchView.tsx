@@ -15,10 +15,12 @@ import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { getToken } from "@/lib/pro/recentRooms";
+import { noticedReseatCooldown } from "@/lib/tournaments/api";
 import { LATE_GAME_NOTE, hasLateGame, isCancelledMatch, scoredGame, matchHref } from "@/lib/tournaments/bracket";
 import { useMatchDetail, useNow, useTournament } from "@/lib/tournaments/hooks";
 import { isOrganizerOf } from "@/lib/tournaments/organizer";
 import {
+  activeReseatCooldown,
   clock,
   dateTime,
   DEADLINE_PASSED_ORGANIZER_TEXT,
@@ -47,9 +49,11 @@ import {
   overriddenGame,
   playerName,
   readyCheckLine,
+  reseatCooldownText,
   score,
   seatClock,
   shortDate,
+  stalledGameText,
   windowSpent,
   type GameRow,
   type MatchPageState,
@@ -130,6 +134,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
       onPlay={play.play}
       onRetry={play.retry}
       onBack={play.backToRoom}
+      noticedCooldown={noticedReseatCooldown(matchId)}
       crumbs={crumbs}
       organizer={
         event.status === "ready" && isOrganizerOf(event.value.tournament, myUserId)
@@ -159,6 +164,7 @@ export const MatchBody = ({
   onPlay,
   onRetry,
   onBack,
+  noticedCooldown = null,
   crumbs,
   organizer,
 }: {
@@ -174,6 +180,8 @@ export const MatchBody = ({
   onRetry?: () => void;
   /** "Back to your room": go back with a fresh join ticket (p2p #1250). */
   onBack?: (roomId: string) => void;
+  /** A `409 reseat_cooldown`'s end time this tab already met (api #126). */
+  noticedCooldown?: string | null;
   crumbs?: (here: string) => React.ReactNode;
   /** Only passed for the tournament's organizer (MatchView gates it): set matchup / override (#1219). */
   organizer?: { entries: Entry[]; reload: () => void };
@@ -200,6 +208,14 @@ export const MatchBody = ({
   const cancelled = state === "cancelled" || d.tournament.status === "cancelled" || !!m.cancelled;
   const lateNote = (state === "decided" || state === "decided_by_rule") && score(d).a + score(d).b === 0 && hasLateGame(m);
   const unverified = rows.some((r) => r.state === "unverified");
+  // Play needs both seats filled: a pending match's "I'm ready" could only 409.
+  const seated = !!(m.slotA && m.slotB);
+  const playable = !!side && seated;
+  const roomId = room?.roomId ?? liveGame?.roomId ?? null;
+  // This browser holds a seat in the live room: offer the way back even when the
+  // session expired and the page no longer knows which side we are (S5).
+  const seatLink = state === "in_play" ? seatHref(roomId) : null;
+  const cooldown = activeReseatCooldown(m, noticedCooldown, now);
 
   return (
     <Page
@@ -230,7 +246,7 @@ export const MatchBody = ({
             </Text>
           )}
           <Versus d={d} state={state} side={side} now={now} />
-          {side && (
+          {playable && (
             <PlayBox
               state={state}
               phase={phase}
@@ -242,15 +258,27 @@ export const MatchBody = ({
               mapName={mu.map}
               heroesLocked={mu.heroesLocked}
               seatHeld={room ? seatClock(room.expiresAt, now) : null}
-              roomId={room?.roomId ?? liveGame?.roomId ?? null}
+              roomId={roomId}
               code={title}
+              cooldown={cooldown}
             />
           )}
-          {!side && signedOut && (state === "waiting" || state === "opponent_ready") && m.slotA && m.slotB && (
-            <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="12px" align="center" justify="space-between" flexWrap="wrap">
-              <Text fontSize="14px">Playing this match? Sign in to press Play.</Text>
+          {!side && seatLink && (
+            <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="12px" align="center" justify="space-between" flexWrap="wrap" data-testid="seat-return">
+              <Text fontSize="14px">This browser holds a seat in this match&apos;s game.</Text>
+              <Btn variant="gold" href={seatLink}>Back to game</Btn>
+            </Flex>
+          )}
+          {!side && signedOut && (state === "waiting" || state === "opponent_ready" || state === "in_play") && seated && (
+            <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="12px" align="center" justify="space-between" flexWrap="wrap" data-testid="sign-in-prompt">
+              <Text fontSize="14px">{state === "in_play" ? "Playing this match? Sign in to get back to your game." : "Playing this match? Sign in to press Play."}</Text>
               <Btn variant="discord" href={signInUrl(matchHref(d.tournament.slug, m.id))}>Sign in with Discord</Btn>
             </Flex>
+          )}
+          {state === "in_play" && (side || signedOut || seatLink) && (
+            <Text mx={{ base: "12px", md: "32px" }} mb="8px" px="4px" fontSize="13px" color={INK_MUTED} overflowWrap="anywhere" data-testid="stalled-note">
+              {stalledGameText(t?.organizer.username ?? null)}
+            </Text>
           )}
           <MatchupPanel d={d} t={t} side={side} onReplay={replayGame ? () => setWatching(replayGame) : null} />
           {state !== "cancelled" && <GamesList d={d} rows={rows} state={state} onReplay={setWatching} />}
@@ -297,13 +325,14 @@ export const MatchBody = ({
 
       <StickyPlay
         state={state}
-        side={side}
+        side={playable ? side : null}
         phase={phase}
         onPlay={onPlay}
         onRetry={onRetry}
         onBack={onBack}
         seatHeld={room ? seatClock(room.expiresAt, now) : null}
-        roomId={room?.roomId ?? liveGame?.roomId ?? null}
+        roomId={roomId}
+        cooldown={cooldown}
         bracketHref={tournamentPath(d.tournament.slug)}
         standings={roundRobin}
         onReplay={replayGame ? () => setWatching(replayGame) : null}
@@ -559,6 +588,7 @@ const PlayBox = ({
   seatHeld,
   roomId,
   code,
+  cooldown,
 }: {
   state: MatchPageState;
   phase: PlayPhase;
@@ -572,11 +602,18 @@ const PlayBox = ({
   seatHeld: string | null;
   roomId: string | null;
   code: string;
+  /** A re-seat cooldown's end (api #126): Play stays disabled until then. */
+  cooldown: string | null;
 }) => {
   if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "deadline_hold" || state === "cancelled") return null;
-  const busy = phase.kind === "busy" || phase.kind === "opening";
+  const busy = phase.kind === "busy" || phase.kind === "opening" || !!cooldown;
   const status =
-    phase.kind === "opening" ? (
+    cooldown ? (
+      // Also what a 409 reseat_cooldown becomes, whatever error copy the play hook gave it.
+      <Text fontSize="13px" mt="8px" fontWeight={600} role="status" data-testid="reseat-cooldown">
+        {reseatCooldownText(cooldown)}
+      </Text>
+    ) : phase.kind === "opening" ? (
       <Text fontSize="13px" mt="8px" fontWeight={600} data-testid="play-opening">
         Opening {oppName}&apos;s room…
       </Text>
@@ -691,6 +728,7 @@ const StickyPlay = ({
   onBack,
   seatHeld,
   roomId,
+  cooldown = null,
   bracketHref,
   standings = false,
   onReplay,
@@ -704,10 +742,11 @@ const StickyPlay = ({
   onBack?: (roomId: string) => void;
   seatHeld: string | null;
   roomId: string | null;
+  cooldown?: string | null;
   bracketHref: string;
   onReplay: (() => void) | null;
 }) => {
-  const busy = phase.kind === "busy" || phase.kind === "opening";
+  const busy = phase.kind === "busy" || phase.kind === "opening" || !!cooldown;
   const back = seatHref(roomId);
   let btn: React.ReactNode = null;
   if (side && phase.kind === "seat_held") btn = <SeatHeldNote roomId={phase.roomId} onRetry={onRetry} onBack={onBack} />;
@@ -715,7 +754,8 @@ const StickyPlay = ({
   else if (side && state === "opponent_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Join now{seatHeld ? ` · ${seatHeld}` : ""}</Btn>;
   else if (side && state === "you_ready" && back) btn = <Btn variant="ink" href={back} onClick={backTo(roomId, onBack)}>Seat held {seatHeld} · Back to room</Btn>;
   else if (side && state === "you_ready") btn = <Btn variant="gold" onClick={onPlay} disabled={busy}>Take your seat here · {seatHeld}</Btn>;
-  else if (side && state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
+  // A seat token for the room is enough: a lapsed session still gets back in (S5).
+  else if (state === "in_play" && back) btn = <Btn variant="gold" href={back}>Back to game</Btn>;
   else if (state === "decided" && onReplay) btn = <Btn variant="ink" onClick={onReplay}>Watch the replay</Btn>;
   else if (state === "decided" || state === "decided_by_rule" || state === "deadline_passed" || state === "deadline_hold" || state === "cancelled") btn = <Btn variant="ghost" href={bracketHref}>{standings ? "See the standings" : "See the bracket"}</Btn>;
   if (!btn) return null;

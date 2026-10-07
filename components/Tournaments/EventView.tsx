@@ -76,14 +76,16 @@ export const JoinPanel = ({
   const userId = status === "signed-in" && account ? account.id : null;
   const state = joinState(t, entries, userId);
 
-  const run = async (fn: () => Promise<{ ok: boolean; reason?: TournamentFailure }>) => {
+  const run = async (fn: () => Promise<{ ok: boolean; reason?: TournamentFailure; code?: string; message?: string }>) => {
     setBusy(true);
     setError(null);
     const r = await fn();
     setBusy(false);
     // already_joined / already left is the state we wanted: just refresh.
     if (!r.ok && r.reason !== "already_joined" && r.reason !== "not_found")
-      setError(JOIN_ERRORS[r.reason ?? "unavailable"] ?? "Couldn't reach the server. Try again.");
+      setError(
+        (r.code === "timeout" && r.message) || (JOIN_ERRORS[r.reason ?? "unavailable"] ?? "Couldn't reach the server. Try again."),
+      );
     reload();
   };
 
@@ -151,16 +153,20 @@ export const JoinPanel = ({
   );
 };
 
-const SharePanel = ({ t }: { t: Tournament }) => {
+export const SharePanel = ({ t }: { t: Tournament }) => {
   const [copied, setCopied] = useState<"link" | "post" | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const origin = typeof window !== "undefined" ? window.location.origin : undefined;
   const link = tournamentUrl(t.slug, origin);
   const copy = async (what: "link" | "post") => {
     try {
       await navigator.clipboard.writeText(what === "link" ? link : discordPost(t, origin));
       setCopied(what);
+      setCopyFailed(false);
     } catch {
+      // No clipboard permission (or an insecure context): say so, never fail silently.
       setCopied(null);
+      setCopyFailed(true);
     }
   };
   return (
@@ -172,6 +178,11 @@ const SharePanel = ({ t }: { t: Tournament }) => {
           <Btn variant="gold" onClick={() => copy("link")}>{copied === "link" ? "Copied" : "Copy link"}</Btn>
         </Flex>
         <Text fontSize="13px" opacity={0.7} mt="8px">Anyone with the link can see the event. Joining needs a Discord sign-in.</Text>
+        {copyFailed && (
+          <Text role="alert" fontSize="13px" color="#B3361F" mt="8px" data-testid="copy-failed">
+            Couldn&apos;t copy. Select the text and copy it by hand.
+          </Text>
+        )}
       </Card>
       <Card p="20px">
         <Flex justify="space-between" align="center" gap="12px" flexWrap="wrap" mb="12px">

@@ -7,7 +7,7 @@
  * the form below only decides which rule to send. What a game then looks like
  * is `assignment()`'s job (./matchup).
  */
-import type { AttentionItem, TournamentFailure } from "./api";
+import { WRITE_TIMEOUT_MESSAGE, type AttentionItem, type TournamentFailure } from "./api";
 import { matchCode } from "./bracket";
 import type { Entry, MapRef, Match, MatchupRule } from "./types";
 
@@ -239,6 +239,7 @@ export const NOTE_MAX = 500;
 const ROUND_MAPS_COPY = "The per-round maps don't fit that size. Pick a map for every round, then save.";
 
 const ERRORS: Record<string, string> = {
+  timeout: WRITE_TIMEOUT_MESSAGE,
   match_already_decided:
     "This match was decided while you were looking. Reload to see the result.",
   match_changed:

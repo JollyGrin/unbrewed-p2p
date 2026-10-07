@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 
-it("re-fetches every 10s while running, and stops once complete", async () => {
+it("re-fetches every 10s while running, then only every 60s once complete (p2p #1269)", async () => {
   get.mockResolvedValue(data("running"));
   const { result } = renderHook(() => useTournament("s"));
   await tick(0);
@@ -33,6 +33,8 @@ it("re-fetches every 10s while running, and stops once complete", async () => {
   expect((result.current[0] as { value: { tournament: { status: string } } }).value.tournament.status).toBe("complete");
   await tick(30_000);
   expect(get).toHaveBeenCalledTimes(3);
+  await tick(30_000); // a correction to a finished event still shows up
+  expect(get).toHaveBeenCalledTimes(4);
 });
 
 it("does not poll a signup event, nor while the tab is hidden; a failed poll keeps the last data", async () => {

@@ -24,7 +24,8 @@ export const TournamentsPage = () => {
   // Slugs are lowercase; `?t=TOURNAMENT` still finds `tournament` (#1242).
   const slug = first(router?.query?.t)?.toLowerCase() ?? null;
   const matchId = first(router?.query?.m);
-  if (slug && matchId) return <MatchView slug={slug} matchId={matchId} />;
+  // Keyed: a new match never renders with the previous one's state (p2p #1269).
+  if (slug && matchId) return <MatchView key={`${slug}/${matchId}`} slug={slug} matchId={matchId} />;
   if (slug)
     return (
       <EventView

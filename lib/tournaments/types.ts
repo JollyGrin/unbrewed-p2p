@@ -154,6 +154,11 @@ export interface Match {
   inPlay: boolean;
   /** An undecided match of a cancelled tournament (api #91); its `status` stays raw. Absent = false. */
   cancelled?: boolean;
+  /**
+   * api #126: after an organizer force re-seat, Play stays closed until this time
+   * (`/ready` and `/ticket` answer 409 `reseat_cooldown`). Absent or null = no cooldown.
+   */
+  reseatCooldownUntil?: string | null;
   opensAt: string | null;
   deadlineAt: string | null;
   nextMatchId: string | null;

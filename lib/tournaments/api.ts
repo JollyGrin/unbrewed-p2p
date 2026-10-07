@@ -5,6 +5,8 @@
  */
 import { API_URL } from "@/lib/account/apiUrl";
 
+import { noteServerDate } from "./serverClock";
+
 import type {
   CreateTournamentBody,
   Entry,
@@ -49,6 +51,14 @@ export type Result<T> =
 export const REQUEST_TIMEOUT_MS = 10_000;
 /** Large GET bodies (a replay bundle) on a slow mobile link. */
 export const LARGE_GET_TIMEOUT_MS = 30_000;
+/** A write that has not answered in this long gives the button back (p2p #1269). */
+export const WRITE_TIMEOUT_MS = 30_000;
+/**
+ * A timed-out write may still have happened server-side (the api can wait on
+ * Discord), so the retry copy says to look before pressing again.
+ */
+export const WRITE_TIMEOUT_MESSAGE =
+  "The server didn't answer in time. It may still have gone through: reload the page to check before trying again.";
 
 const call = async <T>(
   path: string,
@@ -57,12 +67,16 @@ const call = async <T>(
   timeoutMs?: number,
 ): Promise<Result<T>> => {
   const ctl = new AbortController();
-  // Only GETs time out: a write (create, ready, join, override, cancel, start) can
-  // legitimately outlast any limit (the api waits on Discord) and has already
-  // happened server-side by then — aborting it invites a duplicate on retry.
+  // Writes get a longer limit than reads (the api can wait on Discord), but a
+  // bound all the same: a hung api must not leave Join/Start/Override busy until
+  // the browser gives up. Their timeout copy warns it may have gone through.
   const isGet = !init?.method || init.method.toUpperCase() === "GET";
-  const limit = timeoutMs ?? (isGet ? REQUEST_TIMEOUT_MS : null);
-  const timer = limit === null ? undefined : setTimeout(() => ctl.abort(), limit);
+  const limit = timeoutMs ?? (isGet ? REQUEST_TIMEOUT_MS : WRITE_TIMEOUT_MS);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, limit);
   try {
     const res = await fetch(`${API_URL}${path}`, {
       credentials: "include",
@@ -74,6 +88,7 @@ const call = async <T>(
         ...(init?.headers as Record<string, string> | undefined),
       },
     });
+    noteServerDate(res.headers?.get?.("Date"));
     let body: any = null;
     try {
       body = await res.json();
@@ -111,21 +126,27 @@ const call = async <T>(
     const extra =
       code === "tickets_outstanding" && typeof body?.ticketsExpireAt === "string"
         ? { ticketsExpireAt: body.ticketsExpireAt as string, canForce: body.canForce === true }
-        : {};
+        : code === "reseat_cooldown" && typeof body?.ticketsExpireAt === "string"
+          ? { ticketsExpireAt: body.ticketsExpireAt as string }
+          : {};
     return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}), ...extra };
   } catch {
-    return { ok: false, reason: "unavailable" };
+    return timedOut && !isGet
+      ? { ok: false, reason: "unavailable", code: "timeout", message: WRITE_TIMEOUT_MESSAGE }
+      : { ok: false, reason: "unavailable" };
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    clearTimeout(timer);
   }
 };
 
 const list = (v: unknown): any[] => (Array.isArray(v) ? v : []);
 
 export const listTournaments = (opts: { mine?: boolean } = {}) =>
-  call(`/tournaments${opts.mine ? "?mine=1" : ""}`, undefined, (b) =>
-    list(b?.tournaments) as Tournament[],
-  );
+  call(`/tournaments${opts.mine ? "?mine=1" : ""}`, undefined, (b) => {
+    // A non-JSON 200 (a proxy page) is a failure, never "No brackets here".
+    if (!Array.isArray(b?.tournaments)) throw new Error("bad /tournaments body");
+    return b.tournaments as Tournament[];
+  });
 
 /** The signed-in player's tournaments plus their next open match (#1220). */
 export const getMyTournaments = () =>
@@ -234,9 +255,25 @@ const grant = (b: any): TicketGrant => ({
   ...(b.decision === "create" || b.decision === "join" || b.decision === "seat_held" ? { decision: b.decision } : {}),
 });
 
+/**
+ * `409 reseat_cooldown` (api #126): an organizer force re-seat closes Play until
+ * `ticketsExpireAt`. Remembered per match so the match page can show the same
+ * "Play opens at" notice as the match JSON's `reseatCooldownUntil`, whatever
+ * copy the play hook gives the error.
+ */
+const reseatCooldowns = new Map<string, string>();
+export const noticedReseatCooldown = (matchId: string): string | null => reseatCooldowns.get(matchId) ?? null;
+const noteCooldown =
+  (matchId: string) =>
+  <T>(r: Result<T>): Result<T> => {
+    if (!r.ok && r.code === "reseat_cooldown" && r.ticketsExpireAt) reseatCooldowns.set(matchId, r.ticketsExpireAt);
+    return r;
+  };
+export const __resetReseatCooldownsForTests = () => reseatCooldowns.clear();
+
 /** "I'm ready" / "Join now": records a ready-check and grants a ticket. */
 export const readyForMatch = (slug: string, matchId: string) =>
-  call(`${matchPath(slug, matchId)}/ready`, { method: "POST" }, grant);
+  call(`${matchPath(slug, matchId)}/ready`, { method: "POST" }, grant).then(noteCooldown(matchId));
 
 /**
  * A fresh ticket, recording nothing (a retry, or waiting on the other room's id).
@@ -250,7 +287,7 @@ export const getMatchTicket = (slug: string, matchId: string) =>
     { method: "POST", headers: { "Content-Type": "application/json" } },
     grant,
     REQUEST_TIMEOUT_MS,
-  );
+  ).then(noteCooldown(matchId));
 
 /**
  * The engine answered ROOM_NOT_FOUND for this match's room (an engine restart

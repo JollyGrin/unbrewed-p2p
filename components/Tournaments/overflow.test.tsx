@@ -4,6 +4,11 @@
  * handle and a 60-char event name and asserts the CSS that stops the overflow
  * (min-width:0 on grid/flex children, break-anywhere on text) is on the right
  * element. Verified visually in a browser too (see the PR).
+ *
+ * A real 375px layout assertion is NOT expressible here (p2p #1269): jsdom does
+ * no layout, so scrollWidth/getBoundingClientRect are always 0 whatever the
+ * viewport, and window.innerWidth changes nothing. Overflow at phone width is
+ * only testable in a real browser (scripts/visual-probe + headless Chrome).
  */
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";

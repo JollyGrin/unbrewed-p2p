@@ -360,3 +360,15 @@ describe("N1 (#1246): the next-match menu card is viewport-bounded", () => {
     expect(rulesFor(title)).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });
+
+describe("the navbar menu loads /me/tournaments lazily (p2p #1269)", () => {
+  it("not on page load for a signed-in visitor, only once the menu opens", async () => {
+    mockTournaments.mockClear();
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderChip();
+    expect(await screen.findByText("JollyGrin")).toBeInTheDocument();
+    expect(mockTournaments).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("Account: JollyGrin"));
+    await waitFor(() => expect(mockTournaments).toHaveBeenCalled());
+  });
+});

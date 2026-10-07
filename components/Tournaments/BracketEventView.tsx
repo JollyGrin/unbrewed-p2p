@@ -8,7 +8,7 @@ import { useMemo } from "react";
 
 import { BAND_MUTED, GOLD, PARCHMENT } from "@/components/Stats/tokens";
 import { buildBracket, entrantRows } from "@/lib/tournaments/bracket";
-import { useAttention } from "@/lib/tournaments/hooks";
+import { useAttentionQueue } from "@/lib/tournaments/hooks";
 import { liveHolds } from "@/lib/tournaments/organizer";
 import { describeRule } from "@/lib/tournaments/matchup";
 import { mapTitle } from "@/lib/tournaments/options";
@@ -44,7 +44,9 @@ export const BracketEventView = ({
   reload?: () => void;
 }) => {
   // Organizer only: the attention queue is the one place that says a pre-deadline seat hold is still live.
-  const [attention] = useAttention(t.slug, isOrganizer && t.status === "running");
+  // One load for the whole page (holds + the queue), refreshed with the page poll (p2p #1269).
+  const queue = useAttentionQueue(t.slug, isOrganizer && t.status === "running", matches);
+  const [attention] = queue;
   const holds = useMemo(
     () => (attention.status === "ready" ? liveHolds(attention.value, entries, Date.now()) : {}),
     [attention, entries],
@@ -100,7 +102,7 @@ export const BracketEventView = ({
           <Notice title="This tournament was cancelled">The organizer cancelled it. Results so far are kept below; unfinished matches are cancelled.</Notice>
         </Box>
       )}
-      {isOrganizer && !cancelled && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} />}
+      {isOrganizer && !cancelled && <AttentionQueue t={t} entries={entries} matches={matches} reload={reload} queue={queue} />}
       <Bracket view={view} />
       <Card p="20px" mt="20px" data-testid="entrants">
         <Text fontWeight={700} mb="10px">Entrants</Text>

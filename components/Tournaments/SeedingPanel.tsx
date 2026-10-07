@@ -8,7 +8,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 
-import { putSeeds, startTournament, type Result } from "@/lib/tournaments/api";
+import { putSeeds, startTournament, WRITE_TIMEOUT_MESSAGE, type Result } from "@/lib/tournaments/api";
 import { activeEntries } from "@/lib/tournaments/joinState";
 import { UNDER_FILLED_COPY, canStartWith, underFilledClosed } from "@/lib/tournaments/lifecycle";
 import {
@@ -26,6 +26,7 @@ import { Avatar } from "./Bracket";
 import { Btn, Card } from "./ui";
 
 const START_ERRORS: Record<string, string> = {
+  timeout: WRITE_TIMEOUT_MESSAGE,
   not_enough_entries: "More than half the seats must be filled to start.",
   invalid_status_transition: "This tournament can't be started from its current state.",
   already_started: "The bracket has already started.",

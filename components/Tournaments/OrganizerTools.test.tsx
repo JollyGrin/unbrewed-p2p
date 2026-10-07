@@ -112,6 +112,24 @@ it("re-deciding a decided match sends replacesWinner", async () => {
   expect(calls[0].body.replacesWinner).toBe(decided.winner);
 });
 
+it("double-clicking Apply override sends ONE override (p2p #1269)", async () => {
+  (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method ?? "GET", body: null });
+    return new Promise(() => {}); // in flight for good
+  });
+  const decided = f.matches.find((m) => m.id === "m1-3")!;
+  render(
+    <ChakraProvider>
+      <OverrideForm slug="fixture-8" match={decided} entries={f.entries} onDone={jest.fn()} />
+    </ChakraProvider>,
+  );
+  fireEvent.click(screen.getAllByRole("radio")[0]);
+  const apply = screen.getByText("Apply override");
+  fireEvent.click(apply);
+  fireEvent.click(apply);
+  expect(calls.filter((c) => c.url.endsWith("/override"))).toHaveLength(1);
+});
+
 it("set matchup puts a rule, never per-game fields", async () => {
   mount();
   fireEvent.click(await screen.findByText("Set matchup"));
