@@ -355,7 +355,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/pk1x/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/pk1x/cardback.webp",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)

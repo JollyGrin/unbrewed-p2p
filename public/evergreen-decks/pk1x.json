@@ -7,7 +7,7 @@
       "highlightColour": "#296888",
       "isPNP": false,
       "patternName": "Topography",
-      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/cardback.webp"
+      "cardbackUrl": "/evergreen-decks/art/pk1x/cardback.webp"
     },
     "cards": [
       {
@@ -16,12 +16,15 @@
         "boost": 2,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/mana-tide-totem.5c12aa71.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/mana-tide-totem.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Mana Tide Totem",
         "type": "scheme",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/mana-tide-totem.webp"
+        }
       },
       {
         "afterText": "",
@@ -29,12 +32,15 @@
         "boost": 4,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/fire-nova-totem.ef7c9444.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/fire-nova-totem.webp",
         "immediateText": "",
         "quantity": 1,
         "title": "Fire nova totem",
         "type": "scheme",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/fire-nova-totem.webp"
+        }
       },
       {
         "afterText": "",
@@ -42,12 +48,15 @@
         "boost": 2,
         "characterName": "THRALL",
         "duringText": "If you destroyed a totem, prevent all damage.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/grounding-totem.86ec8b63.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/grounding-totem.webp",
         "immediateText": "Choose and destroy a totem in Thrall's range.",
         "quantity": 2,
         "title": "Grounding totem",
         "type": "defence",
-        "value": 0
+        "value": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/grounding-totem.webp"
+        }
       },
       {
         "afterText": "If used to defend, the opposing player loses 1 action. If used to attack, gain 1 action.",
@@ -55,12 +64,15 @@
         "boost": 2,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/earthbind-totem.926d7337.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/earthbind-totem.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "earthbind totem",
         "type": "versatile",
-        "value": 1
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/earthbind-totem.webp"
+        }
       },
       {
         "afterText": "",
@@ -68,12 +80,15 @@
         "boost": 3,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/totemic-recall.acd430c9.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/totemic-recall.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "totemic recall",
         "type": "scheme",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/totemic-recall.webp"
+        }
       },
       {
         "afterText": "You may place 1 totem in an eligible space in Thrall's zone. If you won the combat, deal 1 damage to the opposing fighter.",
@@ -81,12 +96,15 @@
         "boost": 2,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/lightning-bolt.069da453.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/lightning-bolt.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Lightning bolt",
         "type": "attack",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/lightning-bolt.webp"
+        }
       },
       {
         "afterText": "",
@@ -94,12 +112,15 @@
         "boost": 3,
         "characterName": "THRALL",
         "duringText": "Deal 1 damage to an enemy fighter adjacent to the opposing fighter and 1 damage to an enemy fighter adjacent to that adjacent fighter.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/chain-lightning.b2705edb.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/chain-lightning.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Chain Lightning",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/chain-lightning.webp"
+        }
       },
       {
         "afterText": "You may place 1 totem in an eligible space in Thrall's zone. If you lost the combat, deal 1 damage to the opposing fighter.",
@@ -107,12 +128,15 @@
         "boost": 1,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/lightning-shield.1e6ff3eb.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/lightning-shield.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Lightning Shield",
         "type": "defence",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/lightning-shield.webp"
+        }
       },
       {
         "afterText": "if you won the combat, choose 1 effect: \n- Move the opposing fighter up to 3 spaces; \n- Place 1 totem in an eligible space adjacent to the opposing fighter.",
@@ -120,12 +144,15 @@
         "boost": 2,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/elemental-guardian.3eddf8e3.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/elemental-guardian.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "elemental guardian",
         "type": "versatile",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/elemental-guardian.webp"
+        }
       },
       {
         "afterText": "Move Thrall up to 3 spaces. You may move Thrall through spaces containing opposing fighters.",
@@ -133,12 +160,15 @@
         "boost": 3,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/feral-wolf.3607bc32.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/feral-wolf.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Feral Wolf",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/feral-wolf.webp"
+        }
       },
       {
         "afterText": "",
@@ -146,12 +176,15 @@
         "boost": 1,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/earth-shock.83f32c8f.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/earth-shock.webp",
         "immediateText": "Cancel all effects on your opponent's card.",
         "quantity": 2,
         "title": "Earth Shock",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/earth-shock.webp"
+        }
       },
       {
         "afterText": "",
@@ -159,25 +192,31 @@
         "boost": 3,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/elemental-mastery.38ec8253.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/elemental-mastery.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "elemental mastery",
         "type": "scheme",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/elemental-mastery.webp"
+        }
       },
       {
         "afterText": "",
-        "basicText": "You may place totems on eligible spaces in Thrall\u2019s zone until Thrall has 4 totems in play. While at 4, destroy 1 of your totems before placing each new one (repositioning). If you draw this card to start the game, reshuffle and draw again.",
+        "basicText": "You may place totems on eligible spaces in Thrall’s zone until Thrall has 4 totems in play. While at 4, destroy 1 of your totems before placing each new one (repositioning). If you draw this card to start the game, reshuffle and draw again.",
         "boost": 1,
         "characterName": "THRALL",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/natures-call.7071914f.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/natures-call.webp",
         "immediateText": "",
         "quantity": 1,
         "title": "Nature's Call",
         "type": "scheme",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/natures-call.webp"
+        }
       },
       {
         "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
@@ -185,12 +224,15 @@
         "boost": 2,
         "characterName": "THRALL",
         "duringText": "Destroy up to 4 totems in Thrall's range. Add 1 to the value of this card for each destroyed totem.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/elemental-fury.ea2ca731.webp",
+        "imageUrl": "/evergreen-decks/art/pk1x/elemental-fury.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Elemental fury",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/pk1x/elemental-fury.webp"
+        }
       }
     ],
     "hero": {
@@ -200,7 +242,7 @@
       "name": "Thrall",
       "specialAbility": "At end of turn, place 1 totem in any space unoccupied by opposing fighters and in Thrall's range (max 4 in play at any time). \nWhen an opposing fighter occupies a totem's space, destroy that totem.",
       "quote": "An orc shaman who claims the battlefield one totem at a time, bending its spaces to his will and calling the spirits down on anyone who trespasses.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/pk1x/token-thrall.webp"
+      "tokenImageUrl": "/evergreen-decks/art/pk1x/token-thrall.webp"
     },
     "sidekick": {
       "hp": 6,
