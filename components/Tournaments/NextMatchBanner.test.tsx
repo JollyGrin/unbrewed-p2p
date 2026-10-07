@@ -11,6 +11,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { AccountChip } from "@/components/Account/AccountChip";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
+import { reseatCooldownText } from "@/lib/tournaments/copy";
 import { fixtureMatch, fixtureMyTournaments } from "@/lib/tournaments/fixtures";
 import { __resetNextMatchForTests } from "@/lib/tournaments/useNextMatch";
 
@@ -28,7 +29,7 @@ const reply = (status: number, body: unknown) =>
 type State = "waiting" | "opponent_ready" | "you_ready" | "in_play" | "deadline_passed";
 
 /** Routes the account probe, /me/tournaments and the match detail. */
-const serve = (opts: { me?: "user" | "guest"; mine?: "none" | "down" | State }) => {
+const serve = (opts: { me?: "user" | "guest"; mine?: "none" | "down" | State; cooldownUntil?: string }) => {
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
     const path = url.replace(API_URL, "");
     if (path === "/me") return opts.me === "guest" ? reply(401, { user: null }) : reply(200, { user: USER });
@@ -40,6 +41,8 @@ const serve = (opts: { me?: "user" | "guest"; mine?: "none" | "down" | State }) 
     const m = path.match(/^\/tournaments\/fixture-match-([a-z-]+)\/matches\/m2-1(\/ready)?$/);
     if (m && opts.mine && opts.mine !== "none" && opts.mine !== "down") {
       const d = fixtureMatch(opts.mine, new Date().toISOString()).detail;
+      // Only the match detail carries a re-seat cooldown (`/me/tournaments` doesn't).
+      if (opts.cooldownUntil) d.match.reseatCooldownUntil = opts.cooldownUntil;
       if (m[2])
         return reply(200, { action: "create", ticket: "t", gameIndex: 0, slot: "a", heroId: null, map: null, ticketExpiresAt: "", roomId: null, init });
       return reply(200, d);
@@ -96,6 +99,17 @@ describe("NextMatchBanner", () => {
     expect(b).toHaveTextContent(/The organizer decides by .+, otherwise the higher seed advances\./);
     expect(b).not.toHaveTextContent("24h");
     expect(screen.getByRole("button", { name: "I'm ready to play" })).toBeEnabled();
+  });
+
+  it("a re-seat cooldown from the match detail disables I'm ready with the match page's line, and clears itself", async () => {
+    const until = new Date(Date.now() + 1500).toISOString();
+    serve({ mine: "waiting", cooldownUntil: until });
+    wrap(<NextMatchBanner />);
+    await screen.findByTestId("next-match-banner");
+    expect(screen.getByRole("button", { name: "I'm ready to play" })).toBeDisabled();
+    expect(screen.getByTestId("next-match-notice")).toHaveTextContent(reseatCooldownText(until));
+    await waitFor(() => expect(screen.getByRole("button", { name: "I'm ready to play" })).toBeEnabled(), { timeout: 4000 });
+    expect(screen.queryByTestId("next-match-notice")).toBeNull();
   });
 
   it("opponent ready → Join now with the seat clock", async () => {

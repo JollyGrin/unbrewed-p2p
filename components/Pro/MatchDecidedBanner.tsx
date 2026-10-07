@@ -10,7 +10,7 @@
  * says so once it ran out (the engine closes the room without a frame).
  */
 import { Box, Button, Flex, Link, Text } from "@chakra-ui/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useAccount } from "@/lib/account/useAccount";
 import { tournamentMatchHref, type TournamentRoom } from "@/lib/pro/tournamentTicket";
@@ -22,7 +22,8 @@ import type { MapRef, MatchDetail } from "@/lib/tournaments/types";
 
 export const DECIDED_POLL_MS = 15_000;
 
-type Notice = "decided" | "removed" | "expired" | "cancelled" | null;
+export type MatchNotice = "decided" | "removed" | "expired" | "cancelled";
+type Notice = MatchNotice | null;
 
 export const HOLD_RAN_OUT = "Your 15-minute hold ran out and this room closed. Go back to the match page and press Play again.";
 
@@ -73,12 +74,15 @@ export const MatchDecidedBanner = ({
   at,
   strip = false,
   roomId = null,
+  onNotice,
   children,
 }: {
   at: TournamentRoom | null;
   strip?: boolean;
   /** The waiting room's own room (B4): watch its seat hold. */
   roomId?: string | null;
+  /** Told once a notice shows: the page drops what the notice makes untrue (the board, the waiting copy). */
+  onNotice?: (notice: MatchNotice) => void;
   /**
    * The waiting copy; a function gets the hold's time left in ms (null = not
    * known yet) and the match's assigned board (null = not known / player's pick).
@@ -158,6 +162,12 @@ export const MatchDecidedBanner = ({
     return () => window.clearInterval(id);
   }, [holdEndsAt, notice]);
 
+  const onNoticeRef = useRef(onNotice);
+  onNoticeRef.current = onNotice;
+  useEffect(() => {
+    if (at && notice) onNoticeRef.current?.(notice);
+  }, [at, notice]);
+
   const ref = useRef<HTMLDivElement>(null);
   const shown = !!at && !!notice;
   useEffect(() => {
@@ -182,6 +192,10 @@ export const MatchDecidedBanner = ({
     if (strip) return null;
     return <>{typeof children === "function" ? children(holdEndsAt === null ? null : Math.max(0, holdEndsAt - now), map) : children}</>;
   }
+  return <NoticeBar ref={ref} notice={notice} at={at} strip={strip} />;
+};
+
+const NoticeBar = forwardRef<HTMLDivElement, { notice: MatchNotice; at: TournamentRoom; strip?: boolean }>(function NoticeBar({ notice, at, strip = false }, ref) {
   const removed = notice === "removed";
   const expired = notice === "expired";
   const cancelled = notice === "cancelled";
@@ -221,4 +235,16 @@ export const MatchDecidedBanner = ({
       </Button>
     </Flex>
   );
-};
+});
+
+/**
+ * The whole screen once the room is no longer this player's to play in: they
+ * were moved out of the match, or the waiting room's hold ran out. Only the
+ * notice and its one way back: no board, no waiting copy under it.
+ */
+export const RoomClosedScreen = ({ notice, at }: { notice: MatchNotice; at: TournamentRoom }) => (
+  <Flex direction="column" alignItems="center" pt="6rem" px="1rem" data-testid="room-closed">
+    <NoticeBar notice={notice} at={at} />
+  </Flex>
+);
+

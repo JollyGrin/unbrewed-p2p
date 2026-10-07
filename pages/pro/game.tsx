@@ -5639,6 +5639,7 @@ const LiveGame = ({
   }
 
   if (tournament.seatScreen) return tournament.seatScreen;
+  if (tournament.closedScreen) return tournament.closedScreen;
 
   // Terminal resume failure (issue #133): a live game we couldn't restore after
   // a server update. Takes priority over the raw error/waiting screens — those
@@ -5878,7 +5879,7 @@ const LiveGame = ({
             );
           })()}
 
-          {tournament.at && <TournamentWaiting at={tournament.at} roomId={roomId} boardUnknown={boardUnknown} />}
+          {tournament.at && <TournamentWaiting at={tournament.at} roomId={roomId} boardUnknown={boardUnknown} onNotice={tournament.onNotice} />}
           {/* discoverability: invite privately or list publicly */}
           {!tournament.at && quickSearch && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.05rem" letterSpacing="0.08em" opacity={0.8}>

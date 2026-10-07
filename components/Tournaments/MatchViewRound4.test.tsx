@@ -7,6 +7,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { render, screen, within } from "@testing-library/react";
 
 import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
+import { spanText } from "@/lib/tournaments/when";
 import type { MatchPageKind } from "@/lib/tournaments/matchPage";
 import { timeText as clock, whenText as dateTime } from "@/lib/tournaments/when";
 import type { Game, MatchDetail, Tournament } from "@/lib/tournaments/types";
@@ -35,6 +36,7 @@ const draw = (
         now={opts.now ?? NOW}
         phase={opts.phase ?? { kind: "idle" }}
         onPlay={() => {}}
+        organizer={opts.organizer ? { entries: [], reload: () => {} } : undefined}
       />
     </ChakraProvider>,
   );
@@ -149,6 +151,26 @@ describe("UX B5: a decided match speaks to the two players", () => {
     expect(bannerText()).not.toHaveTextContent("You won");
   });
 
+  it("an organizer-reversed result tells the overridden player what happened — never 'won this one'", () => {
+    const f = state("decided"); // hokuto_shin (u2, e2, slot A) won game 1; the organizer gives it to bountyhuntr
+    const d: MatchDetail = { ...f.detail, match: { ...f.detail.match, winner: f.detail.match.slotB, decidedBy: "organizer" } };
+    draw(d);
+    expect(bannerText()).toHaveTextContent(
+      "The organizer changed the result. bountyhuntr advances. You're out of the bracket, thanks for playing.",
+    );
+    expect(bannerText()).not.toHaveTextContent("won this one");
+  });
+
+  it("an organizer decision with no game won by the loser says the organizer decided it", () => {
+    const f = state("waiting");
+    const d: MatchDetail = { ...f.detail, match: { ...f.detail.match, status: "decided", winner: f.detail.match.slotA, decidedBy: "organizer" } };
+    draw(d, { as: "u3" });
+    expect(bannerText()).toHaveTextContent(
+      "The organizer decided this match. hokuto_shin advances. You're out of the bracket, thanks for playing.",
+    );
+    expect(bannerText()).not.toHaveTextContent("won this one");
+  });
+
   it("a round-robin GROUP loser is still in the event: only 'See the standings' (#1279 review)", () => {
     const f = state("decided");
     const d: MatchDetail = { ...f.detail, match: { ...f.detail.match, stage: "group" } };
@@ -190,6 +212,19 @@ describe("interactions S1 / journeys B2: a game with no winner", () => {
     expect(bannerText()).toHaveTextContent(`Game 1 ended with no result. Play again any time before ${dateTime(state("waiting").detail.match.deadlineAt)}.`);
     expect(bannerText()).not.toHaveTextContent("confirm");
     expect(within(screen.getByTestId("play-box")).getByTestId("play-button")).toBeEnabled();
+  });
+
+  it("'Play again.' is for the two players only: not a spectator, a signed-out guest or the organizer", () => {
+    const d = noWinner({ endReason: "abandoned" });
+    for (const opts of [{ as: null }, { as: null, signedOut: true }, { as: "u-organizer", organizer: true }]) {
+      const r = draw(d, opts);
+      const row = screen.getAllByTestId("game-row")[0];
+      expect(row).toHaveTextContent("Game 1 ended with no result (both players left).");
+      expect(row).not.toHaveTextContent("Play again");
+      r.unmount();
+    }
+    draw(d, { as: "u3" }); // the other player
+    expect(screen.getAllByTestId("game-row")[0]).toHaveTextContent("Play again.");
   });
 
   it("a stalled close says so", () => {
@@ -243,6 +278,25 @@ describe("UX S2/S16/S17/P1: dates and spans", () => {
     expect(big).toHaveTextContent("12m");
     expect(big).not.toHaveTextContent("0d");
     expect(big).not.toHaveTextContent("0h");
+  });
+
+  it("the deadline card writes spans like the bracket and the /pro banner: '23h 52m', '1d 2h'", () => {
+    const d = state("waiting").detail;
+    const { unmount } = draw(d, { now: Date.parse(d.match.deadlineAt!) - (23 * 60 + 52.5) * MIN });
+    expect(screen.getByTestId("deadline-card")).toHaveTextContent(`Match deadline${spanText((23 * 60 + 52.5) * MIN)}`);
+    expect(screen.getByTestId("deadline-card")).toHaveTextContent("23h 52m");
+    unmount();
+    draw(d, { now: Date.parse(d.match.deadlineAt!) - (26 * 60 + 19) * MIN });
+    expect(screen.getByTestId("deadline-card")).toHaveTextContent("1d 2h");
+    expect(screen.getByTestId("deadline-card")).not.toHaveTextContent("19m");
+  });
+
+  it("under a minute left reads '1m', never '0m'", () => {
+    const d = state("waiting").detail;
+    draw(d, { now: Date.parse(d.match.deadlineAt!) - 40_000 });
+    const big = screen.getByTestId("deadline-card");
+    expect(big).toHaveTextContent("Match deadline1m");
+    expect(big).not.toHaveTextContent("0m");
   });
 
   it("after the deadline the lede says 'closed'; a decided card says 'was due'", () => {

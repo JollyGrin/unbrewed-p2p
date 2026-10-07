@@ -348,14 +348,6 @@ export const seatLeft = (expiresAt: string | null, now: number): string =>
 export const seatLeftSpoken = (expiresAt: string | null, now: number): string =>
   `${minSecSpoken(expiresAt ? Date.parse(expiresAt) - now : 0)} left`;
 
-/** Match-deadline countdown parts: days, hours, minutes; null once passed. */
-export const deadlineParts = (deadline: string | null, now: number) => {
-  const ms = deadline ? Date.parse(deadline) - now : NaN;
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const m = Math.floor(ms / 60_000);
-  return { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60 };
-};
-
 /** How much of the match window has gone, 0–100. */
 export const windowSpent = (opensAt: string | null, deadlineAt: string | null, now: number): number => {
   const a = opensAt ? Date.parse(opensAt) : NaN;

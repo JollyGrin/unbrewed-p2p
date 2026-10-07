@@ -20,9 +20,10 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
-import { MutableRefObject, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { MutableRefObject, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { LazyScreenFallback } from "@/components/Pro/LazyScreenFallback";
+import { RoomClosedScreen, type MatchNotice } from "@/components/Pro/MatchDecidedBanner";
 import { BackToMatchButton, gameEndNote, LostGameMatchNote, opponentNameOf, TournamentGameStrip, useTaggedGameEndReason } from "@/components/Pro/TournamentGameNotes";
 import { useAccount } from "@/lib/account/useAccount";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
@@ -42,6 +43,7 @@ import {
   ticketBoard,
   TICKET_ERROR_CODES,
   tournamentRoomOf,
+  wasSeatedIn,
   withoutTicketQuery,
   type TicketLaunch,
   type TournamentRoom,
@@ -58,6 +60,8 @@ const TicketErrorScreen = dynamic(() => import("@/components/Pro/TicketErrorScre
   ssr: false,
   loading: LazyScreenFallback,
 });
+
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /** What the gate tells the live game about a tournament game. Casual games get nothing. */
 export interface GateTournament {
@@ -172,7 +176,17 @@ export const TournamentGate = ({
   // Decided once, at its first mount, so the tree around it never changes.
   const keepMountedRef = useRef<boolean | null>(null);
 
+  // A ticket in the address (the match page's Play, a dead-room retry) before
+  // the router has its query: a neutral frame, never the casual lobby for a
+  // moment. Read before the first paint; the server render can't see the hash.
+  const [ticketArriving, setTicketArriving] = useState(false);
+  useIsoLayoutEffect(() => {
+    if (!router.isReady && takeTicketFragment()) setTicketArriving(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const screen = ((): ReactNode => {
+    if (ticketArriving && !router.isReady) return <Holding testId="ticket-arriving">OPENING YOUR ROOM…</Holding>;
     if (boardProblem && ref) return <TicketErrorScreen message={boardProblem} at={ref} />;
     // Refreshed at the tournament hero picker: the ticket was single use and no
     // room exists yet — a fresh ticket, never the casual lobby.
@@ -190,13 +204,17 @@ export const TournamentGate = ({
       // A tournament room this browser has no seat token for: a JOIN_ROOM without
       // a ticket would only earn TICKET_REQUIRED, so never show the picker — get
       // a ticket the match page's way (a recorded ready, or a join ticket).
+      // "Another tab" only when this browser once held the seat; a player who
+      // never sat here (a forwarded link, the api's lookup) just gets their seat.
       if (kind === "tagged" && ref)
-        return (
+        return wasSeatedIn(room) ? (
           <TicketErrorScreen
             message="This tournament game is open in another tab or device. Press Try again to take your seat here."
             retry
             at={ref}
           />
+        ) : (
+          <TicketErrorScreen message="Get your seat for this match to play here." retry retryLabel="Get my seat" at={ref} />
         );
       // Still asking the api whether this is one of my match rooms: a JOIN into
       // one without a ticket is a dead end. Casual after a short wait, whatever happens.
@@ -329,6 +347,19 @@ export function useTournamentGame(gate: GateTournament | undefined, live: LiveGa
   // Why a tournament game ended, from the api once it's over.
   const endReason = useTaggedGameEndReason(at, roomId, !!snapshot?.view.winner);
 
+  // The room is no longer this player's: moved out of the match (a stale ticket
+  // can still seat them in the other finalist's room), or the waiting room's
+  // hold ran out. The page then shows only the notice; a moved-out player's
+  // socket closes so they stop occupying a room that isn't theirs.
+  const [closedNotice, setClosedNotice] = useState<MatchNotice | null>(null);
+  const onNotice = (notice: MatchNotice) => {
+    if (notice === "removed" || notice === "expired") setClosedNotice(notice);
+  };
+  const { closeForGood } = socket;
+  useEffect(() => {
+    if (closedNotice === "removed") closeForGood();
+  }, [closedNotice, closeForGood]);
+
   const errorScreen = (() => {
     if (!error) return null;
     // A tournament game refused — the ticket codes, the match's room gone or
@@ -377,13 +408,17 @@ export function useTournamentGame(gate: GateTournament | undefined, live: LiveGa
      * as a silent zombie, and only takes the seat back when the player says so.
      */
     seatScreen: seatReplaced ? <SeatReplacedScreen roomId={roomId ?? room} at={tagged} onTakeBack={takeSeatBack} /> : null,
+    /** Moved out of the match, or the waiting room's hold ran out: the notice alone, no board. */
+    closedScreen: closedNotice && at ? <RoomClosedScreen notice={closedNotice} at={at} /> : null,
+    /** The waiting room's and the table strip's notice reports here. */
+    onNotice,
     errorScreen,
     lostGameAside: tagged ? <LostGameMatchNote at={tagged} /> : null,
     /** The table's strip: the match's decided/hold notice and, in a duel, the opponent's forfeit clock. */
     strip: (view: PlayerView, multiplayerView: boolean) => {
       if (!at) return null;
       const away = view.opponent?.id;
-      return <TournamentGameStrip at={at} view={view} awayDeadline={!multiplayerView && away ? socket.seatPresence[away]?.autoForfeitAt ?? null : null} />;
+      return <TournamentGameStrip at={at} view={view} awayDeadline={!multiplayerView && away ? socket.seatPresence[away]?.autoForfeitAt ?? null : null} onNotice={onNotice} />;
     },
     /** In Rematch's place on the end screen: the next game is a new ticket from the match page. */
     endAction: at ? <BackToMatchButton at={at} /> : null,

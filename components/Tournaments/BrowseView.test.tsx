@@ -1,7 +1,7 @@
 /** The browse page's failure states (p2p #1269): a non-JSON 200 is an error, never "No brackets here". */
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
@@ -46,4 +46,23 @@ it("cards say 'one game per match' and the filter tabs are 44 px tap targets (p2
   expect(await screen.findByText(/one game per match/)).toBeInTheDocument();
   expect(screen.queryByText(/first to 1/)).toBeNull();
   for (const tab of screen.getAllByRole("tab")) expect(parseFloat(window.getComputedStyle(tab).minHeight)).toBeGreaterThanOrEqual(44);
+});
+
+it("My tournaments lists every event of mine, a cancelled one too, labelled Cancelled (and not under All)", async () => {
+  const running = fixtureTournament({ id: "t-run", slug: "run", name: "Running Cup", status: "running" });
+  const cancelled = fixtureTournament({ id: "t-can", slug: "can", name: "Called Off Cup", status: "cancelled" });
+  global.fetch = jest.fn(async (url: string) =>
+    url === `${API_URL}/me`
+      ? ({ ok: true, status: 200, json: async () => ({ user: { id: "u-bob", username: "final-bob" } }) } as Response)
+      : url.includes("mine=1")
+        ? ({ ok: true, status: 200, json: async () => ({ tournaments: [running, cancelled] }) } as Response)
+        : ({ ok: true, status: 200, json: async () => ({ tournaments: [running] }) } as Response),
+  ) as unknown as typeof fetch;
+  render(<ChakraProvider><BrowseView /></ChakraProvider>);
+  expect(await screen.findByText("Running Cup")).toBeInTheDocument();
+  expect(screen.queryByText("Called Off Cup")).toBeNull();
+  fireEvent.click(await screen.findByRole("tab", { name: /My tournaments/ }));
+  const card = (await screen.findByText("Called Off Cup")).closest("article")!;
+  expect(card).toHaveTextContent("Cancelled");
+  expect(screen.getAllByTestId("tournament-card")).toHaveLength(2);
 });

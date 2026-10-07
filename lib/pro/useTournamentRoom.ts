@@ -45,7 +45,7 @@ export function useTournamentRoom(room: string | null, ticket: TicketLaunch | nu
   const settle = (r: string, at: TournamentRoom | null) => {
     if (settledRef.current === r) return;
     settledRef.current = r;
-    if (at) rememberTournamentRoom(r, at); // a refresh knows without asking again
+    if (at) rememberTournamentRoom(r, at, Date.now(), false); // a refresh knows without asking again; no seat yet
     setAnswer({ room: r, at });
   };
 

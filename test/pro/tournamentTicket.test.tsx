@@ -585,14 +585,31 @@ describe("a raw ?room= link on a device without the seat (#1230)", () => {
     await flush(10);
     expect(FakeWebSocket.latest()).toBeNull(); // the game page never mounted: no picker, no JOIN_ROOM
     expect(screen.queryByText("JOIN ROOM SF2ROOM")).not.toBeInTheDocument();
-    expect(screen.getByTestId("ticket-error")).toHaveTextContent("another tab or device");
+    // This browser never held a seat here: no "open in another tab" claim, just the way to a seat.
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("Get your seat for this match to play here.");
+    expect(screen.getByTestId("ticket-error")).not.toHaveTextContent("another tab or device");
     expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute(
       "href",
       "/tournaments?t=fixture-match-you-ready&m=m2-1",
     );
-    expect(screen.getByText("Try again")).toBeInTheDocument();
-    // …and a refresh knows without asking again.
+    expect(screen.getByText("Get my seat")).toBeInTheDocument();
+    // …and a refresh knows without asking again, still with no seat claimed.
     expect(tournamentRoomOf("SF2ROOM")).toEqual({ slug: "fixture-match-you-ready", matchId: "m2-1" });
+    cleanup();
+    await mount({ room: "SF2ROOM" }, { socket: false });
+    await flush(4);
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("Get your seat for this match to play here.");
+  });
+
+  it("a room this browser once sat in (its token gone) keeps the other-tab wording", async () => {
+    roomApi("u3", () => ({ found: false }));
+    rememberTournamentRoom("SF2ROOM", { slug: "fixture-match-you-ready", matchId: "m2-1" });
+    await mount({ room: "SF2ROOM" }, { socket: false });
+    await flush(4);
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent(
+      "This tournament game is open in another tab or device. Press Try again to take your seat here.",
+    );
+    expect(screen.getByText("Try again")).toBeInTheDocument();
   });
 
   it("a room of a match that ISN'T nextMatch is found by the same one call: no /me/tournaments, no walk", async () => {

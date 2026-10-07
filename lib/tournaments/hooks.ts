@@ -82,6 +82,12 @@ type TournamentData = { tournament: Tournament; entries: Entry[]; matches: Match
 export const SETTLED_POLL_MS = 60_000;
 
 /**
+ * A decided match of a still-running tournament: the organizer can still
+ * correct it, and the players are reading the result right now.
+ */
+export const DECIDED_LIVE_POLL_MS = 15_000;
+
+/**
  * The event/bracket page's tournament, re-fetched every `pollMs` while it is
  * running and the tab is visible (E2, #1236), every SETTLED_POLL_MS once it is
  * complete; a draft/signup/cancelled event stands still. A poll that fails
@@ -104,7 +110,9 @@ export const useTournament = (slug: string | null, pollMs = 10_000) => {
 /**
  * The match page's match (#1218), re-fetched every `pollMs` (paused while the tab is hidden, backed off on errors) —
  * an opponent's "I'm ready" or a finished game shows up without a refresh. A decided match
- * keeps a slow SETTLED_POLL_MS poll so an organizer's correction appears (p2p #1269).
+ * keeps polling every DECIDED_LIVE_POLL_MS while its tournament runs, so an organizer's
+ * correction appears within seconds, and drops to SETTLED_POLL_MS once the tournament is
+ * complete. Coming back to the tab or the window asks again at once.
  */
 export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) => {
   const key = `${slug}/${matchId}`;
@@ -118,7 +126,9 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
     streak.notFound >= NOT_FOUND_LIMIT ||
     (state.status === "ready" && (!!state.value.match.cancelled || state.value.tournament.status === "cancelled"));
   const decided = state.status === "ready" && state.value.match.status === "decided";
-  usePoll(!stopped, decided ? Math.max(pollMs, SETTLED_POLL_MS) : pollMs, streak.failures, reload);
+  const settled = decided && state.status === "ready" && state.value.tournament.status === "complete";
+  const every = settled ? Math.max(pollMs, SETTLED_POLL_MS) : decided ? Math.max(pollMs, DECIDED_LIVE_POLL_MS) : pollMs;
+  usePoll(!stopped, every, streak.failures, reload, true);
   return [state, reload] as const;
 };
 

@@ -109,6 +109,60 @@ describe("requests per minute on a match page", () => {
   });
 });
 
+/** The decided fixture's detail, its event `running` or `complete`, carrying the event like a newer api. */
+const decidedIn = (status: "running" | "complete") => {
+  const d = fixtureMatch("decided");
+  return { ...d.detail, tournament: { ...withEvent(false).tournament, status } };
+};
+
+describe("requests per minute on a decided match page", () => {
+  it("while its tournament runs: one getMatch every 15 s, so a correction shows within seconds", async () => {
+    const counts = serve(decidedIn("running"));
+    mount();
+    await elapse(0);
+    const start = counts.match;
+    await aMinute();
+    expect(counts.match - start).toBe(4);
+  });
+
+  it("once its tournament is complete: one getMatch a minute", async () => {
+    const counts = serve(decidedIn("complete"));
+    mount();
+    await elapse(0);
+    const start = counts.match;
+    await aMinute();
+    expect(counts.match - start).toBe(1);
+  });
+
+  it("asks again when the window regains focus", async () => {
+    const counts = serve(decidedIn("complete"));
+    mount();
+    await elapse(5000);
+    const start = counts.match;
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await elapse(0);
+    expect(counts.match - start).toBe(1);
+  });
+
+  it("a tab return fires visibilitychange and then focus: one ask, not two", async () => {
+    const counts = serve(decidedIn("complete"));
+    mount();
+    await elapse(5000);
+    const start = counts.match;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await elapse(50);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await elapse(0);
+    expect(counts.match - start).toBe(1);
+  });
+});
+
 describe("organizer tools from the match detail", () => {
   it("shows the panel when the api says the viewer organizes, naming entries from entryNames", async () => {
     mockAccount.mockReturnValue({ status: "signed-in", account: { id: ORGANIZER } });

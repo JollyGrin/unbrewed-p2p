@@ -206,9 +206,13 @@ export interface TournamentRoom {
   matchId: string;
 }
 
-export function rememberTournamentRoom(roomId: string, at: TournamentRoom, now: number = Date.now()): void {
+/**
+ * `seated` = this browser held a seat token in the room (it opened or joined
+ * it); false for a room the api only named (`GET /me/tournament-room`).
+ */
+export function rememberTournamentRoom(roomId: string, at: TournamentRoom, now: number = Date.now(), seated = true): void {
   try {
-    window.localStorage.setItem(ROOM_KEY + roomId, JSON.stringify({ ...at, ts: now }));
+    window.localStorage.setItem(ROOM_KEY + roomId, JSON.stringify({ ...at, ts: now, seated }));
   } catch {
     /* storage blocked: this page load still has it in state */
   }
@@ -220,6 +224,16 @@ export function forgetTournamentRoom(roomId: string): void {
     window.localStorage.removeItem(ROOM_KEY + roomId);
   } catch {
     /* nothing stored */
+  }
+}
+
+/** Whether this browser ever held a seat in the remembered tournament room (an older note without the flag did). */
+export function wasSeatedIn(roomId: string): boolean {
+  try {
+    const raw = window.localStorage.getItem(ROOM_KEY + roomId);
+    return !!raw && JSON.parse(raw)?.seated !== false;
+  } catch {
+    return false;
   }
 }
 

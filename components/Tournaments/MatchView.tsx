@@ -41,7 +41,6 @@ import {
 import {
   activeReseatCooldown,
   currentChecks,
-  deadlineParts,
   deadlinePassed,
   gameLength,
   gameLooksStalled,
@@ -69,7 +68,7 @@ import {
   type PlayAction,
   type PlayButtonModel,
 } from "@/lib/tournaments/matchPage";
-import { dayText, timeText, whenText } from "@/lib/tournaments/when";
+import { dayText, spanText, timeText, whenText } from "@/lib/tournaments/when";
 import { tournamentPath } from "@/lib/tournaments/share";
 import type { EntryName, Game, MatchDetail, MatchPlayer, MatchTournamentInfo } from "@/lib/tournaments/types";
 import { backTo, SeatHeldNote } from "./SeatHeldNote";
@@ -364,7 +363,7 @@ export const MatchBody = ({
             </Text>
           )}
           <MatchupPanel d={d} t={t} side={side} onReplay={replayGame ? () => setWatching(replayGame) : null} />
-          {state.kind !== "cancelled" && <GamesList d={d} rows={rows} state={state} onReplay={setWatching} />}
+          {state.kind !== "cancelled" && <GamesList d={d} rows={rows} state={state} player={!!side} onReplay={setWatching} />}
           {lateNote && (
             <Text px={{ base: "14px", md: "22px" }} pb="16px" fontSize="13px" color={INK_MUTED} overflowWrap="anywhere" data-testid="late-game-note">
               {LATE_GAME_NOTE}
@@ -549,6 +548,17 @@ const Banner = ({
             : cancelledEvent
               ? `${lead}You won the match.`
               : `${lead}You won. You advance to the ${next}.`;
+      } else if (mine && m.winner && m.decidedBy === "organizer") {
+        // The winner may never have won a game here: never "X won this one".
+        const reversed = m.games.some((g) => g.winnerEntry === mine);
+        const why = reversed ? "The organizer changed the result. " : "The organizer decided this match. ";
+        text = group
+          ? `${why}${winnerName} takes the win.`
+          : m.stage === "final" || !next
+            ? `${why}${winnerName} wins the tournament. You finish runner-up, thanks for playing.`
+            : cancelledEvent
+              ? `${why}${winnerName} takes the match.`
+              : `${why}${winnerName} advances. You're out of the bracket, thanks for playing.`;
       } else if (mine && m.winner) {
         text = group
           ? `${lead}${winnerName} won this one.`
@@ -1031,11 +1041,14 @@ const GamesList = ({
   d,
   rows,
   state,
+  player,
   onReplay,
 }: {
   d: MatchDetail;
   rows: GameRow[];
   state: MatchPageState;
+  /** The viewer is one of the match's two players: the only ones a "Play again." is for. */
+  player: boolean;
   onReplay: (g: Game) => void;
 }) => {
   const m = d.match;
@@ -1104,7 +1117,7 @@ const GamesList = ({
             // Both left, swept or stalled (interactions S1): nothing to confirm, the match plays again.
             <>
               Game {r.n} ended with no result{endReasonText(r.game) ? ` (${endReasonText(r.game)})` : ""}.
-              {open ? " Play again." : ""}
+              {open && player ? " Play again." : ""}
             </>
           ) : (
             <>
@@ -1158,26 +1171,25 @@ const GameLine = ({
 
 const DeadlineCard = ({ d, t, state, now }: { d: MatchDetail; t: MatchTournamentInfo | null; state: MatchPageState; now: number }) => {
   const m = d.match;
-  const parts = deadlineParts(m.deadlineAt, now);
+  // The one span format (lib/tournaments/when), as the bracket and banner write it:
+  // two units at most, and an unexpired deadline never reads "0m".
+  const span = m.deadlineAt ? spanText(Date.parse(m.deadlineAt) - now) : null;
   const decided = !isOpen(state);
   const done = state.kind === "decided";
   // An organizer decision is dated by the decision itself, not by the last game (L2-3).
   const finished = (m.decidedBy === "organizer" ? d.decision?.at : null) ?? m.games.at(-1)?.finishedAt ?? null;
-  const unit = (n: number, u: string) => (
+  const unit = (n: string, u: string) => (
     <>
       {n}
-      <Text as="span" fontSize="24px" color={INK_MUTED} ml="2px" mr="6px">{u}</Text>
+      <Text as="span" fontSize="24px" color={INK_MUTED} ml="2px">{u}</Text>
     </>
   );
-  // Zero units dropped, so the last hour reads "12 m", not "0 d 0 h 12 m" (UX P1).
-  const countdown = parts
-    ? ([[parts.d, "d"], [parts.h, "h"], [parts.m, "m"]] as const).filter(([n], i, all) => n > 0 || (i === 2 && all.every(([x]) => x === 0)))
-    : [];
+  const countdown = (span ?? "").split(" ").filter(Boolean).map((p) => [p.slice(0, -1), p.slice(-1)] as const);
   return (
     <Card p="22px" data-testid="deadline-card">
       <Text {...caption} mb="6px">Match deadline</Text>
       <Text fontFamily="LeagueGothic" fontSize={decided ? "44px" : "64px"} lineHeight="0.9" sx={{ fontVariantNumeric: "tabular-nums" }} color={done ? POS_INK : INK}>
-        {state.kind === "cancelled" ? "Cancelled" : done ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !parts ? "Closed" : <>{countdown.map(([n, u]) => <span key={u}>{unit(n, u)}</span>)}</>}
+        {state.kind === "cancelled" ? "Cancelled" : done ? (m.decidedBy === "organizer" ? "Decided by the organizer" : "Done early") : decided || !span ? "Closed" : <>{countdown.map(([n, u], i) => <span key={u}>{i > 0 ? " " : ""}{unit(n, u)}</span>)}</>}
       </Text>
       <Flex h="8px" borderRadius="999px" bg={TRACK} overflow="hidden" mt="14px" mb="8px">
         <Box bg={done ? POS : decided ? INK : GOLD} w={`${decided ? (done ? windowSpent(m.opensAt, m.deadlineAt, Date.parse(finished ?? "") || now) : 100) : windowSpent(m.opensAt, m.deadlineAt, now)}%`} />
