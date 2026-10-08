@@ -910,6 +910,11 @@ describe("teamDecisionModel readability (#1169)", () => {
     (v.fighters as unknown as { owner: string }[])[0].owner = "p2";
     expect(teamDecisionModel(v)?.chooser).toBe("Leon");
   });
+  it("names the engine seat by its fighter, not its hero id", () => {
+    const v = base("CHOOSE_SPACE", [{ id: "s2", label: "s2" }]);
+    (v as unknown as { players: unknown[] }).players.push({ id: "e1", heroId: "indominus-rex", you: false });
+    expect(teamDecisionModel(v)?.forName).toBe("Indominus Rex");
+  });
   it("space prompts become a count plus highlighted spaces", () => {
     const m = teamDecisionModel(
       base("CHOOSE_SPACE", [

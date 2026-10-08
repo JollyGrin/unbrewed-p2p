@@ -369,11 +369,10 @@ export const teamDecisionModel = (
   if (!p || p.onBehalfOf !== "TEAM") return null;
   const seatName = (id: string) => {
     const pl = view.players?.find((x) => x.id === id);
-    const heroName = view.fighters.find(
-      (f) => f.owner === id && f.kind === "HERO",
-    )?.name;
-    if (pl) return pl.displayName?.trim() || heroName || pl.heroId || id;
-    return view.fighters.find((f) => f.owner === id)?.name ?? id;
+    const owned = view.fighters.filter((f) => f.owner === id);
+    const seatFighter = (owned.find((f) => f.kind === "HERO") ?? owned[0])?.name;
+    if (pl) return pl.displayName?.trim() || seatFighter || pl.heroId || id;
+    return seatFighter ?? id;
   };
   const spaceIds = new Set((view.map?.spaces ?? []).map((s) => s.id));
   const fighterName = (id: string) =>
