@@ -10,6 +10,7 @@ export const slowTests = [
   "test/pro/randomHeroPick.test.tsx",
   "test/sandbox/relaySync.test.tsx",
   "components/Stats/Leaderboard/LeaderboardDashboard.test.tsx",
+  "test/pro/mobileLayout.test.tsx",
 ];
 
 const escape = (path) => path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
