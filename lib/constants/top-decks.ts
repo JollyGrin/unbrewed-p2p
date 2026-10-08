@@ -226,7 +226,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Mr_Shakespeare",
     likes: 0,
     highlightColour: "#3a3a3a",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/QkB1/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/QkB1/cardback.webp",
   },
   {
     id: "L6Z1",
