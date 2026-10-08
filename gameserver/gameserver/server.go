@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Emyrk/unbrewed-server/telemetry"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -32,6 +33,9 @@ type GameServer struct {
 	ctx        context.Context
 	registry   prometheus.Registerer
 	metrics    *gameServerMetrics
+	// Telemetry receives sandbox room/player events. Noop unless main wires
+	// one up from the environment.
+	Telemetry telemetry.Emitter
 
 	roomLock sync.RWMutex
 	Rooms    map[string]*Room
@@ -43,6 +47,7 @@ func NewGameServer(reg prometheus.Registerer) *GameServer {
 	gs.Rooms = make(map[string]*Room)
 	gs.ctx = context.Background()
 	gs.registry = reg
+	gs.Telemetry = telemetry.Noop{}
 
 	fact := promauto.With(gs.registry)
 	gs.metrics = &gameServerMetrics{
@@ -167,8 +172,13 @@ func (gs *GameServer) CreateLobby(gid string) (bool, error) {
 		return false, nil
 	}
 
-	gs.Rooms[gid] = NewRoom(gid, gs.ctx)
+	room := NewRoom(gid, gs.ctx)
+	room.telemetry = gs.Telemetry
+	gs.Rooms[gid] = room
 	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
+	if gs.Telemetry.Enabled() {
+		gs.Telemetry.Emit(telemetry.RoomOpened(gid))
+	}
 
 	return true, nil
 }
@@ -181,43 +191,61 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+		gs.collectGarbage()
+	}
+}
 
-		start := time.Now()
-		gs.roomLock.Lock()
-		closed := 0
-		for gid, room := range gs.Rooms {
-			room.mutex.Lock()
-			if time.Since(room.FieldState.LastUpdate) > time.Hour*12 {
-				// Close the room to kill any active go routines, all clients
-				// will be disconnected if present.
-				room.Close()
-				gs.metrics.GCRoomsCloseCounter.Inc()
-				gs.metrics.GCRoomLifetime.Observe(room.FieldState.LastUpdate.Sub(room.openedAt).Seconds())
-				delete(gs.Rooms, gid)
-				log.WithFields(log.Fields{
-					"time":       start,
-					"inactivity": time.Since(room.FieldState.LastUpdate),
-					"gid":        gid,
-				}).Info("room removed due to inactivity")
-				closed++
-			}
-			room.mutex.Unlock()
-		}
-		gs.roomLock.Unlock()
-
-		if closed > 0 {
+func (gs *GameServer) collectGarbage() {
+	start := time.Now()
+	gs.roomLock.Lock()
+	closed := 0
+	for gid, room := range gs.Rooms {
+		room.mutex.Lock()
+		if time.Since(room.FieldState.LastUpdate) > time.Hour*12 {
+			// Close the room to kill any active go routines, all clients
+			// will be disconnected if present.
+			room.Close()
+			room.emitClosed(telemetry.ReasonInactive)
+			gs.metrics.GCRoomsCloseCounter.Inc()
+			gs.metrics.GCRoomLifetime.Observe(room.FieldState.LastUpdate.Sub(room.openedAt).Seconds())
+			delete(gs.Rooms, gid)
 			log.WithFields(log.Fields{
-				"time":         start,
-				"dur":          time.Since(start),
-				"closed_count": closed,
-			}).Info("GC Run")
+				"time":       start,
+				"inactivity": time.Since(room.FieldState.LastUpdate),
+				"gid":        gid,
+			}).Info("room removed due to inactivity")
+			closed++
 		}
-		gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
+		room.mutex.Unlock()
+	}
+	gs.roomLock.Unlock()
+
+	if closed > 0 {
+		log.WithFields(log.Fields{
+			"time":         start,
+			"dur":          time.Since(start),
+			"closed_count": closed,
+		}).Info("GC Run")
+	}
+	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
+}
+
+// EmitShutdown reports every open room as closed by a relay shutdown. The
+// caller still has to flush the emitter before exiting.
+func (gs *GameServer) EmitShutdown() {
+	gs.roomLock.RLock()
+	defer gs.roomLock.RUnlock()
+	for _, room := range gs.Rooms {
+		room.mutex.Lock()
+		room.emitClosed(telemetry.ReasonShutdown)
+		room.mutex.Unlock()
 	}
 }
 
 type PlayerConn struct {
 	Name string
+	// hash is Name as telemetry sees it; empty when telemetry is off.
+	hash string
 	*websocket.Conn
 	// Serializes writes: gorilla conns forbid concurrent WriteMessage, and
 	// with permessage-deflate a racing write corrupts the flate stream for
@@ -268,6 +296,14 @@ type Room struct {
 	openedAt time.Time
 	ctx      context.Context
 	stop     context.CancelFunc
+
+	// Sandbox telemetry, guarded by mutex. playerHashes and heroesSeen are
+	// only filled while telemetry is enabled.
+	telemetry    telemetry.Emitter
+	playerHashes map[string]struct{}
+	heroesSeen   map[string]struct{} // playerHash + "\x00" + heroName
+	peakClients  int
+	stateUpdates int64
 }
 
 func NewRoom(gid string, ctx context.Context) *Room {
@@ -288,8 +324,60 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r.ctx, r.stop = context.WithCancel(ctx)
 	r.Clients = make(map[*PlayerConn]struct{})
 	r.openedAt = time.Now()
+	r.telemetry = telemetry.Noop{}
+	r.playerHashes = make(map[string]struct{})
+	r.heroesSeen = make(map[string]struct{})
 
 	return r
+}
+
+// emitClosed reports the room's end. Lifetime is open to last activity, as
+// the gc_room_lifetime metric measures it. Caller holds r.mutex.
+func (r *Room) emitClosed(reason string) {
+	if !r.telemetry.Enabled() {
+		return
+	}
+	r.telemetry.Emit(telemetry.RoomClosed(r.GameID, reason,
+		r.FieldState.LastUpdate.Sub(r.openedAt),
+		len(r.playerHashes), r.peakClients, r.stateUpdates))
+}
+
+// emitLeft reports a connection removed from Clients. Caller holds r.mutex.
+func (r *Room) emitLeft(c *PlayerConn) {
+	if r.telemetry.Enabled() {
+		r.telemetry.Emit(telemetry.PlayerLeft(r.GameID, c.hash, len(r.Clients)))
+	}
+}
+
+// heroName pulls pool.hero.name out of an otherwise opaque player blob.
+func (r *Room) heroName(blob json.RawMessage) string {
+	if !r.telemetry.Enabled() {
+		return ""
+	}
+	var state struct {
+		Pool struct {
+			Hero struct {
+				Name string `json:"name"`
+			} `json:"hero"`
+		} `json:"pool"`
+	}
+	if json.Unmarshal(blob, &state) != nil {
+		return ""
+	}
+	return telemetry.TruncateHeroName(state.Pool.Hero.Name)
+}
+
+// noteHero emits hero_seen once per (player, hero). Caller holds r.mutex.
+func (r *Room) noteHero(c *PlayerConn, hero string) {
+	if hero == "" || !r.telemetry.Enabled() {
+		return
+	}
+	key := c.hash + "\x00" + hero
+	if _, ok := r.heroesSeen[key]; ok {
+		return
+	}
+	r.heroesSeen[key] = struct{}{}
+	r.telemetry.Emit(telemetry.HeroSeen(r.GameID, c.hash, hero))
 }
 
 func (r *Room) Close() {
@@ -303,6 +391,7 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	player := &PlayerConn{
 		Conn: c,
 		Name: name,
+		hash: r.telemetry.PlayerHash(name),
 	}
 
 	if name == "" {
@@ -318,6 +407,13 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.Clients[player] = struct{}{}
+	if len(r.Clients) > r.peakClients {
+		r.peakClients = len(r.Clients)
+	}
+	if r.telemetry.Enabled() {
+		r.playerHashes[player.hash] = struct{}{}
+		r.telemetry.Emit(telemetry.PlayerJoined(r.GameID, player.hash, len(r.Clients)))
+	}
 	if _, ok := r.FieldState.Players[name]; !ok {
 		r.FieldState.Players[name] = []byte("{}")
 		r.FieldState.LastUpdate = time.Now()
@@ -362,6 +458,7 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 	switch gm.MessageType {
 	case MsgTypePlayerPosition:
 		r.mutex.Lock()
+		r.stateUpdates++
 		r.PlayerPositions[c.Name] = gm.Content
 		msg := r.GetPlayerPositions()
 		r.FieldState.LastUpdate = time.Now()
@@ -370,7 +467,10 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 
 	case MsgTypePlayerState:
 		// Update player state
+		hero := r.heroName(gm.Content) // decoded outside the lock
 		r.mutex.Lock()
+		r.stateUpdates++
+		r.noteHero(c, hero)
 		r.FieldState.Players[c.Name] = gm.Content
 		r.FieldState.LastUpdate = time.Now()
 		msg := r.GetGameState()
@@ -417,6 +517,7 @@ func (r *Room) broadcastAll(mt int, msg []byte) {
 			log.WithError(err).Error("write failed: dropping connection")
 			delete(r.Clients, c)
 			_ = c.Close()
+			r.emitLeft(c)
 		}
 	}
 }
@@ -431,6 +532,7 @@ func (r *Room) PlayerExit(c *PlayerConn) bool {
 		return false
 	}
 	delete(r.Clients, c)
+	r.emitLeft(c)
 	return true
 }
 
