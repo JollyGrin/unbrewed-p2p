@@ -111,7 +111,7 @@ const pointsAt = (r: Result<TicketGrant>, roomId: string): boolean =>
  *  - `reported`: the api answered (cleared, or refused for good: not the room's
  *    creator, room not live, match in play, …). Remember it: never re-report.
  *  - `legacy`: an api without the route (404): the caller keeps today's behaviour.
- *  - `too_soon`: the api's 30s age gate (api #125) — worth ONE wait and retry.
+ *  - `too_soon`: the api's 30s age gate (api #125) — worth a wait and a retry (at most two).
  *  - `unavailable`: a network blip — not an answer, so not remembered (p2p #1269):
  *    the next press asks again instead of sticking on "hasn't released it".
  *  - `not_mine` (p2p #1279, journeys S1): the room is the OPPONENT's (or the api
@@ -121,12 +121,21 @@ const pointsAt = (r: Result<TicketGrant>, roomId: string): boolean =>
  */
 export type DeadRoomReport = "reported" | "legacy" | "too_soon" | "unavailable" | "not_mine";
 const NOT_MINE = new Set(["not_room_creator", "ambiguous_creator", "room_not_live"]);
-export const reportDeadRoom = async (slug: string, matchId: string, deadRoomId: string): Promise<DeadRoomReport> => {
+export const reportDeadRoom = async (slug: string, matchId: string, deadRoomId: string): Promise<DeadRoomReport> =>
+  (await askDeadRoom(slug, matchId, deadRoomId)).report;
+
+/** `reportDeadRoom`, plus how long a `too_soon` says is left of its gate (null when it doesn't say). */
+export const askDeadRoom = async (
+  slug: string,
+  matchId: string,
+  deadRoomId: string,
+): Promise<{ report: DeadRoomReport; retryAfterMs: number | null }> => {
   const gone = await reportRoomGone(slug, matchId, deadRoomId);
-  if (!gone.ok) return gone.reason === "not_found" ? "legacy" : gone.reason === "unavailable" ? "unavailable" : "reported";
-  if (gone.value.cleared) return "reported";
-  if (gone.value.reason === "too_soon") return "too_soon";
-  return gone.value.reason && NOT_MINE.has(gone.value.reason) ? "not_mine" : "reported";
+  const report = (r: DeadRoomReport) => ({ report: r, retryAfterMs: null });
+  if (!gone.ok) return report(gone.reason === "not_found" ? "legacy" : gone.reason === "unavailable" ? "unavailable" : "reported");
+  if (gone.value.cleared) return report("reported");
+  if (gone.value.reason === "too_soon") return { report: "too_soon", retryAfterMs: gone.value.retryAfterMs ?? null };
+  return report(gone.value.reason && NOT_MINE.has(gone.value.reason) ? "not_mine" : "reported");
 };
 
 /** Only a real answer is remembered for the screen. */
@@ -180,9 +189,23 @@ export const roomClocks = (d: MatchDetail | null | undefined): { goneMinAgeMs: n
 });
 
 /**
- * How long until the api's room-gone age gate lets `roomId` go: the gate from
- * the room's create check (its ticket was issued then), plus 1s of slack —
- * never more than gate + 1s, and all of it when the match doesn't show the check.
+ * Slack past the api's age gate before asking again: the server clock is
+ * learned from a whole-second `Date` header, and the api's own clock moves on
+ * while the request travels.
+ */
+export const ROOM_RELEASE_MARGIN_MS = 2000;
+
+/** At most this many automatic re-asks after a `too_soon`; then the player presses Play again. */
+export const MAX_ROOM_RELEASE_RETRIES = 2;
+
+/**
+ * How long until the api's room-gone age gate lets `roomId` go, measured on
+ * the api's clock (`now` = `serverNow()`): the gate from the room's create check
+ * (its ticket was issued then), plus the margin — never more than gate + margin,
+ * and all of it when the match doesn't show the check. The api also counts the
+ * gate from when the room was reported OPEN, a few seconds after the check and
+ * not on the match detail, so this first guess can still be early: see
+ * `roomReleaseRetryWaitMs`.
  */
 export const roomReleaseWaitMs = (d: MatchDetail | null, roomId: string, now: number): number => {
   const gate = roomClocks(d).goneMinAgeMs;
@@ -191,8 +214,18 @@ export const roomReleaseWaitMs = (d: MatchDetail | null, roomId: string, now: nu
     .map((c) => Date.parse(c.createdAt))
     .filter(Number.isFinite);
   const from = created.length ? Math.min(...created) : now;
-  return Math.min(gate, Math.max(0, from + gate - now)) + 1000;
+  return Math.min(gate, Math.max(0, from + gate - now)) + ROOM_RELEASE_MARGIN_MS;
 };
+
+/**
+ * The wait before the next automatic re-ask after the api answered `too_soon`
+ * again. The api's own remaining time wins when it sends one. Otherwise the
+ * gate from the FIRST ask (`firstAskedAt`, api clock): the room was reported
+ * open before the engine lost it, so before that ask, and the ticket before
+ * the room — by then the gate has run out for both.
+ */
+export const roomReleaseRetryWaitMs = (gate: number, retryAfterMs: number | null, firstAskedAt: number, now: number): number =>
+  Math.min(gate, Math.max(0, retryAfterMs ?? firstAskedAt + gate - now)) + ROOM_RELEASE_MARGIN_MS;
 
 /** "This match's room closed. Releasing it in 12 s…" */
 export const releasingText = (seconds: number): string => `This match's room closed. Releasing it in ${seconds} s…`;
