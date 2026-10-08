@@ -354,6 +354,8 @@ export interface TeamDecisionModel {
   description: string | null;
   /** read-only option labels for teammates; empty for the chooser (they use the normal prompt UI) */
   options: { id: string; label: string }[];
+  /** board spaces the chooser is deciding between, for teammates' gold highlight (never ids in text) */
+  spaces: string[];
 }
 
 /**
@@ -367,8 +369,44 @@ export const teamDecisionModel = (
   if (!p || p.onBehalfOf !== "TEAM") return null;
   const seatName = (id: string) => {
     const pl = view.players?.find((x) => x.id === id);
-    if (pl) return pl.displayName?.trim() || pl.heroId || id;
+    const heroName = view.fighters.find(
+      (f) => f.owner === id && f.kind === "HERO",
+    )?.name;
+    if (pl) return pl.displayName?.trim() || heroName || pl.heroId || id;
     return view.fighters.find((f) => f.owner === id)?.name ?? id;
+  };
+  const spaceIds = new Set((view.map?.spaces ?? []).map((s) => s.id));
+  const fighterName = (id: string) =>
+    view.fighters.find((f) => f.id === id)?.name;
+  // Candidate spaces: a single-space option, or both ends of a two-step "a|b" route.
+  const optionSpaces = (o: { id: string; label: string }): string[] => {
+    const parts = (o.id.includes("|") ? o.id : o.label).split("|");
+    return parts.every((x) => spaceIds.has(x)) ? parts : [];
+  };
+  const readableOptions = (): { id: string; label: string }[] => {
+    if (p.kind !== "CHOOSE_SPACE" && p.kind !== "CHOOSE_TARGET")
+      return p.options.map(({ id, label }) => ({
+        id,
+        label: spaceIds.has(label) ? "a space" : (fighterName(label) ?? label),
+      }));
+    const withSpaces = p.options.filter((o) => optionSpaces(o).length > 0);
+    const routes = withSpaces.filter((o) => optionSpaces(o).length > 1);
+    if (routes.length > 0)
+      return routes.map((o, i) => ({
+        id: o.id,
+        label: `route ${i + 1} of ${routes.length}`,
+      }));
+    if (withSpaces.length > 0)
+      return [
+        {
+          id: "spaces",
+          label: `${withSpaces.length} space${withSpaces.length === 1 ? "" : "s"}`,
+        },
+      ];
+    return p.options.map(({ id, label }) => ({
+      id,
+      label: fighterName(id) ?? fighterName(label) ?? (spaceIds.has(label) ? "a space" : label),
+    }));
   };
   const youChoose = p.player === view.you;
   return {
@@ -377,7 +415,10 @@ export const teamDecisionModel = (
     forName: p.forSeat ? seatName(p.forSeat) : null,
     youChoose,
     description: p.description ?? null,
-    options: youChoose ? [] : p.options.map(({ id, label }) => ({ id, label })),
+    options: youChoose ? [] : readableOptions(),
+    spaces: youChoose
+      ? []
+      : [...new Set(p.options.flatMap((o) => optionSpaces(o)))],
   };
 };
 

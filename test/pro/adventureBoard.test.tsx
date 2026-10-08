@@ -28,6 +28,7 @@ import {
   enemyCombatModel,
   moverIntent,
   parseInitiativeCardId,
+  teamDecisionModel,
 } from "@/lib/pro/adventureBoard";
 import {
   ISLA_NUBLAR_IMAGE,
@@ -876,5 +877,65 @@ describe("adventure column vs hand fan probe (#1178)", () => {
     expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ "overflow-y": "auto" });
     expect(screen.getByTestId("adventure-board-scroll")).toContainElement(screen.getByTestId("adv-villain"));
     expect(screen.getByTestId("adventure-board-live")).toContainElement(screen.getByTestId("adv-engine-fault"));
+  });
+});
+
+describe("teamDecisionModel readability (#1169)", () => {
+  const base = (kind: string, options: { id: string; label: string }[]) =>
+    ({
+      fighters: [
+        fighter("p1/hero", "Leon", { owner: "p1" }),
+        fighter("e1/rex", "Indominus Rex", { owner: "e1", kind: "ENEMY" }),
+      ],
+      you: "p1",
+      map: { spaces: ["s12", "s17", "s18", "s2"].map((id) => ({ id })) },
+      players: [
+        { id: "p1", heroId: "leon-s-kennedy", you: true },
+        { id: "p2", heroId: "hollow-oak-spice", you: false },
+      ],
+      prompt: {
+        promptId: "x",
+        player: "p2",
+        kind,
+        onBehalfOf: "TEAM",
+        forSeat: "e1",
+        options,
+      },
+    }) as unknown as PlayerView;
+  const text = (m: ReturnType<typeof teamDecisionModel>) =>
+    JSON.stringify([m?.chooser, m?.forName, m?.options.map((o) => o.label)]);
+
+  it("names the chooser by hero name, not deck id", () => {
+    const v = base("CHOOSE_SPACE", [{ id: "s2", label: "s2" }]);
+    (v.fighters as unknown as { owner: string }[])[0].owner = "p2";
+    expect(teamDecisionModel(v)?.chooser).toBe("Leon");
+  });
+  it("space prompts become a count plus highlighted spaces", () => {
+    const m = teamDecisionModel(
+      base("CHOOSE_SPACE", [
+        { id: "s2", label: "s2" },
+        { id: "s17", label: "s17" },
+      ]),
+    );
+    expect(m?.options).toEqual([{ id: "spaces", label: "2 spaces" }]);
+    expect(m?.spaces).toEqual(["s2", "s17"]);
+    expect(text(m)).not.toMatch(/\bs\d+/);
+  });
+  it("two-step routes read 'route i of n'", () => {
+    const m = teamDecisionModel(
+      base("CHOOSE_SPACE", [
+        { id: "s12|s17", label: "s12|s17" },
+        { id: "s12|s18", label: "s12|s18" },
+      ]),
+    );
+    expect(m?.options.map((o) => o.label)).toEqual(["route 1 of 2", "route 2 of 2"]);
+    expect(m?.spaces).toEqual(["s12", "s17", "s18"]);
+    expect(text(m)).not.toMatch(/s1[78]/);
+  });
+  it("target prompts show fighter names; option prompts keep labels", () => {
+    const t = teamDecisionModel(base("CHOOSE_TARGET", [{ id: "p1/hero", label: "p1/hero" }]));
+    expect(t?.options[0].label).toBe("Leon");
+    const o = teamDecisionModel(base("CHOOSE_OPTION", [{ id: "a", label: "Discard a card" }]));
+    expect(o?.options[0].label).toBe("Discard a card");
   });
 });
