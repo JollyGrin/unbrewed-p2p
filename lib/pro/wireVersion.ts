@@ -12,9 +12,12 @@
  * can't read it. Every server frame stamps its own `v` though, so the tab
  * learns the engine's version from the first reply on a socket (the
  * LIST_HEROES answer every open asks for) and remembers it per engine URL in
- * sessionStorage: a refresh — including one mid-offer — binds at v35 straight
- * away, and a first visit binds at v34 and is upgraded at game over (see
- * useProSocket). Only 34 and 35 are ever sent.
+ * sessionStorage.
+ *
+ * #1201: since engine #754 the server accepts only {35, 36} and answers v34 with
+ * ERROR{VERSION}, so the v34 fallback is gone: every seat binds at
+ * `PROTOCOL_VERSION` (37 since engine #755), which is already rematch-capable. The learned version
+ * still gates the rematch UI (`engineSpeaksRematch`).
  */
 import { PROTOCOL_VERSION, REMATCH_PROTOCOL_VERSION } from "./protocol";
 
@@ -64,9 +67,11 @@ export function engineSpeaksRematch(url: string): boolean {
   return v !== null && v >= REMATCH_PROTOCOL_VERSION;
 }
 
-/** The `v` to bind a seat with on `url`: 35 for an engine known to speak it, else 34. */
-export function wireVersionFor(url: string): number {
-  return engineSpeaksRematch(url) ? REMATCH_PROTOCOL_VERSION : PROTOCOL_VERSION;
+/** The `v` to bind a seat with on `url`. Always `PROTOCOL_VERSION` since #1201 —
+ *  a prod engine refuses anything below 35, so there is no older version to fall
+ *  back to. Kept as a function so callers stay unchanged. */
+export function wireVersionFor(_url: string): number {
+  return PROTOCOL_VERSION;
 }
 
 /** Test hook: forget every URL. */

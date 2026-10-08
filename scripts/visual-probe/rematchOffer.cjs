@@ -72,18 +72,18 @@ const waitFor = async (q, type) => {
 };
 async function mint({ bot = false } = {}) {
   const a = await wsOpen(ENGINE);
-  a.w.send(JSON.stringify({ v: 34, type: "LIST_HEROES" }));
+  a.w.send(JSON.stringify({ v: 36, type: "LIST_HEROES" }));
   const heroes = (await waitFor(a.q, "HEROES")).heroes;
   const engineV = a.q.find((m) => m.type === "HEROES").v;
   a.w.send(
-    JSON.stringify({ v: 34, type: "CREATE_ROOM", heroId: "king-kong", mulligan: false, ...(bot ? { bot: { difficulty: "easy" } } : {}) })
+    JSON.stringify({ v: 36, type: "CREATE_ROOM", heroId: "king-kong", mulligan: false, ...(bot ? { bot: { difficulty: "easy" } } : {}) })
   );
   const created = await waitFor(a.q, "ROOM_CREATED");
   if (created.type === "ERROR") throw new Error(JSON.stringify(created));
   let joined = null;
   if (!bot) {
     const b = await wsOpen(ENGINE);
-    b.w.send(JSON.stringify({ v: 34, type: "JOIN_ROOM", roomId: created.roomId, heroId: heroes.find((h) => h.heroId !== "king-kong").heroId }));
+    b.w.send(JSON.stringify({ v: 36, type: "JOIN_ROOM", roomId: created.roomId, heroId: heroes.find((h) => h.heroId !== "king-kong").heroId }));
     joined = await waitFor(b.q, "ROOM_JOINED");
     await sleep(500);
     b.w.close();
@@ -128,7 +128,7 @@ const forfeitFrom = async (pages, room) => {
         const f = acts.find((a) => a.type === "FORFEIT");
         const act = f ?? (window.__lastState?.view.phase === "SETUP" ? acts[0] : null);
         if (!act) return null;
-        window.__sockets.at(-1).send(JSON.stringify({ v: 34, type: "ACTION", roomId: room, action: act }));
+        window.__sockets.at(-1).send(JSON.stringify({ v: 36, type: "ACTION", roomId: room, action: act }));
         return act.type;
       }, room);
       if (sent === "FORFEIT") return page.label;
@@ -140,7 +140,7 @@ const forfeitFrom = async (pages, room) => {
     const sent = await page.evaluate((room) => {
       const f = (window.__lastState?.legalActions ?? []).find((a) => a.type === "FORFEIT");
       if (!f) return false;
-      window.__sockets.at(-1).send(JSON.stringify({ v: 34, type: "ACTION", roomId: room, action: f }));
+      window.__sockets.at(-1).send(JSON.stringify({ v: 36, type: "ACTION", roomId: room, action: f }));
       return true;
     }, room);
     if (sent) return page.label;

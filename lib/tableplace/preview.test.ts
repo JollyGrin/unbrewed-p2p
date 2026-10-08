@@ -2,8 +2,21 @@ import { describe, expect, it } from "@jest/globals";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import hollowOak from "@/public/evergreen-decks/hollow-oak.json";
 import { composeTable } from "./composeTable";
-import { fullFakeFaces, labsDeck } from "./fixtures/decks";
-import { NO_TABLE_IMAGES, plainSkipped, previewDeck } from "./preview";
+import {
+  elliotDeck,
+  fullFakeFaces,
+  labsDeck,
+  ruleCardsDeck,
+} from "./fixtures/decks";
+import {
+  deckMetaLine,
+  NO_TABLE_IMAGES,
+  plainSkipped,
+  previewDeck,
+  previewOf,
+  refusedChip,
+  seatLines,
+} from "./preview";
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const oak = () => clone(hollowOak) as unknown as DeckImportType;
@@ -15,6 +28,19 @@ const MAP = {
 };
 
 describe("previewDeck", () => {
+  it("counts every rule card and extra character as a reference card", () => {
+    const extras = previewDeck(ruleCardsDeck(0), fullFakeFaces).referenceCards;
+    expect(extras).toBeGreaterThan(0);
+    expect(previewDeck(ruleCardsDeck(1), fullFakeFaces).referenceCards).toBe(
+      extras + 1,
+    );
+    expect(previewDeck(ruleCardsDeck(3), fullFakeFaces).referenceCards).toBe(
+      extras + 3,
+    );
+    // past what the card row holds, and with no resolver at all
+    expect(previewDeck(ruleCardsDeck(6)).referenceCards).toBe(extras + 6);
+  });
+
   it("gives a deck with no table images one plain line, not a card list", () => {
     const p = previewDeck(oak());
     expect(p.refused).toBe(
@@ -79,5 +105,88 @@ describe("plainSkipped", () => {
     ).toBe(
       "Your deck: “Fire Shield” stays off the table (table.place places at most 100 things)",
     );
+  });
+});
+
+describe("missing faces (issue #1118)", () => {
+  /** A Labs deck with the finished image taken off its first `n` action cards. */
+  const missing = (n: number) => {
+    const deck = labsDeck();
+    deck.deck_data.cards
+      .filter((c) => !c.isCharacterCard)
+      .slice(0, n)
+      .forEach((c) => delete c.cardImage);
+    return previewDeck(deck);
+  };
+
+  it("counts nothing missing on a deck that can go on the table", () => {
+    const p = previewDeck(labsDeck());
+    expect(p.missingFaces).toBe(0);
+    expect(p.finishedFaces).toBeGreaterThan(0);
+  });
+
+  it("counts each card without a finished image once, however many copies", () => {
+    const deck = labsDeck();
+    const card = deck.deck_data.cards.find(
+      (c) => !c.isCharacterCard && c.quantity > 1,
+    )!;
+    delete card.cardImage;
+    const p = previewDeck(deck);
+    expect(p.missingFaces).toBe(1);
+    expect(p.refused).toBe(NO_TABLE_IMAGES);
+    expect(refusedChip(p)).toBe("1 card has no image");
+  });
+
+  it("says how many cards are missing when only some are", () => {
+    expect(refusedChip(missing(1))).toBe("1 card has no image");
+    const two = missing(2);
+    expect(two.missingFaces).toBe(2);
+    expect(two.finishedFaces).toBeGreaterThan(0);
+    expect(refusedChip(two)).toBe("2 cards have no image");
+  });
+
+  it("says a deck has no table images when no card has one", () => {
+    const p = previewDeck(oak());
+    expect(p.finishedFaces).toBe(0);
+    // every card, plus the hero and sidekick cards
+    expect(p.missingFaces).toBeGreaterThan(
+      oak().deck_data.cards.filter((c) => !c.isCharacterCard).length,
+    );
+    expect(refusedChip(p)).toBe("No table images");
+  });
+
+  it("counts nothing missing once a resolver answers the faces", () => {
+    expect(previewDeck(oak(), fullFakeFaces).missingFaces).toBe(0);
+  });
+});
+
+describe("deck lines", () => {
+  it("gives a tile its hero HP and sidekick, and a seat its counts", () => {
+    const p = previewDeck(elliotDeck());
+    expect(deckMetaLine(p)).toBe("12 HP · THE AUDIENCE");
+    expect(seatLines(p)).toEqual([
+      "12 HP · 5 × THE AUDIENCE 1 HP",
+      "30 cards · 6 HP dials",
+    ]);
+  });
+
+  it("leaves the sidekick out when there is none, and counts one dial as one", () => {
+    const p = previewDeck(labsDeck());
+    expect(deckMetaLine(p)).toBe("16 HP");
+    expect(seatLines(p)).toEqual(["16 HP", "30 cards · 1 HP dial"]);
+  });
+
+  it("names a lone sidekick without a count", () => {
+    expect(seatLines(previewDeck(oak()))[0]).toBe("16 HP · The Ember Fox 6 HP");
+  });
+});
+
+describe("previewOf", () => {
+  it("converts a deck once and hands the same preview back", () => {
+    const deck = labsDeck();
+    const first = previewOf(deck);
+    expect(previewOf(deck)).toBe(first);
+    expect(first).toEqual(previewDeck(deck));
+    expect(previewOf(labsDeck())).not.toBe(first);
   });
 });

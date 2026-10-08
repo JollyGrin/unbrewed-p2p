@@ -12,12 +12,13 @@ import {
   boardGeometry,
   type BoardSpaces,
   type BoardGeometry,
-  type CardSlot,
   forSeat,
   FRONT_STRIP,
+  isRuleSlot,
   mapSize,
   OFF_BOARD_FIGHTER_RADIUS,
   PLACEMENT_CAP,
+  ruleCardSplit,
   SEAT_ROTATION,
   seatArea,
   type Seat,
@@ -56,7 +57,8 @@ export type ComposeTableResult = {
 };
 
 const DEFAULT_TTL_SECONDS = 3600;
-const FACE_UP_SLOTS = new Set(["hero", "sidekick", "rules", "extras"]);
+const FACE_UP_SLOTS = new Set(["hero", "sidekick", "extras"]);
+const faceUp = (slot: string) => FACE_UP_SLOTS.has(slot) || isRuleSlot(slot);
 /** The printed start slots a duel hero can begin on, seat 0's fallback first. */
 const START_SLOTS = [1, 2] as const;
 
@@ -83,6 +85,28 @@ export const catalogMapDef = (imageUrl: string): ProMapDef | null => {
       (e) => e.map.meta.imageUrl && absoluteUrl(e.map.meta.imageUrl) === url,
     )?.map ?? null
   );
+};
+
+/**
+ * Rule cards the card row has no cell for become one pile, in the slot of
+ * the first of them. Every rule deck left holding one card has its own cell.
+ */
+const pileRuleOverflow = (pack: TbppPack): TbppPack => {
+  const decks = pack.decks ?? [];
+  const rules = decks.filter((d) => isRuleSlot(d.slot));
+  const { loose, piled } = ruleCardSplit(
+    decks.length - rules.length,
+    rules.length,
+  );
+  if (!piled) return pack;
+  const cards = rules.slice(loose).flatMap((d) => d.cards);
+  return {
+    ...pack,
+    decks: decks.flatMap((d) => {
+      const n = rules.indexOf(d);
+      return n < loose ? [d] : n === loose ? [{ ...d, cards }] : [];
+    }),
+  };
 };
 
 const tokenIndices = (pieces: PlayerPiece[]) =>
@@ -156,9 +180,15 @@ const placeSeat = (
       pack: pack.id,
       slot: deck.slot,
       seat,
-      position: area.card(deck.slot as CardSlot),
+      position: area.card(deck.slot),
       rotation,
-      ...(FACE_UP_SLOTS.has(deck.slot) ? { faceUp: true } : {}),
+      // the draw pile deals in a random order; every other pile is exact
+      ...(deck.slot === "deck" ? { shuffle: true } : {}),
+      ...(faceUp(deck.slot) ? { faceUp: true } : {}),
+      // a rule card with a cell of its own lies on the felt as a card
+      ...(isRuleSlot(deck.slot) && deck.cards.length === 1
+        ? { loose: true }
+        : {}),
     });
   }
 
@@ -282,7 +312,10 @@ export const composeTable = ({
       : mapDef;
   const board = def ? boardGeometry(def, ratio) : null;
 
-  const sides = converted.map((c) => ({ pack: c.pack!, pieces: c.pieces }));
+  const sides = converted.map((c) => ({
+    pack: pileRuleOverflow(c.pack!),
+    pieces: c.pieces,
+  }));
   if (!fitPlacementCap(sides, skipped)) return { body: null, skipped };
   const placed = sides.map((s, seat) =>
     placeSeat(

@@ -194,7 +194,7 @@ export const JoinPage = () => {
 
   if (!router.isReady || !mounted) {
     return (
-      <Wrapper bgImage="background/choosefighter.png" bgBlendMode="multiply">
+      <Wrapper>
         <Spinner color="ghostwhite" size="xl" />
       </Wrapper>
     );
@@ -202,8 +202,8 @@ export const JoinPage = () => {
 
   if (!gid) {
     return (
-      <Wrapper bgImage="background/choosefighter.png" bgBlendMode="multiply">
-        <JoinContainer backdropFilter="blur(6px)">
+      <Wrapper>
+        <JoinContainer>
           <Title>This invite is missing its lobby</Title>
           <Text color="brand.secondary" textAlign="center">
             Ask your friend to copy the invite link again — or set up a game
@@ -227,8 +227,8 @@ export const JoinPage = () => {
   const deckReady = deckChoice !== CHOICE_REMOTE || !!remoteDeck;
 
   return (
-    <Wrapper bgImage="background/choosefighter.png" bgBlendMode="multiply">
-      <JoinContainer backdropFilter="blur(6px)">
+    <Wrapper>
+      <JoinContainer>
         <VStack spacing={1} textAlign="center">
           <Title>You&apos;re invited!</Title>
           <Text color="brand.secondary" opacity={0.8}>
@@ -380,11 +380,10 @@ const Title = (props: { children: React.ReactNode }) => (
   </Text>
 );
 
+// Flat purple backdrop (issue #1192) — matches /connect.
 const Wrapper = styled(Flex)`
   height: 100svh;
-  background-color: slategray;
-  background-position: center;
-  background-size: cover;
+  background-color: var(--chakra-colors-brand-surface);
   justify-content: center;
   align-items: center;
 `;

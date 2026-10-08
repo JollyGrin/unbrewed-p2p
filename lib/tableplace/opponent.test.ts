@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import { bagDeckLabel, opponentDeckLink } from "./opponent";
+import { opponentDeckLink } from "./opponent";
 
 const CHAR = "char_ce316d14-8bc8-413d-9086-ad37b502d0fe";
 
@@ -18,16 +18,4 @@ describe("opponentDeckLink", () => {
     ["labs:66521662a3f5ff4e7a23b429", null],
     ["https://example.com/deck", null],
   ])("%s → %s", (raw, id) => expect(opponentDeckLink(raw)).toBe(id));
-});
-
-describe("bagDeckLabel", () => {
-  const mk = (name: string, hero?: string) =>
-    ({ name, deck_data: { hero: hero ? { name: hero } : undefined } }) as never;
-  it("adds the hero only when the name doesn't say it", () => {
-    expect(bagDeckLabel(mk("Alice Deck", "Alice"))).toBe("Alice Deck");
-    expect(bagDeckLabel(mk("Budget Brawler", "Alice"))).toBe(
-      "Budget Brawler (Alice)",
-    );
-    expect(bagDeckLabel(mk("Plain"))).toBe("Plain");
-  });
 });

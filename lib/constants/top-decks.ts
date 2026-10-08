@@ -226,7 +226,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Mr_Shakespeare",
     likes: 0,
     highlightColour: "#3a3a3a",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/QkB1/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/QkB1/cardback.webp",
   },
   {
     id: "L6Z1",
@@ -355,7 +355,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     likes: 2,
     highlightColour: "#296888",
     // self-hosted (upstream deck has none); also patched into both snapshots
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/pk1x/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/pk1x/cardback.webp",
   },
   {
     // Not a top-40 deck — included because it's Pro-playable (server hero r2-d2)
@@ -439,15 +439,14 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Spice remix of Thetis (display name "Thetis") — server hero thetis-spice.
-    // This is the deck shown on the default roster; reuses Thetis's cardback and
-    // per-card art until dedicated spice art lands.
+    // This is the deck shown on the default roster; dedicated full-card spice art.
     id: "thetis-spice",
     name: "Thetis",
     hero: "Thetis",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#2ec4b6",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/thetis/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/thetis-spice/cardback.webp",
     original: true,
   },
   {
@@ -469,15 +468,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Spice remix of The Piper of the Underroads (display name shared) — server
-    // hero piper-of-the-underroads-spice. Reuses Piper's cardback and per-card
-    // art until dedicated spice art lands.
+    // hero piper-of-the-underroads-spice. Dedicated full-card art + cardback live
+    // under art/piper-spice/.
     id: "piper-spice",
     name: "The Piper of the Underroads",
     hero: "The Piper of the Underroads",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#b06f2e",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/piper/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/piper-spice/cardback.webp",
     original: true,
   },
   {
@@ -498,15 +497,15 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Spice remix of The Hollow Oak (display name shared) — server hero
-    // hollow-oak-spice. Reuses Hollow Oak's cardback and per-card art until
-    // dedicated spice art lands.
+    // hollow-oak-spice. Full-card renders (full-bleed cardImage) and its own
+    // cardback live under art/hollow-oak-spice (#1206).
     id: "hollow-oak-spice",
     name: "The Hollow Oak",
     hero: "The Hollow Oak",
     author: "unbrewed",
     likes: 0,
     highlightColour: "#5f7d3b",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/hollow-oak-spice/cardback.webp",
     original: true,
   },
   {
@@ -529,7 +528,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Evergreen original: Malfurion Stormrage — server hero malfurion-stormrage.
-    // Self-hosted generated art lives in public/evergreen-decks/art/malfurion-stormrage.
+    // Full-card renders (full-bleed cardImage) + card back live in public/evergreen-decks/art/malfurion-stormrage.
     id: "malfurion-stormrage",
     name: "Malfurion Stormrage",
     hero: "Malfurion Stormrage",
@@ -552,7 +551,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     sourceUrl: "https://unmatched.cards/decks/p82X/versions/EZYf44",
     likes: 2,
     highlightColour: "#ce9272",
-    cardbackUrl: "https://unbrewed.xyz/evergreen-decks/art/p82X/cardback.webp",
+    cardbackUrl: "/evergreen-decks/art/p82X/cardback.webp",
   },
   {
     // Pro deck: Darth Vader — the-unmatched.club deck 4173 by Inforce (issue

@@ -12,12 +12,13 @@
  *
  * Each player's kit sits together at their front-right, off the map, like
  * the physical game: the card piles from the draw deck outward (a missing
- * pile leaves no gap), the dials in a row in front of the hero card on, then
- * tokens. The combat spots (a, b) stay in the middle of the front row. Seat 0
- * is at the bottom; seat 1 is the same turned half a turn.
+ * pile leaves no gap), then the rule cards, each a single card in its own
+ * cell; the dials in a row in front of the hero card on, then tokens. The
+ * combat spots (a, b) stay in the middle of the front row. Seat 0 is at the
+ * bottom; seat 1 is the same turned half a turn.
  *
  *   ┌───────────────────────────────────────────────────────┐
- *   │ 1 1 1 R  X  S  H  D  K  b a                           │ seat 1
+ *   │ 1 1 r r  X  S  H  D  K  b a                           │ seat 1
  *   │ • • • •  •  •  •  ░  ░                                │
  *   │ 2 2 2 ┌───────────────────────────────────┐           │
  *   │ 2 2 2 │                                   │           │
@@ -25,11 +26,13 @@
  *   │       │                                   │ 2 2 2     │
  *   │       └───────────────────────────────────┘ 2 2 2     │
  *   │                           ░  ░  •  •  •  •  • • •     │
- *   │                     a b   K  D  H  S  X  R  1 1 1     │ seat 0
+ *   │                     a b   K  D  H  S  X  r  r 1 1     │ seat 0
  *   └───────────────────────────────────────────────────────┘
- *   K deck  D discard  H hero  S sidekick  X extras  R rules
+ *   K deck  D discard  H hero  S sidekick  X extras  r a rule card
+ *   The card row holds CARD_ROW_CELLS cells. Rule cards the row has no cell
+ *   for share its last cell as one pile.
  *   Piece cells fill in this order: • the row in front of the hero card on,
- *   1 the card row past the last pile, 2 the corner beside the map, and
+ *   1 the card row past the last rule card, 2 the corner beside the map, and
  *   ░ in front of the deck and discard.
  */
 export type Seat = 0 | 1;
@@ -88,10 +91,30 @@ export const CARD_ORDER = [
 ] as const;
 export type CardSlot = (typeof CARD_ORDER)[number];
 /**
- * The nth pile a seat has, in CARD_ORDER with no gaps: the draw deck nearest
- * the player's centre-right, 0.5 clear of the boost card.
+ * The nth cell of a seat's card row, in CARD_ORDER with no gaps: the draw
+ * deck nearest the player's centre-right, 0.5 clear of the boost card.
  */
 export const pileX = (n: number) => round(3.4 + n * PILE_STEP);
+const CARD_HALF_WIDTH = 0.7;
+/** Cells of the card row a whole card fits in, inside VIEW. */
+export const CARD_ROW_CELLS =
+  Math.floor((VIEW.halfX - CARD_HALF_WIDTH - pileX(0)) / PILE_STEP + 1e-9) + 1;
+
+/** The nth rule card's slot: `rules`, `rules-2`, `rules-3`, … */
+export const ruleSlot = (n: number) => (n ? `rules-${n + 1}` : "rules");
+export const isRuleSlot = (slot: string) => /^rules(-\d+)?$/.test(slot);
+
+/**
+ * How `rules` rule cards share what the card row has left after `piles`
+ * piles: `loose` of them lie one to a cell. When the row has no cell for
+ * every one, the other `piled` share its last cell as one pile.
+ */
+export const ruleCardSplit = (piles: number, rules: number) => {
+  const cells = Math.max(1, CARD_ROW_CELLS - piles);
+  return rules <= cells
+    ? { loose: rules, piled: 0 }
+    : { loose: cells - 1, piled: rules - cells + 1 };
+};
 
 /**
  * Seat 0's piece row, between the card piles and the map: an off-board
@@ -106,16 +129,20 @@ const CORNER_Z_TOP = PIECE_ROW_Z - PIECE_STEP;
 const CORNER_Z_BOTTOM = 0.5;
 
 export type SeatArea = {
-  card: (slot: CardSlot) => XZ;
+  /** A pile's cell, or a rule card's: `rules`, `rules-2`, … after the piles. */
+  card: (slot: string) => XZ;
   /**
    * The kit's piece cells, nearest the hero card first: the row in front of
-   * the hero card on; the card row past the last pile; the corner beside the
-   * map; then in front of the deck and discard. Ends when full.
+   * the hero card on; the card row past the last rule card; the corner beside
+   * the map; then in front of the deck and discard. Ends when full.
    */
   kit: () => Generator<XZ, void>;
 };
 
-/** Seat 0's coordinates, mirrored for seat 1, for the piles in `slots`. */
+/**
+ * Seat 0's coordinates, mirrored for seat 1, for the piles and rule cards in
+ * `slots`. Rule slots past the row's last cell land on that cell.
+ */
 export const seatArea = (
   seat: Seat,
   mapWidth: number,
@@ -125,14 +152,19 @@ export const seatArea = (
   const along = function* (from: number, z: number, to = PIECE_X_MAX) {
     for (let x = from; x <= to + 1e-9; x += PIECE_STEP) yield at([round(x), z]);
   };
-  const piles = CARD_ORDER.filter((s) => slots.includes(s));
+  const piles = CARD_ORDER.filter((s) => s !== "rules" && slots.includes(s));
+  const rules = slots.filter(isRuleSlot);
+  const cards = [...piles, ...rules];
+  const { loose, piled } = ruleCardSplit(piles.length, rules.length);
+  const cells = piles.length + loose + (piled ? 1 : 0);
   const drawPiles = piles.filter((s) => s === "deck" || s === "discard");
   const heroX = pileX(drawPiles.length);
   return {
-    card: (slot) => at([pileX(piles.indexOf(slot)), FRONT_ROW_Z]),
+    card: (slot) =>
+      at([pileX(Math.min(cards.indexOf(slot), cells - 1)), FRONT_ROW_Z]),
     kit: function* () {
       yield* along(heroX, PIECE_ROW_Z);
-      yield* along(pileX(piles.length), FRONT_ROW_Z);
+      yield* along(pileX(cells), FRONT_ROW_Z);
       const x0 = mapWidth / 2 + 1;
       for (let z = CORNER_Z_TOP; z >= CORNER_Z_BOTTOM - 1e-9; z -= PIECE_STEP) {
         yield* along(x0, round(z));

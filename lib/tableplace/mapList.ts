@@ -3,11 +3,17 @@ import type { MapData } from "@/lib/hooks/useLocalStorage";
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
 import { mapSpacesEntry } from "./mapSpaces";
 
+/** The gallery's sections, in the order they are shown. */
+export const MAP_GROUPS = ["pro", "bag", "spaces", "image"] as const;
+export type MapGroup = (typeof MAP_GROUPS)[number];
+
 export type TableMapOption = MapData & {
-  /** The label shown in the picker. */
+  /** The title shown in the gallery. */
   label: string;
   /** A board that snaps figures to spaces. */
   spaces: boolean;
+  /** The gallery section the map is listed under. */
+  group: MapGroup;
 };
 
 /** Built-ins that are test uploads: kept in the shared list, left out of this picker. */
@@ -30,16 +36,20 @@ const titleOf = (m: MapData) => (m.meta?.title ?? m.imgUrl).trim();
 /** The one place that decides which picker entries count as snapping boards. */
 export const isSpacesMap = (m: Pick<TableMapOption, "spaces">) => m.spaces;
 
-/** The picker's two groups, each in list order. */
-export const groupMapList = (maps: TableMapOption[]) => ({
-  spaces: maps.filter(isSpacesMap),
-  other: maps.filter((m) => !isSpacesMap(m)),
+/** The gallery's four sections, each in list order. */
+export const groupMapList = (
+  maps: TableMapOption[],
+): Record<MapGroup, TableMapOption[]> => ({
+  pro: maps.filter((m) => m.group === "pro"),
+  bag: maps.filter((m) => m.group === "bag"),
+  spaces: maps.filter((m) => m.group === "spaces"),
+  image: maps.filter((m) => m.group === "image"),
 });
 
 /**
- * The `/table` map picker: your bag's maps, then the built-ins minus the junk,
- * plus the catalog boards the shared list lacks. Boards that snap figures to
- * spaces (marked) come first; each group is sorted by title.
+ * The `/table` map gallery: the Pro boards in catalog order, then your bag's
+ * other maps, then the built-ins (minus the junk) that snap figures to spaces,
+ * then the image-only rest. Every group but the first is sorted by title.
  */
 export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
   const catalog = new Map(
@@ -48,6 +58,7 @@ export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
       e,
     ]),
   );
+  const catalogOrder = [...catalog.keys()];
   const builtIn: MapData[] = (defaultMaps as MapData[]).filter(
     (m) =>
       !JUNK.test(m.imgUrl) &&
@@ -58,21 +69,30 @@ export const buildMapList = (bagMaps: MapData[] = []): TableMapOption[] => {
     imgUrl: path,
     meta: { title: e.title, author: "", url: "" },
   }));
+  const inBag = new Set(bagMaps.map((m) => m.imgUrl));
 
   const seen = new Set<string>();
   const list = [...bagMaps, ...builtIn, ...fromCatalog]
     .filter((m) => (seen.has(m.imgUrl) ? false : (seen.add(m.imgUrl), true)))
-    .map((m) => {
+    .map((m): TableMapOption => {
+      const pro = catalog.has(pathOf(m.imgUrl));
       const spaces =
-        catalog.has(pathOf(m.imgUrl)) ||
-        !!mapSpacesEntry(m.imgUrl) ||
-        !!m.layout?.spaces.length;
-      const title = titleOf(m);
-      return { ...m, label: spaces ? `${title} · spaces` : title, spaces };
+        pro || !!mapSpacesEntry(m.imgUrl) || !!m.layout?.spaces.length;
+      const group = pro
+        ? "pro"
+        : inBag.has(m.imgUrl)
+          ? "bag"
+          : spaces
+            ? "spaces"
+            : "image";
+      return { ...m, label: titleOf(m), spaces, group };
     })
     .sort((a, b) =>
-      titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: "base" }),
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
     );
-  const { spaces, other } = groupMapList(list);
-  return [...spaces, ...other];
+  const { pro, bag, spaces, image } = groupMapList(list);
+  const catalogIndex = (m: TableMapOption) =>
+    catalogOrder.indexOf(pathOf(m.imgUrl));
+  pro.sort((a, b) => catalogIndex(a) - catalogIndex(b));
+  return [...pro, ...bag, ...spaces, ...image];
 };
