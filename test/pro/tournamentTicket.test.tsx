@@ -898,41 +898,45 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
     const calls = api({
       roomGone: () => (n++ === 0 ? { status: 200, body: { cleared: false, reason: "too_soon" } } : { status: 200, body: { cleared: true } }),
       ticket: () => ({ action: "create", roomId: null, ticket: "unrecorded.sig" }),
-      detail: () => detailWithRoom(29_800), // 0.2s left of the 30s gate (+1s slack)
+      detail: () => detailWithRoom(29_800), // 0.2s left of the 30s gate (+2s slack)
     });
     const assign = await deadRoomCard();
     await click(screen.getByText("Try again"));
     await flush();
-    expect(screen.getByTestId("room-releasing")).toHaveTextContent(/This match's room closed\. Releasing it in [12] s…/);
+    expect(screen.getByTestId("room-releasing")).toHaveTextContent(/This match's room closed\. Releasing it in [23] s…/);
     expect(reports(calls)).toBe(1);
-    await wait(1400);
+    await wait(2400);
     await flush();
     expect(reports(calls)).toBe(2);
     expect(screen.queryByTestId("room-releasing")).toBeNull();
     expect(assign).toHaveBeenCalledWith(expect.stringContaining("#ticket=created.sig"));
   });
 
-  it("too_soon twice: no second wait, no loop — the still-gone copy", async () => {
+  it("too_soon three times: two automatic re-asks, no loop — the still-gone copy", async () => {
     const calls = api({
-      roomGone: () => ({ status: 200, body: { cleared: false, reason: "too_soon" } }),
+      // The api says the gate is over: each re-ask comes after just the slack.
+      roomGone: () => ({ status: 200, body: { cleared: false, reason: "too_soon", retryAfterMs: 0 } }),
       ticket: () => ({ action: "join", roomId: "GONE", ticket: "again.sig" }),
       detail: () => detailWithRoom(29_800),
     });
     const assign = await deadRoomCard();
     await retry();
-    await wait(1400);
+    await wait(2400);
     await flush();
     expect(reports(calls)).toBe(2);
+    await wait(2400);
+    await flush();
+    expect(reports(calls)).toBe(3);
     expect(screen.getByRole("alert")).toHaveTextContent(ROOM_STILL_GONE);
-    await wait(1400);
-    expect(reports(calls)).toBe(2);
+    await wait(2400);
+    expect(reports(calls)).toBe(3);
     // A later press asks once more, but never waits again on this screen.
     await retry();
     expect(screen.queryByTestId("room-releasing")).toBeNull();
-    await wait(1400);
-    expect(reports(calls)).toBe(3);
+    await wait(2400);
+    expect(reports(calls)).toBe(4);
     expect(assign).not.toHaveBeenCalled();
-  });
+   }, 15_000); // three real-time waits of the slack
 
   it.each(["not_room_creator", "room_not_live", "match_in_play"])("%s never waits or retries", async (reason) => {
     const calls = api({
@@ -958,7 +962,7 @@ describe("a tagged room the engine lost (ROOM_NOT_FOUND, #1268 contract item 2)"
     await flush();
     expect(screen.getByTestId("room-releasing")).toBeInTheDocument();
     cleanup();
-    await wait(1400);
+    await wait(2400);
     expect(reports(calls)).toBe(1);
   });
 

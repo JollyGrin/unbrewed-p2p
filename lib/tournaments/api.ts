@@ -346,7 +346,12 @@ export const reportRoomGone = (slug: string, matchId: string, roomId: string) =>
     `${matchPath(slug, matchId)}/room-gone`,
     { method: "POST", body: JSON.stringify({ roomId }) },
     // `reason` on a refusal (api #125): too_soon, not_room_creator, room_not_live, match_in_play, …
-    (b) => ({ cleared: b?.cleared === true, ...(typeof b?.reason === "string" ? { reason: b.reason as string } : {}) }),
+    // `retryAfterMs`: what a `too_soon` says is left of its age gate, when it says (no api build sends it yet).
+    (b) => ({
+      cleared: b?.cleared === true,
+      ...(typeof b?.reason === "string" ? { reason: b.reason as string } : {}),
+      ...(typeof b?.retryAfterMs === "number" && Number.isFinite(b.retryAfterMs) ? { retryAfterMs: b.retryAfterMs as number } : {}),
+    }),
     REQUEST_TIMEOUT_MS,
   );
 

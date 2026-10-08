@@ -6,8 +6,8 @@
  * reuse `POST …/ticket`, but a CREATE is always a recorded `POST …/ready`. A
  * room the engine no longer has (ROOM_NOT_FOUND) is reported to the api first
  * (`POST …/room-gone`, #1268), so the retry can't loop back into it. A room
- * too young to clear (api `too_soon`) waits out the age gate and retries ONCE
- * (p2p #1269); leaving the screen cancels the wait. MATCHUP_LOCKED keeps the
+ * too young to clear (api `too_soon`) waits out the age gate and retries, at
+ * most twice (p2p #1269); leaving the screen cancels the wait. MATCHUP_LOCKED keeps the
  * engine's own sentence (it names the situation) and, for a map edited after it
  * was locked, says who can fix it (p2p #1279, UX S7).
  */
@@ -29,12 +29,16 @@ import {
   opponentRoomGoneText,
   OWN_ROOM_GONE,
   playErrorMessage,
+  askDeadRoom,
+  MAX_ROOM_RELEASE_RETRIES,
   releasingText,
-  reportDeadRoom,
+  roomClocks,
+  roomReleaseRetryWaitMs,
   roomReleaseWaitMs,
   ROOM_STILL_GONE,
   settledReport,
   type DeadRoomGrant,
+  type DeadRoomReport,
 } from "@/lib/tournaments/usePlayMatch";
 
 /** The engine's MATCHUP_LOCKED text when the board's content hash no longer matches the lock. */
@@ -153,17 +157,24 @@ export const TicketErrorScreen = ({
     setRetryNote(null);
     let r: DeadRoomGrant;
     if (deadRoom) {
-      let report = (deadReport.current?.room === deadRoom ? deadReport.current.report : null) ?? (await reportDeadRoom(at.slug, at.matchId, deadRoom));
+      const cached = deadReport.current?.room === deadRoom ? deadReport.current.report : null;
+      const firstAskedAt = serverNow();
+      let { report, retryAfterMs } = cached ? { report: cached as DeadRoomReport, retryAfterMs: null } : await askDeadRoom(at.slug, at.matchId, deadRoom);
       if (report === "too_soon" && waitedFor.current !== deadRoom) {
-        // The room (or our ticket) is under 30s old: wait it out and ask ONCE more.
+        // The room (or our ticket) is younger than the api's age gate: wait it
+        // out and ask again, at most twice, all on the api's clock.
         waitedFor.current = deadRoom;
         const d = await getMatch(at.slug, at.matchId).catch(() => null);
-        const wait = roomReleaseWaitMs(d?.ok ? d.value : null, deadRoom, serverNow());
-        setReleaseAt(Date.now() + wait);
-        const waited = await sleep(wait);
-        if (!waited) return; // left the screen
-        setReleaseAt(null);
-        report = await reportDeadRoom(at.slug, at.matchId, deadRoom);
+        const detail = d?.ok ? d.value : null;
+        let wait = roomReleaseWaitMs(detail, deadRoom, serverNow());
+        for (let retries = 0; report === "too_soon" && retries < MAX_ROOM_RELEASE_RETRIES; retries++) {
+          if (retries > 0) wait = roomReleaseRetryWaitMs(roomClocks(detail).goneMinAgeMs, retryAfterMs, firstAskedAt, serverNow());
+          setReleaseAt(Date.now() + wait);
+          const waited = await sleep(wait);
+          if (!waited) return; // left the screen
+          setReleaseAt(null);
+          ({ report, retryAfterMs } = await askDeadRoom(at.slug, at.matchId, deadRoom));
+        }
       }
       if (settledReport(report)) deadReport.current = { room: deadRoom, report };
       r = report === "legacy" ? await freshGrant(at.slug, at.matchId) : await grantAvoiding(at.slug, at.matchId, deadRoom);

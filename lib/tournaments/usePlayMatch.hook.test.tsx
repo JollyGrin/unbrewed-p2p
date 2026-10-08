@@ -292,19 +292,19 @@ describe("p2p #1269", () => {
     expect(playErrorMessage({ ok: false, reason: "unavailable" })).toBe("Couldn't reach the server. Try again.");
   });
 
-  it("roomReleaseWaitMs: the rest of the 30s gate from the room's create check (+1s), bounded", () => {
+  it("roomReleaseWaitMs: the rest of the 30s gate from the room's create check (+2s), bounded", () => {
     const now = Date.parse("2026-10-07T12:00:00Z");
     const d = (agoMs: number, roomId = "GONE", role = "create") =>
       ({
         match: { slotA: "e1", slotB: "e2" },
         readyChecks: [{ entryId: "e1", roomId, role, createdAt: new Date(now - agoMs).toISOString() }],
       }) as never;
-    expect(roomReleaseWaitMs(d(10_000), "GONE", now)).toBe(21_000);
-    expect(roomReleaseWaitMs(d(60_000), "GONE", now)).toBe(1_000);
-    expect(roomReleaseWaitMs(d(-60_000), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000); // a skewed future check
-    expect(roomReleaseWaitMs(d(10_000, "OTHER"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
-    expect(roomReleaseWaitMs(d(10_000, "GONE", "join"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
-    expect(roomReleaseWaitMs(null, "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 1_000);
+    expect(roomReleaseWaitMs(d(10_000), "GONE", now)).toBe(22_000);
+    expect(roomReleaseWaitMs(d(60_000), "GONE", now)).toBe(2_000);
+    expect(roomReleaseWaitMs(d(-60_000), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 2_000); // a skewed future check
+    expect(roomReleaseWaitMs(d(10_000, "OTHER"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 2_000);
+    expect(roomReleaseWaitMs(d(10_000, "GONE", "join"), "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 2_000);
+    expect(roomReleaseWaitMs(null, "GONE", now)).toBe(ROOM_GONE_MIN_AGE_MS + 2_000);
   });
 });
 
@@ -321,9 +321,9 @@ describe("the api's room clocks (match detail roomOpenGraceMs / roomGoneMinAgeMs
 
   it("roomReleaseWaitMs waits out the api's own gate, the 30 s fallback only when it sends none", () => {
     const check = { entryId: "e1", roomId: "GONE", role: "create", createdAt: new Date(now - 10_000).toISOString() };
-    expect(roomReleaseWaitMs(detail({ roomGoneMinAgeMs: 60_000 }, [check]), "GONE", now)).toBe(51_000);
-    expect(roomReleaseWaitMs(detail({ roomGoneMinAgeMs: 60_000 }), "GONE", now)).toBe(61_000);
-    expect(roomReleaseWaitMs(detail({}, [check]), "GONE", now)).toBe(21_000);
+    expect(roomReleaseWaitMs(detail({ roomGoneMinAgeMs: 60_000 }, [check]), "GONE", now)).toBe(52_000);
+    expect(roomReleaseWaitMs(detail({ roomGoneMinAgeMs: 60_000 }), "GONE", now)).toBe(62_000);
+    expect(roomReleaseWaitMs(detail({}, [check]), "GONE", now)).toBe(22_000);
   });
 
   it("readyDecision: an opponent's opening room is waited on for the api's grace, else the 90 s fallback", () => {
