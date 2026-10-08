@@ -12,21 +12,26 @@ export const tabHidden = (): boolean => typeof document !== "undefined" && docum
 
 export type PollVerdict = "ok" | "fail" | "stop";
 
+/** A focus right after a tick (the same return also fires `visibilitychange`) asks nothing new. */
+const FOCUS_GAP_MS = 2_000;
+
 /**
  * Runs `tick` once now (or first after one interval with `{ immediate: false }`),
  * then every `baseMs` (backed off after failures), never while the tab is
- * hidden, and once straight away when it becomes visible. `tick` returns
- * "stop" to end the polling for good. Returns the cancel function.
+ * hidden, and once straight away when it becomes visible (or, with
+ * `{ onFocus: true }`, when the window regains focus). `tick` returns "stop" to
+ * end the polling for good. Returns the cancel function.
  */
 export const startPoll = (
   baseMs: number,
   tick: () => Promise<PollVerdict>,
-  { immediate = true }: { immediate?: boolean } = {},
+  { immediate = true, onFocus = false }: { immediate?: boolean; onFocus?: boolean } = {},
 ): (() => void) => {
   let alive = true;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let busy = false;
+  let lastRun = 0;
   const schedule = () => {
     if (!alive) return;
     clearTimeout(timer);
@@ -36,6 +41,7 @@ export const startPoll = (
     if (!alive) return;
     if (tabHidden() || busy) return schedule();
     busy = true;
+    lastRun = Date.now();
     const verdict = await tick().catch((): PollVerdict => "fail");
     busy = false;
     if (!alive || verdict === "stop") return;
@@ -48,23 +54,29 @@ export const startPoll = (
       void run();
     }
   };
+  const onFocused = () => {
+    if (Date.now() - lastRun >= FOCUS_GAP_MS) onVisible();
+  };
   document.addEventListener("visibilitychange", onVisible);
+  if (onFocus) window.addEventListener("focus", onFocused);
   if (immediate) void run();
   else schedule();
   return () => {
     alive = false;
     clearTimeout(timer);
     document.removeEventListener("visibilitychange", onVisible);
+    if (onFocus) window.removeEventListener("focus", onFocused);
   };
 };
 
 /**
  * The hook side of the same rules, on `startPoll`: calls `reload` every
  * backed-off interval while enabled and visible, and once when the tab becomes
- * visible again (the caller's own load covers the first fetch). `failures` is
- * the count of consecutive failed loads (it doubles the delay).
+ * visible again (the caller's own load covers the first fetch), and with
+ * `onFocus` when the window regains focus. `failures` is the count of
+ * consecutive failed loads (it doubles the delay).
  */
-export const usePoll = (enabled: boolean, baseMs: number, failures: number, reload: () => void) => {
+export const usePoll = (enabled: boolean, baseMs: number, failures: number, reload: () => void, onFocus = false) => {
   useEffect(() => {
     if (!enabled || baseMs <= 0) return;
     return startPoll(
@@ -73,9 +85,9 @@ export const usePoll = (enabled: boolean, baseMs: number, failures: number, relo
         reload();
         return "ok";
       },
-      { immediate: false },
+      { immediate: false, onFocus },
     );
-  }, [enabled, baseMs, failures, reload]);
+  }, [enabled, baseMs, failures, reload, onFocus]);
 };
 
 /**

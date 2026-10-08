@@ -383,7 +383,9 @@ describe("back to a tournament room after the browser died (journeys S6)", () =>
     await mount({ room: ROOM }, { socket: false }); // the gate's card: the game page never mounts
     await flush(10);
     expect(screen.queryByText(`JOIN ROOM ${ROOM}`)).not.toBeInTheDocument();
-    expect(screen.getByTestId("ticket-error")).toHaveTextContent("another tab or device");
+    // This browser kept no record of the seat: offer one, never claim another tab holds it.
+    expect(screen.getByTestId("ticket-error")).toHaveTextContent("Get your seat for this match to play here.");
+    expect(screen.getByText("Get my seat")).toBeInTheDocument();
   });
 
   it("(control) a guest's ?room= link with a stored token for a casual room keeps the join picker", async () => {
@@ -488,4 +490,136 @@ it("the hero splash never tells a touch screen to hover (journeys polish)", asyn
   };
   expect(ruleFor(touch)).toMatch(/@media \(hover: ?none\)[^}]*\{[^}]*display: ?block/);
   expect(ruleFor(screen.getByTestId("splash-hint-mouse"))).toMatch(/@media \(hover: ?none\)[^}]*\{[^}]*display: ?none/);
+});
+
+describe("a room that is no longer this player's: only the notice", () => {
+  /** The api signs in as u-me; the match's detail is `detail()`. */
+  const signedInApi = (detail: () => unknown) => {
+    global.fetch = jest.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/me")) return { ok: true, status: 200, headers: new Headers(), json: async () => ({ user: { id: "u-me", username: "final-ann" } }) } as Response;
+      if (/\/tournaments\/autumn-skirmish\/matches\/m2-1$/.test(u)) return { ok: true, status: 200, headers: new Headers(), json: async () => detail() } as Response;
+      return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) } as Response;
+    }) as unknown as typeof fetch;
+  };
+  const board = () => screen.queryAllByTestId("plate-name-block", { hidden: true } as never);
+
+  it("moved out of the match by the organizer: the board goes, the socket closes for good, the notice stays", async () => {
+    __resetAccountStoreForTests();
+    signedInApi(() => {
+      const d = openDetail();
+      d.players = { a: { ...fixtureMatch("waiting").detail.players.a!, userId: "u-ben" }, b: { ...fixtureMatch("waiting").detail.players.b!, userId: "u-dan" } };
+      return d;
+    });
+    await mount(LOCKED);
+    await deliver({ type: "ROOM_JOINED", roomId: "SF2ROOM", token: "tok", you: "p2" });
+    await deliver({ type: "STATE", view: inPlay({ you: "p2" }), legalActions: [], events: [] });
+    const socket = FakeWebSocket.latest()!;
+    await flush(10);
+    expect(screen.getByTestId("room-closed")).toHaveTextContent("You are no longer in this match (the organizer changed the bracket).");
+    expect(screen.getByTestId("match-removed-banner").querySelector("a")).toHaveTextContent("Back to the match");
+    expect(screen.getByTestId("match-removed-banner").querySelector("a")).toHaveAttribute("href", "/tournaments?t=autumn-skirmish&m=m2-1");
+    expect(board()).toHaveLength(0);
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
+    // Being moved out is final: a late snapshot never brings the board back.
+    await act(async () => {
+      socket.onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, type: "STATE", view: inPlay({ you: "p2" }), legalActions: [], events: [] }) });
+    });
+    await flush(4);
+    expect(screen.getByTestId("room-closed")).toBeInTheDocument();
+    expect(board()).toHaveLength(0);
+    const sockets = FakeWebSocket.instances.length;
+    await act(async () => {
+      socket.onclose?.({ code: 1006 });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await flush(4);
+    expect(FakeWebSocket.instances.length).toBe(sockets);
+  });
+
+  it("the waiting room's hold ran out: the expiry notice and ONE way back, no waiting copy or chime", async () => {
+    api(() => ({
+      ...openDetail(),
+      liveRoom: null,
+      readyChecks: [{ id: "rc", gameIndex: 0, entryId: "e1", createdAt: iso(Date.now() - 16 * 60_000), expiresAt: iso(Date.now() - 60_000), roomId: "SF2ROOM", outcome: "pending", role: "create" }],
+    }));
+    await mount(LOCKED);
+    await deliver({ type: "ROOM_CREATED", roomId: "SF2ROOM", token: "tok", you: "p1" });
+    await flush(8);
+    expect(screen.getByTestId("hold-expired-banner")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("Waiting for an opponent");
+    expect(document.body).not.toHaveTextContent("Go do something else");
+    expect(screen.queryByTestId("lobby-sound-toggle")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link").filter((a) => /back to the match/i.test(a.textContent ?? ""))).toHaveLength(1);
+  });
+
+  it("…but a join that lands after our expiry starts the game: the board shows and the notice goes", async () => {
+    api(() => ({
+      ...openDetail(),
+      liveRoom: null,
+      readyChecks: [{ id: "rc", gameIndex: 0, entryId: "e1", createdAt: iso(Date.now() - 16 * 60_000), expiresAt: iso(Date.now() - 60_000), roomId: "SF2ROOM", outcome: "pending", role: "create" }],
+    }));
+    await mount(LOCKED);
+    await deliver({ type: "ROOM_CREATED", roomId: "SF2ROOM", token: "tok", you: "p1" });
+    await flush(8);
+    expect(screen.getByTestId("hold-expired-banner")).toBeInTheDocument();
+    await deliver({ type: "STATE", view: inPlay(), legalActions: [], events: [] });
+    await flush(4);
+    expect(screen.queryByTestId("room-closed")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hold-expired-banner")).not.toBeInTheDocument();
+    expect(board().length).toBeGreaterThan(0);
+    expect(FakeWebSocket.latest()!.readyState).toBe(FakeWebSocket.OPEN);
+  });
+
+  it("(control) still in the match: the board stays and the socket stays open", async () => {
+    __resetAccountStoreForTests();
+    signedInApi(() => {
+      const d = openDetail();
+      d.players = { a: { ...fixtureMatch("waiting").detail.players.a!, userId: "u-me" }, b: { ...fixtureMatch("waiting").detail.players.b!, userId: "u-dan" } };
+      return d;
+    });
+    await mount(LOCKED);
+    await deliver({ type: "ROOM_JOINED", roomId: "SF2ROOM", token: "tok", you: "p2" });
+    await deliver({ type: "STATE", view: inPlay({ you: "p2" }), legalActions: [], events: [] });
+    await flush(10);
+    expect(screen.queryByTestId("room-closed")).not.toBeInTheDocument();
+    expect(board().length).toBeGreaterThan(0);
+    expect(FakeWebSocket.latest()!.readyState).toBe(FakeWebSocket.OPEN);
+  });
+});
+
+describe("a ticket load before the router is ready", () => {
+  /** The static export's first render: no query yet, `isReady` false. */
+  const page = (ready: boolean, query: Query) => (
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <RouterContext.Provider value={{ ...(fakeRouter(ready ? query : {}) as object), isReady: ready } as never}>
+        <ChakraProvider theme={theme}>
+          <ProGamePage />
+        </ChakraProvider>
+      </RouterContext.Provider>
+    </QueryClientProvider>
+  );
+
+  it("holds 'Opening your room…' instead of flashing the casual 'CREATE A ROOM' lobby, then opens the tournament picker", async () => {
+    api(openDetail);
+    window.history.replaceState(null, "", "/pro/game?tour=autumn-skirmish&match=m2-1#ticket=payload.sig");
+    const { rerender } = render(page(false, {}));
+    expect(screen.getByTestId("ticket-arriving")).toHaveTextContent("OPENING YOUR ROOM…");
+    // The game is already mounted (its socket stays), hidden under the hold.
+    expect(screen.getByText("CREATE A ROOM")).not.toBeVisible();
+    await act(async () => {
+      rerender(page(true, { tour: "autumn-skirmish", match: "m2-1" }));
+    });
+    await deliver({ type: "HEROES", heroes: HEROES });
+    expect(screen.queryByTestId("ticket-arriving")).not.toBeInTheDocument();
+    expect(screen.getByText(/TOURNAMENT · /)).toBeInTheDocument();
+    expect(screen.queryByText("CREATE A ROOM")).not.toBeInTheDocument();
+  });
+
+  it("(control) a casual load with no ticket keeps its usual first frame", async () => {
+    window.history.replaceState(null, "", "/pro/game");
+    render(page(false, {}));
+    expect(screen.queryByTestId("ticket-arriving")).not.toBeInTheDocument();
+    expect(screen.getByText("CREATE A ROOM")).toBeInTheDocument();
+  });
 });

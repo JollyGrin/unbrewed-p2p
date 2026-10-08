@@ -83,6 +83,14 @@ describe("browse drafts", () => {
     expect(withMyDrafts([pub], [draft, pub]).map((t) => t.id)).toEqual(["p1", "d1"]);
     expect(withMyDrafts([pub], []).map((t) => t.id)).toEqual(["p1"]);
   });
+  it("a cancelled event of mine that the public list leaves out shows under My tournaments only", () => {
+    const off = T({ id: "c1", status: "cancelled" });
+    expect(withMyDrafts([pub], [off, pub]).map((t) => t.id)).toEqual(["p1", "c1"]);
+    const mine = new Set(["c1"]);
+    expect(matchesFilter(off, "all", mine)).toBe(false);
+    expect(matchesFilter(off, "done", mine)).toBe(false);
+    expect(matchesFilter(off, "mine", mine)).toBe(true);
+  });
   it("a draft shows only under My tournaments", () => {
     const mine = new Set(["d1"]);
     expect(matchesFilter(draft, "all", mine)).toBe(false);

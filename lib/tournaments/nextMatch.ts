@@ -115,7 +115,8 @@ export const nextMatchView = (
             : "open";
   // Rule 1 about to apply is the only past-deadline state with nothing to press.
   const canPlay = state === "open" || (state === "deadline_passed" && outcome !== "ready_check");
-  const playOpensAt = canPlay || state === "opponent_ready" ? activeReseatCooldown(m, null, now) : null;
+  // `/me/tournaments` doesn't carry the re-seat cooldown; the match detail does.
+  const playOpensAt = canPlay || state === "opponent_ready" ? activeReseatCooldown(m, detail?.match.reseatCooldownUntil ?? null, now) : null;
 
   const mu = matchupLine(m.matchup);
   const mine = mineIsA ? mu.heroA : mu.heroB;

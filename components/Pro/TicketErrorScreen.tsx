@@ -58,6 +58,7 @@ export const TicketErrorScreen = ({
   at,
   roomId = null,
   retry: forceRetry = false,
+  retryLabel = "Try again",
   pendingLaunch = false,
   navigate = assignTicketHref,
 }: {
@@ -74,6 +75,8 @@ export const TicketErrorScreen = ({
   roomId?: string | null;
   /** Offer the retry even with no code (a seat this browser can't resume). */
   retry?: boolean;
+  /** The retry button's words: nothing failed when a player simply has no seat yet. */
+  retryLabel?: string;
   /** The match this room belongs to; null = a tagged room we can't place (#1230). */
   at: TournamentRoom | null;
   /**
@@ -224,7 +227,7 @@ export const TicketErrorScreen = ({
       <Flex gap="0.75rem" flexWrap="wrap" justifyContent="center">
         {retryable && (
           <Button {...BTN_GOLD} isLoading={busy} onClick={() => void retry()}>
-            Try again
+            {retryLabel}
           </Button>
         )}
         {!finished && (

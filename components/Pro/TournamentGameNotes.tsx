@@ -9,7 +9,7 @@
 import { Box, Button, Flex, Link, Tag, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 
-import { holdLeftText, MatchDecidedBanner } from "@/components/Pro/MatchDecidedBanner";
+import { holdLeftText, MatchDecidedBanner, type MatchNotice } from "@/components/Pro/MatchDecidedBanner";
 import { fmtCountdown } from "@/components/Pro/ProHud";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
@@ -112,9 +112,19 @@ export const useTaggedGameEndReason = (at: TournamentRoom | null, roomId: string
  * "Keep this tab open" leads: the pre-game seat also goes ~60 s after the
  * socket drops.
  */
-export const TournamentWaiting = ({ at, roomId, boardUnknown }: { at: TournamentRoom; roomId: string | null; boardUnknown: boolean }) => (
+export const TournamentWaiting = ({
+  at,
+  roomId,
+  boardUnknown,
+  onNotice,
+}: {
+  at: TournamentRoom;
+  roomId: string | null;
+  boardUnknown: boolean;
+  onNotice?: (notice: MatchNotice) => void;
+}) => (
   <Flex direction="column" alignItems="center" gap="0.5rem" data-testid="tournament-waiting">
-    <MatchDecidedBanner at={at} roomId={roomId}>
+    <MatchDecidedBanner at={at} roomId={roomId} onNotice={onNotice}>
       {(holdLeftMs, matchMap) => (
         <>
           <Text fontWeight={700} fontSize="1.1rem" textAlign="center" data-testid="tournament-hold-headline">
@@ -148,9 +158,19 @@ export const TournamentWaiting = ({ at, roomId, boardUnknown }: { at: Tournament
  * Above the table in a tournament game: the match's decided/hold strip, and in
  * a duel the opponent's forfeit clock while they are away.
  */
-export const TournamentGameStrip = ({ at, view, awayDeadline }: { at: TournamentRoom; view: PlayerView; awayDeadline: number | null }) => (
+export const TournamentGameStrip = ({
+  at,
+  view,
+  awayDeadline,
+  onNotice,
+}: {
+  at: TournamentRoom;
+  view: PlayerView;
+  awayDeadline: number | null;
+  onNotice?: (notice: MatchNotice) => void;
+}) => (
   <>
-    <MatchDecidedBanner at={at} strip />
+    <MatchDecidedBanner at={at} strip onNotice={onNotice} />
     {awayDeadline !== null && !view.winner && <OpponentAwayNote name={opponentNameOf(view)} deadline={awayDeadline} />}
   </>
 );

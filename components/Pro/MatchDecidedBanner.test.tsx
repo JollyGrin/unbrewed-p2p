@@ -50,7 +50,7 @@ it("displaced viewer: no longer in this match, with a way back, and the seat-hel
     </ChakraProvider>,
   );
   expect(await screen.findByText(/You are no longer in this match \(the organizer changed the bracket\)\./)).toBeInTheDocument();
-  expect(screen.getByText("Back to the tournament").closest("a")).toHaveAttribute("href", "/tournaments?t=s");
+  expect(screen.getByText("Back to the match").closest("a")).toHaveAttribute("href", "/tournaments?t=s&m=m");
   expect(screen.queryByText(/keep this tab open/)).not.toBeInTheDocument();
 });
 

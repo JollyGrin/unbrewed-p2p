@@ -326,6 +326,11 @@ export interface UseProSocketReturn {
   /** "Use this tab instead": reconnect deliberately (RECONNECTs with the stored token). */
   takeSeatBack: () => void;
   /**
+   * Close the socket for good and never reconnect: this page has no business in
+   * the room any more (a tournament player moved out of the match).
+   */
+  closeForGood: () => void;
+  /**
    * Rematch offer/confirm (p2p #880, protocol v35). True once this seat is bound
    * at v35 on an engine that serves the negotiation — only then may the winner
    * screen offer a rematch through the server instead of the one-tap
@@ -638,6 +643,7 @@ export function useProSocket(
   const [gameLost, setGameLost] = useState(false);
   const [seatReplaced, setSeatReplaced] = useState(false);
   const seatReplacedRef = useRef(false);
+  const closedForGoodRef = useRef(false);
   const [seatReleasedRoom, setSeatReleasedRoom] = useState<string | null>(null);
   // Undo (v11): the request pushed to US (opponent prompt), our own request's
   // pending flag, and a latch for "opponent declined". Any STATE clears the first
@@ -766,7 +772,7 @@ export function useProSocket(
   );
 
   const connect = useCallback(() => {
-    if (!wsUrl) return;
+    if (!wsUrl || closedForGoodRef.current) return;
     setStatus((s) => (s === "idle" || s === "connecting" ? "connecting" : "reconnecting"));
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -1636,6 +1642,18 @@ export function useProSocket(
     connect(); // its open RECONNECTs with the stored token — taking the seat here
   }, [connect]);
 
+  const closeForGood = useCallback(() => {
+    if (closedForGoodRef.current) return;
+    closedForGoodRef.current = true;
+    if (retryRef.current.timer) clearTimeout(retryRef.current.timer);
+    clearResumeDeadline();
+    clearResumeReplyDeadline();
+    const ws = wsRef.current;
+    wsRef.current = null; // marks onclose as superseded: no reconnect
+    ws?.close();
+    setStatus("closed");
+  }, [clearResumeDeadline, clearResumeReplyDeadline]);
+
   return {
     identitySettled,
     status,
@@ -1678,6 +1696,7 @@ export function useProSocket(
     seatReplaced,
     seatReleasedRoom,
     takeSeatBack,
+    closeForGood,
     rematchNegotiable,
     rematchOffer,
     offerRematch,

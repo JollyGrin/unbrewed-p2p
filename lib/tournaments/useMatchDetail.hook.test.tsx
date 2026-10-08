@@ -144,13 +144,23 @@ describe("p2p #1269", () => {
     expect(result.current[0].status).toBe("loading");
   });
 
-  it("a decided match keeps a slow 60s poll so a correction appears without a reload", async () => {
-    get.mockResolvedValue(detail({ status: "decided" }));
+  it("a decided match of a complete tournament keeps a slow 60s poll so a correction appears without a reload", async () => {
+    get.mockResolvedValue(detail({ status: "decided" }, "complete"));
     renderHook(() => useMatchDetail("s", "m"));
     await tick(0);
     await tick(30_000);
     expect(get).toHaveBeenCalledTimes(1);
     await tick(30_000);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("a decided match of a still-running tournament polls every 15s: the organizer may still correct it", async () => {
+    get.mockResolvedValue(detail({ status: "decided" }));
+    renderHook(() => useMatchDetail("s", "m"));
+    await tick(0);
+    await tick(14_000);
+    expect(get).toHaveBeenCalledTimes(1);
+    await tick(1_000);
     expect(get).toHaveBeenCalledTimes(2);
   });
 });

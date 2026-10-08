@@ -17,21 +17,25 @@ export const browsable = (rows: readonly Tournament[]): Tournament[] =>
   rows.filter((t) => t.status !== "draft");
 
 /**
- * The browse rows: the public list plus the signed-in organizer's own drafts
- * (`GET /tournaments?mine=1` includes them), so "Save draft" is not a dead end.
+ * The browse rows: the public list plus every event of the signed-in player's
+ * own that it leaves out (`GET /tournaments?mine=1` has them): their drafts, so
+ * "Save draft" is not a dead end, and cancelled events they played in or ran.
  */
 export const withMyDrafts = (all: readonly Tournament[], mine: readonly Tournament[]): Tournament[] => {
   const seen = new Set(all.map((t) => t.id));
-  return [...browsable(all), ...mine.filter((t) => t.status === "draft" && !seen.has(t.id))];
+  return [...browsable(all), ...mine.filter((t) => !seen.has(t.id))];
 };
+
+/** Only the owner's "My tournaments" lists these: the public list never does. */
+const mineOnly = (t: Tournament): boolean => t.status === "draft" || t.status === "cancelled";
 
 export const matchesFilter = (
   t: Tournament,
   filter: BrowseFilter,
   mineIds: ReadonlySet<string>,
 ): boolean => {
-  // A draft only shows under "My tournaments".
-  if (t.status === "draft") return filter === "mine" && mineIds.has(t.id);
+  // A draft or a cancelled event only shows under "My tournaments".
+  if (mineOnly(t)) return filter === "mine" && mineIds.has(t.id);
   switch (filter) {
     case "live":
       return t.status === "running";
