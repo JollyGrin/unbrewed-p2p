@@ -42,7 +42,10 @@
         "title": "Moonfire",
         "type": "attack",
         "value": 3,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/moonfire.webp"
+        }
       },
       {
         "afterText": "",
@@ -56,7 +59,10 @@
         "title": "Starfire",
         "type": "attack",
         "value": 4,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/starfire.webp"
+        }
       },
       {
         "afterText": "",
@@ -70,7 +76,10 @@
         "title": "Wrath",
         "type": "attack",
         "value": 4,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/wrath.webp"
+        }
       },
       {
         "afterText": "",
@@ -84,7 +93,10 @@
         "title": "Maul",
         "type": "attack",
         "value": 4,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/maul.webp"
+        }
       },
       {
         "afterText": "",
@@ -98,7 +110,10 @@
         "title": "Barkskin",
         "type": "defence",
         "value": 3,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/barkskin.webp"
+        }
       },
       {
         "afterText": "",
@@ -112,7 +127,10 @@
         "title": "Survival Instincts",
         "type": "defence",
         "value": 4,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/survival-instincts.webp"
+        }
       },
       {
         "afterText": "Deal 1 damage to the opposing fighter.",
@@ -126,7 +144,10 @@
         "title": "Thorns",
         "type": "defence",
         "value": 2,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/thorns.webp"
+        }
       },
       {
         "afterText": "Move each adjacent fighter up to 1 space. If Malfurion is in Moonkin Form, deal 1 damage to each adjacent fighter.",
@@ -140,7 +161,10 @@
         "title": "Typhoon",
         "type": "versatile",
         "value": 2,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/typhoon.webp"
+        }
       },
       {
         "afterText": "Change to Bear Form.",
@@ -154,7 +178,10 @@
         "title": "Dire Bear Form",
         "type": "defence",
         "value": 5,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/dire-bear-form.webp"
+        }
       },
       {
         "afterText": "Recover 2 health. Draw 1 card.",
@@ -168,7 +195,10 @@
         "title": "Regrowth",
         "type": "defence",
         "value": 3,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/regrowth.webp"
+        }
       },
       {
         "afterText": "If you won the combat, the opposing fighter is pinned until the end of their next turn.",
@@ -182,7 +212,10 @@
         "title": "Entangling Roots",
         "type": "versatile",
         "value": 3,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/entangling-roots.webp"
+        }
       },
       {
         "afterText": "Move Malfurion up to 3 spaces. If Malfurion is adjacent to the opposing fighter, deal 1 damage to that fighter.",
@@ -196,7 +229,10 @@
         "title": "Charge",
         "type": "versatile",
         "value": 5,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/charge.webp"
+        }
       },
       {
         "afterText": "",
@@ -210,7 +246,10 @@
         "title": "Innervate",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/innervate.webp"
+        }
       },
       {
         "afterText": "",
@@ -224,7 +263,10 @@
         "title": "Hurricane",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/hurricane.webp"
+        }
       },
       {
         "afterText": "",
@@ -238,7 +280,10 @@
         "title": "Tranquility",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/tranquility.webp"
+        }
       },
       {
         "afterText": "",
@@ -252,7 +297,10 @@
         "title": "Travel Form",
         "type": "scheme",
         "value": null,
-        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp"
+        "cardBackUrl": "/evergreen-decks/art/malfurion-stormrage/cardback.webp",
+        "cardImage": {
+          "url": "/evergreen-decks/art/malfurion-stormrage/travel-form.webp"
+        }
       }
     ]
   },

@@ -1,14 +1,5 @@
-import {
-  Box,
-  Flex,
-  Link,
-  ListItem,
-  OrderedList,
-  Text,
-  UnorderedList,
-} from "@chakra-ui/react";
-import NextLink from "next/link";
-import { NO_TABLE_IMAGES, type DeckPreview } from "@/lib/tableplace/preview";
+import { Box, Flex, ListItem, Text, UnorderedList } from "@chakra-ui/react";
+import type { DeckPreview } from "@/lib/tableplace/preview";
 
 const Row = ({ label, value }: { label: string; value: string }) => (
   <Flex justify="space-between" gap="1rem" fontSize="0.9rem">
@@ -19,7 +10,10 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </Flex>
 );
 
-/** What one deck puts on the table, or why it can't go on it. */
+/**
+ * What one deck puts on the table, piece by piece. Why a deck can't go on it
+ * is the rail's to say (`SeatRefusal`).
+ */
 export const DeckPreviewCard = ({
   title,
   preview,
@@ -32,8 +26,6 @@ export const DeckPreviewCard = ({
     borderRadius="0.5rem"
     p="0.75rem 1rem"
     w="100%"
-    border="2px solid"
-    borderColor={preview.refused ? "red.400" : "transparent"}
     data-testid="deck-preview"
   >
     <Text fontSize="0.75rem" textTransform="uppercase" opacity={0.7}>
@@ -70,39 +62,6 @@ export const DeckPreviewCard = ({
       />
       <Row label="Tokens" value={preview.tokens.join(", ") || "none"} />
     </Box>
-    {preview.refused && (
-      <Text
-        mt="0.5rem"
-        color="red.700"
-        fontWeight={600}
-        fontSize="0.9rem"
-        role="alert"
-      >
-        Can&apos;t go on the table: {preview.refused}
-      </Text>
-    )}
-    {preview.refused === NO_TABLE_IMAGES && (
-      <Box as="details" mt="0.25rem" fontSize="0.85rem" data-testid="tts-how">
-        <Text as="summary" cursor="pointer" fontWeight={600}>
-          How?
-        </Text>
-        <OrderedList mt="0.25rem" ml="1.25rem" spacing="0.15rem">
-          <ListItem>
-            On unmatched.cards, open the deck in the editor and use its{" "}
-            <b>TTS JSON</b> tab to export it for Tabletop Simulator.
-          </ListItem>
-          <ListItem>
-            In your{" "}
-            <Link as={NextLink} href="/bag" textDecoration="underline">
-              bag
-            </Link>
-            , add it with <b>Import from The Unmatched Club</b> (it takes any
-            TTS export).
-          </ListItem>
-          <ListItem>Pick that deck here.</ListItem>
-        </OrderedList>
-      </Box>
-    )}
     {preview.notes.length > 0 && (
       <UnorderedList mt="0.25rem" fontSize="0.75rem" opacity={0.6}>
         {preview.notes.map((n) => (

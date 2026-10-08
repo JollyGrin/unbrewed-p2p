@@ -1,0 +1,453 @@
+/** The match page's six states (#1218), rendered from fixtures through the real MatchBody. */
+import "@testing-library/jest-dom";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { ChakraProvider } from "@chakra-ui/react";
+
+import { MatchBody } from "./MatchView";
+import { FIXTURE_MATCH_YOU, FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
+import { organizerCutoff, type MatchPageKind } from "@/lib/tournaments/matchPage";
+import { timeText as clock, whenText as dateTime } from "@/lib/tournaments/when";
+import type { MatchDetail } from "@/lib/tournaments/types";
+import type { PlayPhase } from "@/lib/tournaments/usePlayMatch";
+
+jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
+jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div data-testid="replay-open" /> }));
+
+const NOW = Date.parse(FIXTURE_NOW);
+
+const renderState = (
+  state: MatchPageKind,
+  opts: { as?: string | null; phase?: PlayPhase; onPlay?: () => void; onBack?: (roomId: string) => void; signedOut?: boolean } = {},
+) => {
+  const f = fixtureMatch(state);
+  return render(
+    <ChakraProvider>
+      <MatchBody
+        d={f.detail}
+        t={f.tournament}
+        myUserId={opts.as === undefined ? FIXTURE_MATCH_YOU : opts.as}
+        signedOut={!!opts.signedOut}
+        now={NOW}
+        phase={opts.phase ?? { kind: "idle" }}
+        onPlay={opts.onPlay ?? (() => {})}
+        onBack={opts.onBack}
+      />
+    </ChakraProvider>,
+  );
+};
+
+const banner = () => screen.getByTestId("match-banner");
+
+it("waiting for a game: open window, 'I'm ready to play'", () => {
+  const onPlay = jest.fn();
+  renderState("waiting", { onPlay });
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "waiting");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Semifinal 2");
+  expect(banner()).toHaveTextContent("Your semifinal 2 is open. Play any time before");
+  expect(within(screen.getByTestId("play-box")).getByText("Ready when you are")).toBeInTheDocument();
+  expect(screen.getByTestId("play-box")).toHaveTextContent("Heroes are set, so there's no hero picker.");
+  fireEvent.click(within(screen.getByTestId("play-box")).getByTestId("play-button"));
+  expect(onPlay).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId("games-list")).toHaveTextContent("Not played yet");
+  expect(screen.getByTestId("ready-checks")).toHaveTextContent("None yet");
+});
+
+it("opponent ready (join now): the seat clock and Join now", () => {
+  renderState("opponent_ready");
+  expect(banner()).toHaveTextContent("bountyhuntr is ready to play. Your seat is held.");
+  expect(banner()).toHaveTextContent("Join within 11 min 48 s");
+  const box = screen.getByTestId("play-box");
+  expect(box).toHaveTextContent("bountyhuntr is waiting in your room");
+  expect(box).toHaveTextContent("You'll load straight in as Kenshiro on Count's Castle.");
+  expect(within(box).getByTestId("play-button")).toHaveTextContent("Join now");
+});
+
+afterEach(() => window.localStorage.clear());
+
+it("you're ready (seat held): countdown and a way back to the room this browser holds", () => {
+  window.localStorage.setItem("unbrewed-pro-token-SF2ROOM", "tok"); // seated from another tab
+  renderState("you_ready");
+  expect(banner()).toHaveTextContent("You're ready.");
+  expect(screen.getByTestId("seat-clock")).toHaveTextContent("14:32");
+  expect(screen.getByTestId("seat-clock")).toHaveAttribute("aria-label", "14 minutes 32 seconds left");
+  expect(banner()).toHaveTextContent("Seat held · 14 min 32 s left");
+  expect(screen.getAllByText("Back to your room")[0].closest("a")).toHaveAttribute("href", "/pro/game?room=SF2ROOM");
+});
+
+it("'Back to your room' goes through the fresh-ticket handler (a stored token may be dead, #1250 LV-3)", () => {
+  window.localStorage.setItem("unbrewed-pro-token-SF2ROOM", "dead");
+  const onBack = jest.fn();
+  renderState("you_ready", { onBack });
+  const links = screen.getAllByText(/Back to (your )?room/);
+  expect(links.length).toBeGreaterThan(0);
+  for (const link of links) fireEvent.click(link);
+  expect(onBack).toHaveBeenCalledTimes(links.length);
+  expect(onBack).toHaveBeenCalledWith("SF2ROOM");
+});
+
+it("you're ready on a device with no seat token: a fresh ticket, never a ticketless ?room= link", () => {
+  const onPlay = jest.fn();
+  renderState("you_ready", { onPlay });
+  expect(screen.queryByText("Back to your room")).not.toBeInTheDocument();
+  expect(document.querySelector('a[href^="/pro/game"]')).toBeNull();
+  fireEvent.click(within(screen.getByTestId("play-box")).getByText("Take your seat here"));
+  expect(onPlay).toHaveBeenCalledTimes(1);
+});
+
+it("in play now: no game number, back to the game", () => {
+  window.localStorage.setItem("unbrewed-pro-token-room-m2-1-0", "tok");
+  renderState("in_play");
+  expect(banner()).toHaveTextContent("In play now. Started");
+  const rows = screen.getAllByTestId("game-row");
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toHaveTextContent("—");
+  expect(rows[0]).toHaveTextContent("In play now · Kenshiro vs Boba Fett");
+  expect(rows[0]).not.toHaveTextContent(/Game 1|^1/);
+  expect(screen.getAllByText("Back to game")[0].closest("a")).toHaveAttribute("href", "/pro/game?room=room-m2-1-0");
+  expect(screen.getByText(/Watching live is coming later/)).toBeInTheDocument();
+  expect(screen.getByTestId("play-box")).toHaveTextContent("Lost the tab? Rejoin the same room.");
+});
+
+it("in play now on another device: no rejoin promise it can't keep", () => {
+  renderState("in_play");
+  expect(screen.queryByText("Back to game")).not.toBeInTheDocument();
+  expect(document.querySelector('a[href^="/pro/game"]')).toBeNull();
+  expect(screen.getByTestId("play-box")).not.toHaveTextContent("Lost the tab?");
+  expect(screen.getByTestId("play-box")).toHaveTextContent("open in the tab or device you started it on");
+});
+
+it("decided: the winner advances, the score, the replay chip", async () => {
+  renderState("decided");
+  // hokuto_shin is the viewer and the winner (UX B5).
+  expect(banner()).toHaveTextContent("You won. You advance to the Final.");
+  expect(screen.getByTestId("match-score")).toHaveTextContent("1–0");
+  expect(screen.queryByTestId("play-box")).not.toBeInTheDocument();
+  expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument(); // C5 (#1236)
+  expect(screen.getAllByTestId("game-row")[0]).toHaveTextContent("hokuto_shin won · Kenshiro vs Boba Fett");
+  fireEvent.click(screen.getByTestId("replay-chip"));
+  // next/dynamic resolves the replay viewer asynchronously.
+  expect(await screen.findByTestId("replay-open")).toBeInTheDocument();
+});
+
+it("decided: no Replay chip until the api reports replayAvailable", () => {
+  const f = fixtureMatch("decided");
+  f.detail.match.games[0].replayAvailable = undefined;
+  render(
+    <ChakraProvider>
+      <MatchBody d={f.detail} t={f.tournament} myUserId={null} signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} />
+    </ChakraProvider>,
+  );
+  expect(screen.queryByTestId("replay-chip")).not.toBeInTheDocument();
+  expect(screen.queryByText("Watch the replay")).not.toBeInTheDocument();
+});
+
+it("deadline passed, organizer deciding: play stays open until they decide, the cutoff date (UX B1, #1230)", () => {
+  const onPlay = jest.fn();
+  renderState("deadline_passed", { onPlay });
+  const f = fixtureMatch("deadline_passed");
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_passed");
+  expect(banner()).toHaveTextContent("The deadline has passed. You can still play until the organizer decides.");
+  // deadline = now - 1h, so the organizer's cutoff is now + 23h (D5).
+  expect(banner()).toHaveTextContent(`The organizer decides by ${dateTime(organizerCutoff(f.detail.match.deadlineAt))}, otherwise the higher seed advances.`);
+  expect(banner()).not.toHaveTextContent("Play any time");
+  expect(screen.getByTestId("play-box")).toHaveTextContent("The deadline has passed, but you can still play until the organizer decides.");
+  fireEvent.click(within(screen.getByTestId("play-box")).getByTestId("play-button"));
+  expect(onPlay).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId("sticky-play")).toHaveTextContent("I'm ready to play");
+  expect(screen.getByTestId("deadline-card")).toHaveTextContent("Closed");
+});
+
+it("past the deadline with a live pre-deadline hold: the other player can still join, named holder, no 'they' (UX B1, #1253)", () => {
+  const f = fixtureMatch("opponent_ready");
+  const pressedAt = Date.parse(f.detail.readyChecks[0].createdAt);
+  const d = { ...f.detail, match: { ...f.detail.match, deadlineAt: new Date(pressedAt + 5 * 60_000).toISOString() } };
+  render(
+    <ChakraProvider>
+      <MatchBody d={d} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={pressedAt + 6 * 60_000} phase={{ kind: "idle" }} onPlay={() => {}} />
+    </ChakraProvider>,
+  );
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_hold");
+  const until = clock(d.liveRoom!.expiresAt);
+  expect(banner()).toHaveTextContent(`bountyhuntr is waiting in your room until ${until}. If you don't join, bountyhuntr advances.`);
+  expect(banner()).not.toHaveTextContent(/\bthey\b/);
+  expect(within(screen.getByTestId("play-box")).getByTestId("play-button")).toHaveTextContent("Join now");
+  expect(screen.getByTestId("play-box")).toHaveTextContent(`bountyhuntr is waiting in your room until ${until}`);
+  expect(screen.getByTestId("sticky-play")).toHaveTextContent(/Join now · \d+:\d\d left/);
+  expect(banner()).not.toHaveTextContent("Play any time");
+  expect(banner()).not.toHaveTextContent("organizer");
+});
+
+it("past the deadline, an unanswered pre-deadline check: rule 1 copy, no Play (#1233 review)", () => {
+  const f = fixtureMatch("opponent_ready");
+  const pressedAt = Date.parse(f.detail.readyChecks[0].createdAt);
+  const d = { ...f.detail, match: { ...f.detail.match, deadlineAt: new Date(pressedAt + 5 * 60_000).toISOString() } };
+  render(
+    <ChakraProvider>
+      <MatchBody d={d} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={pressedAt + 16 * 60_000} phase={{ kind: "idle" }} onPlay={() => {}} />
+    </ChakraProvider>,
+  );
+  expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "deadline_passed");
+  expect(banner()).toHaveTextContent("bountyhuntr was ready and you never joined, so bountyhuntr advances.");
+  expect(banner()).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
+  expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
+});
+
+it("decided by deadline rule: names the rule and marks it applied", () => {
+  renderState("decided_by_rule");
+  expect(banner()).toHaveTextContent("Decided by the deadline rule. You advance to the Final.");
+  expect(banner()).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
+  // D6: the full rules card is gone; one line names the rule.
+  expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();
+  expect(screen.getByTestId("decided-by-rule")).toHaveTextContent("Decided by Rule 1 · one player was ready, the other never joined.");
+  expect(screen.getByTestId("games-list")).toHaveTextContent("No game was played before");
+  expect(screen.getByTestId("ready-checks")).toHaveTextContent("Your opponent didn't join");
+});
+
+it("a spectator gets no Play button; a signed-out visitor is asked to sign in", () => {
+  renderState("waiting", { as: null, signedOut: true });
+  expect(screen.queryByTestId("play-box")).not.toBeInTheDocument();
+  expect(screen.getByText("Sign in with Discord")).toBeInTheDocument();
+});
+
+it("shows why a ready failed, and the room-opening wait", () => {
+  const { unmount } = renderState("waiting", { phase: { kind: "error", message: "A game for this match is already in play." } });
+  expect(screen.getByTestId("play-error")).toHaveTextContent("already in play");
+  unmount();
+  renderState("opponent_ready", { phase: { kind: "opening" } });
+  expect(screen.getByTestId("play-opening")).toHaveTextContent("Opening bountyhuntr's room");
+});
+
+it("shows the latest possible final", () => {
+  renderState("waiting");
+  expect(screen.getByTestId("latest-final")).toHaveTextContent("Latest possible final");
+});
+
+describe("final smoke fixes (#1239)", () => {
+  const draw = (d: MatchDetail, extra: Partial<Parameters<typeof MatchBody>[0]> = {}) => {
+    const f = fixtureMatch("waiting");
+    return render(
+      <ChakraProvider>
+        <MatchBody d={d} t={f.tournament} myUserId={null} signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} {...extra} />
+      </ChakraProvider>,
+    );
+  };
+
+  it("D2: shows the organizer's override note on the match page, for a guest too", () => {
+    const d = fixtureMatch("decided").detail;
+    d.match.decidedBy = "organizer";
+    d.decision = { by: "organizer", note: "Opponent no-showed twice", at: null };
+    draw(d);
+    expect(screen.getByTestId("decision-note")).toHaveTextContent("Decided by the organizer: Opponent no-showed twice");
+  });
+
+  it("D2: an organizer decision without a note, and a played result, say nothing extra", () => {
+    const d = fixtureMatch("decided").detail;
+    d.decision = { by: "organizer", note: null, at: null };
+    const { unmount } = draw(d);
+    expect(screen.getByTestId("decision-note")).toHaveTextContent("Decided by the organizer.");
+    unmount();
+    draw({ ...d, decision: null });
+    expect(screen.queryByTestId("decision-note")).not.toBeInTheDocument();
+  });
+
+  it("D5: the organizer's own view says 'You are deciding', shows the cutoff and offers no Set matchup", () => {
+    const f = fixtureMatch("deadline_passed");
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId="u1" signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} organizer={{ entries: f.entries, reload: () => {} }} />
+      </ChakraProvider>,
+    );
+    expect(banner()).toHaveTextContent("The deadline has passed. You are deciding this match.");
+    expect(banner()).not.toHaveTextContent("The organizer is deciding");
+    expect(banner()).toHaveTextContent(`Decide by ${dateTime(organizerCutoff(f.detail.match.deadlineAt))}, or the higher seed advances. The players can still play until you do.`);
+    expect(screen.getByTestId("organizer-panel")).toHaveTextContent("Override result");
+    expect(screen.getByTestId("organizer-panel")).not.toHaveTextContent("Set matchup");
+  });
+
+  it("D5: an open match still offers Set matchup to the organizer", () => {
+    const f = fixtureMatch("waiting");
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId="u1" signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} organizer={{ entries: f.entries, reload: () => {} }} />
+      </ChakraProvider>,
+    );
+    expect(screen.getByTestId("organizer-panel")).toHaveTextContent("Set matchup");
+  });
+
+  it("D6: a result-decided match hides the rules card", () => {
+    renderState("decided");
+    expect(screen.queryByText("If the deadline passes")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("decided-by-rule")).not.toBeInTheDocument();
+  });
+
+  it("D6: one numbering — Rule 1 / Rule 2 — in the card and the banner", () => {
+    const { unmount } = renderState("waiting");
+    const card = screen.getByText("If the deadline passes").parentElement!;
+    expect(card).toHaveTextContent("Rule 1 · one player was ready, the other never joined");
+    expect(card).toHaveTextContent(`Rule 2 · otherwise the organizer decides by ${dateTime(organizerCutoff(fixtureMatch("waiting").detail.match.deadlineAt))}`);
+    expect(card).toHaveTextContent("You can still play after the deadline until the organizer decides.");
+    unmount();
+    const d = fixtureMatch("decided_by_rule").detail;
+    d.match.decidedBy = "deadline_higher_seed";
+    draw(d);
+    expect(banner()).toHaveTextContent("Rule 2 · organizer did not decide in 24h");
+  });
+
+  it("D7: a final decided by a rule says the winner wins the tournament", () => {
+    const f = fixtureMatch("decided_by_rule");
+    const m = { ...f.detail.match, round: 3, position: 0, nextMatchId: null, nextSlot: null, decidedBy: "deadline_higher_seed" as const };
+    draw({ ...f.detail, match: m });
+    expect(banner()).toHaveTextContent("hokuto_shin wins the tournament.");
+    expect(banner()).not.toHaveTextContent("advances");
+  });
+
+  it("D9: a decided players-choose match with no recorded heroes or board points at the replay", async () => {
+    const f = fixtureMatch("decided");
+    const d: MatchDetail = {
+      ...f.detail,
+      match: { ...f.detail.match, matchup: { heroes: { a: null, b: null }, map: null }, matchupRule: { mode: "free" }, games: f.detail.match.games.map((g) => ({ ...g, assignment: { heroes: { a: null, b: null }, map: null } })) },
+    };
+    draw(d);
+    expect(screen.queryByText("Random board")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dealt at random/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("Heroes and board: see the replay");
+    fireEvent.click(screen.getByTestId("matchup-replay-link"));
+    expect(await screen.findByTestId("replay-open")).toBeInTheDocument();
+  });
+
+  it("D9: a decided match with no game says so instead of describing a random board", () => {
+    const f = fixtureMatch("decided_by_rule");
+    const d: MatchDetail = { ...f.detail, match: { ...f.detail.match, matchup: { heroes: { a: null, b: null }, map: null }, matchupRule: { mode: "free" } } };
+    draw(d);
+    expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("No game was played");
+    expect(screen.queryByText("Random board")).not.toBeInTheDocument();
+  });
+});
+
+describe("api #91", () => {
+  const renderDetail = (d: MatchDetail, as: string | null = FIXTURE_MATCH_YOU) => {
+    const f = fixtureMatch("in_play");
+    return render(
+      <ChakraProvider>
+        <MatchBody d={d} t={f.tournament} myUserId={as} signedOut={false} now={NOW} phase={{ kind: "idle" }} onPlay={() => {}} />
+      </ChakraProvider>,
+    );
+  };
+
+  it("a cancelled match reads Cancelled: no live banner, no Play, no organizer tools", () => {
+    const d = fixtureMatch("in_play").detail;
+    renderDetail({ ...d, match: { ...d.match, cancelled: true, inPlay: false } });
+    expect(screen.getByTestId("match-page")).toHaveAttribute("data-state", "cancelled");
+    expect(banner()).toHaveTextContent("Cancelled");
+    expect(banner()).not.toHaveTextContent("In play now");
+    expect(screen.queryByTestId("play-button")).toBeNull();
+  });
+
+  it("L2-4: a cancelled match hides the closing time, the games list and the winner-goes-to card", () => {
+    const d = fixtureMatch("in_play").detail;
+    renderDetail({ ...d, match: { ...d.match, cancelled: true, inPlay: false, deadlineAt: "2099-10-07T00:56:00Z" } });
+    const page = screen.getByTestId("match-page");
+    expect(page).not.toHaveTextContent(/closes /);
+    expect(page).toHaveTextContent("Cancelled");
+    expect(page).not.toHaveTextContent("Player's choice");
+    expect(page).not.toHaveTextContent("Not played yet");
+    expect(screen.queryByTestId("games-list")).toBeNull();
+    expect(page).not.toHaveTextContent("Winner goes to");
+  });
+
+  it("L2-2/3: an organizer-decided match overriding a recorded game says so, dated by the decision", () => {
+    const d = fixtureMatch("decided").detail;
+    const g = d.match.games[0];
+    const other = g.winnerEntry === d.match.slotA ? d.match.slotB : d.match.slotA;
+    renderDetail({
+      ...d,
+      decision: { by: "organizer", note: null, at: "2026-10-05T12:34:00Z" },
+      match: { ...d.match, matchup: { heroes: { a: null, b: null }, map: null }, matchupRule: { mode: "free" }, decidedBy: "organizer", winner: other, games: [{ ...g, verified: true, assignment: { heroes: { a: null, b: null }, map: null } }] },
+    });
+    expect(screen.getByTestId("matchup-unrecorded")).toHaveTextContent("Decided by the organizer (the game's result was overridden)");
+    expect(screen.getAllByTestId("game-row")[0]).toHaveTextContent("won (not counted: overridden)");
+    expect(screen.getByTestId("deadline-card")).toHaveTextContent(`Decided ${dateTime("2026-10-05T12:34:00Z")}`);
+  });
+
+  it("a game recorded after the decision is labelled and not counted", () => {
+    const d = fixtureMatch("decided").detail;
+    const g = d.match.games[0];
+    const late = { ...g, gameIndex: 4, winnerEntry: d.match.slotB, recordedAfterDecision: true, replayAvailable: true };
+    renderDetail({ ...d, match: { ...d.match, games: [...d.match.games, late] } });
+    const rows = screen.getAllByTestId("game-row");
+    expect(rows.at(-1)).toHaveTextContent("Finished after the match was decided (not counted)");
+    expect(within(rows.at(-1)!).getByTestId("replay-chip")).toBeInTheDocument();
+  });
+
+  it("the long late-game note sits on its own line, never in the 'vs' caption (#1248 LV-2)", () => {
+    const d = fixtureMatch("decided_by_rule").detail;
+    const g = d.match.games[0];
+    const late = { ...g, gameIndex: 4, winnerEntry: d.match.slotB, recordedAfterDecision: true };
+    renderDetail({ ...d, match: { ...d.match, games: [late] } });
+    const score = screen.getByTestId("match-score");
+    expect(score).toHaveTextContent("Decided by organizer");
+    expect(score).not.toHaveTextContent("finished afterwards");
+    expect(screen.getByTestId("late-game-note")).toHaveTextContent(
+      "Decided by the organizer; a game that was in progress finished afterwards (not counted)",
+    );
+    expect(score.contains(screen.getByTestId("late-game-note"))).toBe(false);
+    // The player columns keep their flexible width: minmax(0, 1fr) auto minmax(0, 1fr).
+    const css = Array.from(document.querySelectorAll("style")).map((n) => n.textContent).join("");
+    expect(css).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\)/);
+  });
+
+  it("a cancelled match hides 'is ready now' and 'Final latest' (#1248)", () => {
+    const d = fixtureMatch("you_ready").detail;
+    expect(d.readyChecks.some((rc) => rc.outcome === "pending")).toBe(true);
+    const f = fixtureMatch("you_ready");
+    const render1 = (det: MatchDetail, status: "cancelled" | "running") =>
+      render(
+        <ChakraProvider>
+          <MatchBody
+            d={det}
+            t={{ ...f.tournament, status, latestPossibleFinal: "2026-10-30T00:00:00Z" }}
+            myUserId={FIXTURE_MATCH_YOU}
+            signedOut={false}
+            now={NOW}
+            phase={{ kind: "idle" }}
+            onPlay={() => {}}
+          />
+        </ChakraProvider>,
+      );
+    const live = render1(d, "running");
+    expect(screen.getByTestId("ready-checks")).toHaveTextContent("ready now");
+    live.unmount();
+    render1({ ...d, tournament: { ...d.tournament, status: "cancelled" } }, "cancelled");
+    expect(screen.getByTestId("ready-checks")).not.toHaveTextContent("ready now");
+    expect(document.body).not.toHaveTextContent("Final latest");
+  });
+
+  it("the seat-held phase renders 'Back to your room' and a retry, not a Play prompt (#1248 LV-1)", () => {
+    const f = fixtureMatch("waiting");
+    const onRetry = jest.fn();
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={NOW} phase={{ kind: "seat_held", roomId: "ABC123" }} onPlay={() => {}} onRetry={onRetry} />
+      </ChakraProvider>,
+    );
+    const note = within(screen.getByTestId("play-box")).getByTestId("seat-held-note");
+    expect(note).toHaveTextContent("Your seat is held in this match's room.");
+    expect(note).not.toHaveTextContent("ABC123"); // UX S6: no room code
+    expect(within(note).getByText("Back to your room").closest("a")).toHaveAttribute("href", "/pro/game?room=ABC123");
+    fireEvent.click(within(note).getByText("Check again"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("the seat-held card's 'Back to your room' asks for a fresh ticket (#1250 LV-3)", () => {
+    const f = fixtureMatch("waiting");
+    const onBack = jest.fn();
+    render(
+      <ChakraProvider>
+        <MatchBody d={f.detail} t={f.tournament} myUserId={FIXTURE_MATCH_YOU} signedOut={false} now={NOW} phase={{ kind: "seat_held", roomId: "ABC123" }} onPlay={() => {}} onBack={onBack} />
+      </ChakraProvider>,
+    );
+    fireEvent.click(within(within(screen.getByTestId("play-box")).getByTestId("seat-held-note")).getByText("Back to your room"));
+    expect(onBack).toHaveBeenCalledWith("ABC123");
+  });
+});

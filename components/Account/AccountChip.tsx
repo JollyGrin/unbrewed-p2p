@@ -20,6 +20,7 @@ import {
   signOut,
   useAccount,
 } from "@/lib/account/useAccount";
+import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
 /**
  * The canonical account menu, in canonical order (#712).
@@ -68,11 +69,16 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
       borderColor="brand.accent"
       color="brand.parchment"
       minW="9rem"
+      // Bounded to the viewport: a long next-match title must wrap, not widen the page (#1246).
+      maxW="min(20rem, calc(100vw - 1rem))"
       py="0.25rem"
       // Above the HUD's own chip/overlay ladder, so the menu isn't painted
       // under the board furniture on /pro.
       zIndex={210}
     >
+      {/* Loads on first open (the Menu is isLazy). Never on the in-game chip
+          (`newTab`): a live game has no business with tournaments. */}
+      {!newTab && <AccountMenuTournaments itemStyles={menuItemStyles} />}
       {ACCOUNT_MENU_LINKS.map((link) => (
         <Fragment key={link.href}>
           {link.dividerBefore && <MenuDivider borderColor="whiteAlpha.300" />}
@@ -154,7 +160,10 @@ export const AccountChip = () => {
   }
 
   return (
-    <Menu placement="bottom-end" autoSelect={false}>
+    // isLazy: the list (and its /me/tournaments load) mounts on first open, not
+    // on every page for every signed-in visitor (p2p #1269). The /pro banner
+    // loads on its own; both share loadMyTournaments' 20s cache.
+    <Menu placement="bottom-end" autoSelect={false} isLazy>
       <MenuButton
         as={Button}
         variant="unstyled"

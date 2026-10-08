@@ -1030,11 +1030,14 @@
  * Detection: `PROTOCOL_VERSION >= 35`, or `rematch: true` in the `/healthz` JSON.
  */
 /**
- * v36 (2026-10-01, engine #735): ADVENTURE LEGIBILITY — five additive view facts + the briefing.
+ * v36 [feat/adventure lane] (2026-10-01, engine #735): ADVENTURE LEGIBILITY — five additive view facts + the briefing.
  * Every one is ABSENT when empty and only a scenario game can carry any of them, so a duel / ffa /
  * 2v2 / boss view (and their LIST_SCENARIOS — empty on a server with no scenario) is byte-identical.
  * The bump marks the one place a v35 client could misread a NEW shape (`result.cause.kind`); the
- * server keeps accepting v34/v35 (`ACCEPTED_PROTOCOL_VERSIONS`).
+ * server kept accepting v34/v35 (`ACCEPTED_PROTOCOL_VERSIONS` = {34, 35, 36}; #739 — the p2p client binds v34 on a first visit).
+ * NOT the same v36 as main's (#752, below) — see the v38 note.
+ * Redaction is NOT version-aware: a v34 seat receives the v36 scenario fields as-is (unknown keys,
+ * ignored by that client).
  *
  * - `PlayerView.scenario.result?: ScenarioResult` — set once the scenario verdict ends the game:
  *   `verdict`, `round`, and `cause` — `OBJECTIVE {objectiveId}` (the threat track's step that cost
@@ -1052,28 +1055,77 @@
  *   scenario's rules in plain language, authored as data.
  */
 /**
- * CLIENT-ONLY (p2p #1159): the v36 types above are synced; the wire pin below deliberately stays
- * 34/35. The v36 engine still accepts v34/v35 (ACCEPTED_PROTOCOL_VERSIONS) and stamps its own
- * `v: 36` on every frame, which wireVersion.ts reads as "speaks >= 35". Every v36 field is additive
- * on the view, so a client bound at 35 receives them; nothing needs the bind to say 36.
+ * v36 [main lane] (engine #752 — Appa *Hallucinations*; NOT the adventure lane's v36 above). ONE ADDITIVE EVENT, the v34 shape mirrored:
+ *
+ * - `COMBAT_ATTACKER_CHANGED { from, to }` is emitted mid-combat when a card substitutes the
+ *   ATTACKING FIGHTER (`{op:'setCombatAttacker'}` — Hallucinations played as a defense,
+ *   "…instead of 1 of their friendly fighters", aimed at the attacking seat). The combat,
+ *   the attacking PLAYER and both revealed cards are unchanged; only which FIGHTER is
+ *   attacking moves.
+ * - Nothing else moves: no action, no prompt kind, no `LegalOption` shape, no view field.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): a client rendering a live combat should re-point its
+ * attacker slot at `to` — every later DURING/AFTER effect of the attack card runs under it.
+ * The damage figure is unaffected (it lands on the defender). A client that ignores the event
+ * draws the attack arrow from the pre-substitution figure. It always arrives BEFORE
+ * `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
  */
 /**
- * CLIENT-ONLY PIN (p2p #880) — keep at 34 when re-syncing this file from the engine.
- * The engine is at v35 (rematch, above), but this client does not speak REMATCH_* yet:
- * the seat binds with `v`, and the server only sends REMATCH_* to a seat bound at 35+,
- * so binding at 34 is what keeps a v35 server from starting a negotiation this client
- * can't answer. The v35 types stay in this file for #880 to build on; bump the pin
- * there, together with the client that handles them — never in a verbatim re-sync.
+ * v37 [main lane] (engine #755 — tournaments: tagged rooms). ADDITIVE: one optional request field and
+ * six new `ErrorCode`s. Nothing that already exists moves, and a client that never sends a
+ * ticket never sees one of the new codes.
+ *
+ * - `CREATE_ROOM.ticket?` / `JOIN_ROOM.ticket?` — an opaque join ticket the tournament api
+ *   signs (`b64url(payload).b64url(HMAC)`; the client never parses it). `CREATE_ROOM` with
+ *   a ticket opens a TAGGED room for one (match, game): private (SET_VISIBILITY{public:true}
+ *   is refused), never listed or quick-matched, duel format only, no bots, held 15 minutes
+ *   waiting for the opponent, and no rematch (`REMATCH_OFFER` answers REMATCH_UNAVAILABLE —
+ *   the next game of the match is a new ticket). `JOIN_ROOM` into a tagged room REQUIRES a
+ *   ticket for the same match + game and the other slot. A ticket may lock the seat's hero
+ *   and the room's map; the request's `heroId` / `customMap` must then match it.
+ * - New error codes, each only ever sent in answer to a ticket or a tagged room:
+ *   `TICKET_INVALID` (bad signature / malformed), `TICKET_EXPIRED`, `TICKET_MISMATCH`
+ *   (wrong match or game, a slot or player already seated), `TICKET_REQUIRED` (JOIN_ROOM
+ *   without a ticket into a tagged room), `MATCHUP_LOCKED` (hero or map differs from the
+ *   ticket), `TOURNAMENTS_DISABLED` (the server has no tournament secret).
+ * - Reconnect (`RECONNECT` / `RESUME_ROOM`) is unchanged: a seat's token, not its ticket,
+ *   brings it back.
  */
 /**
- * CLIENT-ONLY DIVERGENCE (p2p #880): the engine's copy says `PROTOCOL_VERSION = 35`.
- * This client keeps sending 34 by default, because prod engines that predate #607
- * accept only {33, 34} and answer v35 with ERROR{VERSION}. It speaks v35
- * (`REMATCH_PROTOCOL_VERSION`) only to an engine whose own frames carry `v >= 35`
- * (every server message stamps its version) — see lib/pro/wireVersion.ts. Keep
- * this pair when re-syncing the file.
+ * v38 (2026-10-08, engine #783 — the merge of `main` into `feat/adventure`). NOTHING OF ITS OWN:
+ * the two lanes each shipped a DIFFERENT v36 (adventure legibility #735 / `COMBAT_ATTACKER_CHANGED`
+ * #752) and main went on to v37 (tournament tickets #755). v38 is every one of those shapes at once,
+ * so a client synced to v38 knows all of them, and a version number above both parents means no
+ * frame of the merged server can be mistaken for either lane's v36/v37:
+ *
+ * - from [feat/adventure lane] v36: `PlayerView.scenario.result? / releases? / contacts? /
+ *   briefing? / threat.bySource? / objectives[].repeat?` (#742 rode v36),
+ *   `ViewFighter.enemy.released?`, `ScenarioListing.briefing?`.
+ * - from [main lane] v36: the `COMBAT_ATTACKER_CHANGED { from, to }` GameEvent.
+ * - from [main lane] v37: `CREATE_ROOM.ticket?`, `JOIN_ROOM.ticket?` and the ErrorCodes
+ *   `TICKET_INVALID` / `TICKET_EXPIRED` / `TICKET_MISMATCH` / `TICKET_REQUIRED` /
+ *   `MATCHUP_LOCKED` / `TOURNAMENTS_DISABLED`.
+ *
+ * The server keeps accepting v34–v37 (`ACCEPTED_PROTOCOL_VERSIONS` = {34, 35, 36, 37, 38}; the
+ * reason for each member is on that constant in server/rooms.ts). Redaction is NOT version-aware:
+ * every accepted version receives the same frames and ignores the keys / events it does not know.
  */
-export const PROTOCOL_VERSION = 34;
+/**
+ * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 38`; this
+ * client binds MAIN's pin, 37 (the version it speaks and sends on the wire). The server accepts
+ * {34..38}, so 37 is accepted by an adventure-lane and a main-lane engine alike. Newer engine
+ * versions (v38 and on) ride into this file as TYPES ONLY: a re-sync NEVER bumps this number, and
+ * only a client change that actually handles a new version may — keep this value when re-syncing.
+ */
+export const PROTOCOL_VERSION = 37;
+
+/**
+ * CLIENT-ONLY (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the lowest version the
+ * rematch negotiation (v35, above) needs — the client's gate for offering it. Since engine #754 the
+ * server accepts nothing below 35 from a prod client, so every bind is at `PROTOCOL_VERSION` and is
+ * rematch-capable; the old "bind at 34, upgrade to 35" dance in lib/pro/wireVersion.ts is gone.
+ * Keep this export when re-syncing the file.
+ */
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1121,6 +1173,11 @@ export const REMATCH_PROTOCOL_VERSION = 35;
  * `jevx2` stay requestable while exposed and refused while dormant, same as
  * always — only what gets ADVERTISED changed. No type or shape change here:
  * `jevx3` was already a `BotDifficulty` member.
+ */
+/**
+ * CLIENT-ONLY NOTE (unbrewed-p2p#933): `jevx3` is advertised only behind the engine's `EXPOSE_JEV=1`
+ * switch. The client gates SELECTING it on the player's record vs Expert (or a build-time
+ * allowlist) — see lib/pro/tierUnlock.ts. `jev` is not gated.
  */
 export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx" | "jevx2" | "jevx3";
 
@@ -1292,6 +1349,11 @@ export type GameEvent =
   // A client showing the combat must re-point at `to` — it is the fighter that takes the
   // damage and the one every later DURING/AFTER effect and range check reads.
   | { type: "COMBAT_DEFENDER_CHANGED"; from: FighterId; to: FighterId }
+  // v36 (#752): the ATTACKING FIGHTER changed mid-combat (`setCombatAttacker` — Appa
+  // *Hallucinations* played as a defense: "…instead of 1 of their friendly fighters", aimed at
+  // the attacking seat). Same combat, same attacking player, same revealed cards: the attack
+  // now comes from `to`. A client showing the combat must re-point its attacker slot at `to`.
+  | { type: "COMBAT_ATTACKER_CHANGED"; from: FighterId; to: FighterId }
   | { type: "COMBAT_DAMAGE"; amount: number }
   | { type: "COMBAT_RESOLVED"; outcome: CombatOutcome }
   | { type: "COMBAT_ENDED" }
@@ -1657,10 +1719,9 @@ export interface CardMeta {
   type: "attack" | "defense" | "scheme" | "versatile";
   value: number | null;
   boost: number | null;
-  /** CLIENT-ONLY (kept on re-sync; the engine's copy at c82e963 does not carry it). Adventures
-   *  (`CardDef.defense?`, engine #588): an enemy card's printed DEFENSE value when it differs from
-   *  `value` (the attack). Absent on every regular card and on engines that do not send it yet. */
-  defense?: number | null;
+  // engine #719: the printed DEFENSE number when it differs from `value` (enemy cards: attacks 6,
+  // defends 3). Absent ⇒ the card defends at `value`. Public printed data; additive, no PROTOCOL bump.
+  defense?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1691,6 +1752,7 @@ export interface ViewFighter {
   // Public to every viewer: `deckCount` is a count only; `discardTop` is the card instance
   // id ('<cardDefId>#<n>') on top of the enemy's face-up discard, or null when it is empty.
   // `enemyId` (#664, additive): the `EnemyListing.id` this figure is — label + art key.
+  // `released` (v36, #735): true on an enemy the scenario released mid-game; absent otherwise.
   enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; released?: true };
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
@@ -2097,12 +2159,13 @@ export interface PlayerView {
   // villain board) and one row per objective with the times it has fired. ABSENT for every game
   // without a scenario, so their views are byte-identical.
   // `id` / `label` (#664, additive): the `ScenarioListing` the table is playing.
+  // v36 (#735, all ABSENT when empty — see the v36 header note): `threat.bySource`, `releases`,
+  // `contacts`, `result`, `briefing`.
   scenario?: {
     id?: string;
     label?: string;
     threat: { position: number; level: number; overflows: number; positions: number[]; bySource?: ScenarioThreatBySource };
-    // `repeat` (engine #742, additive, PROTOCOL 36): the def's repeat — how many times it can fire;
-    // ABSENT when 1 (Isla Nublar: enclosure-destroyed 3, fourth-enclosure none → 4 fires, the last loses).
+    /** `repeat` = the def's repeat count (the objective occupies that many overflow slots); ABSENT when 1 (#742, rides v36). */
     objectives: { id: string; label: string; fired: number; repeat?: number }[];
     releases?: ScenarioRelease[];
     contacts?: ScenarioContacts;
@@ -2258,9 +2321,6 @@ export interface ReplayExpansion {
   recordedEngine?: { schemaVersion: number; dslVersion: string };
 }
 
-// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it) — keep on re-sync.
-export type ReplayVerification = "exact" | "digest-verified" | "diverged";
-
 export type ReplayErrorCode =
   | "BAD_BUNDLE" // malformed JSON / missing required fields
   | "TOO_LARGE" // actionLog exceeds the server cap
@@ -2337,7 +2397,6 @@ export interface EnemyListing {
   size: "NORMAL" | "LARGE";
 }
 
-// A scenario the lobby may pick (LIST_SCENARIOS result row, engine #664 / #665).
 // v36 (#735): a scenario's rules briefing — plain-language display text, authored as scenario data.
 export interface ScenarioBriefing {
   tagline: string;
@@ -2382,6 +2441,7 @@ export interface ScenarioResult {
   round: number;
 }
 
+// A scenario the lobby may pick (LIST_SCENARIOS result row, engine #664 / #665).
 export interface ScenarioListing {
   id: string;
   label: string;
@@ -2483,8 +2543,10 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; humans?: number; scenarioId?: string; roster?: RosterPicks }
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; humans?: number; ticket?: string; scenarioId?: string; roster?: RosterPicks }
+  // `ticket` (v37, engine #755): a signed tournament join ticket — opaque to the client.
+  // See the v37 header note.
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; ticket?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
@@ -2607,4 +2669,14 @@ export type ErrorCode =
   // engine seat never send it — there an engine throw is still SERVER_ERROR to
   // the sender.
   | "ENGINE_FAULT"
+  // v37 (engine #755): tournament join tickets / tagged rooms. See the v37 header note.
+  | "TICKET_INVALID" // ticket signature or shape is bad
+  | "TICKET_EXPIRED" // ticket past its `exp`
+  | "TICKET_MISMATCH" // wrong match/game for this room, slot already taken, or same player twice
+  | "TICKET_REQUIRED" // JOIN_ROOM without a ticket into a tournament room
+  | "MATCHUP_LOCKED" // heroId / map differs from what the ticket locks
+  | "TOURNAMENTS_DISABLED" // server has no tournament secret configured
   | "SERVER_ERROR";
+
+// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it) — keep on re-sync.
+export type ReplayVerification = "exact" | "digest-verified" | "diverged";

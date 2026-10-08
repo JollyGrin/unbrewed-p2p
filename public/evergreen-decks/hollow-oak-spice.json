@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#2c3b22",
-      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/cardback.webp",
+      "cardbackUrl": "/evergreen-decks/art/hollow-oak-spice/cardback.webp",
       "highlightColour": "#5f7d3b",
       "isPNP": false,
       "patternName": "Leaf"
@@ -16,12 +16,15 @@
         "boost": 3,
         "characterName": "OAK",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-01.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/old-growth.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Old Growth",
         "type": "attack",
-        "value": 6
+        "value": 6,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/old-growth.webp"
+        }
       },
       {
         "afterText": "If you won the combat, deal 1 damage to each fighter adjacent to the Hollow Oak.",
@@ -29,12 +32,15 @@
         "boost": 3,
         "characterName": "OAK",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-02.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/breaking-boughs.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Breaking Boughs",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/breaking-boughs.webp"
+        }
       },
       {
         "afterText": "",
@@ -42,12 +48,15 @@
         "boost": 3,
         "characterName": "OAK",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-03.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/the-forest-walks.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "The Forest Walks",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/the-forest-walks.webp"
+        }
       },
       {
         "afterText": "",
@@ -55,12 +64,15 @@
         "boost": 2,
         "characterName": "FOX",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-04.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/foxfire.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Foxfire",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/foxfire.webp"
+        }
       },
       {
         "afterText": "Move this fighter up to 3 spaces away from every opposing fighter.",
@@ -68,12 +80,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-05.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/rooted-elsewhere.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Rooted Elsewhere",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/rooted-elsewhere.webp"
+        }
       },
       {
         "afterText": "Move this fighter up to 5 spaces. It may move through spaces containing opposing fighters.",
@@ -81,12 +96,15 @@
         "boost": 3,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-06.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/only-the-wind-in-the-leaves.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Only the Wind in the Leaves",
         "type": "defence",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/only-the-wind-in-the-leaves.webp"
+        }
       },
       {
         "afterText": "Move the opposing fighter up to 3 spaces. It may move through spaces containing fighters.",
@@ -94,12 +112,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-07.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/a-trick-of-the-light.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "A Trick of the Light",
         "type": "versatile",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/a-trick-of-the-light.webp"
+        }
       },
       {
         "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
@@ -107,12 +128,15 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-08.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/skirmish.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Skirmish",
         "type": "versatile",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/skirmish.webp"
+        }
       },
       {
         "afterText": "",
@@ -120,12 +144,15 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-09.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/momentous-shift.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Momentous Shift",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/momentous-shift.webp"
+        }
       },
       {
         "afterText": "",
@@ -133,12 +160,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-10.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/feint.webp",
         "immediateText": "Cancel all effects on your opponent's card.",
         "quantity": 3,
         "title": "Feint",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/feint.webp"
+        }
       },
       {
         "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
@@ -146,12 +176,15 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/bf-11.webp",
+        "imageUrl": "/evergreen-decks/art/hollow-oak-spice/regroup.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Regroup",
         "type": "versatile",
-        "value": 1
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/hollow-oak-spice/regroup.webp"
+        }
       }
     ],
     "extraCharacters": [],
@@ -162,7 +195,7 @@
       "name": "The Hollow Oak",
       "specialAbility": "JUST ANOTHER TREE\nAt the end of your turn, if there are no opposing fighters in the Hollow Oak's zone, you may draw 1 card.",
       "quote": "A colossal walking oak that is happiest in an empty grove — a lone bruiser who crashes through the treeline with enormous swings, then stands still until it is just another tree.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/token-oak.webp"
+      "tokenImageUrl": "/evergreen-decks/art/hollow-oak-spice/token-oak.webp"
     },
     "name": "The Hollow Oak",
     "ruleCards": [],
@@ -172,7 +205,7 @@
       "name": "The Ember Fox",
       "quantity": 1,
       "quote": "A quick fox with fur that smolders at the tips, trailing sparks through the undergrowth.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/hollow-oak/token-ember-fox.webp"
+      "tokenImageUrl": "/evergreen-decks/art/hollow-oak-spice/token-ember-fox.webp"
     }
   },
   "deck_first_published_on": null,

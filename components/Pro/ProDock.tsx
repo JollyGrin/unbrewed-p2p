@@ -245,6 +245,13 @@ export interface ProDockProps {
   rematchNegotiation?: RematchNegotiation | null;
   /** Local deep-link into this browser's saved replay — labelled as such (#698). */
   replayHref: string | null;
+  /**
+   * The primary endgame action in Rematch's place, when the game's own context
+   * has a better next step (a tournament game goes back to its match page).
+   */
+  endAction?: ReactNode;
+  /** A line under VICTORY / DEFEAT saying why the game ended; null = say nothing. */
+  endNote?: string | null;
   /** Upload this match and copy its public share link. Omitted when there is
    *  nothing to upload or nobody to upload as (signed out, bundle not held). */
   onCopyShareLink?: () => void;
@@ -339,6 +346,8 @@ export const ProDock = ({
   defeatRounds,
   rematchNegotiation = null,
   replayHref,
+  endAction = null,
+  endNote = null,
   onCopyShareLink,
   shareLinkBusy = false,
   undoPending,
@@ -1161,6 +1170,11 @@ export const ProDock = ({
             {adventureVerdict?.explained ? adventureVerdict.headline : isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
           </Text>
           {adventureVerdict?.explained && <AdventureVerdictBody model={adventureVerdict} narrow={narrow} />}
+          {endNote && (
+            <Text fontSize="0.85rem" color="brand.parchment" opacity={0.85} textAlign="center" maxW="22rem" data-testid="game-end-note">
+              {endNote}
+            </Text>
+          )}
           {/* One-tap rematch (#TBD): the PRIMARY endgame action — a big, gold,
               thumb-reachable button, because the whole point is cutting a
               phone rematch down from "walk back through the lobby, pick
@@ -1172,7 +1186,9 @@ export const ProDock = ({
           {/* Adventure: NO rematch button and NO "Rematch unavailable" notice. The rematch
               ruling refuses a rematch at co-op tables today, so offering "try again" would
               dangle a dead button above a refusal (#1159). Re-add it here if the ruling changes. */}
-          {adventureVerdict ? null : rematchNegotiation ? (
+          {adventureVerdict ? null : endAction ? (
+            endAction
+          ) : rematchNegotiation ? (
             <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
           ) : rematchHref && (
             <Button

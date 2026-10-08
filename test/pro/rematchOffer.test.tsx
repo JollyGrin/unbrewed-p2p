@@ -34,6 +34,14 @@ const BASE_VIEW: PlayerView = JSON.parse(
 
 type Query = Record<string, string>;
 
+// The `v` this tab binds a seat at — PROTOCOL_VERSION unless a test plays an
+// older client against an older engine window.
+let mockBindV: number | null = null;
+jest.mock("../../lib/pro/wireVersion", () => {
+  const actual = jest.requireActual("../../lib/pro/wireVersion");
+  return { ...actual, wireVersionFor: (url: string) => mockBindV ?? actual.wireVersionFor(url) };
+});
+
 let replaceCalls: { query: Query }[] = [];
 let SENT: Record<string, unknown>[] = [];
 
@@ -61,8 +69,8 @@ const fakeRouter = (query: Query) =>
     beforePopState() {},
   }) as never;
 
-// `v` is what the ENGINE stamps on its frames — 34 for today's prod, 35 for
-// an engine built from the paired #607 PR.
+// `v` is what the ENGINE stamps on its frames. Since engine #754 an engine accepts only
+// the accepted window ({36, 37} since engine #755), so this client always binds at PROTOCOL_VERSION — #1201.
 let ENGINE_V = PROTOCOL_VERSION;
 const deliver = async (msg: Record<string, unknown>) => {
   const socket = FakeWebSocket.latest();
@@ -110,6 +118,7 @@ afterEach(() => {
   cleanup();
   resetEngineVersions();
   ENGINE_V = PROTOCOL_VERSION;
+  mockBindV = null;
   window.sessionStorage.clear();
   window.localStorage.clear();
 });
@@ -157,37 +166,20 @@ const finishGame = async (you: "p1" | "p2", opts: { bots?: Record<string, string
 const rematchButton = () => screen.getAllByRole("button", { name: /rematch — same setup/i, hidden: true })[0];
 const statusText = () => screen.getAllByRole("status", { hidden: true }).map((n) => n.textContent ?? "");
 
-describe("against today's v34 engine", () => {
-  it("binds at v34, never re-binds, and keeps the one-tap link — no REMATCH_* on the wire", async () => {
+describe("against an engine at the current PROTOCOL_VERSION", () => {
+
+  it("a first visit binds at PROTOCOL_VERSION straight away and never re-binds at game over", async () => {
     await finishGame("p1");
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 34, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
-    expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
-    expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
-    expect(SENT.filter((m) => String(m.type).startsWith("REMATCH_"))).toHaveLength(0);
-    expect(SENT.every((m) => m.v === 34)).toBe(true);
-  });
-});
-
-describe("against a v35 engine", () => {
-  beforeEach(() => {
-    ENGINE_V = 35;
+    expect(sentOfType("RECONNECT")).toEqual([{ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(SENT.every((m) => m.v === PROTOCOL_VERSION)).toBe(true);
   });
 
-  it("a first visit binds at 34, then re-binds the finished seat at 35 at game over", async () => {
-    await finishGame("p1");
-    const reconnects = sentOfType("RECONNECT");
-    expect(reconnects[0]).toMatchObject({ v: 34, roomId: "OLD1" });
-    expect(reconnects[reconnects.length - 1]).toMatchObject({ v: 35, roomId: "OLD1", token: "tok-p1" });
-    expect(reconnects.filter((r) => r.v === 35)).toHaveLength(1);
-  });
-
-  it("a refresh mid-offer binds at 35 at once and shows the waiting offer again — no replay bundle needed", async () => {
-    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "35");
+  it("a refresh mid-offer binds at PROTOCOL_VERSION at once and shows the waiting offer again — no replay bundle needed", async () => {
+    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "36");
     window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
     setRoomBots("OLD1", {});
     await mount({ room: "OLD1" });
-    // A v34 return would make the engine close the open offer as `unavailable`.
-    expect(sentOfType("RECONNECT")).toEqual([{ v: 35, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
+    expect(sentOfType("RECONNECT")).toEqual([{ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: "OLD1", token: "tok-p1" }]);
     await deliver({ type: "ROOM_JOINED", roomId: "OLD1", token: "tok-p1", you: "p1" });
     await deliver({
       type: "STATE",
@@ -206,11 +198,11 @@ describe("against a v35 engine", () => {
     await finishGame("p1");
     expect(screen.queryAllByRole("link", { name: /rematch/i, hidden: true })).toHaveLength(0);
     fireEvent.click(rematchButton());
-    expect(sentOfType("REMATCH_OFFER")).toEqual([{ v: 35, type: "REMATCH_OFFER", roomId: "OLD1" }]);
+    expect(sentOfType("REMATCH_OFFER")).toEqual([{ v: PROTOCOL_VERSION, type: "REMATCH_OFFER", roomId: "OLD1" }]);
     expect(statusText().join(" ")).toMatch(/Waiting for Opponent to accept/);
 
     fireEvent.click(screen.getAllByRole("button", { name: /^cancel$/i, hidden: true })[0]);
-    expect(sentOfType("REMATCH_CANCEL")).toEqual([{ v: 35, type: "REMATCH_CANCEL", roomId: "OLD1" }]);
+    expect(sentOfType("REMATCH_CANCEL")).toEqual([{ v: PROTOCOL_VERSION, type: "REMATCH_CANCEL", roomId: "OLD1" }]);
     expect(rematchButton()).toBeTruthy();
   });
 
@@ -254,7 +246,7 @@ describe("against a v35 engine", () => {
     await deliver({ type: "REMATCH_OFFERED", from: "p1" });
     expect(statusText().join(" ")).toMatch(/Opponent wants a rematch, same setup/);
     fireEvent.click(screen.getAllByRole("button", { name: /^accept$/i, hidden: true })[0]);
-    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: 35, type: "REMATCH_RESPOND", roomId: "OLD1", accept: true }]);
+    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: PROTOCOL_VERSION, type: "REMATCH_RESPOND", roomId: "OLD1", accept: true }]);
 
     await deliver({ type: "REMATCH_READY", roomId: "NEW1", token: "tok-new" });
     expect(window.sessionStorage.getItem("unbrewed-pro-token-NEW1")).toBe("tok-new");
@@ -267,7 +259,7 @@ describe("against a v35 engine", () => {
     await finishGame("p2");
     await deliver({ type: "REMATCH_OFFERED", from: "p1" });
     fireEvent.click(screen.getAllByRole("button", { name: /^decline$/i, hidden: true })[0]);
-    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: 35, type: "REMATCH_RESPOND", roomId: "OLD1", accept: false }]);
+    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: PROTOCOL_VERSION, type: "REMATCH_RESPOND", roomId: "OLD1", accept: false }]);
     expect(rematchButton()).toBeTruthy();
   });
 
@@ -290,15 +282,79 @@ describe("against a v35 engine", () => {
     expect(screen.getAllByRole("link", { name: /rematch/i, hidden: true }).length).toBeGreaterThan(0);
     expect(screen.queryAllByRole("button", { name: /rematch — same setup/i, hidden: true })).toHaveLength(0);
   });
+});
 
-  it("an engine rolled back to v34 answers the v35 bind with VERSION — re-sent at 34", async () => {
-    window.sessionStorage.setItem("unbrewed-pro-engine-v-" + FakeWebSocketUrl(), "35");
-    window.sessionStorage.setItem("unbrewed-pro-token-OLD1", "tok-p1");
-    ENGINE_V = 34;
-    await mount({ room: "OLD1" });
-    await deliver({ type: "ERROR", code: "VERSION", message: "Protocol v34 required (got v35) — refresh the page" });
-    expect(sentOfType("RECONNECT").map((r) => r.v)).toEqual([35, 34]);
-    expect(screen.queryAllByText(/refresh the page/i)).toHaveLength(0);
+// A fake engine with a two-version window: every frame outside it is answered
+// ERROR{VERSION}, as the real engine does. The tournaments engine takes {36, 37};
+// main's takes {35, 36}, where this client would bind at 36.
+describe.each([
+  { window: [36, 37], bindV: PROTOCOL_VERSION },
+  { window: [35, 36], bindV: 36 },
+])("rematch frames against an engine accepting $window", ({ window: accepted, bindV }) => {
+  beforeEach(() => {
+    mockBindV = bindV;
+    ENGINE_V = Math.max(...accepted);
+  });
+
+  /** Answer the seat bind and every REMATCH_* frame outside the window the way the
+   *  engine does, and return the refused ones. Only those: the other frames carry
+   *  this build's PROTOCOL_VERSION, which a {35, 36} engine pairs with an older build. */
+  const engineScreens = async () => {
+    const screened = SENT.filter((m) => m.type === "RECONNECT" || String(m.type).startsWith("REMATCH_"));
+    const refused = screened.filter((m) => !accepted.includes(m.v as number));
+    for (const _ of refused) await deliver({ type: "ERROR", code: "VERSION", message: "unsupported protocol version" });
+    return refused;
+  };
+  const lostScreen = () => screen.queryAllByText(/We lost your game/i);
+
+  it("offer, cancel and a completed rematch all go out at the bound version", async () => {
+    await finishGame("p1");
+    expect(sentOfType("RECONNECT")).toMatchObject([{ v: bindV }]);
+    fireEvent.click(rematchButton());
+    expect(sentOfType("REMATCH_OFFER")).toEqual([{ v: bindV, type: "REMATCH_OFFER", roomId: "OLD1" }]);
+    expect(await engineScreens()).toEqual([]);
+    await deliver({ type: "REMATCH_OFFERED", from: "p1" });
+    fireEvent.click(screen.getAllByRole("button", { name: /^cancel$/i, hidden: true })[0]);
+    expect(sentOfType("REMATCH_CANCEL")).toEqual([{ v: bindV, type: "REMATCH_CANCEL", roomId: "OLD1" }]);
+    expect(await engineScreens()).toEqual([]);
+    await deliver({ type: "REMATCH_CLOSED", reason: "cancelled", player: "p1" });
+
+    fireEvent.click(rematchButton());
+    expect(await engineScreens()).toEqual([]);
+    await deliver({ type: "REMATCH_OFFERED", from: "p1" });
+    await deliver({ type: "REMATCH_READY", roomId: "NEW1", token: "tok-new" });
+    expect(statusText().join(" ")).toMatch(/Starting the rematch/);
+    expect(window.sessionStorage.getItem("unbrewed-pro-token-NEW1")).toBe("tok-new");
+    expect(lostScreen()).toHaveLength(0);
+  });
+
+  it("the answer to an offer goes out at the bound version and the rematch starts", async () => {
+    await finishGame("p2");
+    await deliver({ type: "REMATCH_OFFERED", from: "p1" });
+    fireEvent.click(screen.getAllByRole("button", { name: /^accept$/i, hidden: true })[0]);
+    expect(sentOfType("REMATCH_RESPOND")).toEqual([{ v: bindV, type: "REMATCH_RESPOND", roomId: "OLD1", accept: true }]);
+    expect(await engineScreens()).toEqual([]);
+    await deliver({ type: "REMATCH_READY", roomId: "NEW1", token: "tok-new" });
+    expect(statusText().join(" ")).toMatch(/Starting the rematch/);
+    expect(lostScreen()).toHaveLength(0);
+  });
+});
+
+describe("an engine that refuses a rematch frame's version", () => {
+  it("fails the offer with a short notice and keeps the finished game on screen", async () => {
+    await finishGame("p1");
+    fireEvent.click(rematchButton());
+    await deliver({ type: "ERROR", code: "VERSION", message: "unsupported protocol version" });
+    expect(screen.queryAllByText(/We lost your game/i)).toHaveLength(0);
+    expect(screen.getAllByText(/VICTORY!/).length).toBeGreaterThan(0);
+    expect(statusText().join(" ")).toMatch(/Rematch unavailable/);
+    expect(rematchButton()).toBeTruthy();
+  });
+
+  it("a VERSION error with no rematch frame out still takes the terminal path", async () => {
+    await finishGame("p1");
+    await deliver({ type: "ERROR", code: "VERSION", message: "unsupported protocol version" });
+    expect(screen.queryAllByText(/We lost your game/i).length).toBeGreaterThan(0);
   });
 });
 

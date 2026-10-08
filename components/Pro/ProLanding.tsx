@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import {
   Box,
@@ -24,6 +25,10 @@ import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
 import { AccountChip } from "@/components/Account/AccountChip";
+// Loaded on demand: its bracket/match helpers stay out of the /pro first load (#1265).
+const NextMatchBanner = dynamic(() => import("@/components/Tournaments/NextMatchBanner").then((m) => m.NextMatchBanner), {
+  ssr: false,
+});
 import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
@@ -214,6 +219,11 @@ export const ProLanding = () => {
             <AccountChip />
           </Flex>
         </Flex>
+
+        {/* Tournaments (#1220): only for a signed-in entrant with an open match. */}
+        <Box mt="1.5rem">
+          <NextMatchBanner />
+        </Box>
 
         {/* title block */}
         <Box as="section" mt="2.5rem" mb="2rem">
