@@ -346,6 +346,7 @@ export interface RegionPanelsProps {
   boardObjectArt?: (token: ViewToken) => string | null | undefined;
   boardObjectOriginName?: (token: ViewToken) => string | null | undefined;
   highlightedSpaces?: SpaceId[];
+  chosenSpaces?: SpaceId[];
   highlightedFighters?: FighterId[];
   relocateSpaces?: SpaceId[];
   relocateArmed?: boolean;
@@ -431,6 +432,7 @@ export const useRegionPanels = ({
   boardObjectArt,
   boardObjectOriginName,
   highlightedSpaces = [],
+  chosenSpaces = [],
   highlightedFighters = [],
   relocateSpaces = [],
   relocateArmed = false,
@@ -469,6 +471,7 @@ export const useRegionPanels = ({
   const coarsePointer = useCoarsePointer();
   const itemById = new Map((map.items ?? []).map((it) => [it.id, it]));
   const highlightSet = new Set(highlightedSpaces);
+  const chosenOrder = new Map(chosenSpaces.map((id, i) => [id, i + 1] as const));
   const highlightFighterSet = new Set(highlightedFighters);
   const relocateSet = new Set(relocateSpaces);
   const extendedReachSet = new Set(extendedReachTargets);
@@ -1531,6 +1534,7 @@ export const useRegionPanels = ({
       {spaces.map((s) => {
         const isHighlighted = highlightSet.has(s.id);
         const isRelocate = relocateSet.has(s.id);
+        const chosenN = chosenOrder.get(s.id);
         const zoneCols = zoneMemberColors(s);
         const inZone = zoneCols.length > 0;
         // Concentric per-zone rings (issue #413): one outset ring per zone this
@@ -1560,19 +1564,22 @@ export const useRegionPanels = ({
             // visuals must not promise the gold step.
             border={
               isRelocate ? `2px dashed ${RELOCATE_COLOR}`
+              : chosenN ? "3px solid #FFFFFF"
               : isHighlighted ? "2px solid #E0A82E"
               : "1px solid rgba(255,255,255,0.15)"
             }
             bg={
               isRelocate ? "rgba(62,207,224,0.30)"
+              : chosenN ? "rgba(224,168,46,0.95)"
               : isHighlighted ? "rgba(224,168,46,0.45)"
               : inZone ? zoneTint(zoneCols[0])
               : "transparent"
             }
             boxShadow={zoneRings}
             animation={
-              isHighlighted || isRelocate ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined
+              (isHighlighted || isRelocate) && !chosenN ? `${highlightPulse} 1.4s ease-in-out infinite` : undefined
             }
+            data-chosen={chosenN ? String(chosenN) : undefined}
             cursor={
               spaceActionable
                 ? "pointer"
@@ -1595,8 +1602,25 @@ export const useRegionPanels = ({
               setZoneHover((cur) => (cur === s.id ? null : cur));
               if (isHighlighted && !(relocateArmed && isRelocate)) onSpaceHover?.(null);
             }}
-            zIndex={isHighlighted || isRelocate ? 3 : inZone ? 2 : 1}
-          />
+            zIndex={isHighlighted || isRelocate || chosenN ? 3 : inZone ? 2 : 1}
+          >
+            {chosenN && (
+              <Box
+                as="span"
+                position="absolute"
+                inset={0}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                color="#1a1206"
+                fontWeight={800}
+                fontSize="clamp(0.6rem, 55%, 1.1rem)"
+                pointerEvents="none"
+              >
+                {chosenN}
+              </Box>
+            )}
+          </Box>
         );
       })}
 

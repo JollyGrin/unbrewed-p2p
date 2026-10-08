@@ -373,7 +373,18 @@ describe("LARGE effect movement — walking the body (issue #658)", () => {
     expect(screen.queryByText(/step one at a time/)).not.toBeInTheDocument();
     clickSpace(container, "c4"); // c4 is in two offered poses → anchors
     expect(sentActions()).toHaveLength(0);
-    expect(screen.getByText(/click the second gold space to finish the move/)).toBeInTheDocument();
+    expect(screen.getByText(/Step 2 of 2 — click a gold space for the second end/)).toBeInTheDocument();
+    expect(screen.getByText(/Step 2 of 2 — pick the second space/)).toBeInTheDocument();
+    // The chosen first space is marked "1" and is no longer a gold candidate (#1170).
+    expect(container.querySelector('[data-space-id="c4"]')?.getAttribute("data-chosen")).toBe("1");
+    // Re-clicking it does NOTHING — no accidental undo, nothing sent…
+    clickSpace(container, "c4");
+    expect(sentActions()).toHaveLength(0);
+    expect(screen.getByText(/Step 2 of 2 — pick the second space/)).toBeInTheDocument();
+    // …while the explicit button undoes it.
+    fireEvent.click(screen.getByRole("button", { name: "Change first space" }));
+    expect(screen.queryByText(/Step 2 of 2 — pick the second space/)).not.toBeInTheDocument();
+    clickSpace(container, "c4");
     clickSpace(container, "w4");
     expect(sentActions()).toEqual([
       { type: "RESPOND_PROMPT", player: "p1", promptId: "prompt-large-1", optionId: "c4|w4" },

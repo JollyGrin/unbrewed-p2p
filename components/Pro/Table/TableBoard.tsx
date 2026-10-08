@@ -148,6 +148,7 @@ export const TableBoard = ({
   boardObjectArt,
   boardObjectOriginName,
   highlightedSpaces = [],
+  chosenSpaces = [],
   highlightedFighters = [],
   // PHASE 1: `focusFighters` drives ProBoard's own mobile "zoom onto the
   // fighters that matter" effect (the live-combat case specifically — auto-
@@ -609,6 +610,7 @@ export const TableBoard = ({
     boardObjectArt,
     boardObjectOriginName,
     highlightedSpaces,
+    chosenSpaces,
     highlightedFighters,
     relocateSpaces,
     relocateArmed,
@@ -674,6 +676,7 @@ export const TableBoard = ({
               diameterPct={diameterPct}
               frameW={frameW}
               highlighted={highlightSet.has(space.id)}
+              chosenOrder={chosenSpaces.indexOf(space.id) + 1 || undefined}
               relocateOrigin={relocateSet.has(space.id)}
               relocateArmed={relocateArmed}
               coarsePointer={coarsePointer}

@@ -1942,3 +1942,30 @@ describe("ProBoard prompt-driven stepping targets (issues #654 / #185)", () => {
     expect(onSpaceClick).toHaveBeenCalledWith("s3");
   });
 });
+
+describe("ProBoard chosen vs candidate spaces (issue #1170)", () => {
+  it("draws a chosen space filled with its step number, distinct from a gold candidate", () => {
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[]} highlightedSpaces={["s2"]} chosenSpaces={["s1"]} onSpaceClick={() => {}} />
+      </ChakraProvider>
+    );
+    const chosen = container.querySelector('[data-space-id="s1"]') as HTMLElement;
+    const candidate = container.querySelector('[data-space-id="s2"]') as HTMLElement;
+    expect(chosen.getAttribute("data-chosen")).toBe("1");
+    expect(chosen.textContent).toBe("1");
+    expect(candidate.hasAttribute("data-chosen")).toBe(false);
+    expect(getComputedStyle(chosen).backgroundColor).not.toBe(getComputedStyle(candidate).backgroundColor);
+  });
+
+  it("a chosen space that is not a highlight is not clickable (re-click does nothing)", () => {
+    const onSpaceClick = jest.fn();
+    const { container } = render(
+      <ChakraProvider>
+        <ProBoard map={MAP} fighters={[]} highlightedSpaces={["s2"]} chosenSpaces={["s1"]} onSpaceClick={onSpaceClick} />
+      </ChakraProvider>
+    );
+    fireEvent.click(container.querySelector('[data-space-id="s1"]') as HTMLElement);
+    expect(onSpaceClick).not.toHaveBeenCalledWith("s1");
+  });
+});
