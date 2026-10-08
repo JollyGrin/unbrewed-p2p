@@ -42,6 +42,7 @@ import {
   useEffect,
   useRef,
   useState,
+  Fragment,
 } from "react";
 import {
   FighterId,
@@ -1547,8 +1548,8 @@ export const useRegionPanels = ({
           : undefined;
         const spaceActionable = (relocateArmed ? isRelocate : isHighlighted || isRelocate) && !!onSpaceClick;
         return (
+          <Fragment key={s.id}>
           <Box
-            key={s.id}
             data-space-id={s.id}
             data-pick={spaceActionable ? "" : undefined}
             position="absolute"
@@ -1603,24 +1604,45 @@ export const useRegionPanels = ({
               if (isHighlighted && !(relocateArmed && isRelocate)) onSpaceHover?.(null);
             }}
             zIndex={isHighlighted || isRelocate || chosenN ? 3 : inZone ? 2 : 1}
-          >
-            {chosenN && (
+          />
+          {chosenN && (
+            // Sibling of the hit-circle, above the tokens (zIndex 4): the mover's own
+            // token usually sits ON the chosen space and would cover a badge drawn
+            // inside it. Corner-placed so the token and its ring stay readable.
+            <Box
+              data-chosen-badge={s.id}
+              position="absolute"
+              left={`${s.x * 100}%`}
+              top={`${s.y * 100}%`}
+              transform="translate(-50%, -50%)"
+              w={`${diam}%`}
+              sx={{ aspectRatio: "1" }}
+              pointerEvents="none"
+              zIndex={5}
+            >
               <Box
                 as="span"
                 position="absolute"
-                inset={0}
+                top="-22%"
+                left="-22%"
+                w="52%"
+                h="52%"
+                borderRadius="50%"
+                bg="#FFFFFF"
+                border="2px solid #E0A82E"
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
                 color="#1a1206"
                 fontWeight={800}
-                fontSize="clamp(0.6rem, 55%, 1.1rem)"
-                pointerEvents="none"
+                fontSize="clamp(0.6rem, 40%, 0.95rem)"
+                lineHeight={1}
               >
                 {chosenN}
               </Box>
-            )}
-          </Box>
+            </Box>
+          )}
+          </Fragment>
         );
       })}
 

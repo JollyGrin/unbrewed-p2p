@@ -1953,7 +1953,7 @@ describe("ProBoard chosen vs candidate spaces (issue #1170)", () => {
     const chosen = container.querySelector('[data-space-id="s1"]') as HTMLElement;
     const candidate = container.querySelector('[data-space-id="s2"]') as HTMLElement;
     expect(chosen.getAttribute("data-chosen")).toBe("1");
-    expect(chosen.textContent).toBe("1");
+    expect(container.querySelector('[data-chosen-badge="s1"]')?.textContent).toBe("1");
     expect(candidate.hasAttribute("data-chosen")).toBe(false);
     expect(getComputedStyle(chosen).backgroundColor).not.toBe(getComputedStyle(candidate).backgroundColor);
   });
