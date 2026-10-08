@@ -6,13 +6,17 @@
  * `legalActions` as UI affordances, answers `prompt`s, and sends actions.
  * Everything here is plain JSON-serializable data.
  *
- * ## Sync procedure (docs/pro/tasks/T-015 in the public repo)
- * Any change here bumps PROTOCOL_VERSION. Copy this file VERBATIM to
- * `unbrewed-p2p/lib/pro/protocol.ts` and note the sync in both commit bodies.
- * This file must compile standalone in both repos: NO imports — the engine
- * shapes it mirrors (Action, PendingPrompt kinds, MapDef) are duplicated here
- * by hand and drift is caught by the type-level tests in
- * `test/protocol.test.ts` (this repo only).
+ * ## GENERATED FILE — do not hand-edit (unbrewed-p2p#1304)
+ * This is the engine's `protocol/protocol.ts` (unbrewed-pro-server) at the ref pinned in
+ * `lib/pro/protocol.pin.json`, plus the explicit client-only edits in `lib/pro/protocol.overrides.mjs`
+ * (each carries a one-line reason: the wire pin, REMATCH_PROTOCOL_VERSION, ReplayVerification, notes).
+ *
+ *   npm run protocol:sync -- <engine-ref-or-path>   # regenerate (rewrites this file + the pin)
+ *   npm run protocol:check                          # fail if this file != engine@pin + overrides
+ *
+ * To take an engine change: sync, review the diff, commit. To change a client-only piece: edit the
+ * overrides file, then sync again. `protocol:check` runs in `npm test`. The file must compile
+ * standalone (NO imports).
  *
  * ## Reconciliation vs the client DRAFT (v0, 2026-07-04)
  * - Prompt answers are a regular action (`RESPOND_PROMPT`) — the reducer gates
@@ -1124,7 +1128,6 @@ export const PROTOCOL_VERSION = 37;
  * rematch negotiation (v35, above) needs — the client's gate for offering it. Since engine #754 the
  * server accepts nothing below 35 from a prod client, so every bind is at `PROTOCOL_VERSION` and is
  * rematch-capable; the old "bind at 34, upgrade to 35" dance in lib/pro/wireVersion.ts is gone.
- * Keep this export when re-syncing the file.
  */
 export const REMATCH_PROTOCOL_VERSION = 35;
 
@@ -2678,5 +2681,5 @@ export type ErrorCode =
   | "TOURNAMENTS_DISABLED" // server has no tournament secret configured
   | "SERVER_ERROR";
 
-// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it) — keep on re-sync.
+// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it).
 export type ReplayVerification = "exact" | "digest-verified" | "diverged";
