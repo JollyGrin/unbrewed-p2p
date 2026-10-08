@@ -32,6 +32,7 @@
     "render:deck": "remotion render DeckAnnouncement",
     "render:cosmetics": "remotion render CosmeticsAnnouncement out/cosmetics.mp4 --props=props/cosmetics.json",
     "promo:cosmetics": "node scripts/promo.mjs cosmetics",
+    "promo:tournaments": "node scripts/promo.mjs tournaments",
     "promo": "node scripts/promo.mjs",
     "compress:discord": "node scripts/compress-discord.mjs",
     "check:flourish": "node scripts/check-flourish.mjs"

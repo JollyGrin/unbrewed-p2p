@@ -1,0 +1,55 @@
+{
+  "thread": "SF2 · quill vs bramble",
+  "source": "api dry-run log, local promo stack, 2026-10-08",
+  "posts": [
+    {
+      "content": "@quill @bramble your semifinal is open.",
+      "embed": {
+        "title": "Autumn Skirmish · Semifinal 2",
+        "description": "One game decides it. Press I'm ready to play when you're ready; we'll ping the other player here.",
+        "color": 5793266,
+        "fields": [
+          {
+            "name": "Matchup",
+            "value": "Triceratops vs King Taranis"
+          },
+          {
+            "name": "Map",
+            "value": "Island Of Despair"
+          },
+          {
+            "name": "Deadline",
+            "value": "Sat, Oct 10, 2:37 PM (in 2 days)"
+          }
+        ],
+        "footer": "Status: open · no game yet"
+      },
+      "button": "Open match"
+    },
+    {
+      "content": "@bramble quill is ready to play. Their seat is held for 15 minutes.",
+      "button": "Join game"
+    },
+    {
+      "content": "bramble wins Semifinal 2 and plays in the Final. GG @quill.",
+      "embed": {
+        "color": 5763719,
+        "fields": [
+          {
+            "name": "Result",
+            "value": "bramble 1–0"
+          },
+          {
+            "name": "Heroes",
+            "value": "Triceratops vs King Taranis"
+          },
+          {
+            "name": "Length",
+            "value": "1 min"
+          }
+        ]
+      },
+      "button": "Match page"
+    }
+  ]
+}

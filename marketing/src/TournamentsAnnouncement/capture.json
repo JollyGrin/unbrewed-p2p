@@ -1,0 +1,982 @@
+{
+ "create": {
+  "clickCreate": 1.95,
+  "clickName": 3.65,
+  "typed": 4.84,
+  "clickOpen": 6.08,
+  "eventPage": 6.12
+ },
+ "share": {
+  "click": 2
+ },
+ "start": {
+  "clickStart": 3.67,
+  "confirm": 5.39,
+  "bracket": 5.5
+ },
+ "ready": {
+  "click": 3.23,
+  "room": 3.82
+ },
+ "join": {
+  "click": 4.08,
+  "room": 4.64
+ },
+ "board": {
+  "keep": 2.04
+ },
+ "advance": {
+  "decidedApi": 8.57,
+  "pageUpdated": 8.57
+ },
+ "signup": [
+  {
+   "size": {
+    "w": 1280,
+    "h": 1167
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 676,
+      "y": 554.5,
+      "w": 6.5,
+      "h": 33,
+      "text": "1"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1231
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 672.5,
+      "y": 554.5,
+      "w": 10,
+      "h": 33,
+      "text": "2"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1295
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 673.2,
+      "y": 554.5,
+      "w": 9.4,
+      "h": 33,
+      "text": "3"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1359
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 673.2,
+      "y": 554.5,
+      "w": 9.4,
+      "h": 33,
+      "text": "4"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1423
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 672.9,
+      "y": 554.5,
+      "w": 9.6,
+      "h": 33,
+      "text": "5"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1487
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 673,
+      "y": 554.5,
+      "w": 9.6,
+      "h": 33,
+      "text": "6"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1551
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 674.5,
+      "y": 554.5,
+      "w": 8.1,
+      "h": 33,
+      "text": "7"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 134.5,
+      "text": "Signed in as hollowmoon. One more tap to take a seat. Join Autumn Skirmish You can leave any time until signup closes."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  },
+  {
+   "size": {
+    "w": 1280,
+    "h": 1504
+   },
+   "pieces": {
+    "seat-count": [
+     {
+      "x": 673,
+      "y": 554.5,
+      "w": 9.5,
+      "h": 33,
+      "text": "8"
+     }
+    ],
+    "join-panel": [
+     {
+      "x": 181,
+      "y": 650.5,
+      "w": 524.4,
+      "h": 24,
+      "text": "All seats are taken."
+     }
+    ],
+    "lifecycle-panel": [
+     {
+      "x": 160,
+      "y": 278.6,
+      "w": 960,
+      "h": 148.9,
+      "text": "Organizer controls Signup closes Tue, Oct 13, 2:00 PM. You can edit everything until the bracket starts. Organizer only Edit Extend signup Cancel tournament"
+     }
+    ]
+   }
+  }
+ ],
+ "signupPlayer": {
+  "size": {
+   "w": 1280,
+   "h": 788
+  },
+  "pieces": {
+   "seat-count": [
+    {
+     "x": 673,
+     "y": 389.6,
+     "w": 9.5,
+     "h": 33,
+     "text": "8"
+    }
+   ],
+   "join-panel": [
+    {
+     "x": 181,
+     "y": 485.6,
+     "w": 524.4,
+     "h": 181,
+     "text": "1 You're in, player 1 of 8. Signup closes Tue, Oct 13, 2:00 PM; then the organizer starts the bracket. Check this page for your match: it shows up here when it opens. Plans changed? You can leave unti"
+    }
+   ]
+  }
+ },
+ "bracketOpen": {
+  "size": {
+   "w": 1280,
+   "h": 1991
+  },
+  "pieces": {
+   "bracket-tree": [
+    {
+     "x": 52,
+     "y": 456.1,
+     "w": 1176,
+     "h": 990,
+     "text": "Quarterfinals Round 1 \u00b7 open QF1 READY TO PLAY Thrall vs Kenshiro 1 mossback Thrall 8 cobble Kenshiro Waiting for a game 1d 23h left QF2 READY TO PLAY Boba Fett vs Thetis 4 kestrel Boba Fett 5 juniper"
+    }
+   ],
+   "match-cell": [
+    {
+     "x": 60,
+     "y": 553.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF1 READY TO PLAY Thrall vs Kenshiro 1 mossback Thrall 8 cobble Kenshiro Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 60,
+     "y": 778.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF2 READY TO PLAY Boba Fett vs Thetis 4 kestrel Boba Fett 5 juniper Thetis Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 60,
+     "y": 1003.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF3 READY TO PLAY Piper of the Underroads vs Cairne Bloodhoof 2 tinder Piper of the Underroads 7 quill Cairne Bloodhoof Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 60,
+     "y": 1228.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF4 READY TO PLAY King Kong vs Malfurion Stormrage 3 saltmarsh King Kong 6 bramble Malfurion Stormrage Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 378.1,
+     "y": 673.7,
+     "w": 274.1,
+     "h": 186.9,
+     "text": "SF1 ? Winner of QF1 mossback or cobble ? Winner of QF2 kestrel or juniper Opens when both earlier matches are decided"
+    },
+    {
+     "x": 378.1,
+     "y": 1123.7,
+     "w": 274.1,
+     "h": 186.9,
+     "text": "SF2 ? Winner of QF3 tinder or quill ? Winner of QF4 saltmarsh or bramble Opens when both earlier matches are decided"
+    },
+    {
+     "x": 696.3,
+     "y": 904.2,
+     "w": 274.1,
+     "h": 175.9,
+     "text": "FINAL ? Winner of SF1 ? Winner of SF2 Opens when both earlier matches are decided"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF1Ready to playThrall vs Kenshiro1mossbackThrall8cobbleKenshiroWaiting for a game1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF2Ready to playBoba Fett vs Thetis4kestrelBoba Fett5juniperThetisWaiting for a game1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF3Ready to playPiper of the Underroads vs Cairne Bloodhoof2tinderPiper of the Underroads7quillCairne BloodhoofWaiting for a game1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF4Ready to playKing Kong vs Malfurion Stormrage3saltmarshKing Kong6brambleMalfurion StormrageWaiting for a game1d 23h left"
+    }
+   ],
+   "champion": [
+    {
+     "x": 1014.4,
+     "y": 910.1,
+     "w": 205.6,
+     "h": 164,
+     "text": "\u265b To be crowned Crowned automatically when the final is decided."
+    }
+   ],
+   "event-stats": [
+    {
+     "x": 908.9,
+     "y": 230.6,
+     "w": 339.1,
+     "h": 65.5,
+     "text": "8 players 1/3 round 0 games played 0 in play now"
+    }
+   ]
+  }
+ },
+ "bracketLive": {
+  "size": {
+   "w": 1280,
+   "h": 1991
+  },
+  "pieces": {
+   "bracket-tree": [
+    {
+     "x": 52,
+     "y": 456.1,
+     "w": 1176,
+     "h": 990,
+     "text": "Quarterfinals Round 1 \u00b7 1 in play QF1 READY TO PLAY Thrall vs Kenshiro 1 mossback Thrall 8 cobble Kenshiro Waiting for a game 1d 23h left QF2 READY TO PLAY Boba Fett vs Thetis 4 kestrel Boba Fett 5 ju"
+    }
+   ],
+   "match-cell": [
+    {
+     "x": 60,
+     "y": 553.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF1 READY TO PLAY Thrall vs Kenshiro 1 mossback Thrall 8 cobble Kenshiro Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 60,
+     "y": 778.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF2 READY TO PLAY Boba Fett vs Thetis 4 kestrel Boba Fett 5 juniper Thetis Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 60,
+     "y": 1003.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF3 READY TO PLAY Piper of the Underroads vs Cairne Bloodhoof 2 tinder Piper of the Underroads 7 quill Cairne Bloodhoof Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 60,
+     "y": 1228.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF4 IN PLAY NOW King Kong vs Malfurion Stormrage 3 saltmarsh King Kong 6 bramble Malfurion Stormrage In play now 1d 23h left"
+    },
+    {
+     "x": 378.1,
+     "y": 673.7,
+     "w": 274.1,
+     "h": 186.9,
+     "text": "SF1 ? Winner of QF1 mossback or cobble ? Winner of QF2 kestrel or juniper Opens when both earlier matches are decided"
+    },
+    {
+     "x": 378.1,
+     "y": 1123.7,
+     "w": 274.1,
+     "h": 186.9,
+     "text": "SF2 ? Winner of QF3 tinder or quill ? Winner of QF4 saltmarsh or bramble Opens when both earlier matches are decided"
+    },
+    {
+     "x": 696.3,
+     "y": 904.2,
+     "w": 274.1,
+     "h": 175.9,
+     "text": "FINAL ? Winner of SF1 ? Winner of SF2 Opens when both earlier matches are decided"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF1Ready to playThrall vs Kenshiro1mossbackThrall8cobbleKenshiroWaiting for a game1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF2Ready to playBoba Fett vs Thetis4kestrelBoba Fett5juniperThetisWaiting for a game1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF3Ready to playPiper of the Underroads vs Cairne Bloodhoof2tinderPiper of the Underroads7quillCairne BloodhoofWaiting for a game1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "QF4In play nowKing Kong vs Malfurion Stormrage3saltmarshKing Kong6brambleMalfurion StormrageIn play now1d 23h left"
+    }
+   ],
+   "champion": [
+    {
+     "x": 1014.4,
+     "y": 910.1,
+     "w": 205.6,
+     "h": 164,
+     "text": "\u265b To be crowned Crowned automatically when the final is decided."
+    }
+   ],
+   "event-stats": [
+    {
+     "x": 908.9,
+     "y": 230.6,
+     "w": 339.1,
+     "h": 65.5,
+     "text": "8 players 1/3 round 0 games played 1 in play now"
+    }
+   ]
+  }
+ },
+ "bracketSemis": {
+  "size": {
+   "w": 1280,
+   "h": 1991
+  },
+  "pieces": {
+   "bracket-tree": [
+    {
+     "x": 52,
+     "y": 456.1,
+     "w": 1176,
+     "h": 990,
+     "text": "Quarterfinals Round 1 \u00b7 4/4 decided QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8 QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5"
+    }
+   ],
+   "match-cell": [
+    {
+     "x": 60,
+     "y": 553.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 778.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5 juniper , winner Thetis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1003.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF3 Piper of the Underroads vs Cairne Bloodhoof 2 tinder , eliminated Piper of the Underroads 0 7 quill , winner Cairne Bloodhoof 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1228.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF4 King Kong vs Malfurion Stormrage 3 saltmarsh , eliminated King Kong 0 6 bramble , winner Malfurion Stormrage 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 666.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "SF1 Ellen Ripley vs Luke Skywalker 8 cobble , eliminated Ellen Ripley 0 5 juniper , winner Luke Skywalker 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 1102.9,
+     "w": 274.1,
+     "h": 228.5,
+     "text": "SF2 READY TO PLAY Triceratops vs King Taranis Island of Despair 7 quill Triceratops 6 bramble King Taranis Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 696.3,
+     "y": 904.4,
+     "w": 274.1,
+     "h": 175.5,
+     "text": "FINAL 5 juniper The Hollow Oak ? Winner of SF2 quill or bramble Opens when the other match is decided"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "SF1Ellen Ripley vs Luke Skywalker8cobble, eliminatedEllen Ripley05juniper, winnerLuke Skywalker1Decided Thu, Oct 8"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "SF2Ready to playTriceratops vs King TaranisIsland of Despair7quillTriceratops6brambleKing TaranisWaiting for a game1d 23h left"
+    }
+   ],
+   "champion": [
+    {
+     "x": 1014.4,
+     "y": 910.1,
+     "w": 205.6,
+     "h": 164,
+     "text": "\u265b To be crowned Crowned automatically when the final is decided."
+    }
+   ],
+   "event-stats": [
+    {
+     "x": 903.2,
+     "y": 230.6,
+     "w": 344.8,
+     "h": 65.5,
+     "text": "8 players 2/3 round 5 games played 0 in play now"
+    }
+   ]
+  }
+ },
+ "bracketSf2Live": {
+  "size": {
+   "w": 1280,
+   "h": 1991
+  },
+  "pieces": {
+   "bracket-tree": [
+    {
+     "x": 52,
+     "y": 456.1,
+     "w": 1176,
+     "h": 990,
+     "text": "Quarterfinals Round 1 \u00b7 4/4 decided QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8 QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5"
+    }
+   ],
+   "match-cell": [
+    {
+     "x": 60,
+     "y": 553.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 778.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5 juniper , winner Thetis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1003.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF3 Piper of the Underroads vs Cairne Bloodhoof 2 tinder , eliminated Piper of the Underroads 0 7 quill , winner Cairne Bloodhoof 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1228.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF4 King Kong vs Malfurion Stormrage 3 saltmarsh , eliminated King Kong 0 6 bramble , winner Malfurion Stormrage 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 666.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "SF1 Ellen Ripley vs Luke Skywalker 8 cobble , eliminated Ellen Ripley 0 5 juniper , winner Luke Skywalker 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 1102.9,
+     "w": 274.1,
+     "h": 228.5,
+     "text": "SF2 IN PLAY NOW Triceratops vs King Taranis Island of Despair 7 quill Triceratops 6 bramble King Taranis In play now 1d 23h left"
+    },
+    {
+     "x": 696.3,
+     "y": 904.4,
+     "w": 274.1,
+     "h": 175.5,
+     "text": "FINAL 5 juniper The Hollow Oak ? Winner of SF2 quill or bramble Opens when the other match is decided"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "SF1Ellen Ripley vs Luke Skywalker8cobble, eliminatedEllen Ripley05juniper, winnerLuke Skywalker1Decided Thu, Oct 8"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "SF2In play nowTriceratops vs King TaranisIsland of Despair7quillTriceratops6brambleKing TaranisIn play now1d 23h left"
+    }
+   ],
+   "champion": [
+    {
+     "x": 1014.4,
+     "y": 910.1,
+     "w": 205.6,
+     "h": 164,
+     "text": "\u265b To be crowned Crowned automatically when the final is decided."
+    }
+   ],
+   "event-stats": [
+    {
+     "x": 903.2,
+     "y": 230.6,
+     "w": 344.8,
+     "h": 65.5,
+     "text": "8 players 2/3 round 5 games played 1 in play now"
+    }
+   ]
+  }
+ },
+ "bracketFinalOpen": {
+  "size": {
+   "w": 1280,
+   "h": 1991
+  },
+  "pieces": {
+   "bracket-tree": [
+    {
+     "x": 52,
+     "y": 456.1,
+     "w": 1176,
+     "h": 990,
+     "text": "Quarterfinals Round 1 \u00b7 4/4 decided QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8 QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5"
+    }
+   ],
+   "match-cell": [
+    {
+     "x": 60,
+     "y": 553.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 778.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5 juniper , winner Thetis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1003.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF3 Piper of the Underroads vs Cairne Bloodhoof 2 tinder , eliminated Piper of the Underroads 0 7 quill , winner Cairne Bloodhoof 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1228.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF4 King Kong vs Malfurion Stormrage 3 saltmarsh , eliminated King Kong 0 6 bramble , winner Malfurion Stormrage 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 666.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "SF1 Ellen Ripley vs Luke Skywalker 8 cobble , eliminated Ellen Ripley 0 5 juniper , winner Luke Skywalker 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 1102.9,
+     "w": 274.1,
+     "h": 228.5,
+     "text": "SF2 Triceratops vs King Taranis Island of Despair 7 quill , eliminated Triceratops 0 6 bramble , winner King Taranis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 696.3,
+     "y": 877.9,
+     "w": 274.1,
+     "h": 228.5,
+     "text": "FINAL READY TO PLAY The Hollow Oak vs King Taranis Island of Despair 5 juniper The Hollow Oak 6 bramble King Taranis Waiting for a game 1d 23h left"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "FinalReady to playThe Hollow Oak vs King TaranisIsland of Despair5juniperThe Hollow Oak6brambleKing TaranisWaiting for a game1d 23h left"
+    }
+   ],
+   "champion": [
+    {
+     "x": 1014.4,
+     "y": 910.1,
+     "w": 205.6,
+     "h": 164,
+     "text": "\u265b To be crowned Crowned automatically when the final is decided."
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "\u265bTo be crownedCrowned automatically when the final is decided."
+    }
+   ],
+   "event-stats": [
+    {
+     "x": 904.2,
+     "y": 230.6,
+     "w": 343.8,
+     "h": 65.5,
+     "text": "8 players 3/3 round 6 games played 0 in play now"
+    }
+   ]
+  }
+ },
+ "bracketDone": {
+  "size": {
+   "w": 1280,
+   "h": 1808
+  },
+  "pieces": {
+   "bracket-tree": [
+    {
+     "x": 52,
+     "y": 457.6,
+     "w": 1176,
+     "h": 990,
+     "text": "Quarterfinals Round 1 \u00b7 4/4 decided QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8 QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5"
+    }
+   ],
+   "match-cell": [
+    {
+     "x": 60,
+     "y": 555.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF1 Thrall vs Kenshiro 1 mossback , eliminated Thrall 0 8 cobble , winner Kenshiro 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 780.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF2 Boba Fett vs Thetis 4 kestrel , eliminated Boba Fett 0 5 juniper , winner Thetis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1005.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF3 Piper of the Underroads vs Cairne Bloodhoof 2 tinder , eliminated Piper of the Underroads 0 7 quill , winner Cairne Bloodhoof 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 60,
+     "y": 1230.1,
+     "w": 274.1,
+     "h": 202,
+     "text": "QF4 King Kong vs Malfurion Stormrage 3 saltmarsh , eliminated King Kong 0 6 bramble , winner Malfurion Stormrage 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 667.6,
+     "w": 274.1,
+     "h": 202,
+     "text": "SF1 Ellen Ripley vs Luke Skywalker 8 cobble , eliminated Ellen Ripley 0 5 juniper , winner Luke Skywalker 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 378.1,
+     "y": 1104.4,
+     "w": 274.1,
+     "h": 228.5,
+     "text": "SF2 Triceratops vs King Taranis Island of Despair 7 quill , eliminated Triceratops 0 6 bramble , winner King Taranis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 696.3,
+     "y": 879.4,
+     "w": 274.1,
+     "h": 228.5,
+     "text": "FINAL The Hollow Oak vs King Taranis Island of Despair 5 juniper , eliminated The Hollow Oak 0 6 bramble , winner King Taranis 1 Decided Thu, Oct 8"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "FinalThe Hollow Oak vs King TaranisIsland of Despair5juniper, eliminatedThe Hollow Oak06bramble, winnerKing Taranis1Decided Thu, Oct 8"
+    }
+   ],
+   "champion": [
+    {
+     "x": 1014.4,
+     "y": 884.6,
+     "w": 205.6,
+     "h": 218,
+     "text": "\u265b bramble Champion"
+    },
+    {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0,
+     "text": "\u265bbrambleChampion"
+    }
+   ],
+   "event-stats": [
+    {
+     "x": 1005.7,
+     "y": 232.1,
+     "w": 242.3,
+     "h": 65.5,
+     "text": "8 players 3/3 round 7 games played"
+    }
+   ]
+  }
+ },
+ "orgMatch": {
+  "size": {
+   "w": 1280,
+   "h": 1272
+  },
+  "pieces": {}
+ },
+ "sf2Done": {
+  "size": {
+   "w": 1280,
+   "h": 1144
+  },
+  "pieces": {}
+ }
+}

@@ -15,6 +15,13 @@ import {
   totalDuration as cosmeticsDuration,
 } from "./CosmeticsAnnouncement";
 import { cosmeticsAnnouncementSchema } from "./CosmeticsAnnouncement/schema";
+import {
+  TournamentsAnnouncement,
+  tournamentsAnnouncementMetadata,
+  totalDuration as tournamentsDuration,
+} from "./TournamentsAnnouncement";
+import { tournamentsAnnouncementSchema } from "./TournamentsAnnouncement/schema";
+import tournaments from "../props/tournaments.json";
 import taranis from "../props/taranis.json";
 import cosmetics from "../props/cosmetics.json";
 
@@ -62,6 +69,20 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={cosmeticsAnnouncementSchema.parse(cosmetics)}
         calculateMetadata={cosmeticsAnnouncementMetadata}
         durationInFrames={cosmeticsDuration()}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      {/* The Tournaments launch ad ("The bracket runs itself"). One fixed
+          storyboard, built from captures of a local stack on main — see
+          TournamentsAnnouncement/shots.ts. */}
+      <Composition
+        id="TournamentsAnnouncement"
+        component={TournamentsAnnouncement}
+        schema={tournamentsAnnouncementSchema}
+        defaultProps={tournamentsAnnouncementSchema.parse(tournaments)}
+        calculateMetadata={tournamentsAnnouncementMetadata}
+        durationInFrames={tournamentsDuration()}
         fps={FPS}
         width={1920}
         height={1080}
