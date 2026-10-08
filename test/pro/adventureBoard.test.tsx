@@ -35,7 +35,7 @@ import {
   ISLA_NUBLAR_SPACES,
   ISLA_NUBLAR_SPACE_DIAMETER,
 } from "./fixtures/islaNublarSpaces";
-import { boardFitInsetFor } from "@/lib/pro/mobileLayout";
+import { ADVENTURE_OVERLAY_INSET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 
 const fighter = (id: string, name: string, extra: object = {}) => ({
@@ -102,6 +102,13 @@ const mount = (formatId: string | undefined, view = VIEW, events = EVENTS) =>
     </ChakraProvider>,
   );
 
+// The overlay is lazy (next/dynamic, #1303): load its chunk once, then every mount renders synchronously.
+beforeAll(async () => {
+  mount("adventure");
+  await screen.findByTestId("adventure-board");
+  cleanup();
+});
+
 describe("AdventureBoard", () => {
   it("renders round, highlighted current initiative, threat marker, enemy dials, intent", () => {
     mount("adventure");
@@ -159,6 +166,23 @@ describe("AdventureBoard", () => {
     mount("adventure", reshuffled);
     expect(screen.getByTestId("adv-init-c1")).toHaveAttribute("data-state", "down");
     expect(screen.queryByTestId("adv-now")).toBeNull();
+  });
+
+  it("hands the enemy turn's mover → target arrow to the board, from its one enemy-turn state (#1303)", () => {
+    const arrows: unknown[] = [];
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={VIEW} events={EVENTS} onBoardArrow={(a) => arrows.push(a)} />
+      </ChakraProvider>,
+    );
+    expect(arrows.at(-1)).toEqual({ attacker: "e1/rex", target: "p1/hero" });
+    cleanup();
+    expect(arrows.at(-1)).toBeNull();
+  });
+
+  it("clears the narrator card once the game is over (#1182)", () => {
+    mount("adventure", { ...VIEW, winner: "e1" } as PlayerView);
+    expect(screen.queryByTestId("adv-enemy-turn")).toBeNull();
   });
 
   it("renders nothing for other formats or a view without adventure data", () => {
@@ -596,10 +620,10 @@ describe("plates/overlay/dock never cover a board space (#1138)", () => {
 // #1139: the right-docked overlay column (turn-order row + "players choose" panel + threat
 // track + dials) is ~272x380+ and sat over the board's right side: enclosure 07 (= s10, the
 // third-from-last in the map's enclosures order) and s16 at 1500px. The board now FITS clear
-// of the column, via boardFitInsetFor({ adventureOverlay }), instead of running under it.
+// of the column, via boardFitInsetFor({ formatOverlayRight }), instead of running under it.
 const ENCLOSURE_SPACES = ["s19", "s18", "s24", "s42", "s41", "s11", "s10", "s49"]; // printed 01..08
 const boardRectFor = (vw: number, vh: number, adventureOverlay: boolean) => {
-  const inset = boardFitInsetFor({ mode: "desktop", adventureOverlay });
+  const inset = boardFitInsetFor({ mode: "desktop", formatOverlayRight: adventureOverlay ? ADVENTURE_OVERLAY_INSET : 0 });
   const aw = vw - inset.left - inset.right;
   const ah = vh - inset.top - inset.bottom;
   const w = Math.min(aw, ah / ASPECT);
@@ -638,8 +662,8 @@ describe("overlay column never covers an enclosure badge or space (#1139)", () =
   it("only an adventure room reserves the column; the desktop inset is otherwise unchanged", () => {
     const base = boardFitInsetFor({ mode: "desktop" });
     expect(base.right).toBe(320);
-    expect(boardFitInsetFor({ mode: "desktop", adventureOverlay: true }).right).toBe(320 + 284);
-    expect(boardFitInsetFor({ mode: "portrait", adventureOverlay: true })).toEqual(boardFitInsetFor({ mode: "portrait" }));
+    expect(boardFitInsetFor({ mode: "desktop", formatOverlayRight: ADVENTURE_OVERLAY_INSET }).right).toBe(320 + 284);
+    expect(boardFitInsetFor({ mode: "portrait", formatOverlayRight: ADVENTURE_OVERLAY_INSET })).toEqual(boardFitInsetFor({ mode: "portrait" }));
   });
 });
 

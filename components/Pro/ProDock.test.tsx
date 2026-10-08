@@ -312,6 +312,13 @@ describe("ProDock endgame links", () => {
     expect(link).toHaveAttribute("href", "/pro/game?rematch=1&hero=GINGERBREAD");
   });
 
+  it("shows no end panel when a format end screen owns the end (#1303)", () => {
+    render(<ProDock {...props({ view: won, formatEndScreen: true, replayHref: "/pro/replays?open=r80279f0e" })} />);
+    expect(screen.queryByText(/VICTORY!|DEFEAT/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /view your replay/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /new game/i })).toBeNull();
+  });
+
   it("labels the local deep-link as the player's own copy", () => {
     render(<ProDock {...props({ view: won, replayHref: "/pro/replays?open=r80279f0e" })} />);
 

@@ -93,7 +93,6 @@ import { cardChoiceGroups } from "@/lib/pro/cardChoices";
 import { CardPreviewProvider } from "@/components/Pro/CardPreview";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { MapPreviewModal } from "@/components/Pro/MapPreviewModal";
-import { trackDefeatRounds } from "@/lib/pro/adventureVerdict";
 import { ProDock } from "@/components/Pro/ProDock";
 import { ProHud, ProHudProps, STATUS_DISPLAY } from "@/components/Pro/ProHud";
 import { MOBILE_BTN, ProMobileHud, ProMobileMenu } from "@/components/Pro/ProMobileHud";
@@ -198,19 +197,21 @@ import { useAccount } from "@/lib/account/useAccount";
 import { useAccountStats } from "@/lib/account/useAccountStats";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
-import { ALL_FORMATS, formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
-import { adventureLabEnabled } from "@/lib/pro/adventureGate";
+import { formatChoice, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { enclosureModel, enclosureNumbers } from "@/lib/pro/enclosures";
-import { AdventureSetup, adventureSeats, defaultAdventureSetup, scenarioFor } from "@/lib/pro/adventureLobby";
-import { useScenarios } from "@/lib/pro/adventureScenarios";
-import { AdventureLobby } from "@/components/Pro/AdventureLobby";
-import { LobbyBriefing } from "@/components/Pro/AdventureBriefing";
-import { AdventureWaitingRoom } from "@/components/Pro/AdventureWaitingRoom";
-import { FormatOverlay } from "@/components/Pro/FormatOverlay";
-import { enemyTurnArrow } from "@/lib/pro/enemyTurn";
-import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
-import { EngineFaultBanner } from "@/components/Pro/AdventureBoard";
-import { teamDecisionModel } from "@/lib/pro/adventureBoard";
+import {
+  FormatLobbyBriefing,
+  FormatLobbySeats,
+  FormatWaitingRoom,
+  formatLobby,
+  hasFormatWaitingRoom,
+  initialFormatSetups,
+  lobbyFormats,
+  useFormatStageName,
+} from "@/components/Pro/FormatLobby";
+import { BoardArrow, FormatOverlay, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
+import { FormatEndScreen, hasFormatEndScreen } from "@/components/Pro/FormatEndScreen";
+import { EngineFaultBanner } from "@/components/Pro/EngineFaultBanner";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
@@ -225,8 +226,6 @@ import { scaledCombatAnimTiming, CombatAnimTiming } from "@/lib/pro/combatAnimTi
 import type { TableStrike } from "@/components/Pro/Table/tableMiniCues";
 import { batchActor } from "@/lib/pro/slowModeQueue";
 import { ActionSpotlight, ActionSpotlightBatch } from "@/components/Pro/ActionSpotlight";
-import { BreakoutMomentOverlay } from "@/components/Pro/BreakoutMoment";
-import { breakoutMoment, BreakoutMoment, withLateSpawn } from "@/lib/pro/breakoutMoment";
 import {
   CUSTOM_MAP_ID,
   MAP_CATALOG,
@@ -2990,8 +2989,8 @@ const HeroSelectLobby = ({
   opponent,
   selectedFormat,
   onSelectFormat,
-  adventureSetup,
-  onChangeAdventureSetup,
+  formatSetup,
+  onChangeFormatSetup,
   onSelectOpponent,
   onSelectHero,
   aiHeroId,
@@ -3031,9 +3030,9 @@ const HeroSelectLobby = ({
   opponent: OpponentChoice;
   selectedFormat: ProFormatId;
   onSelectFormat: (format: ProFormatId) => void;
-  /** Adventure lobby state (Wave 4.2): table size + villain / minion picks */
-  adventureSetup: AdventureSetup;
-  onChangeAdventureSetup: (next: AdventureSetup) => void;
+  /** the selected format's own lobby setup (FormatLobby), undefined for a format without one */
+  formatSetup: unknown;
+  onChangeFormatSetup: (next: unknown) => void;
   onSelectOpponent: (o: OpponentChoice) => void;
   onSelectHero: (heroId: string) => void;
   /** the specific hero the AI should play, or null to let the server pick at random */
@@ -3081,7 +3080,8 @@ const HeroSelectLobby = ({
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
   const format = formatChoice(selectedFormat);
-  const adventureScenarios = useScenarios().scenarios;
+  const ownLobby = formatLobby(selectedFormat);
+  const formatStageName = useFormatStageName(selectedFormat, formatSetup);
   const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
   const [previewMap, setPreviewMap] = useState<MapCatalogEntry | null>(null);
@@ -3272,10 +3272,10 @@ const HeroSelectLobby = ({
     selectedEntry && !railHead.includes(selectedEntry)
       ? [selectedEntry, ...railHead.slice(0, RAIL_STAGE_TILES - 1)]
       : railHead;
-  // Adventure never sends the board; the summary names the scenario instead (#1153).
+  // A format that names its own board (FormatLobby) never sends one; the summary names it instead (#1153).
   const stageName =
-    selectedFormat === "adventure"
-      ? scenarioFor(adventureSetup, adventureScenarios)?.label ?? "Adventure"
+    formatStageName != null
+      ? formatStageName
       : selectedMapId === CUSTOM_MAP_ID
       ? "Custom board"
       : selectedMapId === RANDOM_MAP_ID
@@ -3462,11 +3462,12 @@ const HeroSelectLobby = ({
         </>
       );
     }
-    if (selectedFormat === "adventure") {
+    if (ownLobby) {
       return (
-        <AdventureLobby
-          setup={adventureSetup}
-          onChange={onChangeAdventureSetup}
+        <FormatLobbySeats
+          formatId={selectedFormat}
+          setup={formatSetup}
+          onChange={onChangeFormatSetup}
           youSeat={<SeatPlate tag="P1" role="You" you heroName={lockedName} />}
           renderSeat={(seat) => (
             <SeatPlate
@@ -3575,9 +3576,9 @@ const HeroSelectLobby = ({
                 ariaLabel="Format"
                 value={selectedFormat}
                 onChange={onSelectFormat}
-                options={(adventureLabEnabled() ? ALL_FORMATS : PRO_FORMATS).map((f) => ({ value: f.id, label: f.label }))}
+                options={lobbyFormats().map((f) => ({ value: f.id, label: f.label }))}
               />
-              {selectedFormat === "adventure" && format.detail && (
+              {ownLobby?.showDetail && format.detail && (
                 <Text fontSize="0.72rem" opacity={0.7} fontFamily="SpaceGrotesk" data-testid="format-detail">
                   {format.detail}
                 </Text>
@@ -3748,8 +3749,8 @@ const HeroSelectLobby = ({
 
         {/* ---------------- stage row ---------------- */}
         <Box gridArea="stage" minW="0">
-          {/* Adventure never sends the board (the scenario names its own map), so there is no stage to pick. */}
-          {!room && selectedFormat !== "adventure" && !fixedSetup && (
+          {/* A format that names its own board (FormatLobby `ownBoard`) has no stage to pick. */}
+          {!room && !ownLobby?.ownBoard && !fixedSetup && (
             <Box ref={stageRowRef}>
               <Flex align="center" justify="space-between" gap="0.5rem" mb="0.35rem">
                 <Text {...STRIP_LBL}>STAGE</Text>
@@ -3860,7 +3861,7 @@ const HeroSelectLobby = ({
           position="relative"
           onMouseEnter={clearStagePreview}
         >
-          {selectedFormat === "adventure" && !room && <LobbyBriefing setup={adventureSetup} />}
+          {!room && <FormatLobbyBriefing formatId={selectedFormat} setup={formatSetup} />}
           <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
             <Flex align="baseline" gap="0.5rem">
               <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
@@ -4371,8 +4372,6 @@ const LiveGame = ({
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
   const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, engineFault, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } =
     socket;
-  // Enemy-turn card state (#1156) — also feeds the board's enemy→target arrow.
-  const enemyTurn = useEnemyTurn(snapshot?.view, snapshot?.events, roomInfo?.formatId === "adventure");
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -4421,7 +4420,9 @@ const LiveGame = ({
   // keys off. The stepping itself lives in lib/pro/quickMatch.ts.
   const [quickSearch, setQuickSearch] = useState<QuickMatchSearch | null>(null);
   const [botSlotPlan, setBotSlotPlan] = useState<BotSlotPlan>({});
-  const [adventureSetup, setAdventureSetup] = useState<AdventureSetup>(defaultAdventureSetup);
+  // Per-format lobby setup for the formats with their own lobby (FormatLobby), keyed by format id.
+  const [formatSetups, setFormatSetups] = useState<Record<string, unknown>>(initialFormatSetups);
+  const formatSetup = formatSetups[selectedFormat];
   // Chosen board in the create flow: a MAP_CATALOG id, CUSTOM_MAP_ID, or
   // RANDOM_MAP_ID. Starts on Random (#685) — it's eligible in every format, so
   // it survives format switches; a hand-picked board that the new format can't
@@ -4977,7 +4978,7 @@ const LiveGame = ({
             chipsH: mobileChipsH,
             controlsH: mobileControlsH,
             sheetH: mobileSheetH,
-            adventureOverlay: roomInfo?.formatId === "adventure",
+            formatOverlayRight: formatOverlayInset(roomInfo?.formatId),
           }),
     [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea, roomInfo?.formatId]
   );
@@ -5017,11 +5018,8 @@ const LiveGame = ({
     for: unknown;
     batch: ActionSpotlightBatch;
   } | null>(null);
-  // Adventure breakout interstitial (#1158): once per batch carrying the overflow→open chain.
-  const [breakout, setBreakout] = useState<BreakoutMoment | null>(null);
-  const dismissBreakout = useCallback(() => setBreakout(null), []);
-  // A breakout whose ENEMY_SPAWNED hasn't landed yet (it arrives after a human places the token).
-  const awaitingSpawnRef = useRef<BreakoutMoment | null>(null);
+  // The format overlay's own attack arrow (FormatOverlay `onBoardArrow`); a live combat's wins.
+  const [formatArrow, setFormatArrow] = useState<BoardArrow | null>(null);
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -5031,12 +5029,9 @@ const LiveGame = ({
   // One monotonic id per appended STATE batch (issue #298) — every line of a
   // batch shares it, so the log panel groups a single player action together.
   const logBatchRef = useRef(0);
-  // Adventure end screen (#1159): the round each fighter fell, for "defeated R6".
-  const [defeatRounds, setDefeatRounds] = useState<Readonly<Record<string, number>>>({});
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
-    if (next.scenario) setDefeatRounds((cur) => trackDefeatRounds(cur, snapshot.events, next.initiative?.round));
     const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
     // Sub-attack CHAIN bookkeeping (issue #596 ↔ engine #359). Runs here because
     // this is the one effect that already sees BOTH views of a batch, and the
@@ -5089,20 +5084,6 @@ const LiveGame = ({
     // BACKWARDS (undo rewind, resume/correction) files under the turn it
     // interrupted instead of minting an out-of-place TURN section (issue #522).
     const { turn, turnActor } = batchTurnTag(prevViewRef.current, next);
-    // prev === null is the first view after join/reconnect: nothing was witnessed, so no moment.
-    if (prevViewRef.current) {
-      const moment = breakoutMoment(snapshot.events, prevViewRef.current, next);
-      if (moment) {
-        setBreakout(moment);
-        awaitingSpawnRef.current = moment.enemy ? null : moment;
-      } else if (awaitingSpawnRef.current) {
-        const filled = withLateSpawn(awaitingSpawnRef.current, snapshot.events, next);
-        if (filled) {
-          awaitingSpawnRef.current = null;
-          setBreakout(filled);
-        }
-      }
-    }
     prevViewRef.current = next;
     const phase = batchPhase(snapshot.events);
     // Slow mode (issue #703): the action spotlight is rendered from THESE lines —
@@ -5515,11 +5496,11 @@ const LiveGame = ({
           selectedHeroId={selectedHeroId}
           opponent={opponent}
           selectedFormat={selectedFormat}
-          adventureSetup={adventureSetup}
-          onChangeAdventureSetup={(next) => {
-            setAdventureSetup(next);
+          formatSetup={formatSetup}
+          onChangeFormatSetup={(next) => {
+            setFormatSetups((prev) => ({ ...prev, [selectedFormat]: next }));
             // a smaller table drops the bot plans of the seats that vanished
-            const allowed = new Set(adventureSeats(next.humans));
+            const allowed = new Set(formatLobby(selectedFormat)?.seats(next) ?? []);
             setBotSlotPlan((prev) =>
               Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan,
             );
@@ -5528,7 +5509,7 @@ const LiveGame = ({
             setSelectedFormat(format);
             if (format !== "duel") reviseOpponent("human");
             setBotSlotPlan((prev) => {
-              const allowed = new Set(format === "adventure" ? adventureSeats(adventureSetup.humans) : assignableSeats(format));
+              const allowed = new Set(formatLobby(format)?.seats(formatSetups[format]) ?? assignableSeats(format));
               return Object.fromEntries(Object.entries(prev).filter(([player]) => allowed.has(player as PlayerId))) as BotSlotPlan;
             });
             // Keep a still-eligible board (and a "Custom…" choice) selected;
@@ -5652,7 +5633,7 @@ const LiveGame = ({
               selectedFormat === "duel"
                 ? []
                 : Object.entries(botSlotPlan)
-                    .filter(([player]) => selectedFormat !== "adventure" || adventureSeats(adventureSetup.humans).includes(player as PlayerId))
+                    .filter(([player]) => !formatLobby(selectedFormat) || formatLobby(selectedFormat)!.seats(formatSetup).includes(player as PlayerId))
                     .filter((entry): entry is [string, Exclude<SlotOccupant, "human">] => entry[1] !== "human")
                     .map(([player, difficulty]) => ({ player: player as PlayerId, difficulty }));
             // Clamp to the engine's 10–300 bound at the wire (a mid-edit custom
@@ -5673,7 +5654,7 @@ const LiveGame = ({
               mulligan,
               undefined,
               itemsOptOut ? false : undefined,
-              selectedFormat === "adventure" ? adventureSetup.humans : undefined,
+              formatLobby(selectedFormat)?.humans(formatSetup),
             );
             setSelectedHeroId(heroId); // lock it for the lobby label
             setRolledHero(wasRolled);
@@ -5783,7 +5764,7 @@ const LiveGame = ({
   }
 
   // A game-start engine fault leaves no STATE at all: the board never mounts, so
-  // the banner stands alone (with a STATE it rides the Adventure overlay instead).
+  // the banner stands alone (with a STATE it rides the format overlay instead).
   if (engineFault != null && !snapshot)
     return (
       <Flex justify="center" pt="5rem" px="1rem">
@@ -5871,8 +5852,8 @@ const LiveGame = ({
               </Text>
             </Flex>
           )}
-          {roomInfo?.formatId === "adventure" ? (
-            <AdventureWaitingRoom roomInfo={roomInfo} />
+          {roomInfo && hasFormatWaitingRoom(roomInfo) ? (
+            <FormatWaitingRoom roomInfo={roomInfo} />
           ) : (
           <Text opacity={0.8} textAlign="center">
             {(() => {
@@ -6746,7 +6727,7 @@ const LiveGame = ({
             : null;
 
   // #1169: a TEAM decision's read-only teammates see the candidate spaces lit gold (no click).
-  const teamWatchSpaces = prompt && !promptForMe ? (teamDecisionModel(view)?.spaces ?? []) : [];
+  const teamWatchSpaces = prompt && !promptForMe ? formatWatchSpaces(roomInfo?.formatId, view) : [];
   const highlightedSpaces =
     // #658: an open pose pick owns the board outright — only the two (or more)
     // spaces that answer it are lit, so the question can't be misread.
@@ -7242,7 +7223,7 @@ const LiveGame = ({
     highlightedFighters: [...new Set(highlightedFighters)],
     focusFighters: mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined,
     selectedFighter,
-    attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : enemyTurnArrow(enemyTurn),
+    attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : formatArrow,
     defenderStepIn: boardDefenderStepIn,
     friendlyOwners,
     fighterBadges: attackerBadge,
@@ -7411,7 +7392,7 @@ const LiveGame = ({
       iForfeited={iForfeited}
       multiplayerView={multiplayerView}
       rematchHref={tournament.at ? null : rematchHref}
-      defeatRounds={defeatRounds}
+      formatEndScreen={hasFormatEndScreen(roomInfo?.formatId)}
       rematchNegotiation={tournament.at ? null : rematchNegotiation}
       // A tournament game never rematches (the engine refuses it, v37): the
       // next game of the match is a new ticket from the match page.
@@ -7516,7 +7497,14 @@ const LiveGame = ({
           <ProBoard {...boardProps} />
         )}
       </Flex>
-      <FormatOverlay formatId={roomInfo?.formatId} view={view} events={snapshot?.events} engineFault={engineFault} fighterTokenArt={fighterTokenArt} />
+      <FormatOverlay
+        formatId={roomInfo?.formatId}
+        view={view}
+        events={snapshot?.events}
+        engineFault={engineFault}
+        fighterTokenArt={fighterTokenArt}
+        onBoardArrow={setFormatArrow}
+      />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
       {visualOn && hurtKey > 0 && (
@@ -7578,10 +7566,13 @@ const LiveGame = ({
         <ProHud {...hudProps} />
       )}
 
-      <BreakoutMomentOverlay
-        moment={breakout}
-        compact={!!snapshot?.prompt && snapshot.prompt.player === view.you}
-        onDone={dismissBreakout}
+      <FormatEndScreen
+        formatId={roomInfo?.formatId}
+        view={view}
+        events={snapshot?.events}
+        replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
+        onCopyShareLink={replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined}
+        shareLinkBusy={sharingReplay}
       />
 
       {/* Slow mode (issue #703): one opponent action at a time, held until the
