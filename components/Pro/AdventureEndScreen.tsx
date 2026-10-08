@@ -114,7 +114,7 @@ export const AdventureEndScreen = ({ view, events, replayHref, onCopyShareLink, 
       zIndex={ADVENTURE_END_Z}
       overflowY="auto"
       color="brand.parchment"
-      bg="linear-gradient(180deg, rgba(76,38,94,0.97) 0%, rgba(58,26,74,0.94) 60%, rgba(40,16,52,0.88) 100%)"
+      bg="linear-gradient(180deg, rgba(76,38,94,0.99) 0%, rgba(62,28,78,0.98) 60%, rgba(44,18,58,0.95) 100%)"
       px={{ base: "1rem", md: "5rem" }}
       py={{ base: "1.5rem", md: "4rem" }}
     >
