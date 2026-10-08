@@ -159,4 +159,11 @@ describe("signInUrl", () => {
     // protocol-relative — a path by the naive `startsWith("/")` test
     expect(signInUrl("//evil.example")).toBe(home);
   });
+
+  it("never carries a #fragment (a #ticket= must not ride a sign-in return, p2p #1269)", () => {
+    const url = signInUrl("/pro/game?room=AB12#ticket=secret.sig");
+    expect(url).toBe(`${API_URL}/auth/discord?return_to=${encodeURIComponent("/pro/game?room=AB12")}`);
+    expect(url).not.toContain("secret");
+    expect(signInUrl("#ticket=x")).toBe(`${API_URL}/auth/discord?return_to=${encodeURIComponent("/")}`);
+  });
 });

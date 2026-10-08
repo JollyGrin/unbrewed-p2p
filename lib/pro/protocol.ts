@@ -938,11 +938,32 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36}, so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
-export const PROTOCOL_VERSION = 36;
+/**
+ * v37 (engine #755 — tournaments: tagged rooms). ADDITIVE: one optional request field and
+ * six new `ErrorCode`s. Nothing that already exists moves, and a client that never sends a
+ * ticket never sees one of the new codes.
+ *
+ * - `CREATE_ROOM.ticket?` / `JOIN_ROOM.ticket?` — an opaque join ticket the tournament api
+ *   signs (`b64url(payload).b64url(HMAC)`; the client never parses it). `CREATE_ROOM` with
+ *   a ticket opens a TAGGED room for one (match, game): private (SET_VISIBILITY{public:true}
+ *   is refused), never listed or quick-matched, duel format only, no bots, held 15 minutes
+ *   waiting for the opponent, and no rematch (`REMATCH_OFFER` answers REMATCH_UNAVAILABLE —
+ *   the next game of the match is a new ticket). `JOIN_ROOM` into a tagged room REQUIRES a
+ *   ticket for the same match + game and the other slot. A ticket may lock the seat's hero
+ *   and the room's map; the request's `heroId` / `customMap` must then match it.
+ * - New error codes, each only ever sent in answer to a ticket or a tagged room:
+ *   `TICKET_INVALID` (bad signature / malformed), `TICKET_EXPIRED`, `TICKET_MISMATCH`
+ *   (wrong match or game, a slot or player already seated), `TICKET_REQUIRED` (JOIN_ROOM
+ *   without a ticket into a tagged room), `MATCHUP_LOCKED` (hero or map differs from the
+ *   ticket), `TOURNAMENTS_DISABLED` (the server has no tournament secret).
+ * - Reconnect (`RECONNECT` / `RESUME_ROOM`) is unchanged: a seat's token, not its ticket,
+ *   brings it back.
+ */
+export const PROTOCOL_VERSION = 37;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -2089,8 +2110,10 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean }
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; ticket?: string }
+  // `ticket` (v37, engine #755): a signed tournament join ticket — opaque to the client.
+  // See the v37 header note.
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; ticket?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
   | { v: number; type: "RECONNECT"; roomId: string; token: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
@@ -2196,4 +2219,11 @@ export type ErrorCode =
   | "REMATCH_UNAVAILABLE" // v35: a REMATCH_* message the room/seat cannot take right now
   | "ROOM_LIMIT" // CREATE_ROOM refused — server is at its global room cap (PRO_MAX_ROOMS)
   | "RATE_LIMITED" // this connection is sending messages too fast (see server rate-limit env vars)
+  // v37 (engine #755): tournament join tickets / tagged rooms. See the v37 header note.
+  | "TICKET_INVALID" // ticket signature or shape is bad
+  | "TICKET_EXPIRED" // ticket past its `exp`
+  | "TICKET_MISMATCH" // wrong match/game for this room, slot already taken, or same player twice
+  | "TICKET_REQUIRED" // JOIN_ROOM without a ticket into a tournament room
+  | "MATCHUP_LOCKED" // heroId / map differs from what the ticket locks
+  | "TOURNAMENTS_DISABLED" // server has no tournament secret configured
   | "SERVER_ERROR";

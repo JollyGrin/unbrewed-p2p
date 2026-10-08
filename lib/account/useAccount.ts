@@ -103,9 +103,12 @@ export const refreshAccount = (): Promise<AccountState> => {
 export const signInUrl = (returnTo?: string): string => {
   // The API only accepts a path (its own open-redirect guard); `//evil.com` is
   // a protocol-relative URL, so it must not survive either.
+  // Never a #fragment: a tournament ticket rides in one (`#ticket=`, p2p #1268)
+  // and must not leave the browser inside a sign-in return URL (p2p #1269).
+  const bare = returnTo?.split("#")[0];
   const path =
-    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-      ? returnTo
+    bare && bare.startsWith("/") && !bare.startsWith("//")
+      ? bare
       : "/";
   return `${API_URL}/auth/discord?return_to=${encodeURIComponent(path)}`;
 };

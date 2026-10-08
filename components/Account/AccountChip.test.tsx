@@ -13,6 +13,12 @@ import { AccountChip, InGameAccountChip } from "./AccountChip";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 
+const mockTournaments = jest.fn();
+const mockNextView = jest.fn();
+// Relative paths: jest.mock() can't resolve the `@/` alias.
+jest.mock("../../lib/tournaments/useNextMatch", () => ({ useMyTournaments: () => mockTournaments() }));
+jest.mock("../../lib/tournaments/nextMatch", () => ({ nextMatchView: () => mockNextView() }));
+
 let mockAsPath = "/";
 jest.mock("next/router", () => ({
   useRouter: () => ({ asPath: mockAsPath }),
@@ -43,6 +49,7 @@ const renderChip = () =>
 beforeEach(() => {
   __resetAccountStoreForTests();
   mockAsPath = "/";
+  mockTournaments.mockReturnValue(null);
   fetchMock = jest.fn();
   global.fetch = fetchMock as unknown as typeof fetch;
 });
@@ -323,5 +330,45 @@ describe("InGameAccountChip", () => {
     fireEvent.click(screen.getByLabelText("Sign in with Discord"));
     fireEvent.focus(window);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  });
+});
+
+describe("N1 (#1246): the next-match menu card is viewport-bounded", () => {
+  it("wraps a long title instead of widening the page", async () => {
+    const long = "An Extremely Long Tournament Name ".repeat(3);
+    mockTournaments.mockReturnValue({
+      mine: { tournaments: [] },
+      next: { match: {}, detail: null, size: 8 },
+    });
+    mockNextView.mockReturnValue({ href: "/x", title: long, tournamentName: long, timeLeft: "", notice: long });
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderChip();
+    fireEvent.click(await screen.findByText("JollyGrin"));
+    const card = await screen.findByTestId("menu-next-match", {}, { timeout: 2000 });
+    // jsdom doesn't resolve Emotion's cascade: assert on the injected rule text.
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((el) => el.textContent ?? "" + Array.from((el as HTMLStyleElement).sheet?.cssRules ?? []).map((r) => r.cssText).join(""))
+      .join("") +
+      Array.from(document.styleSheets).flatMap((sh) => Array.from(sh.cssRules).map((r) => r.cssText)).join("");
+    const rulesFor = (el: Element) =>
+      Array.from(el.classList).map((c) => css.split("}").filter((r) => r.includes(`.${c}`)).join("}")).join("}");
+    const cardCss = rulesFor(card);
+    expect(cardCss).toMatch(/min-width:\s*0/);
+    expect(cardCss).toMatch(/max-width:\s*100%/);
+    expect(cardCss).toMatch(/white-space:\s*normal/);
+    const title = screen.getAllByText(long.trim())[0];
+    expect(rulesFor(title)).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+});
+
+describe("the navbar menu loads /me/tournaments lazily (p2p #1269)", () => {
+  it("not on page load for a signed-in visitor, only once the menu opens", async () => {
+    mockTournaments.mockClear();
+    fetchMock.mockResolvedValue(reply(200, { user: USER }));
+    renderChip();
+    expect(await screen.findByText("JollyGrin")).toBeInTheDocument();
+    expect(mockTournaments).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("Account: JollyGrin"));
+    await waitFor(() => expect(mockTournaments).toHaveBeenCalled());
   });
 });
