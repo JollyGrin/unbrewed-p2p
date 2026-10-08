@@ -49,6 +49,10 @@ export interface ProBoardProps {
   boardObjectOriginName?: (token: ViewToken) => string | null | undefined;
   /** Spaces the current player can act on right now (move targets, placements…) */
   highlightedSpaces?: SpaceId[];
+  /** Spaces already CHOSEN in a multi-step pick (LARGE two-step move, #1170), in order:
+   *  drawn filled with a 1/2 badge and no pulse, deliberately unlike a gold candidate.
+   *  PRESENTATION ONLY — clickability still comes from `highlightedSpaces`. */
+  chosenSpaces?: SpaceId[];
   /** Fighters the current player can act on right now (attack targets, movable…) */
   highlightedFighters?: FighterId[];
   /** phones: fighters to zoom onto when there is nothing to pick — the two
@@ -209,6 +213,7 @@ export const ProBoard = ({
   fighters,
   tokens = [],
   highlightedSpaces = [],
+  chosenSpaces = [],
   highlightedFighters = [],
   focusFighters = [],
   relocateSpaces = [],
@@ -385,6 +390,7 @@ export const ProBoard = ({
     boardObjectArt,
     boardObjectOriginName,
     highlightedSpaces,
+    chosenSpaces,
     highlightedFighters,
     relocateSpaces,
     relocateArmed,

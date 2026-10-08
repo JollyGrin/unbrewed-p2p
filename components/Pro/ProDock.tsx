@@ -175,6 +175,10 @@ export interface ProDockProps {
    *  snake-step walk — a space both ends of the body could lead into, or a far
    *  destination offered under several final poses. Null the rest of the time. */
   poseChoiceHint?: string | null;
+  /** LARGE two-step pose pick (#1170): set once the first space is chosen. Drives the
+   *  "Step 2 of 2" prompt and the explicit "Change first space" undo (re-clicking the
+   *  chosen space does nothing). Null otherwise. */
+  poseAnchorStep?: { fighterName: string | null; onChange: () => void } | null;
   selectedFighterName: string | null;
   /** true when the selected fighter moves hop-by-hop rather than straight there */
   stepwiseMoves: boolean;
@@ -319,6 +323,7 @@ export const ProDock = ({
   disconnectedLabel,
   stepping,
   poseChoiceHint = null,
+  poseAnchorStep = null,
   moveChoiceNames,
   selectedFighterName,
   stepwiseMoves,
@@ -981,6 +986,16 @@ export const ProDock = ({
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">
           {mobile ? touchCopy(moveChoiceLine) : moveChoiceLine}
         </Text>
+      )}
+      {poseAnchorStep && (
+        <Flex direction="column" gap="0.4rem" data-testid="pose-anchor-step">
+          <Text fontSize="0.8rem" color="brand.accent" fontWeight={700}>
+            Step 2 of 2 — pick the second space{poseAnchorStep.fighterName ? ` for ${poseAnchorStep.fighterName}` : ""}
+          </Text>
+          <Button size="sm" variant="outline" color="brand.parchment" onClick={poseAnchorStep.onChange}>
+            Change first space
+          </Button>
+        </Flex>
       )}
       {poseChoiceHint && (
         <Text fontSize="0.8rem" color="#C4B5FD" fontWeight="bold" textShadow="0 1px 3px rgba(0,0,0,0.6)">

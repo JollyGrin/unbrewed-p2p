@@ -6734,7 +6734,7 @@ const LiveGame = ({
       ? null
       : poseIndex.size > 0
         ? activePoseAnchor
-          ? "click the second gold space to finish the move"
+          ? "Step 2 of 2 — click a gold space for the second end of the body"
           : promptGraph
             ? "click a near gold space to step one at a time, or a far one to move straight there"
             : `click a gold space to move (${poseIndex.size} destination${poseIndex.size === 1 ? "" : "s"})`
@@ -6760,12 +6760,32 @@ const LiveGame = ({
           // whole story — the offered destinations (and the old two-tap pose pick,
           // which survives only as the far-click fallback) step aside.
           ...(poseIndex.size > 0 && !promptStepWalking
-            ? poseHighlights(poseIndex, activePoseAnchor)
+            ? // The chosen first space is drawn as "1" (chosenSpaces), never as a
+              // candidate — so it stops being a gold, clickable pick (issue #1170).
+              poseHighlights(poseIndex, activePoseAnchor).filter((sp) => sp !== activePoseAnchor)
             : []),
         ];
   // While a pose pick is open the mover's own body spaces ARE the answer, so its
   // token must forward clicks to the space beneath (ProBoard only does that for a
   // token that isn't itself a click target) — drop it from the fighter highlights.
+  // Two-step LARGE pose pick (#1170): the first space is drawn filled with a "1"; the
+  // candidate under the pointer previews the other end as "2" so both footprint
+  // spaces read together.
+  const chosenSpaces: SpaceId[] =
+    activePoseAnchor && poseIndex.size > 0
+      ? [
+          activePoseAnchor,
+          ...(hoveredSpace && poseIndex.partnersOf(activePoseAnchor).includes(hoveredSpace) ? [hoveredSpace] : []),
+        ]
+      : [];
+  const poseAnchorLargeFighters = view.fighters.filter((f) => f.size === "LARGE" && f.space);
+  const poseAnchorStep =
+    activePoseAnchor && promptForMe
+      ? {
+          fighterName: poseAnchorLargeFighters.length === 1 ? badgedName(poseAnchorLargeFighters[0].id) : null,
+          onChange: () => setPoseAnchor(null),
+        }
+      : null;
   const highlightedFighters = [
     ...attackActions.keys(),
     ...movableFighters,
@@ -6944,7 +6964,9 @@ const LiveGame = ({
         return;
       }
       if (click.type === "cancel") {
-        setPoseAnchor(null);
+        // Re-clicking the chosen first space does NOTHING (issue #1170): it used to
+        // undo silently while glowing like a candidate. The explicit undo is the
+        // dock's "Change first space" button.
         return;
       }
       // "ignore" — not a pose space; fall through to the generic handling below.
@@ -7210,6 +7232,7 @@ const LiveGame = ({
     fighters: view.fighters,
     tokens: view.tokens,
     highlightedSpaces: [...new Set(highlightedSpaces)],
+    chosenSpaces,
     relocateSpaces,
     relocateArmed: relocateMode.armedTarget != null,
     highlightedFighters: [...new Set(highlightedFighters)],
@@ -7294,6 +7317,7 @@ const LiveGame = ({
       }
       moveChoiceNames={moveChoice ? moveChoice.candidates.map((id) => badgedName(id)) : null}
       poseChoiceHint={poseChoiceHint}
+      poseAnchorStep={poseAnchorStep}
       selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
       stepwiseMoves={!!moveGraph}
       highlightedCount={highlightedSpaces.length}

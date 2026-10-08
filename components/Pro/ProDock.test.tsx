@@ -337,3 +337,18 @@ describe("ProDock endgame links", () => {
     expect(screen.getByRole("link", { name: /view your replay/i })).toBeInTheDocument();
   });
 });
+
+describe("ProDock LARGE two-step pose pick (issue #1170)", () => {
+  it("labels step 2 of 2 with the fighter and offers an explicit change-first-space undo", () => {
+    const onChange = jest.fn();
+    render(<ProDock {...props({ poseAnchorStep: { fighterName: "Kong", onChange } })} />);
+    expect(screen.getByText(/Step 2 of 2 — pick the second space for Kong/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Change first space" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders nothing extra when no first space is chosen", () => {
+    render(<ProDock {...props({})} />);
+    expect(screen.queryByText(/Step 2 of 2/)).toBeNull();
+  });
+});

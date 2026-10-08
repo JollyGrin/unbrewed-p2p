@@ -90,6 +90,9 @@ export interface TableSpaceProps {
   diameterPct: number;
   frameW: number;
   highlighted: boolean;
+  /** 1-based position in a multi-step pick (LARGE two-step move, #1170): drawn filled
+   *  with a number badge instead of the gold candidate ring. */
+  chosenOrder?: number;
   relocateOrigin: boolean;
   relocateArmed: boolean;
   /** Touch device: pad the hit circle for depth (see `tableHitPx`). */
@@ -107,6 +110,7 @@ export const TableSpace = ({
   diameterPct,
   frameW,
   highlighted,
+  chosenOrder,
   relocateOrigin,
   relocateArmed,
   coarsePointer = false,
@@ -130,7 +134,7 @@ export const TableSpace = ({
   // Relocate origins get a dashed cyan ring, deliberately distinct from the
   // solid gold walk highlight, matching ProBoard's own two affordances.
   const ringed = highlighted || relocateOrigin;
-  const ringColor = relocateOrigin ? "#38D9E8" : "#E0A82E";
+  const ringColor = relocateOrigin ? "#38D9E8" : chosenOrder ? "#FFFFFF" : "#E0A82E";
 
   // Fault #2 (phase-2 report): translucent interior + crisp rim instead of a
   // flat opaque fill, so the board art shows through while zone identity
@@ -180,7 +184,8 @@ export const TableSpace = ({
         borderRadius="50%"
         pointerEvents="none"
         overflow="hidden"
-        bg={zones.length <= 1 ? (singleZoneColor ? zoneAlphaFill(singleZoneColor) : TABLE_SPACE_NEUTRAL) : undefined}
+        data-chosen={chosenOrder ? String(chosenOrder) : undefined}
+        bg={chosenOrder ? "rgba(224,168,46,0.95)" : zones.length <= 1 ? (singleZoneColor ? zoneAlphaFill(singleZoneColor) : TABLE_SPACE_NEUTRAL) : undefined}
         boxShadow={discShadow}
         sx={
           ringed
@@ -213,6 +218,20 @@ export const TableSpace = ({
           </svg>
         )}
         <Box data-space-shade position="absolute" inset={0} borderRadius="50%" style={{ backgroundImage: TABLE_SPACE_SHADE }} />
+        {chosenOrder && (
+          <Box
+            position="absolute"
+            inset={0}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            color="#1a1206"
+            fontWeight={800}
+            fontSize={`${Math.max(diamPx * 0.55, 10)}px`}
+          >
+            {chosenOrder}
+          </Box>
+        )}
       </Box>
     </Box>
   );
