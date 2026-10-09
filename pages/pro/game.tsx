@@ -7260,6 +7260,8 @@ const LiveGame = ({
     // orientation, and desktop never rotates.
     rotated: mode === "portrait",
     fitInset: boardFitInset,
+    // a format overlay narrows the desktop board: open region insets would cover spaces (#1171)
+    collapseRegionInsets: mode === "desktop" && formatOverlayInset(roomInfo?.formatId) > 0,
     tokenLife: tokenLifeOn ? tokenGestures : null,
     fighterEls: fighterElsRef,
   };
