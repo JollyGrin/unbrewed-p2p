@@ -1,7 +1,7 @@
 /**
- * Adventure board stakes (#1160): what standing next to an enclosure costs, and what came out
+ * Adventure board stakes (#1160): what standing next to a scenario object costs, and what came out
  * of the broken ones. Pure mapping from `PlayerView.scenario.contacts` / `.releases` (engine
- * #735) onto the enclosure badges, plus the chip placer that keeps the callouts off every
+ * #735) onto the object badges, plus the chip placer that keeps the callouts off every
  * space (and so every fighter token — they sit on spaces).
  *
  * PRESENTATION ONLY. Absent `contacts` / `releases` ⇒ an empty stake map ⇒ today's badges.
@@ -13,29 +13,29 @@ export const ADJACENT_CHIP = "+1 threat at round end";
 export const NEXT_CHIP = "breaks next if the track fills";
 export const TIE_CHIP = "tie — your team picks";
 
-export interface EnclosureStake {
-  /** The villain touches this closed enclosure: +1 threat at round end. */
+export interface ScenarioObjectStake {
+  /** The villain touches this closed object: +1 threat at round end. */
   adjacent: boolean;
   /** The next overflow opens this one (or is a tie that includes it). */
   next: boolean;
   /** `next`, among 2+ candidates. */
   tie: boolean;
-  /** Destroyed enclosure: the enemy it released. */
+  /** Destroyed object: the enemy it released. */
   release?: { name: string; glyph: string };
 }
 
-export type EnclosureStakes = Readonly<Record<SpaceId, EnclosureStake>>;
+export type ScenarioObjectStakes = Readonly<Record<SpaceId, ScenarioObjectStake>>;
 
 type ScenarioSlice = Pick<NonNullable<PlayerView["scenario"]>, "contacts" | "releases" | "display"> | null | undefined;
 
-export const enclosureStakes = (
+export const scenarioObjectStakes = (
   scenario: ScenarioSlice,
   fighters: readonly { id: string; name: string }[],
   blocked: ReadonlySet<SpaceId>,
   destroyed: ReadonlySet<SpaceId>,
   numbers: Readonly<Record<SpaceId, number>>
-): EnclosureStakes => {
-  const out: Record<SpaceId, EnclosureStake> = {};
+): ScenarioObjectStakes => {
+  const out: Record<SpaceId, ScenarioObjectStake> = {};
   if (!scenario) return out;
   const contacts = scenario.contacts;
   if (contacts) {
@@ -60,7 +60,7 @@ export const enclosureStakes = (
 };
 
 /** Chip texts for one stake, in reading order. */
-export const stakeChipText = (s: EnclosureStake): string[] => [
+export const stakeChipText = (s: ScenarioObjectStake): string[] => [
   ...(s.adjacent ? [ADJACENT_CHIP] : []),
   ...(s.next ? [s.tie ? TIE_CHIP : NEXT_CHIP] : []),
 ];
@@ -143,7 +143,7 @@ const ANGLES = [-90, 90, 0, 180, -45, -135, 45, 135, -67.5, -112.5, 67.5, 112.5,
 
 /**
  * Picks, for each requested chip, a spot around its disc that overlaps no space disc (all spaces
- * of the frame, not just enclosures — a fighter token always sits on one), no other chip and
+ * of the frame, not just scenario objects — a fighter token always sits on one), no other chip and
  * stays inside the frame. Tries the one-line chip first, then wraps it to 2 and 3 lines to fit
  * a gap; `null` = still crowded, draw the ring only. `spaces` x/y are fractions of the frame
  * width / height as the client renders them (`left: x%`, `top: y%`), `diam` a width fraction,

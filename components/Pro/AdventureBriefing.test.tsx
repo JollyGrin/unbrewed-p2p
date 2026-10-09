@@ -18,9 +18,9 @@ const BRIEFING: ScenarioBriefing = {
   tagline: "Indominus Rex has escaped.",
   objective: "Defeat her.",
   win: "Bring Indominus Rex to 0 health. Felling her early isn't the end.",
-  lose: "When the 4th enclosure is destroyed.",
+  lose: "When the 4th pen is destroyed.",
   threat: "It climbs at every round's end.",
-  special: [{ title: "Enclosures", text: "Locked spaces." }],
+  special: [{ title: "Pens", text: "Locked spaces." }],
 };
 const e = (id: string, role: "VILLAIN" | "MINION", hp: number[], size: "NORMAL" | "LARGE" = "NORMAL") => ({ id, name: id, role, hp, move: 2, size });
 const ISLA: ScenarioListing = {

@@ -15,6 +15,7 @@ import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
 import { enemyTurnArrow, enemyTurnSummary } from "@/lib/pro/enemyTurn";
 import { useBreakoutMoment } from "@/lib/pro/useBreakoutMoment";
 import { BreakoutMomentOverlay } from "./BreakoutMoment";
+import { objectNounOf, type ObjectNoun } from "@/lib/pro/scenarioObjects";
 import type { FormatOverlayProps } from "./FormatOverlay";
 import type { EnemyTurnState } from "@/lib/pro/enemyTurn";
 import { TEAM_GUIDANCE, teamChoosingTitle } from "@/lib/pro/adventureCopy";
@@ -366,18 +367,21 @@ export const ThreatTrack = ({ threat }: { threat: ThreatModel }) => (
   </Flex>
 );
 
-export const EnclosuresLost = ({
+export const ObjectsLost = ({
   objectives,
   win,
+  noun,
 }: {
   objectives: NonNullable<AdventureBoardModel["objectives"]>;
   win: AdventureBoardModel["win"];
+  /** #807: the scenario's object noun (`display.objectNoun`, else generic). */
+  noun: ObjectNoun;
 }) => {
   const n = objectives.slots.length;
   return (
     <Flex direction="column" gap="0.3rem" data-testid="adv-objectives" {...PANEL}>
       <Flex align="baseline" justify="space-between" gap="0.4rem">
-        <Text {...LBL}>ENCLOSURES LOST</Text>
+        <Text {...LBL}>{noun.plural.toUpperCase()} LOST</Text>
         <Text fontSize="0.7rem" data-testid="adv-objectives-count">
           <b>{objectives.lost}</b> of {n} · the {n}
           {ordinal(n)} ends the game
@@ -745,7 +749,7 @@ export const AdventureBoard = ({
       />
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.objectives && model.objectives.slots.length > 0 && (
-        <EnclosuresLost objectives={model.objectives} win={model.win} />
+        <ObjectsLost objectives={model.objectives} win={model.win} noun={objectNounOf(view.scenario?.display)} />
       )}
       {others.length > 0 && <EnemyDials enemies={others} />}
       {combat && <EnemyCombat sides={combat} />}

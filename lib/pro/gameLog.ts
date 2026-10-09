@@ -8,6 +8,7 @@
 import { adventureEnemySeatName } from "./adventureBoard";
 import { adventureEndLogLine } from "./adventureVerdict";
 import { enemyIntent } from "./adventureRulesCopy";
+import { capitalize, GENERIC_OBJECT_NOUN, withArticle, type ObjectNoun } from "./scenarioObjects";
 import {
   CardInstanceId,
   FighterId,
@@ -741,9 +742,12 @@ export interface EnrichContext {
    *  cross-batch bookkeeping lives; omitted (older callers, tests of the
    *  single-hit shape) leaves the line exactly as it was. */
   chain?: (ordinalInBatch: number) => string | null;
-  /** Printed enclosure number for a space (adventure boards; `lib/pro/enclosures`), or
+  /** Printed scenario-object number for a space (adventure boards; `lib/pro/scenarioObjects`), or
    *  null/omitted when the map prints none — the SPACE_OPENED line then names the space. */
-  enclosure?: (space: string) => number | null | undefined;
+  objectNumber?: (space: string) => number | null | undefined;
+  /** Adventure: what the scenario's breakable objects are called (`scenario.display.objectNoun`);
+   *  omitted = the generic noun. */
+  objectNoun?: ObjectNoun | null;
   /** Adventure: display name for the initiative card an INITIATIVE_REVEALED flipped
    *  ("You", "Opponent", a fighter or effect name), or null when the card is face-down /
    *  unknown — the line then says "a hidden card". */
@@ -784,9 +788,10 @@ export function enrichLines(
       : "";
   let lastThreatPosition: number | null = null;
   let threatReset = false;
-  const enclosureOf = (space: string) => {
-    const n = ctx.enclosure?.(space);
-    return n != null ? `enclosure ${String(n).padStart(2, "0")}` : null;
+  const objectNoun = ctx.objectNoun ?? GENERIC_OBJECT_NOUN;
+  const objectOf = (space: string) => {
+    const n = ctx.objectNumber?.(space);
+    return n != null ? `${objectNoun.singular} ${String(n).padStart(2, "0")}` : null;
   };
 
   // A card instance rendered on a NEW line so the panel can hover its face.
@@ -984,11 +989,11 @@ export function enrichLines(
       // exchange — the diff's move branch above deliberately stays quiet for both
       // fighters (see `swapped` in diffViews) and this is the line that replaces
       // them. Mode 2 (a new line) because nothing it overlaps survives.
-      // Adventure (engine #689): a still-blocked space opened — an enclosure destroyed.
+      // Adventure (engine #689): a still-blocked space opened — a scenario object destroyed.
       // Mode 2: the diff sees no fighter/HP change for it, so this is its only record.
       case "SPACE_OPENED": {
-        const name = enclosureOf(e.space);
-        added.push({ text: name ? `${name[0].toUpperCase()}${name.slice(1)} destroyed` : "An enclosure was destroyed", who: "game" });
+        const name = objectOf(e.space);
+        added.push({ text: name ? `${capitalize(name)} destroyed` : `${capitalize(withArticle(objectNoun.singular))} was destroyed`, who: "game" });
         break;
       }
 
@@ -1239,7 +1244,7 @@ export function enrichLines(
       // FIGHTER_MOVED, so this event is the only line that says it exists.
       case "ENEMY_SPAWNED": {
         const opened = events.find((x) => x.type === "SPACE_OPENED");
-        const from = opened && opened.type === "SPACE_OPENED" ? enclosureOf(opened.space) : null;
+        const from = opened && opened.type === "SPACE_OPENED" ? objectOf(opened.space) : null;
         added.push({
           text: `${ctx.fighter(e.fighter)} released${from ? ` from ${from}` : ""}`,
           who: "opp",

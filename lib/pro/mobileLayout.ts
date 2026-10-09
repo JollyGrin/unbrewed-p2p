@@ -25,7 +25,7 @@ export const DESKTOP_INSET = { top: 120, bottom: 136, side: 16, dockColumn: 320 
  * Extra right inset (px) on desktop when a format mounts the Adventure overlay column
  * (17rem wide + 0.75rem gap, left of the dock; see dockLayout.ts). The board fits
  * clear of that column instead of running underneath it, so the turn-order row,
- * threat track, dials and "players choose" panel can never hide a printed enclosure
+ * threat track, dials and "players choose" panel can never hide a printed scenario object
  * badge or a space (#1139).
  */
 export const ADVENTURE_OVERLAY_INSET = 17.75 * 16;

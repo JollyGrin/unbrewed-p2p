@@ -1,17 +1,17 @@
 /**
- * One layer of enclosure badges for a positioning frame (flat board and tabletop share it):
+ * One layer of scenario-object badges for a positioning frame (flat board and tabletop share it):
  * the fence marks, plus the #1160 stake chips placed by `placeStakeChips` so none covers a
  * space or a fighter token. Crowded ⇒ ring only. Chips are skipped when `upright` (the
  * portrait board is rotated; the rings still show). PRESENTATION ONLY, no pointer events.
  */
 import { Box } from "@chakra-ui/react";
-import { EnclosureMark } from "@/components/Pro/EnclosureMark";
-import type { EnclosureModel } from "@/lib/pro/enclosures";
-import { ADJACENT_CHIP, CHIP_LINE_PX, placeStakeChips, stakeChipText } from "@/lib/pro/enclosureStakes";
+import { ScenarioObjectMark } from "@/components/Pro/ScenarioObjectMark";
+import type { ScenarioObjectModel } from "@/lib/pro/scenarioObjects";
+import { ADJACENT_CHIP, CHIP_LINE_PX, placeStakeChips, stakeChipText } from "@/lib/pro/scenarioObjectStakes";
 import type { ProMapSpace } from "@/lib/pro/protocol";
 
-export const EnclosureLayer = ({
-  enclosures,
+export const ScenarioObjectLayer = ({
+  scenarioObjects,
   spaces,
   diam,
   framePx,
@@ -20,7 +20,7 @@ export const EnclosureLayer = ({
   upright = false,
   zIndex,
 }: {
-  enclosures: EnclosureModel;
+  scenarioObjects: ScenarioObjectModel;
   spaces: readonly ProMapSpace[];
   /** Pawn diameter as a fraction of the frame width. */
   diam: number;
@@ -34,14 +34,14 @@ export const EnclosureLayer = ({
   upright?: boolean;
   zIndex?: number;
 }) => {
-  const stateOf = (id: string) => (enclosures.blocked.has(id) ? "closed" : enclosures.destroyed.has(id) ? "destroyed" : null);
+  const stateOf = (id: string) => (scenarioObjects.blocked.has(id) ? "closed" : scenarioObjects.destroyed.has(id) ? "destroyed" : null);
   const chips =
     upright || framePx <= 0 || layoutPx <= 0 || layoutH <= 0
       ? {}
       : placeStakeChips(
           spaces
-            .filter((s) => stateOf(s.id) === "closed" && enclosures.stakes[s.id])
-            .map((s) => ({ id: s.id, texts: stakeChipText(enclosures.stakes[s.id]) })),
+            .filter((s) => stateOf(s.id) === "closed" && scenarioObjects.stakes[s.id])
+            .map((s) => ({ id: s.id, texts: stakeChipText(scenarioObjects.stakes[s.id]) })),
           spaces,
           diam,
           framePx,
@@ -53,11 +53,11 @@ export const EnclosureLayer = ({
       {spaces.map((s) => {
         const state = stateOf(s.id);
         if (!state) return null;
-        const stake = enclosures.stakes[s.id];
+        const stake = scenarioObjects.stakes[s.id];
         const chip = chips[s.id];
         return (
           <Box
-            key={`${s.id}-enclosure`}
+            key={`${s.id}-scenario-object`}
             position="absolute"
             left={`${s.x * 100}%`}
             top={`${s.y * 100}%`}
@@ -67,7 +67,7 @@ export const EnclosureLayer = ({
             pointerEvents="none"
             zIndex={zIndex}
           >
-            <EnclosureMark state={state} number={enclosures.numbers[s.id]} spaceId={s.id} stake={stake} />
+            <ScenarioObjectMark state={state} number={scenarioObjects.numbers[s.id]} noun={scenarioObjects.noun.singular} spaceId={s.id} stake={stake} />
             {chip && stake && (
               <Box
                 position="absolute"
@@ -75,7 +75,7 @@ export const EnclosureLayer = ({
                 top="50%"
                 transform={`translate(calc(-50% + ${chip.dx / k}px), calc(-50% + ${chip.dy / k}px)) scale(${1 / k})`}
                 w={`${chip.w}px`}
-                data-enclosure-chip={s.id}
+                data-scenario-object-chip={s.id}
                 pointerEvents="none"
               >
                 {chip.blocks.map((blk, i) => (

@@ -351,14 +351,18 @@ describe("enrichLines", () => {
       ]);
     });
 
-    it("SPACE_OPENED logs one line with the printed enclosure number", () => {
-    const withNumber = { ...ctx(), enclosure: (sp: string) => (sp === "e3" ? 5 : null) };
+    it("SPACE_OPENED logs one line with the scenario's object noun and printed number", () => {
+    const withNumber = { ...ctx(), objectNumber: (sp: string) => (sp === "e3" ? 5 : null), objectNoun: { singular: "outpost", plural: "outposts" } };
     expect(enrichLines([], [{ type: "SPACE_OPENED", space: "e3" }], withNumber)).toEqual([
-      { text: "Enclosure 05 destroyed", who: "game" },
+      { text: "Outpost 05 destroyed", who: "game" },
     ]);
     expect(enrichLines([], [{ type: "SPACE_OPENED", space: "zz" }], withNumber)).toEqual([
-      { text: "An enclosure was destroyed", who: "game" },
+      { text: "An outpost was destroyed", who: "game" },
     ]);
+    // no display noun: the generic one
+    const generic = { ...ctx(), objectNumber: withNumber.objectNumber };
+    expect(enrichLines([], [{ type: "SPACE_OPENED", space: "e3" }], generic)[0].text).toBe("Space 05 destroyed");
+    expect(enrichLines([], [{ type: "SPACE_OPENED", space: "zz" }], generic)[0].text).toBe("A space was destroyed");
   });
 
   it("DEFENSE_IGNORED and DAMAGE_PREVENTED render fixed lines", () => {
@@ -840,8 +844,8 @@ describe("enrichLines", () => {
       expect(out[1].bold).toBe(true);
     });
 
-    it("ENEMY_SPAWNED uses the enclosure opened in the same batch", () => {
-      const c = { ...ctx(), enclosure: (sp: string) => (sp === "e3" ? 3 : null) };
+    it("ENEMY_SPAWNED names the object opened in the same batch", () => {
+      const c = { ...ctx(), objectNumber: (sp: string) => (sp === "e3" ? 3 : null), objectNoun: { singular: "pen", plural: "pens" } };
       const out = enrichLines(
         [],
         [
@@ -850,7 +854,7 @@ describe("enrichLines", () => {
         ],
         c
       );
-      expect(out.map((l) => l.text)).toEqual(["Enclosure 03 destroyed", "raptor released from enclosure 03"]);
+      expect(out.map((l) => l.text)).toEqual(["Pen 03 destroyed", "raptor released from pen 03"]);
       expect(out[1]).toMatchObject({ who: "opp", bold: true });
     });
   });

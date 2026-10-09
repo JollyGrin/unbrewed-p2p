@@ -1,5 +1,6 @@
 /**
- * "Enclosure destroyed — <enemy> is loose" interstitial (issue #1158).
+ * "<Object> destroyed — <enemy> is loose" interstitial (issue #1158; the object noun is the
+ * engine's `display.objectNoun`, #807).
  *
  * ~4s, skippable (click / Esc / Enter / button), over a dimmed board. When a prompt is open for
  * the local player it never takes the screen: a compact, click-through toast shows instead so
@@ -12,6 +13,7 @@ import { useEffect } from "react";
 import { colors, fonts } from "@/styles/style";
 import { threatSourceWords } from "@/lib/pro/adventureCopy";
 import { BreakoutMoment as Moment } from "@/lib/pro/breakoutMoment";
+import { capitalize, objectNounOf } from "@/lib/pro/scenarioObjects";
 
 export const BREAKOUT_MS = 4000;
 export const BREAKOUT_Z = 1480;
@@ -52,7 +54,9 @@ export const BreakoutMomentOverlay = ({
   }, [moment, compact, onDone]);
 
   if (!moment) return null;
-  const heading = moment.enclosure != null ? `ENCLOSURE ${pad(moment.enclosure)} DESTROYED` : "ENCLOSURE DESTROYED";
+  const noun = objectNounOf(moment.display);
+  const object = noun.singular.toUpperCase();
+  const heading = moment.objectNumber != null ? `${object} ${pad(moment.objectNumber)} DESTROYED` : `${object} DESTROYED`;
   const enemy = moment.enemy;
   const loose = enemy ? `${enemy.name} is loose` : "Something is loose";
 
@@ -85,7 +89,7 @@ export const BreakoutMomentOverlay = ({
 
   const tiles: { label: string; value: string; note?: string }[] = [
     {
-      label: "Enclosures lost",
+      label: `${capitalize(noun.plural)} lost`,
       value: moment.total != null ? `${moment.lost} of ${moment.total}` : `${moment.lost}`,
       note:
         moment.total != null && moment.lost < moment.total

@@ -11,7 +11,7 @@ const view = (): PlayerView =>
     winner: null,
     map: {
       spaces: [{ id: "s3", startsBlocked: true }, { id: "s4", startsBlocked: true }],
-      scenario: { groups: [{ id: "enclosures", spaces: ["s3", "s4"], kind: "CONTAINS", order: [2, 5] }] },
+      scenario: { groups: [{ id: "pens", spaces: ["s3", "s4"], kind: "CONTAINS", order: [2, 5] }] },
     },
     blockedSpaces: ["s4"],
     tokens: [],

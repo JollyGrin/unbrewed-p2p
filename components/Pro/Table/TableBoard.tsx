@@ -75,7 +75,7 @@ import { TableStage } from "./TableStage";
 import { TableBoardFx } from "./TableBoardFx";
 import { TableBoardLines } from "./TableBoardLines";
 import { TableSpace, TableSpaceBadge } from "./TableSpace";
-import { EnclosureLayer } from "@/components/Pro/EnclosureLayer";
+import { ScenarioObjectLayer } from "@/components/Pro/ScenarioObjectLayer";
 import { TableFighterStandee } from "./TableFighterStandee";
 import { TOKEN_BADGE_PLATE_HEIGHT, TOKEN_THICKNESS } from "./TableFlatToken";
 import { heroBadgesDeepestPx } from "./TableFighterBadges";
@@ -171,7 +171,7 @@ export const TableBoard = ({
   fighterTokenBadge,
   closedRegions = [],
   itemTokens = {},
-  enclosures = null,
+  scenarioObjects = null,
   pendingMove = null,
   onPendingMoveSettled,
   swaps = null,
@@ -690,8 +690,8 @@ export const TableBoard = ({
             />
           ))}
 
-          {enclosures && (
-            <EnclosureLayer enclosures={enclosures} spaces={mainSpaces} diam={diameterPct / 100} framePx={frameW} layoutH={frameH} />
+          {scenarioObjects && (
+            <ScenarioObjectLayer scenarioObjects={scenarioObjects} spaces={mainSpaces} diam={diameterPct / 100} framePx={frameW} layoutH={frameH} />
           )}
 
           {/* Item / passage badges: their own layer, beside each disc, so a

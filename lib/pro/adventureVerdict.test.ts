@@ -22,20 +22,20 @@ const view = (result: ScenarioResult | undefined, over: Record<string, unknown> 
         { round: 5, fighter: "e1/trex", enemyId: "trex" },
       ],
       result,
-      display: { verdict: { win: "THE ISLAND IS SAFE", lose: "THE ISLAND FELL" }, setting: "the island" },
+      display: { verdict: { win: "THE ISLAND IS SAFE", lose: "THE ISLAND FELL" }, setting: "the island", objectNoun: { singular: "pen", plural: "pens" } },
       ...((over.scenario as object) ?? {}),
     },
   }) as unknown as PlayerView;
 
-const objective: ScenarioResult = { verdict: "DEFEAT", cause: { kind: "OBJECTIVE", objectiveId: "fourth-enclosure" }, round: 9, finalSlot: 4 };
+const objective: ScenarioResult = { verdict: "DEFEAT", cause: { kind: "OBJECTIVE", objectiveId: "fourth-pen" }, round: 9, finalSlot: 4 };
 
 describe("adventureVerdictModel", () => {
   it("DEFEAT by OBJECTIVE: the scenario's lose headline, villain hp, timeline with the engine's final slot", () => {
     const m = adventureVerdictModel(view(objective), { "e1/trex": 6 })!;
     expect(m.headline).toBe("THE ISLAND FELL");
     expect(m.kicker).toBe("DEFEAT · ROUND 9");
-    expect(m.lines).toEqual(["Indominus Rex broke open the fourth enclosure.", "Indominus Rex was left at 6 of 20 health."]);
-    expect(m.releases.map((t) => [t.round, t.enclosure, t.defeatedRound, t.final])).toEqual([
+    expect(m.lines).toEqual(["Indominus Rex broke open the fourth pen.", "Indominus Rex was left at 6 of 20 health."]);
+    expect(m.releases.map((t) => [t.round, t.objectLabel, t.defeatedRound, t.final])).toEqual([
       [3, "2", 6, false],
       [5, "2", 6, false],
       [9, "4", null, true],
@@ -67,7 +67,7 @@ describe("adventureVerdictModel", () => {
     const bare = { scenario: { display: undefined } };
     expect(adventureVerdictModel(view(objective, bare))!.headline).toBe("DEFEAT");
     expect(adventureVerdictModel(view({ verdict: "VICTORY", cause: { kind: "VICTORY_CONDITION" }, round: 8 }, bare))!.headline).toBe("VICTORY");
-    expect(adventureVerdictModel(view({ ...objective, finalSlot: undefined }, bare))!.lines[0]).toBe("Indominus Rex broke open the last enclosure.");
+    expect(adventureVerdictModel(view({ ...objective, finalSlot: undefined }, bare))!.lines[0]).toBe("Indominus Rex broke open the last space.");
   });
 
   it("DEFEAT_CONDITION: generic headline + the briefing's lose line", () => {
@@ -91,11 +91,11 @@ describe("adventureVerdictModel", () => {
 
 describe("adventureEndLogLine", () => {
   it("names the scenario's setting, never a seat", () => {
-    expect(adventureEndLogLine(view(objective))).toBe("Defeat — the island wins (4th enclosure)");
+    expect(adventureEndLogLine(view(objective))).toBe("Defeat — the island wins (4th pen)");
     expect(adventureEndLogLine(view({ verdict: "DEFEAT", cause: { kind: "WIPE" }, round: 2 }))).toBe("Defeat — the island wins");
     expect(adventureEndLogLine(view({ verdict: "VICTORY", cause: { kind: "VICTORY_CONDITION" }, round: 2 }))).toBe("Victory — your team wins");
     expect(adventureEndLogLine(view(undefined))).toBeNull();
-    expect(adventureEndLogLine(view(objective, { scenario: { display: undefined } }))).toBe("Defeat — the enemy wins (4th enclosure)");
+    expect(adventureEndLogLine(view(objective, { scenario: { display: undefined } }))).toBe("Defeat — the enemy wins (4th space)");
   });
 });
 

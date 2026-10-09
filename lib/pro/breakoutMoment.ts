@@ -1,5 +1,5 @@
 /**
- * Adventure "enclosure destroyed — <enemy> is loose" moment (issue #1158).
+ * Adventure "<object> destroyed — <enemy> is loose" moment (issue #1158).
  *
  * A breakout reaches the client as one batch carrying THREAT_OVERFLOW → SPACE_OPENED →
  * ENEMY_SPAWNED (engine #590 / #689 / #651). `breakoutInBatch` is the pure "which chain is in
@@ -9,7 +9,7 @@
  * fence or spawns an enemy on its own) is NOT a breakout and returns null, as does an overflow
  * that opened nothing.
  */
-import { enclosureNumbers } from "./enclosures";
+import { scenarioObjectNumbers } from "./scenarioObjects";
 import type { GameEvent, PlayerView, ScenarioDisplay, SpaceId, ViewFighter } from "./protocol";
 
 export interface BreakoutChain {
@@ -35,8 +35,8 @@ export const breakoutInBatch = (events: readonly GameEvent[]): BreakoutChain | n
 };
 
 export interface BreakoutMoment {
-  /** printed enclosure number, null when the map declares none */
-  enclosure: number | null;
+  /** printed scenario-object number, null when the map declares none */
+  objectNumber: number | null;
   space: SpaceId;
   /** marker lying on the opened space, when one is readable */
   marker: string | null;
@@ -89,7 +89,7 @@ export const breakoutMoment = (
   const f = chain.spawn ? next.fighters.find((x) => x.id === chain.spawn!.fighter) : undefined;
   const marker = next.tokens.find((t) => t.space === chain.space && t.kind === "marker" && t.identity)?.identity ?? null;
   return {
-    enclosure: enclosureNumbers(next.map)[chain.space] ?? null,
+    objectNumber: scenarioObjectNumbers(next.map, display)[chain.space] ?? null,
     space: chain.space,
     marker,
     enemy: f ? enemyOf(f, chain.spawn!.card) : null,
