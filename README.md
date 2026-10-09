@@ -80,6 +80,20 @@ You can run the server on your own machine — free, and independent of Unbrewed
 
 Want to run a 24/7 public server for the community? Open an issue or PR so we can add it to the default server list. (`Dockerfile.gameserver` is included if you like containers — it's what the default relay on [Railway](https://railway.com) builds from.)
 
+### 📊 Sandbox telemetry (optional)
+
+The relay can report sandbox room/player lifecycle events (`room_opened`, `player_joined`, `player_left`, `hero_seen`, `room_closed`) to [unbrewed-telemetry](https://github.com/Emyrk/unbrewed-telemetry) at `POST /v1/sandbox-events`. It is off unless all three are set; with any unset the relay behaves exactly as before and makes no outbound requests:
+
+| env var | what |
+|---|---|
+| `SANDBOX_TELEMETRY_URL` | telemetry base URL (events go to `{URL}/v1/sandbox-events`) |
+| `SANDBOX_TELEMETRY_KEY` | bearer credential with the `sandbox:submit` scope |
+| `SANDBOX_NAME_SALT` | secret HMAC salt for player names and lobby names. Required when the other two are set (without it telemetry stays off and the relay logs an error). Player names only leave the relay as a 16-hex `playerHash`, and lobby names only as `lobbyHash` on `room_opened`. Each room sitting is identified by a fresh uuid `roomId`, because lobby names get reused. |
+
+Events are buffered and posted in batches (every 30s or 200 events), never on the game path: a slow or down telemetry server drops events, it never delays play. With telemetry on, on SIGTERM the relay reports open rooms as `room_closed` (`reason: shutdown`) and flushes for up to 3s.
+
+Deploy order: telemetry live and a `sandbox:submit` credential issued → set `SANDBOX_TELEMETRY_URL`, `SANDBOX_TELEMETRY_KEY`, `SANDBOX_NAME_SALT` on Railway → deploy the relay.
+
 ## 🏗️ How it works
 
 ```mermaid
