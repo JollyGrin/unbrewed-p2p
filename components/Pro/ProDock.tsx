@@ -43,8 +43,6 @@ import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 import { DOCK_RIGHT, DOCK_TOP, DOCK_WIDTH } from "./dockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
-import { adventureVerdictModel } from "@/lib/pro/adventureVerdict";
-import { AdventureVerdictBody } from "@/components/Pro/AdventureVerdictBody";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 
 /**
@@ -239,8 +237,8 @@ export interface ProDockProps {
    * does and doesn't carry over (battlefield items can't — see that file).
    */
   rematchHref?: string | null;
-  /** Adventure end screen (#1159): the round each fighter fell, for "defeated R6" lines. */
-  defeatRounds?: Readonly<Record<string, number>>;
+  /** A format end screen (`FormatEndScreen`) owns this game's end: no VICTORY / DEFEAT panel here. */
+  formatEndScreen?: boolean;
   /**
    * Rematch offer/confirm (p2p #880): set for a PvP room on a v35 engine, and
    * then it REPLACES the one-tap link — pressing Rematch asks the other player
@@ -348,7 +346,7 @@ export const ProDock = ({
   iForfeited,
   multiplayerView,
   rematchHref = null,
-  defeatRounds,
+  formatEndScreen = false,
   rematchNegotiation = null,
   replayHref,
   endAction = null,
@@ -408,7 +406,9 @@ export const ProDock = ({
   // offers a seat actions outside its own clock (sidekick placement on turn 0
   // is the live case), and board-rendered actions like MOVE_FIGHTER never reach
   // `rows` — both would slip through a turn-scoped check.
-  const needsInput = hasPrompt || !!combatPanel || !!view.winner || legalActionCount > 0;
+  // The end panel, unless a format end screen owns the end of this game.
+  const endPanel = !!view.winner && !formatEndScreen;
+  const needsInput = hasPrompt || !!combatPanel || endPanel || legalActionCount > 0;
   const collapsed = layout.collapsed && !needsInput;
 
   // The synthetic relocate-arm rows (see prop doc). They close the FIRST band —
@@ -582,7 +582,7 @@ export const ProDock = ({
   // A decided combat no longer holds the phone sheet (mobile polish): its result
   // rides on the pill row while the after-combat effects play out on the board.
   const combatOpen = !!combatPanel && !(mobile && combatSummary);
-  const sheetForced = hasPrompt || combatOpen || !!view.winner || (!!stepping && mobile !== "hud");
+  const sheetForced = hasPrompt || combatOpen || endPanel || (!!stepping && mobile !== "hud");
   const sheetShown = sheetForced || sheetOpen;
 
   // Mobile step 1: a forced prompt whose answer is a tap ON the board gets a slim
@@ -600,9 +600,7 @@ export const ProDock = ({
   // The narrow shells — the rail and the HUD's side sheet — size cards and
   // tiles for a 230px column.
   const narrow = mobile === "rail" || mobile === "hud";
-  // Adventure: the verdict-and-why block replaces the plain title, and rematch is out (below).
-  const adventureVerdict = adventureVerdictModel(view, defeatRounds);
-  const rematchLine = !adventureVerdict && !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
+  const rematchLine = !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
   const boardPickCompact = sheetShell && boardPickPrompt && expandedPrompt !== promptKey;
   // A forced sheet can be put out of the way (player feedback: an after-combat
   // question left the board unreachable with no way to close the sheet). It
@@ -624,7 +622,7 @@ export const ProDock = ({
     view.prompt?.promptId ??
     (combatOpen
       ? `combat:${combatSerial.current.n}`
-      : view.winner
+      : endPanel
         ? "winner"
         : stepping
           ? `stepping:${stepping.instanceKey ?? stepping.fighterName}`
@@ -1170,7 +1168,7 @@ export const ProDock = ({
           </Text>
         )}
       </Flex>
-      {view.winner && (
+      {endPanel && (
         <Flex direction="column" align="center" gap="0.15rem">
           <Text
             fontFamily="LeagueGothic"
@@ -1182,9 +1180,8 @@ export const ProDock = ({
             textShadow="0 2px 12px rgba(224,168,46,0.5)"
             lineHeight="1"
           >
-            {adventureVerdict?.explained ? adventureVerdict.headline : isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
+            {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
           </Text>
-          {adventureVerdict?.explained && <AdventureVerdictBody model={adventureVerdict} narrow={narrow} />}
           {endNote && (
             <Text fontSize="0.85rem" color="brand.parchment" opacity={0.85} textAlign="center" maxW="22rem" data-testid="game-end-note">
               {endNote}
@@ -1198,10 +1195,7 @@ export const ProDock = ({
               see lib/pro/rematch.ts), so from here it behaves exactly like
               starting any other room: the presser lands on the new room's
               waiting screen with the invite link ready to hand off. */}
-          {/* Adventure: NO rematch button and NO "Rematch unavailable" notice. The rematch
-              ruling refuses a rematch at co-op tables today, so offering "try again" would
-              dangle a dead button above a refusal (#1159). Re-add it here if the ruling changes. */}
-          {adventureVerdict ? null : endAction ? (
+          {endAction ? (
             endAction
           ) : rematchNegotiation ? (
             <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
@@ -1241,7 +1235,7 @@ export const ProDock = ({
                 gap="0.3rem"
                 _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
               >
-                {adventureVerdict ? "Watch the replay" : "View your replay"} <TbExternalLink size="0.85rem" />
+                View your replay <TbExternalLink size="0.85rem" />
               </Link>
             </Tooltip>
           )}
@@ -1278,7 +1272,7 @@ export const ProDock = ({
             gap="0.3rem"
             _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
           >
-            <TbPlus size="0.85rem" /> {adventureVerdict ? "Back to lobby" : "New game"}
+            <TbPlus size="0.85rem" /> New game
           </Link>
         </Flex>
       )}

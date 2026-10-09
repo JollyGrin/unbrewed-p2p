@@ -120,8 +120,8 @@ export interface BoardInsetArgs {
   sheetH?: number;
   /** measured width of the landscape rail (px) */
   railW?: number;
-  /** desktop only: the Adventure overlay column is mounted left of the dock */
-  adventureOverlay?: boolean;
+  /** desktop only: px a format overlay column (e.g. Adventure's, `ADVENTURE_OVERLAY_INSET`) takes left of the dock */
+  formatOverlayRight?: number;
 }
 
 /**
@@ -135,14 +135,14 @@ export const boardFitInsetFor = ({
   controlsH = 0,
   sheetH = 0,
   railW = 0,
-  adventureOverlay = false,
+  formatOverlayRight = 0,
 }: BoardInsetArgs): Required<ZoomPanInset> => {
   if (mode === "desktop")
     return {
       top: DESKTOP_INSET.top,
       bottom: DESKTOP_INSET.bottom,
       left: DESKTOP_INSET.side,
-      right: DESKTOP_INSET.dockColumn + (adventureOverlay ? ADVENTURE_OVERLAY_INSET : 0),
+      right: DESKTOP_INSET.dockColumn + formatOverlayRight,
     };
 
   const top = (chipsH || MOBILE_CHIPS_H) + MOBILE_GUTTER;

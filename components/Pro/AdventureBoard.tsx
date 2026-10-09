@@ -5,13 +5,17 @@ import {
   DOCK_RIGHT,
   DOCK_WIDTH,
 } from "./dockLayout";
-import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { Box, Flex, Text } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
-import type { GameEvent, PlayerView, ViewFighter } from "@/lib/pro/protocol";
+import { EngineFaultBanner } from "./EngineFaultBanner";
+import type { ViewFighter } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
-import { enemyTurnSummary } from "@/lib/pro/enemyTurn";
+import { enemyTurnArrow, enemyTurnSummary } from "@/lib/pro/enemyTurn";
+import { useBreakoutMoment } from "@/lib/pro/useBreakoutMoment";
+import { BreakoutMomentOverlay } from "./BreakoutMoment";
+import type { FormatOverlayProps } from "./FormatOverlay";
 import type { EnemyTurnState } from "@/lib/pro/enemyTurn";
 import { TEAM_GUIDANCE, teamChoosingTitle } from "@/lib/pro/adventureCopy";
 import {
@@ -611,74 +615,7 @@ export const EnemyTurnCard = ({ state }: { state: EnemyTurnState }) => {
   );
 };
 
-export const ENGINE_FAULT_FIXTURE =
-  "room ab12: resolving ENEMY_TURN — TypeError: cannot read properties of undefined (reading 'hp')";
-
-/**
- * Table-level "game stopped" state (engine #666, A26): a persistent banner, not a toast.
- * The board stays as last drawn; the only ways out are leave / new game.
- */
-export const EngineFaultBanner = ({
-  message,
-  onLeave = () => {
-    window.location.href = "/pro/game";
-  },
-}: {
-  message: string;
-  onLeave?: () => void;
-}) => (
-  <Flex
-    role="alert"
-    data-testid="adv-engine-fault"
-    direction="column"
-    gap="0.4rem"
-    align="center"
-    pointerEvents="auto"
-    {...PANEL}
-    maxW="32rem"
-    borderWidth="1px"
-    borderColor="red.400"
-  >
-    <Text fontWeight="bold" fontSize="0.9rem" data-testid="adv-engine-fault-title">
-      This game hit an engine fault and was stopped
-    </Text>
-    <Text fontSize="0.7rem" opacity={0.8}>
-      Nobody won — the board is frozen as it was. Copy the details below when you report it.
-    </Text>
-    <Box
-      as="pre"
-      data-testid="adv-engine-fault-message"
-      w="100%"
-      p="0.4rem"
-      bg="blackAlpha.600"
-      borderRadius="sm"
-      fontSize="0.65rem"
-      whiteSpace="pre-wrap"
-      wordBreak="break-word"
-      userSelect="all"
-    >
-      {message}
-    </Box>
-    <Flex gap="0.4rem">
-      <Button
-        size="xs"
-        data-testid="adv-engine-fault-copy"
-        onClick={() => {
-          try {
-            void navigator.clipboard?.writeText(message);
-          } catch {
-            /* clipboard unavailable — the text is select-all */
-          }
-        }}
-      >
-        Copy diagnostic
-      </Button>
-      <Button size="xs" colorScheme="red" data-testid="adv-engine-fault-leave" onClick={onLeave}>
-        Leave / new game
-      </Button>
-    </Flex>
-  </Flex>
-);
+export { ENGINE_FAULT_FIXTURE, EngineFaultBanner } from "./EngineFaultBanner";
 
 /** The whole Adventure overlay cluster. Renders nothing without adventure data. */
 export const AdventureBoard = ({
@@ -686,24 +623,29 @@ export const AdventureBoard = ({
   events,
   engineFault,
   fighterTokenArt,
-}: {
-  view: PlayerView;
-  events?: readonly GameEvent[];
-  engineFault?: string | null;
-  fighterTokenArt?: (f: ViewFighter) => string | null;
-}) => {
+  onBoardArrow,
+}: FormatOverlayProps) => {
   useAdventureAnalytics(view, events);
   const [rulesOpen, setRulesOpen] = useState(false);
+  // The ONE enemy-turn state (#1156): the narrator card below and the board's enemy→target arrow.
   const turn = useEnemyTurn(view, events);
+  const arrow = enemyTurnArrow(turn);
+  useEffect(() => {
+    onBoardArrow?.(arrow);
+  }, [onBoardArrow, arrow?.attacker, arrow?.target]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onBoardArrow?.(null), [onBoardArrow]);
+  const breakout = useBreakoutMoment(view, events);
   const model = adventureBoardModel(view);
   if (!model) return null;
   const faulted = engineFault != null;
   // A stopped table has no one "choosing" and no mover: clear those indicators.
   const decision = faulted ? null : teamDecisionModel(view);
-  const enemyTurn = faulted ? null : turn;
+  // Nor does a finished one narrate (#1182): the end screen owns GAME_OVER.
+  const enemyTurn = faulted || view.winner ? null : turn;
   const combat = enemyCombatModel(view);
   const others = model.enemies.filter((e) => e !== model.villain);
   return (
+    <>
     <Flex
       data-testid="adventure-board"
       position="fixed"
@@ -769,5 +711,12 @@ export const AdventureBoard = ({
         {enemyTurn && <EnemyTurnCard state={enemyTurn} />}
       </Flex>
     </Flex>
+    {/* A sibling, not a child: the column above is its own stacking context (z 5). */}
+    <BreakoutMomentOverlay
+      moment={breakout.moment}
+      compact={!!view.prompt && view.prompt.player === view.you}
+      onDone={breakout.dismiss}
+    />
+    </>
   );
 };

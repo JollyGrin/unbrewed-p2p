@@ -42,6 +42,13 @@ describe("adventureVerdictModel", () => {
     expect(m.facts[0].text).toContain("Round ends 19");
   });
 
+  it("YOUR TEAM names the heroes who fell, with the round when it was watched (#1182)", () => {
+    expect(adventureVerdictModel(view(objective))!.facts[1]).toEqual({ label: "Your team", text: "Heroes down: none." });
+    const down = view(objective);
+    (down.fighters[0] as { defeated: boolean }).defeated = true;
+    expect(adventureVerdictModel(down, { "p1/hero": 6 })!.facts[1].text).toBe("Heroes down: Kong (R6).");
+  });
+
   it("DEFEAT by WIPE", () => {
     const m = adventureVerdictModel(view({ verdict: "DEFEAT", cause: { kind: "WIPE" }, round: 4 }))!;
     expect(m.headline).toBe("THE HEROES FELL");

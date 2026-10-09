@@ -96,6 +96,16 @@ const sourceFact = (view: PlayerView): VerdictFact | null => {
   };
 };
 
+/** "Heroes down" from the fighters (the mockup's YOUR TEAM tile, #1182). Damage dealt is not on the wire, so it is not claimed. */
+const teamFact = (view: PlayerView, defeatRounds: Readonly<Record<FighterId, number>>): VerdictFact | null => {
+  const heroes = view.fighters.filter((f) => !f.enemy && f.kind !== "SIDEKICK");
+  if (heroes.length === 0) return null;
+  const down = heroes
+    .filter((f) => f.defeated)
+    .map((f) => (defeatRounds[f.id] != null ? `${f.name} (R${defeatRounds[f.id]})` : f.name));
+  return { label: "Your team", text: `Heroes down: ${down.length ? down.join(" · ") : "none"}.` };
+};
+
 /** null for any non-adventure view (no scenario) or an unfinished game. */
 export const adventureVerdictModel = (
   view: PlayerView,
@@ -118,6 +128,8 @@ export const adventureVerdictModel = (
   const facts: VerdictFact[] = [];
   const src = sourceFact(view);
   if (src) facts.push(src);
+  const team = teamFact(view, defeatRounds);
+  if (team) facts.push(team);
   const lines: string[] = [];
   const hpText = villain ? `${villain.hp} of ${villain.maxHp}` : null;
 
