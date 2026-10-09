@@ -6,7 +6,6 @@
  */
 import type {
   FighterId,
-  GameEvent,
   PlayerView,
   ViewCombat,
   ViewFighter,
@@ -166,7 +165,7 @@ export const threatModel = (scenario: ViewScenario): ThreatModel => {
 export const objectiveRepeat = (o: { repeat?: number }): number =>
   Math.max(Math.floor(o.repeat ?? 1), 1);
 
-/** Total objective fires in the scenario (Isla Nublar: 4); the last one loses the game. */
+/** Total objective fires in the scenario; the last one loses the game. */
 export const objectiveTotal = (objectives: ViewScenario["objectives"]): number =>
   objectives.reduce((n, o) => n + objectiveRepeat(o), 0);
 
@@ -244,8 +243,9 @@ export const adventureTurnLabel = (view: PlayerView): AdventureTurnLabel | null 
 
 /**
  * Log/dock name for an engine-controlled seat (a seat that owns only enemy fighters): the
- * acting enemy while its initiative card is current, else the scenario ("Isla Nublar"),
- * else "The island". Null for human seats and every non-adventure view.
+ * acting enemy while its initiative card is current, else the scenario label, else its
+ * setting noun (`display.setting`), else "The enemy". Null for human seats and every
+ * non-adventure view.
  */
 export const adventureEnemySeatName = (view: PlayerView, player: string): string | null => {
   if (!view.initiative) return null;
@@ -255,7 +255,8 @@ export const adventureEnemySeatName = (view: PlayerView, player: string): string
   const card = init.current ? init.row.find((c) => c.id === init.current) : undefined;
   const o = card ? resolveCardOwner(view, card) : null;
   if (o?.who === "enemy" && o.name && (!o.fighter || o.fighter.owner === player)) return o.name;
-  return view.scenario?.label ?? "The island";
+  const setting = view.scenario?.display?.setting;
+  return view.scenario?.label ?? (setting ? setting[0].toUpperCase() + setting.slice(1) : "The enemy");
 };
 
 /** null when the view carries no adventure data (every regular format). */
@@ -337,27 +338,6 @@ export const adventureBoardModel = (
       : null,
     enemies,
   };
-};
-
-/**
- * One-line "what is the mover doing" text from the most recent ENEMY_ACTIVATION in a
- * STATE batch (null when the batch has none).
- */
-export const moverIntent = (
-  events: readonly GameEvent[] | undefined,
-  view: PlayerView,
-): string | null => {
-  const ev = [...(events ?? [])]
-    .reverse()
-    .find((e) => e.type === "ENEMY_ACTIVATION");
-  if (!ev || ev.type !== "ENEMY_ACTIVATION") return null;
-  const name = (id: FighterId) =>
-    view.fighters.find((f) => f.id === id)?.name ?? id;
-  const who = name(ev.fighter);
-  if (ev.outcome === "NO_TARGET" || !ev.target) return `${who} has no target`;
-  return ev.outcome === "ADJACENT"
-    ? `${who} attacks ${name(ev.target)}`
-    : `${who} moves toward ${name(ev.target)}`;
 };
 
 export interface TeamDecisionModel {

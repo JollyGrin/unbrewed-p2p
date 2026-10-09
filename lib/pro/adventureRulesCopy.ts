@@ -1,11 +1,16 @@
 /**
  * Format-level rules copy for the Adventure briefing (unbrewed-p2p#1153) — the ONE
  * place the client words how an Adventure works. Scenario-specific text (win / lose /
- * threat / special) is data from `ScenarioListing.briefing`, never written here.
+ * threat / special, the enemy noun, the enemy-turn tile) is data from
+ * `ScenarioListing.briefing` / `.display`, never written here; this file holds only the
+ * generic fallbacks for a scenario that authors none.
  * Source of truth for the rules: research/adventures-coop-rules.md §2.3–2.5.
  *
  * Text may carry `**bold**` spans; render with `emphasisParts`.
  */
+import type { GameEvent, ScenarioDisplay } from "./protocol";
+
+type EnemyActivationOutcome = Extract<GameEvent, { type: "ENEMY_ACTIVATION" }>["outcome"];
 
 export const BRIEFING_TITLE = "How this adventure works";
 export const ENEMY_BOX_TITLE = "THE ENEMY FIELDS";
@@ -20,21 +25,48 @@ export const ROUND_COPY = {
     "left to right, and it reshuffles.",
 } as const;
 
-/** §2.5 — the enemy targeting algorithm: ADJACENT → CLOSEST → NO TARGET. */
-export const ENEMY_ACTS_COPY = {
-  title: "HOW A DINOSAUR ACTS",
-  steps: [
-    "Next to a hero? **Attacks it.**",
-    "Can reach one with its MOVE? **Goes for the closest** and attacks.",
-    "No one in reach? **Stays put — threat +1.**",
-  ],
-  note: "Its attack is the top card of its deck. LARGE dinosaurs hit from 2 spaces away. On a tie, your team picks.",
-} as const;
+/**
+ * §2.5 — the enemy targeting ladder: ADJACENT → CLOSEST → NO TARGET. `label` / `does` are the
+ * enemy-turn card's short rows; `rule` is the briefing's sentence (when the scenario authors no
+ * `display.enemyTurn`).
+ */
+export const ENEMY_LADDER = [
+  { n: 1, label: "Hero adjacent?", does: "attacks", rule: "Next to a hero? **Attacks it.**" },
+  { n: 2, label: "Closest reachable hero", does: "moves, attacks", rule: "Can reach one with its MOVE? **Goes for the closest** and attacks." },
+  { n: 3, label: "No one in reach", does: "threat +1", rule: "No one in reach? **Stays put — threat +1.**" },
+] as const;
+
+export const LARGE_REACH_NOTE = "hits from 2 away";
+
+/** The briefing's enemy-behaviour tile: the scenario's own copy, else the generic ladder. */
+export const enemyActsCopy = (display?: ScenarioDisplay | null): { title: string; steps: readonly string[]; note?: string } =>
+  display?.enemyTurn ?? {
+    title: "HOW AN ENEMY ACTS",
+    steps: ENEMY_LADDER.map((s) => s.rule),
+    note: "Its attack is the top card of its deck. LARGE enemies hit from 2 spaces away. On a tie, your team picks.",
+  };
+
+/**
+ * What an activating enemy does, in the words the log, the enemy-turn card and the board share:
+ * "attacks X" / "moves toward X" / "stays put, threat +1".
+ */
+export const enemyIntent = (outcome: EnemyActivationOutcome, target: string | null): string =>
+  outcome === "NO_TARGET"
+    ? "stays put, threat +1"
+    : outcome === "ADJACENT"
+      ? `attacks ${target ?? "a hero"}`
+      : `moves toward ${target ?? "a hero"}`;
+
+/** "an enemy" (or the scenario's own `enemyNoun`) with its article. */
+export const anEnemy = (display?: ScenarioDisplay | null): string => {
+  const noun = display?.enemyNoun.singular ?? "enemy";
+  return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
+};
 
 /** §2.4 — a hero's turn is exactly the duel turn. */
 export const YOUR_TURN_COPY = {
   title: "YOUR TURN",
-  text: "Same as a duel — **2 actions**: maneuver, scheme, attack. Attack a dinosaur and it defends with the top card of its deck.",
+  text: "Same as a duel — **2 actions**: maneuver, scheme, attack.",
 } as const;
 
 /**
@@ -59,7 +91,10 @@ export const DIFFICULTY_NOTE: { title: string; text: string } | null = {
  */
 export const VILLAIN_HP_RULING = "JW-R17";
 
-export const yourTurnText = (): string => (OPEN_HANDS_NOTE ? `${YOUR_TURN_COPY.text} ${OPEN_HANDS_NOTE}` : YOUR_TURN_COPY.text);
+export const yourTurnText = (display?: ScenarioDisplay | null): string => {
+  const text = `${YOUR_TURN_COPY.text} Attack ${anEnemy(display)} and it defends with the top card of its deck.`;
+  return OPEN_HANDS_NOTE ? `${text} ${OPEN_HANDS_NOTE}` : text;
+};
 
 /** Split `**bold**` markers into renderable parts. */
 export const emphasisParts = (text: string): Array<{ text: string; bold: boolean }> =>

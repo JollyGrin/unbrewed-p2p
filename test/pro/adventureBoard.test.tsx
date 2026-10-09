@@ -26,7 +26,6 @@ import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE, InitiativeRow } from "@/co
 import {
   adventureBoardModel,
   enemyCombatModel,
-  moverIntent,
   parseInitiativeCardId,
   teamDecisionModel,
 } from "@/lib/pro/adventureBoard";
@@ -196,21 +195,6 @@ describe("AdventureBoard", () => {
     expect(adventureBoardModel(plain)).toBeNull();
     mount("adventure", plain);
     expect(screen.queryByTestId("adventure-board")).toBeNull();
-  });
-});
-
-describe("moverIntent", () => {
-  it("covers each outcome and no event", () => {
-    const ev = (outcome: string, target?: string) =>
-      [
-        { type: "ENEMY_ACTIVATION", fighter: "e1/rex", outcome, target },
-      ] as GameEvent[];
-    expect(moverIntent(ev("ADJACENT", "p1/hero"), VIEW)).toBe(
-      "Rex attacks Hero",
-    );
-    expect(moverIntent(ev("NO_TARGET"), VIEW)).toBe("Rex has no target");
-    expect(moverIntent([], VIEW)).toBeNull();
-    expect(moverIntent(undefined, VIEW)).toBeNull();
   });
 });
 

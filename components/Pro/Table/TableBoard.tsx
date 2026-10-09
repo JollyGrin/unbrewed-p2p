@@ -147,6 +147,7 @@ export const TableBoard = ({
   tokens = [],
   boardObjectArt,
   boardObjectOriginName,
+  markerLabels,
   highlightedSpaces = [],
   chosenSpaces = [],
   highlightedFighters = [],
@@ -610,6 +611,7 @@ export const TableBoard = ({
     tokens,
     boardObjectArt,
     boardObjectOriginName,
+    markerLabels,
     highlightedSpaces,
     chosenSpaces,
     highlightedFighters,
@@ -729,6 +731,7 @@ export const TableBoard = ({
                 playerColor={SEAT_COLOR[token.owner] ?? "#999"}
                 artUrl={boardObjectArt?.(token)}
                 originName={boardObjectOriginName?.(token)}
+                markerLabels={markerLabels}
               />
             );
           })}

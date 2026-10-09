@@ -5,8 +5,8 @@
  * (engine #735, protocol v36) plus the fighters. ADVENTURE ONLY: `adventureVerdictModel`
  * returns null for any view without a scenario, so every other format keeps today's
  * VICTORY!/DEFEAT panel byte for byte. This file is also the adventure end-screen copy
- * module — scenario-flavoured strings come from `scenario.briefing` where the scenario
- * authors one.
+ * module — scenario-flavoured strings (headlines, the setting) come from
+ * `scenario.display` / `scenario.briefing`; only generic fallbacks are written here.
  *
  * REMATCH: there is deliberately no "try again" in this model. The rematch ruling today
  * refuses a rematch at co-op tables (the engine answers REMATCH_OFFER with a
@@ -49,11 +49,8 @@ export interface AdventureVerdictModel {
 const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 export const ordinalWord = (n: number): string => ORDINALS[n - 1] ?? `${n}th`;
 
-/** The scenario overflow count at the end is the enclosure number (the 4th breaks the game). */
-const finalEnclosure = (view: PlayerView): number | null => {
-  const n = view.scenario?.threat.overflows;
-  return typeof n === "number" && n > 0 ? n : null;
-};
+/** The overflow slot that cost the game (engine `result.finalSlot`, OBJECTIVE losses only). */
+const finalSlot = (view: PlayerView): number | null => view.scenario?.result?.finalSlot ?? null;
 
 /**
  * Record the round each fighter fell. `prev` is returned untouched when nothing new fell, so
@@ -144,15 +141,16 @@ export const adventureVerdictModel = (
       const name = view.fighters.find((f) => f.id === lastLoose.r.fighter)?.name ?? lastLoose.r.enemyId;
       lines.push(`The last loose enemy, ${name}, fell in round ${lastLoose.round}.`);
     }
-    return { verdict, headline: "THE ISLAND IS SAFE", explained: true, kicker, lines, releases: tiles, facts };
+    return { verdict, headline: scenario.display?.verdict.win ?? "VICTORY", explained: true, kicker, lines, releases: tiles, facts };
   }
 
   const cause = result.cause;
   let headline = "DEFEAT";
   if (cause.kind === "OBJECTIVE") {
-    headline = "THE ISLAND FELL";
-    const n = finalEnclosure(view);
-    lines.push(`${villainName} broke open her ${n ? `${ordinalWord(n)} ` : ""}enclosure.${hpText ? ` You had her down to ${hpText} health.` : ""}`);
+    headline = scenario.display?.verdict.lose ?? "DEFEAT";
+    const n = finalSlot(view);
+    lines.push(`${villainName} broke open the ${n ? `${ordinalWord(n)} ` : "last "}enclosure.`);
+    if (hpText) lines.push(`${villainName} was left at ${hpText} health.`);
     tiles.push({ round: result.round, enclosure: n ? String(n) : "?", enemyName: "", defeatedRound: null, final: true });
   } else if (cause.kind === "WIPE") {
     headline = "THE HEROES FELL";
@@ -173,10 +171,11 @@ export const adventureEndLogLine = (view: PlayerView): string | null => {
   const won = result ? result.verdict === "VICTORY" : null;
   if (won === null) return null;
   if (won) return "Victory — your team wins";
-  const n = finalEnclosure(view);
+  const n = finalSlot(view);
+  const winner = scenario.display?.setting ?? "the enemy";
   return result!.cause.kind === "OBJECTIVE" && n
-    ? `Defeat — the island wins (${ordinalNumber(n)} enclosure)`
-    : "Defeat — the island wins";
+    ? `Defeat — ${winner} wins (${ordinalNumber(n)} enclosure)`
+    : `Defeat — ${winner} wins`;
 };
 
 function ordinalNumber(n: number): string {

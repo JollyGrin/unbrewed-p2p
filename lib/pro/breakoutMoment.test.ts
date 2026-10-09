@@ -15,7 +15,12 @@ const view = (extra: Record<string, unknown> = {}) =>
     blockedSpaces: ["s4"],
     tokens: [{ id: "t", kind: "marker", owner: "p1", space: "s3", identity: "dilophosaurus" }],
     fighters: [{ id: "e1", name: "Raptor", hp: 5, maxHp: 5, size: "NORMAL", enemy: { role: "MINION", move: 4 } }],
-    scenario: { threat: { position: 0, level: 0, overflows: 1, positions: [] }, objectives: [] },
+    scenario: {
+      threat: { position: 0, level: 0, overflows: 1, positions: [] },
+      objectives: [],
+      breakouts: 1,
+      display: { lossLimit: 4, setting: "the island" },
+    },
     ...extra,
   }) as unknown as PlayerView;
 
@@ -61,13 +66,13 @@ describe("breakoutMoment", () => {
 });
 
 describe("loss limit total", () => {
-  it("uses the objective fire count, not the enclosure count", () => {
-    const objectives = [
-      { id: "enclosure-destroyed", label: "x", fired: 1, repeat: 3 },
-      { id: "fourth", label: "y", fired: 0 },
-    ];
-    const v = view({ scenario: { threat: { overflows: 1 }, objectives } });
-    expect(breakoutMoment([overflow(1), opened], null, v)).toMatchObject({ lost: 1, total: 4 });
+  it("reads the engine's breakout count and loss limit, not the map's enclosure count", () => {
+    const v = view({ scenario: { threat: { overflows: 2 }, objectives: [], breakouts: 2, display: { lossLimit: 5 } } });
+    expect(breakoutMoment([overflow(2), opened], null, v)).toMatchObject({ lost: 2, total: 5 });
+  });
+  it("a scenario with no loss limit gets a moment with no total", () => {
+    const v = view({ scenario: { threat: { overflows: 7 }, objectives: [] } });
+    expect(breakoutMoment([overflow(7), opened], null, v)).toMatchObject({ lost: 7, total: null, display: null });
   });
 });
 

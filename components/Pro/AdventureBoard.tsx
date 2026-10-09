@@ -736,6 +736,7 @@ export const AdventureBoard = ({
         onClose={() => setRulesOpen(false)}
         label={view.scenario?.label ?? null}
         briefing={view.scenario?.briefing}
+        display={view.scenario?.display}
       />
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.objectives && model.objectives.slots.length > 0 && (

@@ -6,7 +6,7 @@
  *
  * PRESENTATION ONLY. Absent `contacts` / `releases` ⇒ an empty stake map ⇒ today's badges.
  */
-import { MARKER_IDENTITIES } from "./boardObjects";
+import { markerGlyph } from "./boardObjects";
 import type { PlayerView, SpaceId } from "./protocol";
 
 export const ADJACENT_CHIP = "+1 threat at round end";
@@ -26,10 +26,7 @@ export interface EnclosureStake {
 
 export type EnclosureStakes = Readonly<Record<SpaceId, EnclosureStake>>;
 
-type ScenarioSlice = Pick<NonNullable<PlayerView["scenario"]>, "contacts" | "releases"> | null | undefined;
-
-const glyphFor = (enemyId: string, name: string): string =>
-  MARKER_IDENTITIES[enemyId]?.glyph ?? name.replace(/[^A-Za-z]/g, "").slice(0, 2);
+type ScenarioSlice = Pick<NonNullable<PlayerView["scenario"]>, "contacts" | "releases" | "display"> | null | undefined;
 
 export const enclosureStakes = (
   scenario: ScenarioSlice,
@@ -57,7 +54,7 @@ export const enclosureStakes = (
         : [...destroyed].find((d) => r.spaceLabel != null && numbers[d] === Number(r.spaceLabel));
     if (!id) continue;
     const name = fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId;
-    out[id] = { adjacent: false, next: false, tie: false, release: { name, glyph: glyphFor(r.enemyId, name) } };
+    out[id] = { adjacent: false, next: false, tie: false, release: { name, glyph: markerGlyph(scenario.display?.markers[r.enemyId] ?? name, scenario.display?.markers) } };
   }
   return out;
 };

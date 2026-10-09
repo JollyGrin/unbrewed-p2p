@@ -5,7 +5,7 @@
  * Pure — the React layer only renders it.
  */
 import type { FighterId, GameEvent, PlayerView } from "./protocol";
-import { ENEMY_TURN_STEPS, LARGE_REACH_NOTE } from "./adventureCopy";
+import { ENEMY_LADDER, LARGE_REACH_NOTE, enemyIntent } from "./adventureRulesCopy";
 
 export interface EnemyTurnStep {
   n: 1 | 2 | 3;
@@ -84,14 +84,14 @@ export const enemyTurnModel = (
         ? `threat +1 (now ${threat})`
         : "threat +1"
       : step === 1
-        ? `attacks ${targetName ?? "a hero"}`
-        : `moves toward ${targetName ?? "a hero"}, attacks`;
+        ? enemyIntent(ev.outcome, targetName)
+        : `${enemyIntent(ev.outcome, targetName)}, attacks`;
   const move = f?.enemy?.move;
   return {
     fighter: ev.fighter,
     enemyName: f?.name ?? ev.fighter,
     outcome: ev.outcome,
-    steps: ENEMY_TURN_STEPS.map((s) => ({ ...s, lit: s.n === step })),
+    steps: ENEMY_LADDER.map(({ n, label, does }) => ({ n, label, does, lit: n === step })),
     moveLine: [move != null ? `MOVE ${move}` : null, large ? LARGE_REACH_NOTE : null]
       .filter(Boolean)
       .join(" · "),

@@ -1,5 +1,5 @@
 /**
- * Adventure "enclosure destroyed — <dinosaur> is loose" moment (issue #1158).
+ * Adventure "enclosure destroyed — <enemy> is loose" moment (issue #1158).
  *
  * A breakout reaches the client as one batch carrying THREAT_OVERFLOW → SPACE_OPENED →
  * ENEMY_SPAWNED (engine #590 / #689 / #651). `breakoutInBatch` is the pure "which chain is in
@@ -9,12 +9,8 @@
  * fence or spawns an enemy on its own) is NOT a breakout and returns null, as does an overflow
  * that opened nothing.
  */
-import { objectiveTotal } from "./adventureBoard";
 import { enclosureNumbers } from "./enclosures";
-import type { GameEvent, PlayerView, SpaceId, ViewFighter } from "./protocol";
-
-/** The 4th breakout ends the game (the end screen takes over), so it gets no interstitial. */
-export const BREAKOUT_LIMIT = 4;
+import type { GameEvent, PlayerView, ScenarioDisplay, SpaceId, ViewFighter } from "./protocol";
 
 export interface BreakoutChain {
   /** 1-based count of overflows so far (THREAT_OVERFLOW.overflows) */
@@ -45,10 +41,14 @@ export interface BreakoutMoment {
   /** marker lying on the opened space, when one is readable */
   marker: string | null;
   enemy: { name: string; hp: number; maxHp: number; size: ViewFighter["size"]; move: number | null; joinsDeck: boolean } | null;
+  /** breakouts so far (engine `scenario.breakouts`) */
   lost: number;
-  total: number;
+  /** the breakout that loses the game (engine `display.lossLimit`), null when the scenario has none */
+  total: number | null;
   /** what moved the threat track this batch, null when unknown */
   pushedBy: string | null;
+  /** the scenario's display copy (setting, enemy noun), null when it authors none */
+  display: ScenarioDisplay | null;
 }
 
 /** `bySource` (#735) is not on the wire type yet — read it defensively. */
@@ -82,9 +82,10 @@ export const breakoutMoment = (
 ): BreakoutMoment | null => {
   const chain = breakoutInBatch(events);
   if (!chain || !next.scenario || next.winner) return null;
-  if (chain.overflows >= BREAKOUT_LIMIT) return null;
-  const starts = next.map.spaces.filter((s) => s.startsBlocked).length;
-  const lost = starts - (next.blockedSpaces?.length ?? 0);
+  const display = next.scenario.display ?? null;
+  const total = display?.lossLimit ?? null;
+  // the game-losing breakout ends the game (the end screen takes over): no interstitial
+  if (total != null && chain.overflows >= total) return null;
   const f = chain.spawn ? next.fighters.find((x) => x.id === chain.spawn!.fighter) : undefined;
   const marker = next.tokens.find((t) => t.space === chain.space && t.kind === "marker" && t.identity)?.identity ?? null;
   return {
@@ -92,10 +93,10 @@ export const breakoutMoment = (
     space: chain.space,
     marker,
     enemy: f ? enemyOf(f, chain.spawn!.card) : null,
-    lost,
-    // the loss limit (Isla: 4), not the map's enclosure count
-    total: objectiveTotal(next.scenario.objectives) || BREAKOUT_LIMIT,
+    lost: next.scenario.breakouts ?? chain.overflows,
+    total,
     pushedBy: pushedOverBy(prev, next),
+    display,
   };
 };
 

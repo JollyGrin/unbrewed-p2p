@@ -31,6 +31,7 @@
  * doesn't support them yet either, on its own 3D main board).
  */
 import type { EnclosureModel } from "@/lib/pro/enclosures";
+import type { MarkerLabels } from "@/lib/pro/boardObjects";
 import { EnclosureLayer } from "@/components/Pro/EnclosureLayer";
 import { Box, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
@@ -346,6 +347,8 @@ export interface RegionPanelsProps {
   tokens?: ViewToken[];
   boardObjectArt?: (token: ViewToken) => string | null | undefined;
   boardObjectOriginName?: (token: ViewToken) => string | null | undefined;
+  /** Scenario marker labels (identity → name, `PlayerView.scenario.display.markers`); absent → markers draw unlabelled. */
+  markerLabels?: MarkerLabels | null;
   highlightedSpaces?: SpaceId[];
   chosenSpaces?: SpaceId[];
   highlightedFighters?: FighterId[];
@@ -436,6 +439,7 @@ export const useRegionPanels = ({
   tokens = [],
   boardObjectArt,
   boardObjectOriginName,
+  markerLabels,
   highlightedSpaces = [],
   chosenSpaces = [],
   highlightedFighters = [],
@@ -1251,10 +1255,10 @@ export const useRegionPanels = ({
     diam: number,
     covered = false
   ) => {
-    const visual = boardObjectVisualFor(t);
+    const visual = boardObjectVisualFor(t, markerLabels);
     const color = SEAT_COLOR[t.owner] ?? "#999";
     const countdown = boardObjectCountdown(t);
-    const title = boardObjectTitle(t, t.owner, boardObjectOriginName?.(t));
+    const title = boardObjectTitle(t, t.owner, boardObjectOriginName?.(t), markerLabels);
     const art = visual.muted ? boardObjectArt?.(t) : null;
     const uprightSuffix = upright ? " rotate(-90deg)" : "";
     // Percent-of-own-width, like the fighter stack — scales with board and zoom.

@@ -10,6 +10,7 @@
 import { Box, Button } from "@chakra-ui/react";
 import { MutableRefObject, useEffect, useRef, useState } from "react";
 import type { EnclosureModel } from "@/lib/pro/enclosures";
+import type { MarkerLabels } from "@/lib/pro/boardObjects";
 import { FighterId, PlayerId, ProMapDef, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
 import { TokenGestures } from "@/lib/pro/tokenLife";
@@ -47,6 +48,8 @@ export interface ProBoardProps {
   /** Display name of the fighter an object came from (`ViewToken.origin`), for the
    *  hover title. Absent/null → the title omits the provenance clause. */
   boardObjectOriginName?: (token: ViewToken) => string | null | undefined;
+  /** Scenario marker labels (identity → name, `PlayerView.scenario.display.markers`); absent → markers draw unlabelled. */
+  markerLabels?: MarkerLabels | null;
   /** Spaces the current player can act on right now (move targets, placements…) */
   highlightedSpaces?: SpaceId[];
   /** Spaces already CHOSEN in a multi-step pick (LARGE two-step move, #1170), in order:
@@ -233,6 +236,7 @@ export const ProBoard = ({
   fighterTokenRim,
   boardObjectArt,
   boardObjectOriginName,
+  markerLabels,
   fx = [],
   pendingMove = null,
   onPendingMoveSettled,
@@ -393,6 +397,7 @@ export const ProBoard = ({
     tokens,
     boardObjectArt,
     boardObjectOriginName,
+    markerLabels,
     highlightedSpaces,
     chosenSpaces,
     highlightedFighters,

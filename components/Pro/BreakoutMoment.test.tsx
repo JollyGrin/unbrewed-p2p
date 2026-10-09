@@ -11,6 +11,7 @@ const moment: BreakoutMoment = {
   lost: 1,
   total: 4,
   pushedBy: null,
+  display: null,
 };
 const ui = (compact: boolean, onDone = jest.fn()) =>
   render(

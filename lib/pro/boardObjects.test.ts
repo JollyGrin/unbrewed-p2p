@@ -152,11 +152,31 @@ describe("boardObjectTitle", () => {
 });
 
 describe("scenario markers (adventure)", () => {
-  it("labels shipped identities with a name + glyph", () => {
-    const v = boardObjectVisualFor({ kind: "marker", identity: "gallimimus/stampede" });
+  const markers = { "gallimimus/stampede": "Stampede", tyrannosaurus: "T. Rex", "dilophosaurus/venom": "Venom" };
+  it("labels identities from the scenario's display.markers, with a glyph from the label", () => {
+    const v = boardObjectVisualFor({ kind: "marker", identity: "gallimimus/stampede" }, markers);
     expect(v.label).toBe("Stampede");
-    expect(v.glyph).not.toBe("");
-    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }).label).toBe("T. Rex");
+    expect(v.noun).toBe("stampede marker");
+    expect(v.glyph).toBe("St");
+    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }, markers)).toMatchObject({ label: "T. Rex", glyph: "Re" });
+    // no scenario labels: the client knows no identity
+    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }).label).toBe("Marker");
+  });
+  it("glyphs are the shortest prefix unique across the scenario's markers (two labels share their first two letters)", () => {
+    const set = { stygimoloch: "Stygimoloch", "x/stampede": "Stampede", "x/stamp": "Stamp", triceratops: "Triceratops", rex: "T. Rex" };
+    const glyph = (id: string) => boardObjectVisualFor({ kind: "marker", identity: id }, set).glyph;
+    expect(glyph("stygimoloch")).toBe("Sty");
+    // "Stamp" is a prefix of "Stampede": it ends up whole, and Stampede goes one letter further
+    expect(glyph("x/stamp")).toBe("Stamp");
+    expect(glyph("x/stampede")).toBe("Stampe");
+    // case-insensitive: "T. Rex" stem "Rex" vs nothing else starting "re"; Triceratops vs nothing "tr…"
+    expect(glyph("rex")).toBe("Re");
+    expect(glyph("triceratops")).toBe("Tr");
+    const all = Object.keys(set).map(glyph);
+    expect(new Set(all.map((g) => g.toLowerCase())).size).toBe(all.length);
+    // order of the record does not matter
+    const reversed = Object.fromEntries(Object.entries(set).reverse());
+    expect(boardObjectVisualFor({ kind: "marker", identity: "stygimoloch" }, reversed).glyph).toBe("Sty");
   });
   it("unknown identities keep the neutral diamond and never throw", () => {
     const v = boardObjectVisualFor({ kind: "marker", identity: "zz-new" });
@@ -166,7 +186,8 @@ describe("scenario markers (adventure)", () => {
     expect(boardObjectVisualFor({ kind: "marker", faceDown: true }).glyph).toBe("?");
   });
   it("friendly mark names resolve; unknown ones are null", () => {
-    expect(markerIdentityLabel("dilophosaurus/venom")).toBe("Venom");
-    expect(markerIdentityLabel("nope")).toBeNull();
+    expect(markerIdentityLabel("dilophosaurus/venom", markers)).toBe("Venom");
+    expect(markerIdentityLabel("nope", markers)).toBeNull();
+    expect(markerIdentityLabel("dilophosaurus/venom")).toBeNull();
   });
 });

@@ -55,7 +55,7 @@ describe("enclosureStakes mapping", () => {
       { round: 2, space: "a", fighter: "f1", enemyId: "gallimimus" },
       { round: 3, spaceLabel: "2", fighter: "zz", enemyId: "carnotaurus" },
     ];
-    const st = enclosureModel(map, ["c"], sc({ releases }), fighters)!.stakes;
+    const st = enclosureModel(map, ["c"], sc({ releases, display: { markers: { carnotaurus: "Carnotaurus" } } }), fighters)!.stakes;
     expect(st.a.release).toEqual({ name: "Gallimimus", glyph: "Ga" });
     expect(st.b.release).toEqual({ name: "carnotaurus", glyph: "Ca" });
     expect(st.c).toBeUndefined();
