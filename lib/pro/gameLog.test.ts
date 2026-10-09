@@ -7,10 +7,12 @@ import {
   counterChangeLines,
   groupLog,
   logEntriesToCsv,
+  seatLabel,
   EnrichContext,
   ProLogEntry,
   ProLogLine,
 } from "./gameLog";
+import { dockTurnLabel } from "./turnChrome";
 import { CardInstanceId, GameEvent, PlayerId, PlayerView, ValueBreakdown, ViewCombat, ViewFighter } from "./protocol";
 
 // --- fixture builders (mirrors fxEvents.test.ts) ----------------------------
@@ -2264,5 +2266,47 @@ describe("range purchases in the activity feed", () => {
       { type: "COUNTER_CHANGED", player: "p1", name: "RAGE", value: 1 },
     ]);
     expect(lines.map((l) => l.text)).toContain("spent 2 RAGE (1 remaining)");
+  });
+});
+
+// #1180 — adventure: the engine seat reads as the acting enemy / the island, never "P3"
+describe("seatLabel — adventure engine seat", () => {
+  const advView = (current: string | null, over: Partial<PlayerView> = {}): PlayerView =>
+    view({
+      players: [
+        ...view({}).players,
+        { id: "p3", heroId: "isla-nublar", you: false, handCount: 0, deckCount: 0, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+      ] as PlayerView["players"],
+      fighters: [
+        fighter({}),
+        fighter({ id: "p2/hero", owner: "p2", name: "Baba", space: "s2" }),
+        { ...fighter({ id: "e/boss", owner: "p3", name: "Dr. Wu", space: "s3" }), enemy: { role: "VILLAIN", enemyId: "wu", deckCount: 3, discardTop: null } },
+      ] as unknown as PlayerView["fighters"],
+      initiative: {
+        round: 1,
+        phase: "TURN",
+        deckCount: 1,
+        current,
+        row: [{ id: "wu", title: "Dr. Wu", entry: "FIGHTER", fighter: "e/boss" }],
+      } as unknown as PlayerView["initiative"],
+      scenario: { label: "Isla Nublar" } as unknown as PlayerView["scenario"],
+      ...over,
+    });
+  it("names the acting enemy, else the scenario", () => {
+    expect(seatLabel(advView("wu"), "p3")).toBe("Dr. Wu");
+    expect(seatLabel(advView(null), "p3")).toBe("Isla Nublar");
+    expect(seatLabel(advView("wu"), "p2")).toBe("P2");
+    expect(seatLabel(advView("wu"), "p1")).toBe("You");
+  });
+  it("tags the turn section with the enemy, and non-adventure stays P3", () => {
+    expect(batchTurnTag(null, advView("wu", { activePlayer: "p3" })).turnActor).toBe("Dr. Wu");
+    expect(seatLabel(view({ players: advView(null).players }), "p3")).toBe("P3");
+  });
+});
+
+describe("dockTurnLabel", () => {
+  it("falls back to the seat possessive outside adventure", () => {
+    expect(dockTurnLabel(view({}), false, "opponent's")).toBe("OPPONENT'S TURN");
+    expect(dockTurnLabel(view({}), true, "your")).toBe("YOUR TURN");
   });
 });

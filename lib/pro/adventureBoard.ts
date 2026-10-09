@@ -242,6 +242,22 @@ export const adventureTurnLabel = (view: PlayerView): AdventureTurnLabel | null 
   return null;
 };
 
+/**
+ * Log/dock name for an engine-controlled seat (a seat that owns only enemy fighters): the
+ * acting enemy while its initiative card is current, else the scenario ("Isla Nublar"),
+ * else "The island". Null for human seats and every non-adventure view.
+ */
+export const adventureEnemySeatName = (view: PlayerView, player: string): string | null => {
+  if (!view.initiative) return null;
+  const owned = view.fighters.filter((f) => f.owner === player);
+  if (owned.length === 0 || !owned.every((f) => f.enemy)) return null;
+  const init = view.initiative;
+  const card = init.current ? init.row.find((c) => c.id === init.current) : undefined;
+  const o = card ? resolveCardOwner(view, card) : null;
+  if (o?.who === "enemy" && o.name && (!o.fighter || o.fighter.owner === player)) return o.name;
+  return view.scenario?.label ?? "The island";
+};
+
 /** null when the view carries no adventure data (every regular format). */
 export const adventureBoardModel = (
   view: PlayerView,

@@ -108,6 +108,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
+import { dockTurnLabel } from "@/lib/pro/turnChrome";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
@@ -6107,7 +6108,7 @@ const LiveGame = ({
   // Team affiliation (issue #195): the viewer's team (self + ally) for the board's
   // shared ring. Empty in duel/ffa/older-server views → the board draws no ring.
   const friendlyOwners = deriveTeams(view.players, view.you).friendlyOwners;
-  const activeTurnLabel = myTurn ? "YOUR TURN" : `${playerLabel(view, view.activePlayer).toUpperCase()} TURN`;
+  const activeTurnLabel = dockTurnLabel(view, myTurn, playerLabel(view, view.activePlayer));
   // At-a-glance dock banner for dropped players (issue #222). In multiplayer the
   // seat-identified presence map is authoritative (multiple seats can drop
   // independently); duel keeps the coarse boolean untouched. The per-seat card
