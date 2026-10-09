@@ -58,7 +58,13 @@ const ENEMY_RED = "#E58B8B";
 
 const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => {
   const enemy = e.who === "enemy";
-  const initial = (e.name ?? e.label).trim().charAt(0).toUpperCase();
+  // #1181: two letters ("Darth Vader" → DV) so sibling chips with the same first word differ.
+  const initial = (e.name ?? e.label)
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join("");
   return (
     <Flex
       w="2rem"
@@ -77,12 +83,34 @@ const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => 
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
-        <Text fontFamily="LeagueGothic" fontSize="1rem" color={enemy ? ENEMY_RED : "white"}>
+        <Text fontFamily="LeagueGothic" fontSize="0.9rem" color={enemy ? ENEMY_RED : "white"}>
           {initial}
         </Text>
       )}
     </Flex>
   );
+};
+
+/** Tooltip for a strip chip: the full name plus the card's own title, so two cards of one
+ *  fighter ("Darth Vader — Force Choke" / "Darth Vader — Saber Throw") never read alike. */
+export const initiativeChipTip = (e: InitiativeRowEntry): string => {
+  if (!e.name) return e.label;
+  return e.card.title && e.card.title !== e.name ? `${e.name} — ${e.card.title}` : e.name;
+};
+
+/** 1-based ordinal for each revealed chip whose name another revealed chip shares (card id → n). */
+const duplicateOrdinals = (row: InitiativeRowEntry[]): Map<string, number> => {
+  const total = new Map<string, number>();
+  for (const e of row) if (e.name) total.set(e.name, (total.get(e.name) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  const out = new Map<string, number>();
+  for (const e of row) {
+    if (!e.name || (total.get(e.name) ?? 0) < 2) continue;
+    const n = (seen.get(e.name) ?? 0) + 1;
+    seen.set(e.name, n);
+    out.set(e.card.id, n);
+  }
+  return out;
 };
 
 /** Round & turn strip: ROUND n, the revealed row as portrait chips (done / now / up), the
@@ -95,6 +123,7 @@ export const InitiativeRow = ({
   fighterTokenArt?: (f: ViewFighter) => string | null;
 }) => {
   const eor = model.phase === "END_OF_ROUND";
+  const dupOrdinals = duplicateOrdinals(model.row);
   return (
     <Flex direction="column" gap="0.3rem" data-testid="adv-initiative" data-phase={model.phase ?? undefined} {...PANEL}>
       {model.scenarioLabel && (
@@ -124,8 +153,10 @@ export const InitiativeRow = ({
           </Text>
         )}
       </Flex>
-      <Flex gap="0.3rem" wrap="wrap" align="center" data-testid="adv-init-chips">
+      <Flex gap="0.2rem" wrap="wrap" align="center" data-testid="adv-init-chips">
         {model.row.map((e) => {
+          const tip = initiativeChipTip(e);
+          const dupN = dupOrdinals.get(e.card.id);
           const down = e.state === "down";
           const src = e.fighter && fighterTokenArt ? fighterTokenArt(e.fighter) : null;
           return (
@@ -142,7 +173,8 @@ export const InitiativeRow = ({
               align="center"
               gap="0.1rem"
               opacity={e.state === "done" ? 0.45 : 1}
-              title={e.name ?? e.label}
+              title={tip}
+              aria-label={tip}
             >
               {down ? (
                 <Box
@@ -161,9 +193,23 @@ export const InitiativeRow = ({
                   ✓
                 </Text>
               )}
-              {!down && (
-                <Text fontSize="0.55rem" maxW="3rem" noOfLines={1} color={e.state === "now" ? GOLD : "whiteAlpha.800"}>
-                  {e.name ?? e.label}
+              {dupN != null && (
+                <Text
+                  data-testid={`adv-init-dup-${e.card.id}`}
+                  position="absolute"
+                  bottom="-0.15rem"
+                  right="-0.15rem"
+                  minW="0.9rem"
+                  textAlign="center"
+                  borderRadius="full"
+                  bg="rgba(20,8,24,0.92)"
+                  border="1px solid"
+                  borderColor={e.state === "now" ? GOLD : "whiteAlpha.500"}
+                  fontSize="0.55rem"
+                  lineHeight="0.9rem"
+                  color={e.state === "now" ? GOLD : "whiteAlpha.900"}
+                >
+                  {dupN}
                 </Text>
               )}
             </Flex>

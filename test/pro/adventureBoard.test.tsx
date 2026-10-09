@@ -968,3 +968,73 @@ describe("teamDecisionModel readability (#1169)", () => {
     expect(o?.options[0].label).toBe("Discard a card");
   });
 });
+
+// #1181: chips truncated to identical stubs ("Darth…") and the strip wrapped to 3 rows at 4 heroes.
+describe("initiative strip chips are distinguishable and stay within 2 rows (#1181)", () => {
+  const seats = ["p1", "p2", "p3", "p4"];
+  const BIG = {
+    ...VIEW,
+    players: undefined,
+    fighters: [
+      ...seats.map((s, i) => fighter(`${s}/h`, i < 2 ? "Darth Vader" : `Hero ${i}`, { owner: s })),
+      ...["a", "b", "c", "d"].map((k, i) =>
+        fighter(`e${i}/x`, i < 2 ? "Indominus Rex" : `Raptor ${i}`, {
+          kind: "ENEMY",
+          owner: "ai",
+          enemy: { role: i === 0 ? "VILLAIN" : "MINION", enemyId: `en-${k}`, move: 2, deckCount: 3, discardTop: null },
+        }),
+      ),
+    ],
+    initiative: {
+      round: 2,
+      phase: "TURN",
+      deckCount: 3,
+      current: "s2",
+      row: [
+        ...seats.map((s, i) => ({ id: `s${i + 1}`, title: `Seat card ${i + 1}`, entry: "SEAT", seat: s })),
+        ...[0, 1, 2, 3].map((i) => ({ id: `f${i}`, title: `Bite ${i}`, entry: "FIGHTER", fighter: `e${i}/x` })),
+        ...[0, 1, 2, 3].map((i) => ({ id: `d${i}`, entry: "EFFECT", faceDown: true })),
+      ],
+    },
+  } as unknown as PlayerView;
+  const mountRow = (view: PlayerView) => {
+    cleanup();
+    render(
+      <ChakraProvider theme={theme}>
+        <InitiativeRow model={adventureBoardModel(view)!} />
+      </ChakraProvider>,
+    );
+    return Array.from(screen.getByTestId("adv-init-chips").children) as HTMLElement[];
+  };
+
+  it("same-name chips get unique tooltips and an ordinal badge", () => {
+    mountRow(BIG);
+    const tips = ["s1", "s2", "f0", "f1"].map((id) => screen.getByTestId(`adv-init-${id}`).getAttribute("title"));
+    expect(new Set(tips).size).toBe(4);
+    expect(tips[0]).toContain("Darth Vader");
+    expect(screen.getByTestId("adv-init-dup-s1")).toHaveTextContent("1");
+    expect(screen.getByTestId("adv-init-dup-s2")).toHaveTextContent("2");
+    expect(screen.queryByTestId("adv-init-dup-s3")).toBeNull();
+  });
+  it("chips carry no truncated name label", () => {
+    mountRow(BIG);
+    expect(screen.getByTestId("adv-init-s1")).not.toHaveTextContent("Darth");
+  });
+  it("4 heroes + 4 enemies + face-down cards fit 2 rows in the 17rem column at 1500px", () => {
+    const chips = mountRow(BIG).filter((c) => c.dataset.state);
+    const inner = rem(ADVENTURE_BOARD_WIDTH) - 2 * rem("0.6rem") - 2;
+    const wOf = (c: HTMLElement) => (c.dataset.faceDown ? rem("1.5rem") : rem("2rem"));
+    let rows = 1;
+    let x = 0;
+    for (const c of chips) {
+      const w = wOf(c);
+      if (x > 0 && x + rem("0.2rem") + w > inner) {
+        rows++;
+        x = w;
+      } else x += (x > 0 ? rem("0.2rem") : 0) + w;
+    }
+    // the "k STILL TO FLIP" text rides the same row
+    expect(rows).toBeLessThanOrEqual(2);
+    expect(chips).toHaveLength(12);
+  });
+});
