@@ -221,11 +221,10 @@ describe("ProBoard regions", () => {
     expect(screen.getByAltText("The Hut")).toBeInTheDocument();
   });
 
-  it("starts collapsed on an adventure board (enclosures model) and opens on the player's toggle (#1171)", () => {
-    const enclosures = { blocked: new Set<string>(), destroyed: new Set<string>(), numbers: new Map(), stakes: [] } as never;
+  it("starts collapsed when collapseRegionInsets is set and opens on the player's toggle (#1171)", () => {
     render(
       <ChakraProvider>
-        <ProBoard map={REGION_MAP} fighters={[fighter({})]} enclosures={enclosures} />
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} collapseRegionInsets />
       </ChakraProvider>
     );
     expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument();

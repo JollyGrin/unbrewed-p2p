@@ -389,6 +389,10 @@ export interface RegionPanelsProps {
    *  `zoomable && rotated`; the tabletop view forces flat in portrait, so
    *  `TableBoard` never sets this. */
   upright?: boolean;
+  /** Start the inset panels collapsed to their header chip (the player's toggle
+   *  still wins). Set by callers whose layout narrows the board so an open
+   *  inset would cover spaces (#1171). Default off: duel/FFA/2v2 unchanged. */
+  collapseRegionInsets?: boolean;
   /** The board frame these panels drag/clamp against — its bounding rect is
    *  measured on every drag frame, so it must be the element the panels are
    *  actually positioned relative to (or one with the identical rect). */
@@ -464,6 +468,7 @@ export const useRegionPanels = ({
   fighterEls,
   fitInset,
   upright = false,
+  collapseRegionInsets = false,
   frameRef,
   framePx,
 }: RegionPanelsProps): RegionPanelsResult => {
@@ -494,11 +499,11 @@ export const useRegionPanels = ({
   // top-left as a % of the board frame (null/absent = default bottom-right
   // stack) so a window resize keeps the panel glued to the same board spot.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  // Adventure boards (the only ones with an `enclosures` model) narrow the main
-  // board, so an open inset lands on its spaces and eats their clicks (#1171):
-  // start collapsed to the header chip; the player's own toggle still wins, and
+  // A format overlay that narrows the board (`collapseRegionInsets`) puts an open
+  // inset on top of spaces and eats their clicks (#1171): start collapsed to the
+  // header chip; the player's own toggle still wins, and
   // `regionActive` still forces it open for a required pick.
-  const startCollapsed = !!enclosures;
+  const startCollapsed = collapseRegionInsets;
   const [panelPos, setPanelPos] = useState<Record<string, { x: number; y: number }>>({});
 
   // A collapsed panel must never hide a required choice: any highlighted space

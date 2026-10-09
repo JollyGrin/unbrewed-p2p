@@ -189,6 +189,7 @@ export const TableBoard = ({
   zoomable = false,
   rotated = false,
   fitInset,
+  collapseRegionInsets,
   fighterFigure,
   fighterMini3d,
   resetViewSpot,
@@ -636,6 +637,7 @@ export const TableBoard = ({
     onFighterHover,
     moveHint,
     fighterEls,
+    collapseRegionInsets,
     frameRef,
     framePx,
   });

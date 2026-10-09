@@ -192,6 +192,9 @@ export interface ProBoardProps {
    *  hand). The initial fit centers the board in what's left, so the whole
    *  field is visible on load without any user interaction. `zoomable` only. */
   fitInset?: ZoomPanInset;
+  /** Start region inset panels collapsed (see RegionPanelsProps) — set when a
+   *  format overlay narrows the board. */
+  collapseRegionInsets?: boolean;
   /** Per-fighter combat gestures for the `tokenLife` beta feature (issue #320),
    *  derived from snapshot diffs by useTokenLife. PRESENTATION ONLY. Absent/null
    *  (flag off) = no wrapper, no idle motion — the token DOM is byte-identical to
@@ -247,6 +250,7 @@ export const ProBoard = ({
   zoomable = false,
   rotated = false,
   fitInset,
+  collapseRegionInsets,
   tokenLife = null,
   fighterEls,
 }: ProBoardProps) => {
@@ -421,6 +425,7 @@ export const ProBoard = ({
     fighterEls,
     fitInset,
     upright,
+    collapseRegionInsets,
     frameRef,
     framePx,
   });
