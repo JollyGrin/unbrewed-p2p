@@ -25,8 +25,10 @@ import {
 } from "../gamesocket/message";
 import {
   ConnectionStatus,
+  SocketIdentity,
   initializeWebsocket,
 } from "../gamesocket/socket";
+import { useAccount } from "@/lib/account/useAccount";
 import { useRouter } from "next/router";
 import {
   PoolType,
@@ -161,6 +163,19 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   const slug = router.query;
 
   const { activeServer } = useLocalServerStorage();
+
+  // Signed-in identity for the relay's operator view (an unverified label).
+  // Read per connect attempt, so a late account probe rides the next
+  // reconnect without tearing down a live socket. Guests send nothing.
+  const accountState = useAccount();
+  const identityRef = useRef<SocketIdentity | undefined>(undefined);
+  identityRef.current =
+    accountState.status === "signed-in"
+      ? {
+          accountId: accountState.account.id,
+          discord: accountState.account.username,
+        }
+      : undefined;
 
   // The latest inbound frames, parsed once on arrival. My OWN blob inside
   // them is never served as-is — see ownStateRef below.
@@ -371,6 +386,7 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         name,
         gid: slug.gid.toString(),
         connectURL: serverURL,
+        identity: () => identityRef.current,
         onGameState: (raw: string) => {
           const msg = JSON.parse(raw) as WebsocketMessage;
           const own = ownStateRef.current;
