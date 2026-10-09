@@ -50,7 +50,7 @@ import toast from "react-hot-toast";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { useHudPlates, DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
 import { deriveTeams } from "@/lib/pro/teams";
-import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { seatDisplayName } from "@/lib/pro/playerIdentity";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
@@ -481,7 +481,7 @@ export const ProMobileHud = ({
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
   const sidekicksOf = (player: PlayerId) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
-  const seatLabel = (seat: ViewPlayer) => seatNameplate(seat, seats.length);
+  const seatLabel = (seat: ViewPlayer) => seatDisplayName(view, seat, seats.length);
   const nameOfPlayer = (id: PlayerId) => {
     const seat = seats.find((s) => s.id === id);
     return seat ? seatLabel(seat) : id;

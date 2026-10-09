@@ -12,6 +12,8 @@ import {
   ProLogEntry,
   ProLogLine,
 } from "./gameLog";
+import { seatDisplayName } from "./playerIdentity";
+import { turnStripFor } from "./turnStrip";
 import { dockTurnLabel } from "./turnChrome";
 import { CardInstanceId, GameEvent, PlayerId, PlayerView, ValueBreakdown, ViewCombat, ViewFighter } from "./protocol";
 
@@ -2308,5 +2310,30 @@ describe("dockTurnLabel", () => {
   it("falls back to the seat possessive outside adventure", () => {
     expect(dockTurnLabel(view({}), false, "opponent's")).toBe("OPPONENT'S TURN");
     expect(dockTurnLabel(view({}), true, "your")).toBe("YOUR TURN");
+  });
+});
+
+describe("seat nameplates / turn strip — adventure engine seat (#1180)", () => {
+  const adv = (): PlayerView =>
+    view({
+      activePlayer: "p3",
+      players: [
+        ...view({}).players,
+        { id: "p3", heroId: "isla-nublar", you: false, handCount: 0, deckCount: 0, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+      ] as PlayerView["players"],
+      fighters: [
+        fighter({}),
+        { ...fighter({ id: "e/boss", owner: "p3", name: "Dr. Wu", space: "s3" }), enemy: { role: "VILLAIN", enemyId: "wu", deckCount: 3, discardTop: null } },
+      ] as unknown as PlayerView["fighters"],
+      initiative: { round: 1, phase: "TURN", deckCount: 1, current: "wu", row: [{ id: "wu", title: "Dr. Wu", entry: "FIGHTER", fighter: "e/boss" }] } as unknown as PlayerView["initiative"],
+    });
+  it("names the enemy seat on plates and the phone strip, leaves duel/ffa seats alone", () => {
+    const v = adv();
+    expect(seatDisplayName(v, v.players[2])).toBe("Dr. Wu");
+    expect(seatDisplayName(v, v.players[1])).toBe("P2");
+    expect(turnStripFor(v, () => "P3")?.label).toBe("DR. WU'S TURN…");
+    const plain = { ...v, initiative: undefined } as PlayerView;
+    expect(seatDisplayName(plain, plain.players[2])).toBe("P3");
+    expect(turnStripFor(plain, () => "P3")?.label).toBe("P3'S TURN…");
   });
 });

@@ -153,7 +153,7 @@ import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumb
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
-import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { seatDisplayName } from "@/lib/pro/playerIdentity";
 import {
   applyClick as applyStepClick,
   canCommit as canCommitStep,
@@ -4864,10 +4864,11 @@ const LiveGame = ({
     const humans = rematchView.players.filter((p) => p.id !== rematchView.you && !bots[p.id]);
     if (humans.length === 0) return null;
     const nameOf = (player: PlayerId) =>
-      seatNameplate(
-        { ...rematchView.players.find((p) => p.id === player), id: player, you: player === rematchView.you },
-        rematchView.players.length
-      );
+      seatDisplayName(rematchView, {
+        ...rematchView.players.find((p) => p.id === player),
+        id: player,
+        you: player === rematchView.you,
+      });
     return {
       state: rematchOffer,
       nameOf,
@@ -6417,7 +6418,7 @@ const LiveGame = ({
       : [];
   const promptRevealCardOptions = promptRevealMatches.map((o) => {
     const seat = view.players.find((p) => p.id === o.player);
-    const name = seat ? seatNameplate(seat, view.players.length) : o.player.toUpperCase();
+    const name = seat ? seatDisplayName(view, seat) : o.player.toUpperCase();
     const rel = deriveTeams(view.players, view.you).relationOf(o.player);
     const suffix = rel === "ally" ? " (ally)" : "";
     return { id: o.id, instance: o.instance, caption: `${name}${suffix}` };
