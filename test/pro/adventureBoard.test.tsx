@@ -181,7 +181,7 @@ describe("AdventureBoard", () => {
   });
 
   it("clears the narrator card once the game is over (#1182)", () => {
-    mount("adventure", { ...VIEW, winner: "e1" } as PlayerView);
+    mount("adventure", { ...VIEW, winner: "e1" } as unknown as PlayerView);
     expect(screen.queryByTestId("adv-enemy-turn")).toBeNull();
   });
 
