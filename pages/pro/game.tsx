@@ -210,6 +210,7 @@ import { FormatOverlay } from "@/components/Pro/FormatOverlay";
 import { enemyTurnArrow } from "@/lib/pro/enemyTurn";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
 import { EngineFaultBanner } from "@/components/Pro/AdventureBoard";
+import { teamDecisionModel } from "@/lib/pro/adventureBoard";
 import { deriveTeams } from "@/lib/pro/teams";
 import { fighterTokenStateByOwner } from "@/lib/pro/heroStateFlags";
 import { clockTowerMitigationLine } from "@/lib/pro/clockTower";
@@ -6744,6 +6745,8 @@ const LiveGame = ({
             ? "click a pulsing fighter on the board"
             : null;
 
+  // #1169: a TEAM decision's read-only teammates see the candidate spaces lit gold (no click).
+  const teamWatchSpaces = prompt && !promptForMe ? (teamDecisionModel(view)?.spaces ?? []) : [];
   const highlightedSpaces =
     // #658: an open pose pick owns the board outright — only the two (or more)
     // spaces that answer it are lit, so the question can't be misread.
@@ -6756,6 +6759,7 @@ const LiveGame = ({
               .map(([space]) => space)),
           // #654: mid-route, the offered destinations give way to the next legal hops.
           ...(promptStepHighlights ?? promptSpaceIds),
+          ...teamWatchSpaces,
           // #658: once the LARGE body is being WALKED the next legal hops are the
           // whole story — the offered destinations (and the old two-tap pose pick,
           // which survives only as the far-click fallback) step aside.
@@ -7320,7 +7324,7 @@ const LiveGame = ({
       poseAnchorStep={poseAnchorStep}
       selectedFighterName={selectedFighter ? selectedFighter.split("/")[1] : null}
       stepwiseMoves={!!moveGraph}
-      highlightedCount={highlightedSpaces.length}
+      highlightedCount={highlightedSpaces.length - teamWatchSpaces.length}
       attackTargetCount={attackActions.size}
       boostHint={boostHint}
       relocateHint={relocateHint}
