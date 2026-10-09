@@ -38,7 +38,7 @@ describe("enemyTurnModel", () => {
     expect(lit([act("ADJACENT", "p1/hero")])).toEqual([1]);
     expect(m.targetName).toBe("Hero");
     expect(m.consequence).toBe("attacks Hero");
-    expect(m.attack).toEqual({ title: "Claw Swipe", value: 4, defender: "Hero" });
+    expect(m.attack).toEqual({ cardId: "claw", title: "Claw Swipe", value: 4, defender: "Hero" });
     expect(m.moveLine).toBe("MOVE 3 · hits from 2 away");
   });
   it("CLOSEST lights step 2", () => {
