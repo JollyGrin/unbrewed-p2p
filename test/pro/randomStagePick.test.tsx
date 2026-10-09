@@ -28,7 +28,7 @@ import { theme } from "@/styles/style";
 import ProGamePage from "@/pages/pro/game";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { ClientMsg, ProMapDef } from "@/lib/pro/protocol";
-import { randomMapPool } from "@/lib/pro/mapCatalog";
+import { customMapForEntry, randomMapPool, rollRandomMap } from "@/lib/pro/mapCatalog";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
 const HEROES = [
@@ -180,28 +180,21 @@ describe("Random stage tile", () => {
     expect(screen.getByLabelText("Count's Castle")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("rolls every board in the 1v1 pool, and nothing outside it", async () => {
+  it("rolls every board in the 1v1 pool, and nothing outside it", () => {
     const pool = randomMapPool("duel").map((e) => e.id);
     expect(pool).toHaveLength(14); // all fourteen authored boards seat <= 4 players
-    const rolls: string[] = [];
     // One rng value per pool slot, nudged off the boundary, so the sweep both
-    // stays inside the pool AND actually reaches all fourteen boards.
-    for (let i = 0; i < pool.length; i++) {
-      jest.spyOn(Math, "random").mockReturnValue((i + 0.5) / pool.length);
-      FakeWebSocket.reset();
-      window.localStorage.clear(); // each mount starts with an empty "recently played" row
-      sent = [];
-      await mountPicker();
-      const msg = await createRoom();
+    // stays inside the pool AND actually reaches all fourteen boards. This is
+    // the exact roll + wire pair the Create path uses (game.tsx); the page-level
+    // wiring is covered by the single-mount tests around it, so the sweep needs
+    // no fourteen full page mounts (those timed out at 60s under box load, #1190).
+    const rolls = pool.map((_, i) => {
+      const entry = rollRandomMap("duel", () => (i + 0.5) / pool.length);
       // The Mended Drum (the server-default board) sends no customMap at all.
-      rolls.push(msg.customMap?.id ?? "mended-drum");
-      jest.restoreAllMocks();
-      document.body.innerHTML = "";
-    }
+      return customMapForEntry(entry)?.id ?? "mended-drum";
+    });
     expect(rolls).toEqual(pool);
-    // Fourteen full page mounts: slow on purpose (this is the REAL create flow),
-    // and well past Jest's 5s default once coverage instrumentation is on.
-  }, 60_000);
+  });
 
   it("keeps the server-default board's no-customMap wire when it is the one rolled", async () => {
     jest.spyOn(Math, "random").mockReturnValue(0); // → The Mended Drum
