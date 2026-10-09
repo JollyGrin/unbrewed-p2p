@@ -15,11 +15,12 @@
  * add the button to the dock where the verdict buttons are — not here.
  */
 import type { FighterId, PlayerView, ScenarioRelease } from "./protocol";
+import { objectNounOf, type ObjectNoun } from "./scenarioObjects";
 
 export interface VerdictReleaseTile {
   round: number;
-  /** printed enclosure number (the fence's number), else its order of release */
-  enclosure: string;
+  /** printed scenario-object number (`display.objectGroup` order), else its order of release */
+  objectLabel: string;
   enemyName: string;
   /** the round the released enemy fell, when we watched it happen */
   defeatedRound: number | null;
@@ -44,6 +45,8 @@ export interface AdventureVerdictModel {
   lines: string[];
   releases: VerdictReleaseTile[];
   facts: VerdictFact[];
+  /** #807: what the scenario's breakable objects are called (`display.objectNoun`, else generic) */
+  objectNoun: ObjectNoun;
 }
 
 const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
@@ -78,7 +81,7 @@ const releaseTiles = (
 ): VerdictReleaseTile[] =>
   releases.map((r, i) => ({
     round: r.round,
-    enclosure: r.spaceLabel ?? String(i + 1),
+    objectLabel: r.spaceLabel ?? String(i + 1),
     enemyName: view.fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId,
     defeatedRound: defeatRounds[r.fighter] ?? null,
     final: false,
@@ -113,10 +116,11 @@ export const adventureVerdictModel = (
   const result = scenario.result;
   const villain = view.fighters.find((f) => f.enemy?.role === "VILLAIN");
   const villainName = villain?.name ?? "The villain";
+  const objectNoun = objectNounOf(scenario.display);
 
   if (!result) {
     // Older engine, or a FORFEIT: the caller keeps today's VICTORY! / DEFEAT headline.
-    return { verdict: null, headline: "", explained: false, kicker: null, lines: [], releases: [], facts: [] };
+    return { verdict: null, headline: "", explained: false, kicker: null, lines: [], releases: [], facts: [], objectNoun };
   }
   const verdict = result.verdict;
 
@@ -141,7 +145,7 @@ export const adventureVerdictModel = (
       const name = view.fighters.find((f) => f.id === lastLoose.r.fighter)?.name ?? lastLoose.r.enemyId;
       lines.push(`The last loose enemy, ${name}, fell in round ${lastLoose.round}.`);
     }
-    return { verdict, headline: scenario.display?.verdict.win ?? "VICTORY", explained: true, kicker, lines, releases: tiles, facts };
+    return { verdict, headline: scenario.display?.verdict.win ?? "VICTORY", explained: true, kicker, lines, releases: tiles, facts, objectNoun };
   }
 
   const cause = result.cause;
@@ -149,9 +153,9 @@ export const adventureVerdictModel = (
   if (cause.kind === "OBJECTIVE") {
     headline = scenario.display?.verdict.lose ?? "DEFEAT";
     const n = finalSlot(view);
-    lines.push(`${villainName} broke open the ${n ? `${ordinalWord(n)} ` : "last "}enclosure.`);
+    lines.push(`${villainName} broke open the ${n ? `${ordinalWord(n)} ` : "last "}${objectNoun.singular}.`);
     if (hpText) lines.push(`${villainName} was left at ${hpText} health.`);
-    tiles.push({ round: result.round, enclosure: n ? String(n) : "?", enemyName: "", defeatedRound: null, final: true });
+    tiles.push({ round: result.round, objectLabel: n ? String(n) : "?", enemyName: "", defeatedRound: null, final: true });
   } else if (cause.kind === "WIPE") {
     headline = "THE HEROES FELL";
     lines.push("Every hero and sidekick is down.");
@@ -160,7 +164,7 @@ export const adventureVerdictModel = (
     lines.push(scenario.briefing?.lose ?? "The scenario's defeat condition was met.");
     if (hpText) lines.push(`${villainName} was left at ${hpText} health.`);
   }
-  return { verdict, headline, explained: true, kicker, lines, releases: tiles, facts };
+  return { verdict, headline, explained: true, kicker, lines, releases: tiles, facts, objectNoun };
 };
 
 /** The log's closing line for an adventure (never "P5 wins"), or null off-adventure. */
@@ -174,7 +178,7 @@ export const adventureEndLogLine = (view: PlayerView): string | null => {
   const n = finalSlot(view);
   const winner = scenario.display?.setting ?? "the enemy";
   return result!.cause.kind === "OBJECTIVE" && n
-    ? `Defeat — ${winner} wins (${ordinalNumber(n)} enclosure)`
+    ? `Defeat — ${winner} wins (${ordinalNumber(n)} ${objectNounOf(scenario.display).singular})`
     : `Defeat — ${winner} wins`;
 };
 

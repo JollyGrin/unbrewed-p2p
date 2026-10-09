@@ -9,7 +9,7 @@
  */
 import { Box, Button } from "@chakra-ui/react";
 import { MutableRefObject, useEffect, useRef, useState } from "react";
-import type { EnclosureModel } from "@/lib/pro/enclosures";
+import type { ScenarioObjectModel } from "@/lib/pro/scenarioObjects";
 import type { MarkerLabels } from "@/lib/pro/boardObjects";
 import { FighterId, PlayerId, ProMapDef, ProMapSpace, SpaceId, ViewFighter, ViewToken } from "@/lib/pro/protocol";
 import { BoardFxItem } from "@/lib/pro/useGameFx";
@@ -159,9 +159,9 @@ export interface ProBoardProps {
    *  read the static map.items/space.item for presence (protocol v17). Absent/empty
    *  = no item badges. The item id is looked up in `map.items` for kind + label. */
   itemTokens?: Record<SpaceId, string>;
-  /** Adventure enclosures (lib/pro/enclosures): closed fence badges + destroyed marks. Absent on
+  /** Adventure scenario objects (lib/pro/scenarioObjects): closed fence badges + destroyed marks. Absent on
    *  every non-adventure board, which then renders exactly as before. */
-  enclosures?: EnclosureModel | null;
+  scenarioObjects?: ScenarioObjectModel | null;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   /** Hover of a highlighted move-target space (null on leave) — drives the
@@ -244,7 +244,7 @@ export const ProBoard = ({
   previewMove = null,
   closedRegions = [],
   itemTokens = {},
-  enclosures = null,
+  scenarioObjects = null,
   onSpaceClick,
   onFighterClick,
   onSpaceHover,
@@ -420,7 +420,7 @@ export const ProBoard = ({
     previewMove,
     closedRegions,
     itemTokens,
-    enclosures,
+    scenarioObjects,
     onSpaceClick,
     onFighterClick,
     onSpaceHover,

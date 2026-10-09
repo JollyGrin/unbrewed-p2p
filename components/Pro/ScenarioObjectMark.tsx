@@ -1,32 +1,36 @@
 /**
- * Adventure enclosure mark (engine #689): a closed fence badge over a still-blocked space, or a
+ * Adventure scenario-object mark (engine #689): a closed fence badge over a still-blocked space, or a
  * faint "destroyed" ring over a `startsBlocked` space that has been opened. Fills the box the
  * caller positions over the space (flat board: % of frame; tabletop: px) and never takes pointer
- * events — a CHOOSE_SPACE tie between enclosures is answered by the space's own hit circle.
- * PRESENTATION ONLY. See lib/pro/enclosures.
+ * events — a CHOOSE_SPACE tie between objects is answered by the space's own hit circle.
+ * PRESENTATION ONLY. See lib/pro/scenarioObjects.
  */
 import { Box, Text } from "@chakra-ui/react";
 import { TbFence } from "react-icons/tb";
-import type { EnclosureStake } from "@/lib/pro/enclosureStakes";
+import type { ScenarioObjectStake } from "@/lib/pro/scenarioObjectStakes";
+import { capitalize, GENERIC_OBJECT_NOUN } from "@/lib/pro/scenarioObjects";
 
-export interface EnclosureMarkProps {
+export interface ScenarioObjectMarkProps {
   state: "closed" | "destroyed";
-  /** Printed enclosure number, when the map declares one. */
+  /** Printed object number, when the map declares one. */
   number?: number;
+  /** #807: what one object is called (`display.objectNoun.singular`); omitted = the generic noun. */
+  noun?: string;
   spaceId: string;
   /** #1160: villain contact / next-to-open ring, or the enemy a destroyed one released. */
-  stake?: EnclosureStake;
+  stake?: ScenarioObjectStake;
 }
 
 const RED = "#E5484D";
 const GOLD = "#E0A82E";
 
-export const EnclosureMark = ({ state, number, spaceId, stake }: EnclosureMarkProps) => {
+export const ScenarioObjectMark = ({ state, number, noun = GENERIC_OBJECT_NOUN.singular, spaceId, stake }: ScenarioObjectMarkProps) => {
+  const name = capitalize(noun);
   const label = number != null ? String(number).padStart(2, "0") : null;
   const title =
     state === "closed"
-      ? `Enclosure${label ? ` ${label}` : ""} — closed`
-      : `Enclosure${label ? ` ${label}` : ""} — destroyed${stake?.release ? `, released ${stake.release.name}` : ""}`;
+      ? `${name}${label ? ` ${label}` : ""} — closed`
+      : `${name}${label ? ` ${label}` : ""} — destroyed${stake?.release ? `, released ${stake.release.name}` : ""}`;
   const closedStake = state === "closed" ? stake : undefined;
   const rings = [
     closedStake?.adjacent ? `0 0 0 3px ${RED}` : null,
@@ -39,12 +43,12 @@ export const EnclosureMark = ({ state, number, spaceId, stake }: EnclosureMarkPr
       w="100%"
       h="100%"
       pointerEvents="none"
-      data-enclosure={spaceId}
-      data-enclosure-state={state}
-      data-enclosure-number={label ?? undefined}
-      data-enclosure-adjacent={closedStake?.adjacent ? "" : undefined}
-      data-enclosure-next={closedStake?.next ? "" : undefined}
-      data-enclosure-released={release?.name}
+      data-scenario-object={spaceId}
+      data-scenario-object-state={state}
+      data-scenario-object-number={label ?? undefined}
+      data-scenario-object-adjacent={closedStake?.adjacent ? "" : undefined}
+      data-scenario-object-next={closedStake?.next ? "" : undefined}
+      data-scenario-object-released={release?.name}
       title={title}
       borderRadius="50%"
       display="flex"

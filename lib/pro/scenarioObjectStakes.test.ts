@@ -1,15 +1,15 @@
 import { ISLA_NUBLAR_SPACES, ISLA_NUBLAR_SPACE_DIAMETER } from "../../test/pro/fixtures/islaNublarSpaces";
-import { enclosureModel } from "./enclosures";
+import { scenarioObjectModel } from "./scenarioObjects";
 import {
   ADJACENT_CHIP,
   NEXT_CHIP,
   TIE_CHIP,
   wrapChip,
-  enclosureStakes,
+  scenarioObjectStakes,
   placeStakeChips,
   rectHitsCircle,
   stakeChipText,
-} from "./enclosureStakes";
+} from "./scenarioObjectStakes";
 import type { ProMapDef } from "./protocol";
 
 const map = {
@@ -18,20 +18,20 @@ const map = {
   meta: { title: "M", minPlayers: 1, maxPlayers: 4, specialRules: false },
   zones: [],
   spaces: ["a", "b", "c", "d"].map((id, i) => ({ id, x: 0.1 + i * 0.2, y: 0.1, zones: [], adjacentTo: [], startsBlocked: id !== "d" })),
-  scenario: { groups: [{ id: "enclosures", kind: "CONTAINS", spaces: ["a", "b", "c"], order: [1, 2, 3] }] },
+  scenario: { groups: [{ id: "pens", kind: "CONTAINS", spaces: ["a", "b", "c"], order: [1, 2, 3] }] },
 } as unknown as ProMapDef;
 const fighters = [{ id: "f1", name: "Gallimimus" }];
 const sc = (over: object) => ({ threat: { position: 0, level: 0, overflows: 0, positions: [] }, objectives: [], ...over }) as never;
 
-describe("enclosureStakes mapping", () => {
+describe("scenarioObjectStakes mapping", () => {
   it("absent scenario / contacts ⇒ no stakes (today's badges)", () => {
-    expect(enclosureModel(map, ["a", "b", "c"])!.stakes).toEqual({});
-    expect(enclosureModel(map, ["a", "b", "c"], sc({}), fighters)!.stakes).toEqual({});
+    expect(scenarioObjectModel(map, ["a", "b", "c"])!.stakes).toEqual({});
+    expect(scenarioObjectModel(map, ["a", "b", "c"], sc({}), fighters)!.stakes).toEqual({});
   });
 
   it("adjacent and nextToOpen map to rings; follows the villain between snapshots", () => {
     const at = (adjacent: string[], nextToOpen: string[]) =>
-      enclosureModel(map, ["a", "b", "c"], sc({ contacts: { adjacent, nextToOpen } }), fighters)!.stakes;
+      scenarioObjectModel(map, ["a", "b", "c"], sc({ contacts: { adjacent, nextToOpen } }), fighters)!.stakes;
     expect(at(["a"], ["b"])).toEqual({
       a: { adjacent: true, next: false, tie: false },
       b: { adjacent: false, next: true, tie: false },
@@ -41,7 +41,7 @@ describe("enclosureStakes mapping", () => {
   });
 
   it("2+ nextToOpen is a tie", () => {
-    const st = enclosureModel(map, ["a", "b", "c"], sc({ contacts: { adjacent: [], nextToOpen: ["a", "c"] } }), fighters)!.stakes;
+    const st = scenarioObjectModel(map, ["a", "b", "c"], sc({ contacts: { adjacent: [], nextToOpen: ["a", "c"] } }), fighters)!.stakes;
     expect(stakeChipText(st.a)).toEqual([TIE_CHIP]);
     expect(stakeChipText(st.c)).toEqual([TIE_CHIP]);
   });
@@ -50,19 +50,19 @@ describe("enclosureStakes mapping", () => {
     expect(stakeChipText({ adjacent: true, next: true, tie: false })).toEqual([ADJACENT_CHIP, NEXT_CHIP]);
   });
 
-  it("a destroyed enclosure shows the released enemy (by space, or by printed label)", () => {
+  it("a destroyed pen shows the released enemy (by space, or by printed label)", () => {
     const releases = [
       { round: 2, space: "a", fighter: "f1", enemyId: "gallimimus" },
       { round: 3, spaceLabel: "2", fighter: "zz", enemyId: "carnotaurus" },
     ];
-    const st = enclosureModel(map, ["c"], sc({ releases, display: { markers: { carnotaurus: "Carnotaurus" } } }), fighters)!.stakes;
+    const st = scenarioObjectModel(map, ["c"], sc({ releases, display: { markers: { carnotaurus: "Carnotaurus" } } }), fighters)!.stakes;
     expect(st.a.release).toEqual({ name: "Gallimimus", glyph: "Ga" });
     expect(st.b.release).toEqual({ name: "carnotaurus", glyph: "Ca" });
     expect(st.c).toBeUndefined();
   });
 
   it("ignores stakes for spaces that are not (any longer) closed", () => {
-    const st = enclosureStakes(sc({ contacts: { adjacent: ["a"], nextToOpen: ["a"] } }), [], new Set(), new Set(["a"]), {});
+    const st = scenarioObjectStakes(sc({ contacts: { adjacent: ["a"], nextToOpen: ["a"] } }), [], new Set(), new Set(["a"]), {});
     expect(st).toEqual({});
   });
 });

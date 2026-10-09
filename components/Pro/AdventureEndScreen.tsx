@@ -52,7 +52,7 @@ const ReleaseTiles = ({ model }: { model: AdventureVerdictModel }) => (
           color="brand.parchment"
         >
           <Text fontWeight={700}>
-            Round {t.round} · enclosure {t.enclosure}
+            Round {t.round} · {model.objectNoun.singular} {t.objectLabel}
           </Text>
           {t.final ? (
             <Text color="red.200">game over</Text>

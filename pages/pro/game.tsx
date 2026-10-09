@@ -199,7 +199,7 @@ import { useAccountStats } from "@/lib/account/useAccountStats";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
-import { enclosureModel, enclosureNumbers } from "@/lib/pro/enclosures";
+import { scenarioObjectModel, scenarioObjectNumbers } from "@/lib/pro/scenarioObjects";
 import {
   FormatLobbyBriefing,
   FormatLobbySeats,
@@ -5060,7 +5060,8 @@ const LiveGame = ({
             you: next.you,
             seat: (player) => seatLabel(next, player),
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
-            enclosure: (space) => enclosureNumbers(next.map)[space],
+            objectNumber: (space) => scenarioObjectNumbers(next.map, next.scenario?.display)[space],
+            objectNoun: next.scenario?.display?.objectNoun,
             threatSize: next.scenario?.threat.positions.length,
             markerLabels: next.scenario?.display?.markers,
             initiative: (card) => {
@@ -7251,7 +7252,7 @@ const LiveGame = ({
     },
     closedRegions: view.closedRegions,
     itemTokens: view.itemTokens,
-    enclosures: enclosureModel(view.map, view.blockedSpaces, view.scenario, view.fighters),
+    scenarioObjects: scenarioObjectModel(view.map, view.blockedSpaces, view.scenario, view.fighters),
     onSpaceClick,
     onFighterClick,
     onSpaceHover: setHoveredSpace,

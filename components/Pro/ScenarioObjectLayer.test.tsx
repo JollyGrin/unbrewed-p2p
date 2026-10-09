@@ -1,9 +1,9 @@
 import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { EnclosureLayer } from "@/components/Pro/EnclosureLayer";
-import { enclosureModel } from "@/lib/pro/enclosures";
-import { ADJACENT_CHIP, NEXT_CHIP } from "@/lib/pro/enclosureStakes";
+import { ScenarioObjectLayer } from "@/components/Pro/ScenarioObjectLayer";
+import { scenarioObjectModel } from "@/lib/pro/scenarioObjects";
+import { ADJACENT_CHIP, NEXT_CHIP } from "@/lib/pro/scenarioObjectStakes";
 import type { ProMapDef } from "@/lib/pro/protocol";
 import { theme } from "@/styles/style";
 
@@ -23,8 +23,8 @@ const sc = (over: object) => ({ threat: { position: 0, level: 0, overflows: 0, p
 const mount = (scenario?: never) =>
   render(
     <ChakraProvider theme={theme}>
-      <EnclosureLayer
-        enclosures={enclosureModel(map, ["a", "b"], scenario, [{ id: "f", name: "Carnotaurus" }])!}
+      <ScenarioObjectLayer
+        scenarioObjects={scenarioObjectModel(map, ["a", "b"], scenario, [{ id: "f", name: "Carnotaurus" }])!}
         spaces={map.spaces}
         diam={0.05}
         framePx={1000}
@@ -34,11 +34,11 @@ const mount = (scenario?: never) =>
     </ChakraProvider>
   );
 
-describe("EnclosureLayer stakes", () => {
+describe("ScenarioObjectLayer stakes", () => {
   it("no scenario: today's badges, no rings, no chips", () => {
     const { container } = mount();
-    expect(container.querySelectorAll("[data-enclosure]")).toHaveLength(3);
-    expect(container.querySelector("[data-enclosure-adjacent],[data-enclosure-next],[data-enclosure-chip]")).toBeNull();
+    expect(container.querySelectorAll("[data-scenario-object]")).toHaveLength(3);
+    expect(container.querySelector("[data-scenario-object-adjacent],[data-scenario-object-next],[data-scenario-object-chip]")).toBeNull();
   });
 
   it("adjacent gets a red ring + chip, nextToOpen the gold one; destroyed shows the released enemy", () => {
@@ -48,11 +48,11 @@ describe("EnclosureLayer stakes", () => {
         releases: [{ round: 1, space: "c", fighter: "f", enemyId: "carnotaurus" }],
       })
     );
-    expect(container.querySelector("[data-enclosure=a]")).toHaveAttribute("data-enclosure-adjacent");
-    expect(container.querySelector("[data-enclosure=b]")).toHaveAttribute("data-enclosure-next");
-    expect(container.querySelector("[data-enclosure-chip=a]")).toHaveTextContent(ADJACENT_CHIP);
-    expect(container.querySelector("[data-enclosure-chip=b]")).toHaveTextContent(NEXT_CHIP);
-    expect(container.querySelector("[data-enclosure=c]")).toHaveAttribute("data-enclosure-released", "Carnotaurus");
+    expect(container.querySelector("[data-scenario-object=a]")).toHaveAttribute("data-scenario-object-adjacent");
+    expect(container.querySelector("[data-scenario-object=b]")).toHaveAttribute("data-scenario-object-next");
+    expect(container.querySelector("[data-scenario-object-chip=a]")).toHaveTextContent(ADJACENT_CHIP);
+    expect(container.querySelector("[data-scenario-object-chip=b]")).toHaveTextContent(NEXT_CHIP);
+    expect(container.querySelector("[data-scenario-object=c]")).toHaveAttribute("data-scenario-object-released", "Carnotaurus");
     expect(screen.getByTitle(/released Carnotaurus/)).toBeInTheDocument();
   });
 });

@@ -30,9 +30,9 @@
  * region calls today) and `TableBoard` omits the other two entirely (it
  * doesn't support them yet either, on its own 3D main board).
  */
-import type { EnclosureModel } from "@/lib/pro/enclosures";
+import type { ScenarioObjectModel } from "@/lib/pro/scenarioObjects";
 import type { MarkerLabels } from "@/lib/pro/boardObjects";
-import { EnclosureLayer } from "@/components/Pro/EnclosureLayer";
+import { ScenarioObjectLayer } from "@/components/Pro/ScenarioObjectLayer";
 import { Box, Flex, Text, chakra, shouldForwardProp } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import { isValidMotionProp, motion, useReducedMotion } from "framer-motion";
@@ -374,7 +374,7 @@ export interface RegionPanelsProps {
    * panels grey out and stop taking clicks */
   closedRegions?: string[];
   itemTokens?: Record<SpaceId, string>;
-  enclosures?: EnclosureModel | null;
+  scenarioObjects?: ScenarioObjectModel | null;
   onSpaceClick?: (id: SpaceId) => void;
   onFighterClick?: (id: FighterId) => void;
   onSpaceHover?: (id: SpaceId | null) => void;
@@ -416,8 +416,8 @@ export interface RegionPanelsResult {
     diam: number,
     layerPx: number,
     hitCapSx?: (spaceId: SpaceId, renderedDiameterPx: number) => Record<string, unknown>,
-    /** The frame's UNSCALED layout width and height (px) — lets the enclosure chips stay a fixed on-screen
-     *  size inside the zoom-scaled frame. Unknown (omitted / 0): enclosure rings only. */
+    /** The frame's UNSCALED layout width and height (px) — lets the scenario-object chips stay a fixed on-screen
+     *  size inside the zoom-scaled frame. Unknown (omitted / 0): object rings only. */
     layoutPx?: number,
     layoutH?: number
   ) => ReactNode;
@@ -462,7 +462,7 @@ export const useRegionPanels = ({
   previewMove = null,
   closedRegions = [],
   itemTokens = {},
-  enclosures = null,
+  scenarioObjects = null,
   onSpaceClick,
   onFighterClick,
   onSpaceHover,
@@ -1680,10 +1680,10 @@ export const useRegionPanels = ({
           return here.map((t, i) => boardObjectToken(t, s, offsets[i], diam, bySpace.has(s.id)));
         })}
 
-      {/* adventure enclosures: closed fence badge / destroyed mark, click-through */}
-      {enclosures && (
-        <EnclosureLayer
-          enclosures={enclosures}
+      {/* adventure scenario objects: closed fence badge / destroyed mark, click-through */}
+      {scenarioObjects && (
+        <ScenarioObjectLayer
+          scenarioObjects={scenarioObjects}
           spaces={spaces}
           diam={diam / 100}
           framePx={layerPx}

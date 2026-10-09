@@ -10,7 +10,7 @@ const view = (extra: Record<string, unknown> = {}) =>
     winner: null,
     map: {
       spaces: [{ id: "s3", startsBlocked: true }, { id: "s4", startsBlocked: true }, { id: "s5" }],
-      scenario: { groups: [{ id: "enclosures", spaces: ["s3", "s4"], kind: "CONTAINS", order: [2, 5] }] },
+      scenario: { groups: [{ id: "pens", spaces: ["s3", "s4"], kind: "CONTAINS", order: [2, 5] }] },
     },
     blockedSpaces: ["s4"],
     tokens: [{ id: "t", kind: "marker", owner: "p1", space: "s3", identity: "dilophosaurus" }],
@@ -48,7 +48,7 @@ describe("breakoutInBatch", () => {
 describe("breakoutMoment", () => {
   it("assembles the interstitial", () => {
     const m = breakoutMoment([overflow(1), opened, spawn], null, view())!;
-    expect(m).toMatchObject({ enclosure: 2, marker: "dilophosaurus", lost: 1, total: 4, pushedBy: null });
+    expect(m).toMatchObject({ objectNumber: 2, marker: "dilophosaurus", lost: 1, total: 4, pushedBy: null });
     expect(m.enemy).toMatchObject({ name: "Raptor", hp: 5, move: 4, joinsDeck: true });
   });
   it("hands the 4th breakout to the end screen", () => {
@@ -66,7 +66,7 @@ describe("breakoutMoment", () => {
 });
 
 describe("loss limit total", () => {
-  it("reads the engine's breakout count and loss limit, not the map's enclosure count", () => {
+  it("reads the engine's breakout count and loss limit, not the map's pen count", () => {
     const v = view({ scenario: { threat: { overflows: 2 }, objectives: [], breakouts: 2, display: { lossLimit: 5 } } });
     expect(breakoutMoment([overflow(2), opened], null, v)).toMatchObject({ lost: 2, total: 5 });
   });
