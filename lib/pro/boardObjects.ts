@@ -91,10 +91,23 @@ export const UNKNOWN_OBJECT: BoardObjectVisual = {
  */
 export type MarkerLabels = Readonly<Record<string, string>>;
 
-/** Short board glyph for a marker / released-enemy name: a word of ≤3 letters whole, else its first two. */
-export const markerGlyph = (name: string): string => {
-  const word = (name.trim().split(/\s+/).pop() ?? "").replace(/[^A-Za-z]/g, "");
-  return word.length <= 3 ? word : word.slice(0, 2);
+/** The letters a glyph is cut from: the label's last word ("T. Rex" → "Rex"). */
+const glyphStem = (label: string): string => (label.trim().split(/\s+/).pop() ?? "").replace(/[^A-Za-z]/g, "");
+
+/**
+ * Short board glyph for a marker / released-enemy label: the shortest prefix (2+ letters) of its
+ * stem that no other stem in the scenario's `markers` shares (case-insensitive), so two markers
+ * never draw alike — Stygimoloch / Stampede → "Sty" / "Sta". Depends only on the label set, so
+ * it is deterministic. A stem that is a prefix of another (or equal to it) ends up whole.
+ */
+export const markerGlyph = (label: string, markers?: MarkerLabels | null): string => {
+  const stem = glyphStem(label);
+  const own = stem.toLowerCase();
+  const others = new Set(Object.values(markers ?? {}).map((l) => glyphStem(l).toLowerCase()));
+  others.delete(own);
+  let n = Math.min(2, stem.length);
+  while (n < stem.length && [...others].some((o) => o.startsWith(own.slice(0, n)))) n++;
+  return stem.slice(0, n);
 };
 
 /** Friendly name for a marker/mark identity, or null when the scenario does not label it. */
@@ -109,7 +122,7 @@ export const boardObjectVisualFor = (
   if (token.kind === "marker") {
     const known = markerIdentityLabel(token.identity, markers);
     if (known) {
-      return { kind: "marker", label: known, noun: `${known.toLowerCase()} marker`, shape: "diamond", muted: false, glyph: markerGlyph(known) };
+      return { kind: "marker", label: known, noun: `${known.toLowerCase()} marker`, shape: "diamond", muted: false, glyph: markerGlyph(known, markers) };
     }
     if (token.faceDown) {
       return { kind: "marker", label: "Face-down marker", noun: "face-down marker", shape: "diamond", muted: false, glyph: "?" };

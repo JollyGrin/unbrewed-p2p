@@ -54,7 +54,7 @@ export const enclosureStakes = (
         : [...destroyed].find((d) => r.spaceLabel != null && numbers[d] === Number(r.spaceLabel));
     if (!id) continue;
     const name = fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId;
-    out[id] = { adjacent: false, next: false, tie: false, release: { name, glyph: markerGlyph(scenario.display?.markers[r.enemyId] ?? name) } };
+    out[id] = { adjacent: false, next: false, tie: false, release: { name, glyph: markerGlyph(scenario.display?.markers[r.enemyId] ?? name, scenario.display?.markers) } };
   }
   return out;
 };
