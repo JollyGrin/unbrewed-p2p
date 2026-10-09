@@ -11,6 +11,7 @@ import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
 import { EngineFaultBanner } from "./EngineFaultBanner";
 import type { ViewFighter } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
+import { adventureCardArt } from "@/lib/pro/adventureCardArt";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
 import { enemyTurnArrow, enemyTurnSummary } from "@/lib/pro/enemyTurn";
 import { useBreakoutMoment } from "@/lib/pro/useBreakoutMoment";
@@ -56,6 +57,23 @@ const PANEL = {
 
 const GOLD = "#E0A82E";
 const ENEMY_RED = "#E58B8B";
+
+/** A card face from the CDN; renders nothing when the id has no uploaded art. Faces are not
+ *  63:88, so `contain` — never stretch. */
+const CardFace = ({ cardId, h, testid }: { cardId: string | null | undefined; h: string; testid: string }) => {
+  const src = adventureCardArt(cardId);
+  if (!src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      data-testid={testid}
+      loading="lazy"
+      style={{ height: h, width: "auto", maxWidth: "100%", objectFit: "contain", flexShrink: 0 }}
+    />
+  );
+};
 
 const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => {
   const enemy = e.who === "enemy";
@@ -186,6 +204,8 @@ export const InitiativeRow = ({
                   borderColor="whiteAlpha.400"
                   bg="repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0 3px, rgba(255,255,255,0.04) 3px 6px)"
                 />
+              ) : e.who === "enemy" && adventureCardArt(e.artKey) ? (
+                <CardFace cardId={e.artKey} h="2.4rem" testid={`adv-init-art-${e.card.id}`} />
               ) : (
                 <Portrait e={e} src={src} />
               )}
@@ -286,9 +306,12 @@ export const VillainHeader = ({
         </Text>
       </Flex>
       {villain.lastPlayed && (
-        <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-last-played">
-          Last played: {villain.lastPlayed}
-        </Text>
+        <Flex gap="0.4rem" align="center" data-testid="adv-villain-last-played">
+          <CardFace cardId={villain.lastPlayedId} h="4.5rem" testid="adv-villain-last-played-art" />
+          <Text fontSize="0.7rem" opacity={0.85}>
+            Last played: {villain.lastPlayed}
+          </Text>
+        </Flex>
       )}
       {objective && (
         <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-objective">
@@ -648,7 +671,8 @@ export const EnemyTurnCard = ({ state }: { state: EnemyTurnState }) => {
         {m.consequence}
       </Text>
       {m.attack && (
-        <Flex data-testid="adv-enemy-turn-attack" gap="0.5rem" align="baseline">
+        <Flex data-testid="adv-enemy-turn-attack" gap="0.5rem" align="center">
+          <CardFace cardId={m.attack.cardId} h="4.5rem" testid="adv-enemy-turn-attack-art" />
           <Text {...LBL}>ATTACK</Text>
           <Text fontSize="0.75rem" flex="1">
             {m.attack.title}

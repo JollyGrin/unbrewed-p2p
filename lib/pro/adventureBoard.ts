@@ -68,6 +68,8 @@ export interface EnemyDial {
   move: number;
   /** printed title of the top of the enemy's face-up discard ("last played"), null when empty/unknown */
   lastPlayed: string | null;
+  /** catalog id (no `#n`) of that card, the key for its CDN face; null when empty */
+  lastPlayedId: string | null;
   /** engine #735 part 4 `enemy.released`; null against a server that omits it */
   released: boolean | null;
 }
@@ -281,6 +283,7 @@ export const adventureBoardModel = (
         ? (view.catalog?.[f.enemy!.discardTop.split("#")[0]]?.title ??
           null)
         : null,
+      lastPlayedId: f.enemy!.discardTop ? f.enemy!.discardTop.split("#")[0] : null,
       released: (f.enemy as { released?: boolean }).released ?? null,
     }));
   if (!initiative && !scenario && enemies.length === 0) return null;

@@ -15,6 +15,8 @@ export interface EnemyTurnStep {
 }
 
 export interface EnemyTurnAttack {
+  /** catalog id of the attack card (no `#n`) — the key for its CDN face */
+  cardId: string;
   title: string;
   value: number | null;
   defender: string | null;
@@ -57,6 +59,7 @@ const attackFrom = (
   if (!declared || !rev || rev.type !== "CARDS_REVEALED") return null;
   const meta = view.catalog?.[rev.attackerCard.replace(/#\d+$/, "")];
   return {
+    cardId: rev.attackerCard.replace(/#\d+$/, ""),
     title: meta?.title ?? rev.attackerCard,
     value: meta?.value ?? null,
     defender,
