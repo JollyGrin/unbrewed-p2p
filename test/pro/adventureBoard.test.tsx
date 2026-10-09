@@ -243,6 +243,22 @@ describe("team decision (players choose)", () => {
     expect(screen.getByTestId("adv-team-decision-guidance")).toBeInTheDocument();
     expect(screen.queryByTestId("adv-team-option-p1/hero")).toBeNull();
   });
+  it("names the card the enemy is playing from enemy.inPlay, with no event history (#1318)", () => {
+    const v = withPrompt("p1", "p2") as unknown as {
+      fighters: { owner?: string; enemy?: Record<string, unknown> }[];
+      catalog: Record<string, unknown>;
+    };
+    v.catalog = { ...v.catalog, "gally-stampede": { title: "Stampede" } };
+    v.fighters = v.fighters.map((f) =>
+      f.enemy ? { ...f, owner: "e1", enemy: { ...f.enemy, inPlay: ["gally-stampede#3"] } } : f,
+    );
+    mount("adventure", v as unknown as PlayerView);
+    expect(screen.getByTestId("adv-team-decision-card")).toHaveTextContent("Playing: Stampede");
+  });
+  it("shows no card line when the enemy plays nothing", () => {
+    mount("adventure", withPrompt("p1", "p2"));
+    expect(screen.queryByTestId("adv-team-decision-card")).toBeNull();
+  });
   it("ordinary prompts show no banner", () => {
     mount("adventure", {
       ...VIEW,

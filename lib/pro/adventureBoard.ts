@@ -346,6 +346,8 @@ export interface TeamDecisionModel {
   chooser: string;
   /** the engine seat whose decision this is, when named */
   forName: string | null;
+  /** title of the card the enemy is playing (`enemy.inPlay`, #748), so a reconnect names it too */
+  card: string | null;
   youChoose: boolean;
   description: string | null;
   /** read-only option labels for teammates; empty for the chooser (they use the normal prompt UI) */
@@ -404,8 +406,15 @@ export const teamDecisionModel = (
     }));
   };
   const youChoose = p.player === view.you;
+  // The prompt is parked inside a card the enemy is playing: read it off the view, not the event.
+  const playing = view.fighters.find(
+    (f) => f.enemy?.inPlay?.length && (!p.forSeat || f.owner === p.forSeat),
+  )?.enemy?.inPlay?.[0];
   return {
     promptId: p.promptId,
+    card: playing
+      ? (view.catalog?.[playing.split("#")[0]]?.title ?? playing)
+      : null,
     chooser: youChoose ? "You" : seatName(p.player),
     forName: p.forSeat ? seatName(p.forSeat) : null,
     youChoose,

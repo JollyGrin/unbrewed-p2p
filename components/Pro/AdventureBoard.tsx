@@ -513,6 +513,11 @@ export const TeamDecision = ({ model }: { model: TeamDecisionModel }) => (
         model.description,
       )}
     </Text>
+    {model.card && (
+      <Text data-testid="adv-team-decision-card" fontSize="0.75rem" fontWeight="bold">
+        Playing: {model.card}
+      </Text>
+    )}
     {model.youChoose && (
       <Text data-testid="adv-team-decision-guidance" fontSize="0.7rem" opacity={0.8}>
         {TEAM_GUIDANCE}

@@ -1131,6 +1131,14 @@
  * `ScenarioListing.display?` / `PlayerView.scenario.display?: ScenarioDisplay` (verdict headlines,
  * enemy noun, setting, marker labels, enemy-turn copy, the derived `lossLimit`),
  * `PlayerView.scenario.breakouts?`, `ScenarioResult.finalSlot?`.
+ *
+ * RIDES v38 (engine #748, additive, no bump — enemy-only, absent elsewhere): `ViewFighter.enemy.inPlay?`
+ * — the card(s) an enemy is playing outside combat, so a (re)connecting client can name the card a
+ * parked TEAM prompt is about.
+ *
+ * RIDES v38 (engine #807, additive, no bump — scenario-only): `ScenarioDisplay.objectNoun?` /
+ * `.objectGroup?` — what the scenario's breakable objects are called and the space group that
+ * numbers them, so no client keys on Isla Nublar's `enclosures`.
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 38`; this
@@ -1781,7 +1789,10 @@ export interface ViewFighter {
   // id ('<cardDefId>#<n>') on top of the enemy's face-up discard, or null when it is empty.
   // `enemyId` (#664, additive): the `EnemyListing.id` this figure is — label + art key.
   // `released` (v36, #735): true on an enemy the scenario released mid-game; absent otherwise.
-  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; released?: true };
+  // `inPlay` (#748, rides v38): the card instance id(s) the enemy is PLAYING outside a combat
+  // (Gallimimus' forced card play) while that card's effect resolves — e.g. behind a parked TEAM
+  // prompt; already public (CARD_REVEALED named it). Absent when it is playing nothing.
+  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; released?: true; inPlay?: string[] };
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
@@ -2484,6 +2495,11 @@ export interface ScenarioDisplay {
   setting: string;
   markers: Record<string, string>;
   enemyTurn: { title: string; steps: string[]; note?: string };
+  // #807 (rides v38): the scenario's breakable objects — the spaces an effect opens — by name
+  // ("enclosure" / "enclosures") and the `ProMapSpaceGroup.id` that numbers them (`order`). Absent
+  // when the scenario has none (nothing opens a space).
+  objectNoun?: { singular: string; plural: string };
+  objectGroup?: string;
   lossLimit: number | null;
 }
 
