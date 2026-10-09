@@ -1,4 +1,5 @@
 /** Live-turn chrome visibility for the Pro side panel (issue #194). */
+import { adventureTurnLabel } from "./adventureBoard";
 import type { PlayerView } from "./protocol";
 
 /**
@@ -26,4 +27,14 @@ export function seatOwesDecision(view: PlayerView, legalActionCount: number): bo
   if (legalActionCount > 0) return true;
   const prompt = view.prompt;
   return !!prompt && prompt.player === view.you && prompt.options.length > 0;
+}
+
+/**
+ * The dock's turn chip text ("YOUR TURN" / "OPPONENT'S TURN" / "P3'S TURN"). A view with an
+ * initiative row uses the turn banner's own label so the chip and banner name the same mover.
+ */
+export function dockTurnLabel(view: PlayerView, myTurn: boolean, seatPossessive: string): string {
+  const banner = adventureTurnLabel(view);
+  if (banner) return banner.text;
+  return myTurn ? "YOUR TURN" : `${seatPossessive.toUpperCase()} TURN`;
 }

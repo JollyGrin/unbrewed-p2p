@@ -108,6 +108,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
+import { dockTurnLabel } from "@/lib/pro/turnChrome";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
@@ -152,7 +153,7 @@ import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumb
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
-import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { seatDisplayName } from "@/lib/pro/playerIdentity";
 import {
   applyClick as applyStepClick,
   canCommit as canCommitStep,
@@ -4863,10 +4864,11 @@ const LiveGame = ({
     const humans = rematchView.players.filter((p) => p.id !== rematchView.you && !bots[p.id]);
     if (humans.length === 0) return null;
     const nameOf = (player: PlayerId) =>
-      seatNameplate(
-        { ...rematchView.players.find((p) => p.id === player), id: player, you: player === rematchView.you },
-        rematchView.players.length
-      );
+      seatDisplayName(rematchView, {
+        ...rematchView.players.find((p) => p.id === player),
+        id: player,
+        you: player === rematchView.you,
+      });
     return {
       state: rematchOffer,
       nameOf,
@@ -6107,7 +6109,7 @@ const LiveGame = ({
   // Team affiliation (issue #195): the viewer's team (self + ally) for the board's
   // shared ring. Empty in duel/ffa/older-server views → the board draws no ring.
   const friendlyOwners = deriveTeams(view.players, view.you).friendlyOwners;
-  const activeTurnLabel = myTurn ? "YOUR TURN" : `${playerLabel(view, view.activePlayer).toUpperCase()} TURN`;
+  const activeTurnLabel = dockTurnLabel(view, myTurn, playerLabel(view, view.activePlayer));
   // At-a-glance dock banner for dropped players (issue #222). In multiplayer the
   // seat-identified presence map is authoritative (multiple seats can drop
   // independently); duel keeps the coarse boolean untouched. The per-seat card
@@ -6416,7 +6418,7 @@ const LiveGame = ({
       : [];
   const promptRevealCardOptions = promptRevealMatches.map((o) => {
     const seat = view.players.find((p) => p.id === o.player);
-    const name = seat ? seatNameplate(seat, view.players.length) : o.player.toUpperCase();
+    const name = seat ? seatDisplayName(view, seat) : o.player.toUpperCase();
     const rel = deriveTeams(view.players, view.you).relationOf(o.player);
     const suffix = rel === "ally" ? " (ally)" : "";
     return { id: o.id, instance: o.instance, caption: `${name}${suffix}` };

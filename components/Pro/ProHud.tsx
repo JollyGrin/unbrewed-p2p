@@ -73,7 +73,7 @@ import { SPOTLIGHT_Z } from "./ActionSpotlight";
 import { adventureBoardModel } from "@/lib/pro/adventureBoard";
 import { useAccount } from "@/lib/account/useAccount";
 import { faceUpCommitter } from "@/lib/pro/faceUpCommit";
-import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { seatDisplayName } from "@/lib/pro/playerIdentity";
 import {
   BadgeCluster,
   BadgeGlyph,
@@ -1673,7 +1673,7 @@ export const ProHud = ({
   // Nameplate label (issue #568): a seat's broadcast `displayName` when the
   // player claimed one, otherwise today's "You"/"Opponent"/seat-id fallbacks —
   // so a guest seat, an older server and an old room all read exactly as before.
-  const seatLabel = (seat: ViewPlayer) => seatNameplate(seat, seats.length);
+  const seatLabel = (seat: ViewPlayer) => seatDisplayName(view, seat, seats.length);
   // Label for an arbitrary seat id — the cross-player pile credit (v0.49.0) names
   // the CONTROLLER of a foreign-tucked card, who is by definition not the seat
   // whose plate is rendering. Falls back to the raw id for a seat that has left

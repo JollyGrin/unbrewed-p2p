@@ -5,6 +5,7 @@
  * Heuristic and display-only: misses nothing rules-relevant that the view
  * doesn't also show, and never feeds anything back into play.
  */
+import { adventureEnemySeatName } from "./adventureBoard";
 import { adventureEndLogLine } from "./adventureVerdict";
 import {
   CardInstanceId,
@@ -266,6 +267,8 @@ const playersById = (view: PlayerView): Map<PlayerId, ViewPlayer> => {
  */
 export const seatLabel = (view: PlayerView, player: PlayerId): string => {
   if (player === view.you) return "You";
+  const enemySeat = adventureEnemySeatName(view, player);
+  if (enemySeat) return enemySeat;
   return view.players.length === 2 ? "Opponent" : player.toUpperCase();
 };
 

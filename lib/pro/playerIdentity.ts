@@ -1,3 +1,5 @@
+import { adventureEnemySeatName } from "./adventureBoard";
+import type { PlayerView } from "./protocol";
 /**
  * Optional player identity on the pro wire (issue #568, engine #344).
  *
@@ -201,3 +203,14 @@ export const seatNameplate = (
   if (seat.you) return "You";
   return seatCount === 2 ? "Opponent" : seat.id.toUpperCase();
 };
+
+/**
+ * `seatNameplate` for a seat of a given view: an engine-controlled seat in a format with an
+ * initiative row reads as the acting enemy / the scenario ("P5" means nothing to a player);
+ * every other seat is exactly `seatNameplate`.
+ */
+export const seatDisplayName = (
+  view: PlayerView,
+  seat: { id: string; you: boolean; displayName?: string },
+  seatCount: number = view.players.length,
+): string => (seat.you ? null : adventureEnemySeatName(view, seat.id)) ?? seatNameplate(seat, seatCount);

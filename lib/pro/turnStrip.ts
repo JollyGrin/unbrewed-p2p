@@ -4,7 +4,7 @@
  * the "waiting on opponent…" pill used to carry on top of the board.
  */
 import type { PlayerId, PlayerView } from "./protocol";
-import { showLiveTurnChrome } from "./turnChrome";
+import { dockTurnLabel, showLiveTurnChrome } from "./turnChrome";
 
 export interface TurnStrip {
   tone: "mine" | "theirs" | "setup";
@@ -18,7 +18,7 @@ export function turnStripFor(view: PlayerView, nameOf: (id: PlayerId) => string)
   if (view.phase === "SETUP") return { tone: "setup", label: "SETUP", pips: 0 };
   if (view.activePlayer === view.you)
     return { tone: "mine", label: `YOUR TURN · TURN ${view.turnNumber}`, pips: Math.max(view.actionsRemaining, 0) };
-  return { tone: "theirs", label: `${nameOf(view.activePlayer).toUpperCase()}'S TURN…`, pips: 0 };
+  return { tone: "theirs", label: `${dockTurnLabel(view, false, `${nameOf(view.activePlayer)}'S`)}…`, pips: 0 };
 }
 
 /**
