@@ -221,6 +221,18 @@ describe("ProBoard regions", () => {
     expect(screen.getByAltText("The Hut")).toBeInTheDocument();
   });
 
+  it("starts collapsed on an adventure board (enclosures model) and opens on the player's toggle (#1171)", () => {
+    const enclosures = { blocked: new Set<string>(), destroyed: new Set<string>(), numbers: new Map(), stakes: [] } as never;
+    render(
+      <ChakraProvider>
+        <ProBoard map={REGION_MAP} fighters={[fighter({})]} enclosures={enclosures} />
+      </ChakraProvider>
+    );
+    expect(screen.queryByAltText("The Hut")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("toggle The Hut"));
+    expect(screen.getByAltText("The Hut")).toBeInTheDocument();
+  });
+
   it("auto-expands a collapsed panel while a space inside the region is highlighted", () => {
     const { rerender } = render(
       <ChakraProvider>

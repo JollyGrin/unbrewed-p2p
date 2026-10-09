@@ -494,6 +494,11 @@ export const useRegionPanels = ({
   // top-left as a % of the board frame (null/absent = default bottom-right
   // stack) so a window resize keeps the panel glued to the same board spot.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Adventure boards (the only ones with an `enclosures` model) narrow the main
+  // board, so an open inset lands on its spaces and eats their clicks (#1171):
+  // start collapsed to the header chip; the player's own toggle still wins, and
+  // `regionActive` still forces it open for a required pick.
+  const startCollapsed = !!enclosures;
   const [panelPos, setPanelPos] = useState<Record<string, { x: number; y: number }>>({});
 
   // A collapsed panel must never hide a required choice: any highlighted space
@@ -508,6 +513,9 @@ export const useRegionPanels = ({
           relocateSet.has(s.id) ||
           fighters.some((f) => f.space === s.id && highlightFighterSet.has(f.id)))
     );
+
+  const isRegionCollapsed = (regionId: string) =>
+    (collapsed[regionId] ?? startCollapsed) && !regionActive(regionId);
 
   // Drag via the panel's header bar: pointer events (touch-friendly), clamped
   // to the board frame. Rects are captured once at pointerdown — the grab
@@ -2170,7 +2178,7 @@ export const useRegionPanels = ({
   const regionPanel = (r: ProMapRegion) => {
     const closed = closedSet.has(r.id);
     const rDiam = (r.spaceDiameter ?? map.meta.spaceDiameter ?? DEFAULT_SPACE_DIAMETER) * 100;
-    const isCollapsed = !!collapsed[r.id] && !regionActive(r.id);
+    const isCollapsed = isRegionCollapsed(r.id);
     return (
       <Box
         key={r.id}
@@ -2213,7 +2221,7 @@ export const useRegionPanels = ({
             as="button"
             aria-label={`toggle ${r.label}`}
             onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => e.stopPropagation()}
-            onClick={() => setCollapsed((c) => ({ ...c, [r.id]: !c[r.id] }))}
+            onClick={() => setCollapsed((c) => ({ ...c, [r.id]: !(c[r.id] ?? startCollapsed) }))}
             color="brand.parchment"
             fontSize="0.7rem"
             lineHeight="1"
@@ -2262,6 +2270,7 @@ export const useRegionPanels = ({
   // map's coordinate system — and pinning them to the screen is the only way a
   // 230px panel reliably stays on a 390px one.
   const screenTop = `calc(${fitInset?.top ?? 0}px + 0.5rem)`;
+  const stackedRegions = regions.filter((r) => !panelPos[r.id]);
   const screenOverlays = (
     <>
       {regions.some((r) => !panelPos[r.id]) && (
@@ -2270,7 +2279,9 @@ export const useRegionPanels = ({
           {...(upright
             ? { left: "0.5rem", top: screenTop }
             : { right: "1.5%", bottom: "1.5%" })}
-          w={REGION_PANEL_W_CSS}
+          // adventure: a stack of only collapsed chips hugs its content instead of
+          // spanning the panel width, so the chip stays off the spaces beside it
+          w={startCollapsed && stackedRegions.every((r) => isRegionCollapsed(r.id)) ? "fit-content" : REGION_PANEL_W_CSS}
           maxW="calc(100% - 1rem)"
           direction="column"
           gap="0.4rem"
