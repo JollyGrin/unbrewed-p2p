@@ -36,8 +36,11 @@ const (
 	ReasonInactive = "inactive"
 	ReasonShutdown = "shutdown"
 
-	// heroName is capped at 128 chars by the schema.
+	// heroName is capped at 128 code points by the schema.
 	maxHeroName = 128
+	// MaxHeroesPerPlayer caps hero_seen per player per room, so a buggy or
+	// hostile client cannot flood the buffer and push out real events.
+	MaxHeroesPerPlayer = 8
 )
 
 // Event is one wire event. Fields a type does not carry stay nil/empty and
@@ -46,6 +49,7 @@ type Event struct {
 	EventID         string `json:"eventId"`
 	Type            string `json:"type"`
 	RoomID          string `json:"roomId"`
+	LobbyHash       string `json:"lobbyHash,omitempty"`
 	PlayerHash      string `json:"playerHash,omitempty"`
 	Connections     *int   `json:"connections,omitempty"`
 	HeroName        string `json:"heroName,omitempty"`
@@ -71,8 +75,11 @@ func newEvent(typ, roomID string) Event {
 	}
 }
 
-func RoomOpened(roomID string) Event {
-	return newEvent(TypeRoomOpened, roomID)
+// RoomOpened carries the hashed lobby gid; the raw gid never leaves the relay.
+func RoomOpened(roomID, lobbyHash string) Event {
+	e := newEvent(TypeRoomOpened, roomID)
+	e.LobbyHash = lobbyHash
+	return e
 }
 
 func PlayerJoined(roomID, playerHash string, connections int) Event {
@@ -104,13 +111,20 @@ func RoomClosed(roomID, reason string, lifetime time.Duration, distinctPlayers, 
 	return e
 }
 
-// TruncateHeroName trims a hero name to what the schema accepts.
+// TruncateHeroName trims a hero name and clamps it to 128 runes (the
+// schema's maxLength counts code points). Empty means: do not send.
 func TruncateHeroName(name string) string {
 	name = strings.TrimSpace(name)
 	if r := []rune(name); len(r) > maxHeroName {
 		name = string(r[:maxHeroName])
 	}
 	return name
+}
+
+// NewRoomID mints a room's telemetry id. Lobby gids come from a small name
+// pool and get reused, so they cannot identify one sitting.
+func NewRoomID() string {
+	return uuidV4()
 }
 
 func uuidV4() string {
@@ -126,8 +140,8 @@ type Emitter interface {
 	// Enabled reports whether events go anywhere; callers skip work that
 	// only feeds telemetry when it is false.
 	Enabled() bool
-	// PlayerHash is the only form a player name may leave the relay in.
-	PlayerHash(name string) string
+	// Hash is the only form a player name or lobby gid may leave the relay in.
+	Hash(s string) string
 	// Emit enqueues an event. Safe to call while holding any lock.
 	Emit(Event)
 	// Close flushes what is queued, giving up when ctx is done.
@@ -138,7 +152,7 @@ type Emitter interface {
 type Noop struct{}
 
 func (Noop) Enabled() bool               { return false }
-func (Noop) PlayerHash(string) string    { return "" }
+func (Noop) Hash(string) string          { return "" }
 func (Noop) Emit(Event)                  {}
 func (Noop) Close(context.Context) error { return nil }
 
@@ -208,10 +222,10 @@ func NewHTTP(cfg Config) *HTTP {
 
 func (h *HTTP) Enabled() bool { return true }
 
-// PlayerHash is the first 16 hex chars of HMAC-SHA256(salt, lower(trim(name))).
-func (h *HTTP) PlayerHash(name string) string {
+// Hash is the first 16 hex chars of HMAC-SHA256(salt, lower(trim(s))).
+func (h *HTTP) Hash(s string) string {
 	m := hmac.New(sha256.New, []byte(h.cfg.Salt))
-	_, _ = m.Write([]byte(strings.ToLower(strings.TrimSpace(name))))
+	_, _ = m.Write([]byte(strings.ToLower(strings.TrimSpace(s))))
 	return hex.EncodeToString(m.Sum(nil))[:16]
 }
 

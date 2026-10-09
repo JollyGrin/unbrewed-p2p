@@ -32,19 +32,19 @@ func TestFromEnv(t *testing.T) {
 	_ = em.Close(context.Background())
 }
 
-func TestPlayerHash(t *testing.T) {
+func TestHash(t *testing.T) {
 	h := NewHTTP(Config{URL: "http://127.0.0.1:1", Key: "k", Salt: "salt"})
 	defer h.Close(context.Background())
-	got := h.PlayerHash("  Alice ")
+	got := h.Hash("  Alice ")
 	if !regexp.MustCompile(`^[0-9a-f]{16}$`).MatchString(got) {
 		t.Fatalf("hash %q", got)
 	}
-	if h.PlayerHash("alice") != got {
+	if h.Hash("alice") != got {
 		t.Error("hash is not trim/case-insensitive")
 	}
 	other := NewHTTP(Config{URL: "http://127.0.0.1:1", Key: "k", Salt: "other"})
 	defer other.Close(context.Background())
-	if other.PlayerHash("alice") == got {
+	if other.Hash("alice") == got {
 		t.Error("hash ignores the salt")
 	}
 }
@@ -57,7 +57,7 @@ func TestRetriesOnceOn5xxNotOn4xx(t *testing.T) {
 			w.WriteHeader(status)
 		}))
 		h := NewHTTP(Config{URL: srv.URL, Key: "k", Salt: "s", FlushInterval: time.Hour})
-		h.Emit(RoomOpened("r"))
+		h.Emit(RoomOpened(NewRoomID(), "0123456789abcdef"))
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		if err := h.Close(ctx); err != nil {
 			t.Fatal(err)
@@ -79,7 +79,7 @@ func TestEmitDropsWhenFull(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < 1000; i++ {
-			h.Emit(RoomOpened("r"))
+			h.Emit(RoomOpened(NewRoomID(), "0123456789abcdef"))
 		}
 		close(done)
 	}()

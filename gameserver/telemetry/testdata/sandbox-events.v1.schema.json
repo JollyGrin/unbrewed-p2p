@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://unbrewed.xyz/schemas/telemetry/sandbox-events.v1.schema.json",
   "title": "Unbrewed Telemetry Sandbox Events v1",
-  "description": "Copy of unbrewed-telemetry's schemas/sandbox-events.v1.schema.json (Emyrk/unbrewed-telemetry#84), built from the shared wire contract. A batch of sandbox (non-Pro) room lifecycle events emitted by the Go relay. Players arrive only as playerHash; raw names are refused.",
+  "description": "Copy of unbrewed-telemetry's schemas/sandbox-events.v1.schema.json (Emyrk/unbrewed-telemetry#84), built from the shared wire contract as amended in Emyrk/unbrewed-telemetry#85 (roomId is a relay-minted uuid; the lobby gid travels only as lobbyHash on room_opened). A batch of sandbox (non-Pro) room lifecycle events emitted by the Go relay. Players arrive only as playerHash; raw names are refused.",
   "type": "object",
   "required": ["events"],
   "additionalProperties": false,
@@ -11,6 +11,7 @@
     "events": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 1000,
       "items": { "$ref": "#/$defs/event" }
     }
   },
@@ -23,7 +24,8 @@
       "properties": {
         "eventId": { "type": "string", "format": "uuid" },
         "type": { "enum": ["room_opened", "player_joined", "player_left", "hero_seen", "room_closed"] },
-        "roomId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "roomId": { "type": "string", "format": "uuid", "minLength": 1, "maxLength": 128 },
+        "lobbyHash": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
         "playerHash": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
         "connections": { "$ref": "#/$defs/count" },
         "heroName": { "type": "string", "minLength": 1, "maxLength": 128 },
@@ -35,6 +37,11 @@
         "ts": { "type": "string", "format": "date-time" }
       },
       "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "room_opened" } } },
+          "then": { "required": ["lobbyHash"] },
+          "else": { "not": { "required": ["lobbyHash"] } }
+        },
         {
           "if": { "properties": { "type": { "enum": ["player_joined", "player_left"] } } },
           "then": { "required": ["playerHash", "connections"] }

@@ -28,7 +28,10 @@ func main() {
 		log.Printf("sandbox telemetry: %v", err)
 	}
 	gs.Telemetry = emitter
-	go shutdownOnSIGTERM(gs)
+	// Only with telemetry on: off, the relay keeps its default SIGTERM handling.
+	if emitter.Enabled() {
+		go shutdownOnSIGTERM(gs)
+	}
 
 	launchPrometheus(ctx, ":9999", reg)
 

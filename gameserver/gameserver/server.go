@@ -177,7 +177,7 @@ func (gs *GameServer) CreateLobby(gid string) (bool, error) {
 	gs.Rooms[gid] = room
 	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
 	if gs.Telemetry.Enabled() {
-		gs.Telemetry.Emit(telemetry.RoomOpened(gid))
+		gs.Telemetry.Emit(telemetry.RoomOpened(room.telemetryID, gs.Telemetry.Hash(gid)))
 	}
 
 	return true, nil
@@ -298,10 +298,12 @@ type Room struct {
 	stop     context.CancelFunc
 
 	// Sandbox telemetry, guarded by mutex. playerHashes and heroesSeen are
-	// only filled while telemetry is enabled.
+	// only filled while telemetry is enabled. telemetryID is this sitting's
+	// roomId: gids are reused, so they are never sent.
 	telemetry    telemetry.Emitter
+	telemetryID  string
 	playerHashes map[string]struct{}
-	heroesSeen   map[string]struct{} // playerHash + "\x00" + heroName
+	heroesSeen   map[string]map[string]struct{} // playerHash -> heroName
 	peakClients  int
 	stateUpdates int64
 }
@@ -325,8 +327,9 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r.Clients = make(map[*PlayerConn]struct{})
 	r.openedAt = time.Now()
 	r.telemetry = telemetry.Noop{}
+	r.telemetryID = telemetry.NewRoomID()
 	r.playerHashes = make(map[string]struct{})
-	r.heroesSeen = make(map[string]struct{})
+	r.heroesSeen = make(map[string]map[string]struct{})
 
 	return r
 }
@@ -337,7 +340,7 @@ func (r *Room) emitClosed(reason string) {
 	if !r.telemetry.Enabled() {
 		return
 	}
-	r.telemetry.Emit(telemetry.RoomClosed(r.GameID, reason,
+	r.telemetry.Emit(telemetry.RoomClosed(r.telemetryID, reason,
 		r.FieldState.LastUpdate.Sub(r.openedAt),
 		len(r.playerHashes), r.peakClients, r.stateUpdates))
 }
@@ -345,7 +348,7 @@ func (r *Room) emitClosed(reason string) {
 // emitLeft reports a connection removed from Clients. Caller holds r.mutex.
 func (r *Room) emitLeft(c *PlayerConn) {
 	if r.telemetry.Enabled() {
-		r.telemetry.Emit(telemetry.PlayerLeft(r.GameID, c.hash, len(r.Clients)))
+		r.telemetry.Emit(telemetry.PlayerLeft(r.telemetryID, c.hash, len(r.Clients)))
 	}
 }
 
@@ -367,17 +370,22 @@ func (r *Room) heroName(blob json.RawMessage) string {
 	return telemetry.TruncateHeroName(state.Pool.Hero.Name)
 }
 
-// noteHero emits hero_seen once per (player, hero). Caller holds r.mutex.
+// noteHero emits hero_seen once per (player, hero), for at most
+// MaxHeroesPerPlayer heroes. Caller holds r.mutex.
 func (r *Room) noteHero(c *PlayerConn, hero string) {
 	if hero == "" || !r.telemetry.Enabled() {
 		return
 	}
-	key := c.hash + "\x00" + hero
-	if _, ok := r.heroesSeen[key]; ok {
+	seen := r.heroesSeen[c.hash]
+	if seen == nil {
+		seen = make(map[string]struct{})
+		r.heroesSeen[c.hash] = seen
+	}
+	if _, ok := seen[hero]; ok || len(seen) >= telemetry.MaxHeroesPerPlayer {
 		return
 	}
-	r.heroesSeen[key] = struct{}{}
-	r.telemetry.Emit(telemetry.HeroSeen(r.GameID, c.hash, hero))
+	seen[hero] = struct{}{}
+	r.telemetry.Emit(telemetry.HeroSeen(r.telemetryID, c.hash, hero))
 }
 
 func (r *Room) Close() {
@@ -391,7 +399,7 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	player := &PlayerConn{
 		Conn: c,
 		Name: name,
-		hash: r.telemetry.PlayerHash(name),
+		hash: r.telemetry.Hash(name),
 	}
 
 	if name == "" {
@@ -412,7 +420,7 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	}
 	if r.telemetry.Enabled() {
 		r.playerHashes[player.hash] = struct{}{}
-		r.telemetry.Emit(telemetry.PlayerJoined(r.GameID, player.hash, len(r.Clients)))
+		r.telemetry.Emit(telemetry.PlayerJoined(r.telemetryID, player.hash, len(r.Clients)))
 	}
 	if _, ok := r.FieldState.Players[name]; !ok {
 		r.FieldState.Players[name] = []byte("{}")
