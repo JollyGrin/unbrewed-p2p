@@ -7,6 +7,7 @@
  */
 import { adventureEnemySeatName } from "./adventureBoard";
 import { adventureEndLogLine } from "./adventureVerdict";
+import { enemyIntent } from "./adventureRulesCopy";
 import {
   CardInstanceId,
   FighterId,
@@ -16,7 +17,7 @@ import {
   ValueBreakdown,
   ViewPlayer,
 } from "./protocol";
-import { boardObjectOriginFighter, boardObjectVisualFor, markerIdentityLabel } from "./boardObjects";
+import { boardObjectOriginFighter, boardObjectVisualFor, markerIdentityLabel, type MarkerLabels } from "./boardObjects";
 import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
@@ -575,7 +576,7 @@ export function diffViews(
   );
   for (const t of nextTokens.values()) {
     if (prevTokens.has(t.id)) continue;
-    const noun = boardObjectVisualFor(t).noun;
+    const noun = boardObjectVisualFor(t, next.scenario?.display?.markers).noun;
     if (t.kind === "corpse") {
       const from = fighterNameOf(boardObjectOriginFighter(t));
       lines.push({
@@ -590,7 +591,7 @@ export function diffViews(
   }
   for (const t of prevTokens.values()) {
     if (nextTokens.has(t.id)) continue;
-    const noun = boardObjectVisualFor(t).noun;
+    const noun = boardObjectVisualFor(t, next.scenario?.display?.markers).noun;
     const owner = t.owner === next.you ? "Your" : `${seat(t.owner)}'s`;
     const verb = destroyReasons.get(t.id) === "EXPIRED" ? "rotted away" : "was destroyed";
     lines.push({ text: `${owner} ${noun} ${verb}`, who: whoOf(t.owner) });
@@ -714,8 +715,8 @@ function valueBreakdownText(
  * can never drift apart — a marker the client does not know still narrates, under its
  * raw engine name, rather than vanishing from the feed.
  */
-const markerLabel = (name: string): string =>
-  FIGHTER_MARKER_BADGES[name]?.label ?? markerIdentityLabel(name) ?? name;
+const markerLabel = (name: string, markers?: MarkerLabels | null): string =>
+  FIGHTER_MARKER_BADGES[name]?.label ?? markerIdentityLabel(name, markers) ?? name;
 
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
@@ -749,6 +750,8 @@ export interface EnrichContext {
   initiative?: (card: string) => string | null | undefined;
   /** Adventure: the threat track's last numbered position (for "s/S"). */
   threatSize?: number;
+  /** Adventure: the scenario's marker / mark labels (`scenario.display.markers`). */
+  markerLabels?: MarkerLabels | null;
 }
 
 /**
@@ -1011,12 +1014,8 @@ export function enrichLines(
       case "ENEMY_ACTIVATION": {
         const enemy = ctx.fighter(e.fighter);
         const target = e.target ? ctx.fighter(e.target) : null;
-        const text =
-          e.outcome === "NO_TARGET"
-            ? `${enemy}: no hero in reach → stays put, threat +1`
-            : e.outcome === "ADJACENT"
-              ? `${enemy} attacks ${target ?? "a hero"}`
-              : `${enemy} moves toward ${target ?? "a hero"}`;
+        const intent = enemyIntent(e.outcome, target);
+        const text = e.outcome === "NO_TARGET" ? `${enemy}: no hero in reach → ${intent}` : `${enemy} ${intent}`;
         added.push({ text, who: "opp" });
         break;
       }
@@ -1172,7 +1171,7 @@ export function enrichLines(
         const stacks = e.total > 1 ? ` (×${e.total})` : "";
         const scope = e.expiresAtTurn === null ? "" : " until end of turn";
         added.push({
-          text: `${ctx.fighter(e.fighter)} is marked — ${markerLabel(e.name)}${stacks}${scope}`,
+          text: `${ctx.fighter(e.fighter)} is marked — ${markerLabel(e.name, ctx.markerLabels)}${stacks}${scope}`,
           who: "game",
         });
         break;
@@ -1180,7 +1179,7 @@ export function enrichLines(
       case "FIGHTER_MARKS_CLEARED": {
         // `name: null` = every marker on that fighter was cleared (the no-name form
         // of clearFighterMarks). `removed` is how many stacks went.
-        const what = e.name === null ? "marks" : markerLabel(e.name);
+        const what = e.name === null ? "marks" : markerLabel(e.name, ctx.markerLabels);
         added.push({
           text: `${ctx.fighter(e.fighter)}: ${what} cleared${e.removed > 1 ? ` (×${e.removed})` : ""}`,
           who: "game",

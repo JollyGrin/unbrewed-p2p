@@ -84,39 +84,32 @@ export const UNKNOWN_OBJECT: BoardObjectVisual = {
 };
 
 /**
- * Adventure scenario markers (`kind: "marker"`, engine #650) — identity → name + short
- * glyph. Enclosure identities are the dinosaur a pen reveals; no new art, just a label
- * and an initial. An identity not listed here keeps the neutral diamond (never throws).
+ * Adventure scenario markers (`kind: "marker"`, engine #650): identity → label comes from the
+ * scenario (`PlayerView.scenario.display.markers`, engine #794); the client only derives a short
+ * glyph from that label. No new art. An identity the scenario does not label keeps the neutral
+ * diamond (never throws).
  */
-export const MARKER_IDENTITIES: Record<string, { label: string; glyph: string }> = {
-  "gallimimus/stampede": { label: "Stampede", glyph: "≋" },
-  "dilophosaurus/venom": { label: "Venom", glyph: "☣" },
-  venom: { label: "Venom", glyph: "☣" },
-  ankylosaurus: { label: "Ankylosaurus", glyph: "An" },
-  apatosaurus: { label: "Apatosaurus", glyph: "Ap" },
-  carnotaurus: { label: "Carnotaurus", glyph: "Ca" },
-  dilophosaurus: { label: "Dilophosaurus", glyph: "Di" },
-  gallimimus: { label: "Gallimimus", glyph: "Ga" },
-  oviraptor: { label: "Oviraptor", glyph: "Ov" },
-  parasaurolophus: { label: "Parasaurolophus", glyph: "Pa" },
-  stygimoloch: { label: "Stygimoloch", glyph: "Sty" },
-  therizinosaurus: { label: "Therizinosaurus", glyph: "Th" },
-  triceratops: { label: "Triceratops", glyph: "Tri" },
-  tyrannosaurus: { label: "T. Rex", glyph: "Rex" },
+export type MarkerLabels = Readonly<Record<string, string>>;
+
+/** Short board glyph for a marker / released-enemy name: a word of ≤3 letters whole, else its first two. */
+export const markerGlyph = (name: string): string => {
+  const word = (name.trim().split(/\s+/).pop() ?? "").replace(/[^A-Za-z]/g, "");
+  return word.length <= 3 ? word : word.slice(0, 2);
 };
 
-/** Friendly name for a marker/mark identity, or null when this client does not know it. */
-export const markerIdentityLabel = (identity: string | null | undefined): string | null =>
-  (identity && MARKER_IDENTITIES[identity]?.label) || null;
+/** Friendly name for a marker/mark identity, or null when the scenario does not label it. */
+export const markerIdentityLabel = (identity: string | null | undefined, markers?: MarkerLabels | null): string | null =>
+  (identity && markers?.[identity]) || null;
 
 /** Never returns undefined — an unmapped kind still renders (see the file header). */
 export const boardObjectVisualFor = (
   token: Pick<ViewToken, "kind"> & { identity?: string; faceDown?: boolean },
+  markers?: MarkerLabels | null,
 ): BoardObjectVisual => {
   if (token.kind === "marker") {
-    const known = token.identity ? MARKER_IDENTITIES[token.identity] : undefined;
+    const known = markerIdentityLabel(token.identity, markers);
     if (known) {
-      return { kind: "marker", label: known.label, noun: `${known.label.toLowerCase()} marker`, shape: "diamond", muted: false, glyph: known.glyph };
+      return { kind: "marker", label: known, noun: `${known.toLowerCase()} marker`, shape: "diamond", muted: false, glyph: markerGlyph(known) };
     }
     if (token.faceDown) {
       return { kind: "marker", label: "Face-down marker", noun: "face-down marker", shape: "diamond", muted: false, glyph: "?" };
@@ -198,9 +191,10 @@ export const disambiguateLabels = <T extends { label: string }>(options: T[]): T
 export const boardObjectTitle = (
   token: Pick<ViewToken, "kind" | "ownerTurnsRemaining" | "origin"> & { identity?: string; faceDown?: boolean },
   ownerLabel: string,
-  originName?: string | null
+  originName?: string | null,
+  markers?: MarkerLabels | null
 ): string => {
-  const visual = boardObjectVisualFor(token);
+  const visual = boardObjectVisualFor(token, markers);
   const head = originName
     ? `${visual.label} of ${originName} (${ownerLabel})`
     : `${visual.label} (${ownerLabel})`;

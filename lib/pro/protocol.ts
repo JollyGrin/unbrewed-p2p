@@ -856,6 +856,19 @@
  *   `DAMAGE_APPLIED` accompanies it. Public. Only ADVENTURE games can carry it (the immunity is
  *   enemy vocabulary), so every duel / FFA / 2v2 event stream is byte-identical. Log it as
  *   "<fighter> ignored <amount> damage"; a client that does not know it simply skips it.
+ * ## Additive event (2026-10-09, no version bump): an effect ignored by an enemy (engine #788)
+ * - `EFFECT_IGNORED { card, op, reason: "ENEMY_NOT_CHOOSABLE" }` — the `op` of `card` (a card def
+ *   id, or `hero:<heroId>` for a hero ability) did nothing to an enemy: the co-op rule "enemies
+ *   cannot be chosen" dropped the enemy seat from the players it would have named, offered or
+ *   iterated ("any opponent", "each player", "choose a player"). One per op. Public. Only
+ *   ADVENTURE games can carry it, so every duel / FFA / 2v2 event stream is byte-identical. Log it
+ *   as "<card>: no effect against enemies"; a client that does not know it simply skips it.
+ * ## Additive (2026-10-09, no version bump): more EFFECT_IGNORED reasons (engine #789)
+ * - `reason` widens to `"ENEMY_NOT_CHOOSABLE" | "ENEMY_NO_HAND" | "NOT_A_HERO" |
+ *   "ENEMY_DOES_NOT_DECIDE" | "UNSUPPORTED_VS_ENEMY"`: the op needed a hand / a hero card / a
+ *   decision the enemy does not have (co-op rules: "some cards do nothing in co-op"), or the engine
+ *   cannot resolve that hero effect against an enemy and skipped it instead of ending the game.
+ *   Render every reason the same way ("<card>: no effect against enemies").
  * ## v30 (2026-08-20): the opening-hand mulligan (engine #395)
  * After the opening hands are dealt and BEFORE the heroes are placed, each seat
  * gets a ONE-TIME keep-or-redraw choice: shuffle your whole hand back into your
@@ -1113,6 +1126,11 @@
  * The server keeps accepting v34–v37 (`ACCEPTED_PROTOCOL_VERSIONS` = {34, 35, 36, 37, 38}; the
  * reason for each member is on that constant in server/rooms.ts). Redaction is NOT version-aware:
  * every accepted version receives the same frames and ignores the keys / events it does not know.
+ *
+ * RIDES v38 (engine #794, additive, no bump — every key is scenario-only and absent elsewhere):
+ * `ScenarioListing.display?` / `PlayerView.scenario.display?: ScenarioDisplay` (verdict headlines,
+ * enemy noun, setting, marker labels, enemy-turn copy, the derived `lossLimit`),
+ * `PlayerView.scenario.breakouts?`, `ScenarioResult.finalSlot?`.
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 38`; this
@@ -1328,6 +1346,13 @@ export type GameEvent =
   | { type: "DAMAGE_APPLIED"; fighter: FighterId; amount: number; source: "EXHAUSTION" | "EFFECT" | "ATTACK" }
   // engine v0.99.2 (#729): effect damage at a fighter IMMUNE to it this turn was refused — no hp moved.
   | { type: "DAMAGE_IGNORED"; fighter: FighterId; amount: number; source: "EFFECT" }
+  // engine #788 / #789: a hero effect did nothing to an enemy (see the additive-event note above).
+  | {
+      type: "EFFECT_IGNORED";
+      card: string;
+      op: string;
+      reason: "ENEMY_NOT_CHOOSABLE" | "ENEMY_NO_HAND" | "NOT_A_HERO" | "ENEMY_DOES_NOT_DECIDE" | "UNSUPPORTED_VS_ENEMY";
+    }
   | { type: "FIGHTER_DEFEATED"; fighter: FighterId }
   | { type: "MOVE_BOOSTED"; player: PlayerId; card: CardInstanceId; boost: number }
   | { type: "FIGHTER_MOVED"; fighter: FighterId; path: SpaceId[] }
@@ -2174,6 +2199,10 @@ export interface PlayerView {
     contacts?: ScenarioContacts;
     result?: ScenarioResult;
     briefing?: ScenarioBriefing;
+    /** #794 (rides v38): overflows counted against `display.lossLimit` — the breakouts so far. */
+    breakouts?: number;
+    /** #794 (rides v38): the scenario's copy and names; absent when the scenario authors none. */
+    display?: ScenarioDisplay;
   };
   // v11: true iff THIS viewer has an eligible last discrete move to undo right now
   // (there is a clean cut boundary the server would rewind to). Recomputed on every
@@ -2442,6 +2471,20 @@ export interface ScenarioResult {
   verdict: "VICTORY" | "DEFEAT";
   cause: { kind: "OBJECTIVE"; objectiveId: string } | { kind: "WIPE" } | { kind: "VICTORY_CONDITION" } | { kind: "DEFEAT_CONDITION" };
   round: number;
+  finalSlot?: number; // #794 (rides v38): an OBJECTIVE loss only — the overflow slot (1-based) that cost the game
+}
+
+// #794 (rides v38): a scenario's display copy and names, authored as scenario data, plus the derived
+// `lossLimit` — the overflow count that loses the game (Isla Nublar: 4), null when the track alone
+// cannot. `verdict.lose` is the headline of a track / objective loss (a WIPE keeps the client's own).
+// `markers`: marker identity → label (the board badge); an identity not listed has no label.
+export interface ScenarioDisplay {
+  verdict: { win: string; lose: string };
+  enemyNoun: { singular: string; plural: string };
+  setting: string;
+  markers: Record<string, string>;
+  enemyTurn: { title: string; steps: string[]; note?: string };
+  lossLimit: number | null;
 }
 
 // A scenario the lobby may pick (LIST_SCENARIOS result row, engine #664 / #665).
@@ -2457,6 +2500,7 @@ export interface ScenarioListing {
   minionsPerPlayer: number; // pool minions fielded per hero seat: 1, or 0 for a fixed roster
   duplicateMinions: boolean; // may the same pool minion be picked twice (R5: false unless the scenario says so)
   briefing?: ScenarioBriefing; // v36 (#735): absent when the scenario authors none
+  display?: ScenarioDisplay; // #794 (rides v38): absent when the scenario authors none
 }
 
 // The table's roster picks (CREATE_ROOM.roster, engine #664). null / absent / a missing slot = Random.

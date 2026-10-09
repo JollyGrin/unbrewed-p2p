@@ -5062,6 +5062,7 @@ const LiveGame = ({
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
             enclosure: (space) => enclosureNumbers(next.map)[space],
             threatSize: next.scenario?.threat.positions.length,
+            markerLabels: next.scenario?.display?.markers,
             initiative: (card) => {
               const c = next.initiative?.row.find((r) => r.id === card);
               if (!c || c.faceDown) return null;
@@ -6386,7 +6387,7 @@ const LiveGame = ({
     const tokenId = (o.data as { tokenId?: string } | undefined)?.tokenId;
     const token = tokenId ? tokensById.get(tokenId) : undefined;
     if (!token) return o.label;
-    const visual = boardObjectVisualFor(token);
+    const visual = boardObjectVisualFor(token, view.scenario?.display?.markers);
     const name = boardObjectOriginName(token);
     const turns = token.ownerTurnsRemaining;
     const life = turns === undefined || turns === null ? "" : ` · ${turns} turn${turns === 1 ? "" : "s"} left`;
@@ -7236,6 +7237,7 @@ const LiveGame = ({
     fighterTokenRim,
     boardObjectArt,
     boardObjectOriginName,
+    markerLabels: view.scenario?.display?.markers,
     fx: boardFx,
     pendingMove: pendingMove ?? incomingMove,
     swaps: positionSwaps,

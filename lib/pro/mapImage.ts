@@ -5,8 +5,8 @@ const FALLBACK_W = 1600;
 const FALLBACK_H = 1000;
 
 /**
- * The board's ground image. A map without `meta.imageUrl` (e.g. Isla Nublar —
- * board art not hosted yet) must not collapse the layout to 0×0, so it gets a
+ * The board's ground image. A map without `meta.imageUrl` (e.g. an adventure
+ * board whose art is not hosted yet) must not collapse the layout to 0×0, so it gets a
  * neutral SVG of the map's own stated `imageWidth`×`imageHeight`: the same
  * intrinsic size the real art would have, so every fraction-based layer lines up.
  */

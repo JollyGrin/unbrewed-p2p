@@ -37,6 +37,7 @@ const adventureView = (over: object = {}): PlayerView =>
       threat: { position: 1, level: 1, overflows: 4, positions: [1], bySource: { roundEnd: 19, noTarget: 9, effect: 4 } },
       objectives: [],
       releases: [{ round: 3, fighter: "e1/trex", enemyId: "trex", spaceLabel: "2" }],
+      display: { verdict: { win: "THE ISLAND IS SAFE", lose: "THE ISLAND FELL" }, setting: "the island" },
     },
     ...over,
   }) as unknown as PlayerView;
@@ -46,7 +47,7 @@ const defeat = (v: PlayerView): PlayerView =>
     ...v,
     winner: "e1",
     phase: "GAME_OVER",
-    scenario: { ...v.scenario, result: { verdict: "DEFEAT", cause: { kind: "OBJECTIVE", objectiveId: "x" }, round: 9 } },
+    scenario: { ...v.scenario, result: { verdict: "DEFEAT", cause: { kind: "OBJECTIVE", objectiveId: "x" }, round: 9, finalSlot: 4 } },
   }) as unknown as PlayerView;
 
 const ui = (props: Partial<FormatEndScreenProps> & { formatId?: string; view: PlayerView }) => (
@@ -81,7 +82,7 @@ describe("FormatEndScreen", () => {
     expect(screenEl).toHaveStyle({ position: "fixed" });
     expect(screen.getByTestId("adventure-end-headline")).toHaveTextContent("THE ISLAND FELL");
     expect(screen.getByText("DEFEAT · ROUND 9")).toBeInTheDocument();
-    expect(screen.getByText(/broke open her fourth enclosure/)).toBeInTheDocument();
+    expect(screen.getByText(/broke open the fourth enclosure/)).toBeInTheDocument();
     expect(screen.getByText("HOW IT HAPPENED")).toBeInTheDocument();
     expect(screen.getByText("Heroes down: none.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /watch the replay/i })).toHaveAttribute("href", "/pro/replays?open=r1");

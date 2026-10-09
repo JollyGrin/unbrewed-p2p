@@ -152,11 +152,15 @@ describe("boardObjectTitle", () => {
 });
 
 describe("scenario markers (adventure)", () => {
-  it("labels shipped identities with a name + glyph", () => {
-    const v = boardObjectVisualFor({ kind: "marker", identity: "gallimimus/stampede" });
+  const markers = { "gallimimus/stampede": "Stampede", tyrannosaurus: "T. Rex", "dilophosaurus/venom": "Venom" };
+  it("labels identities from the scenario's display.markers, with a glyph from the label", () => {
+    const v = boardObjectVisualFor({ kind: "marker", identity: "gallimimus/stampede" }, markers);
     expect(v.label).toBe("Stampede");
-    expect(v.glyph).not.toBe("");
-    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }).label).toBe("T. Rex");
+    expect(v.noun).toBe("stampede marker");
+    expect(v.glyph).toBe("St");
+    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }, markers)).toMatchObject({ label: "T. Rex", glyph: "Rex" });
+    // no scenario labels: the client knows no identity
+    expect(boardObjectVisualFor({ kind: "marker", identity: "tyrannosaurus" }).label).toBe("Marker");
   });
   it("unknown identities keep the neutral diamond and never throw", () => {
     const v = boardObjectVisualFor({ kind: "marker", identity: "zz-new" });
@@ -166,7 +170,8 @@ describe("scenario markers (adventure)", () => {
     expect(boardObjectVisualFor({ kind: "marker", faceDown: true }).glyph).toBe("?");
   });
   it("friendly mark names resolve; unknown ones are null", () => {
-    expect(markerIdentityLabel("dilophosaurus/venom")).toBe("Venom");
-    expect(markerIdentityLabel("nope")).toBeNull();
+    expect(markerIdentityLabel("dilophosaurus/venom", markers)).toBe("Venom");
+    expect(markerIdentityLabel("nope", markers)).toBeNull();
+    expect(markerIdentityLabel("dilophosaurus/venom")).toBeNull();
   });
 });

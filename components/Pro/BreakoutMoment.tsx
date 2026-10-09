@@ -1,5 +1,5 @@
 /**
- * "Enclosure destroyed — <dinosaur> is loose" interstitial (issue #1158).
+ * "Enclosure destroyed — <enemy> is loose" interstitial (issue #1158).
  *
  * ~4s, skippable (click / Esc / Enter / button), over a dimmed board. When a prompt is open for
  * the local player it never takes the screen: a compact, click-through toast shows instead so
@@ -86,12 +86,15 @@ export const BreakoutMomentOverlay = ({
   const tiles: { label: string; value: string; note?: string }[] = [
     {
       label: "Enclosures lost",
-      value: `${moment.lost} of ${moment.total}`,
-      note: moment.lost < moment.total ? `${moment.total - moment.lost} more and the island falls` : undefined,
+      value: moment.total != null ? `${moment.lost} of ${moment.total}` : `${moment.lost}`,
+      note:
+        moment.total != null && moment.lost < moment.total
+          ? `${moment.total - moment.lost} more and ${moment.display?.setting ?? "the table"} falls`
+          : undefined,
     },
     { label: "Threat track", value: "Reset to start", note: "any extra steps are lost" },
   ];
-  if (moment.pushedBy) tiles.push({ label: "What pushed it over", value: threatSourceWords(moment.pushedBy) });
+  if (moment.pushedBy) tiles.push({ label: "What pushed it over", value: threatSourceWords(moment.pushedBy, moment.display) });
 
   return (
     <Flex
