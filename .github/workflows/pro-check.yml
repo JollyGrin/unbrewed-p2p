@@ -1,0 +1,43 @@
+# PR gate for the Pro client: protocol drift check, typecheck, Pro jest suites.
+#
+# Needs NO secrets and NO repository variables — everything runs offline against the checked-out
+# tree (protocol:check compares lib/pro/protocol.ts to lib/pro/protocol.pin.json + overrides; it
+# never clones the private engine repo). Read-only token. Independent of nextjs.yml (the Pages
+# deploy, which only runs on pushes to main and is untouched).
+#
+# TODO(unbrewed-engine#826, p2p#1330): once the engine exports its accepted protocol set, add a
+# step asserting PROTOCOL_VERSION / REMATCH_PROTOCOL_VERSION (lib/pro/protocol.overrides.mjs)
+# against it.
+name: Pro check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pro-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pro-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Protocol drift check
+        run: npm run protocol:check
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Pro jest suites
+        run: npx jest --silent --config jest.fast.config.mjs lib/pro test/pro components/Pro

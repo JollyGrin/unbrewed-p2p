@@ -38,7 +38,9 @@ export const ENEMY_LADDER = [
 
 export const LARGE_REACH_NOTE = "hits from 2 away";
 
-/** The briefing's enemy-behaviour tile: the scenario's own copy, else the generic ladder. */
+/** The briefing's enemy-behaviour tile: the scenario's own copy, else the generic ladder.
+ *  TODO(unbrewed-engine#826, p2p#1330 part C): drop the generic fallback once the engine always
+ *  projects `display.enemyTurn`. */
 export const enemyActsCopy = (display?: ScenarioDisplay | null): { title: string; steps: readonly string[]; note?: string } =>
   display?.enemyTurn ?? {
     title: "HOW AN ENEMY ACTS",
