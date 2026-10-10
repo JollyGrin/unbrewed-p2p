@@ -10,11 +10,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
 	"github.com/Emyrk/unbrewed-server/telemetry"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,6 +30,12 @@ type gameServerMetrics struct {
 }
 
 type GameServer struct {
+	// Since-boot counters for the admin view, updated atomically. First in
+	// the struct so they stay 64-bit aligned on 32-bit platforms.
+	roomsCreated int64
+	joins        int64
+	startedAt    time.Time
+
 	HTTPServer *http.Server
 	Mux        *mux.Router
 	ctx        context.Context
@@ -50,6 +56,7 @@ func NewGameServer(reg prometheus.Registerer) *GameServer {
 	gs.ctx = context.Background()
 	gs.registry = reg
 	gs.Telemetry = telemetry.Noop{}
+	gs.startedAt = time.Now()
 
 	fact := promauto.With(gs.registry)
 	gs.metrics = &gameServerMetrics{
@@ -94,7 +101,7 @@ func (gs *GameServer) Serve(ctx context.Context) error {
 	gs.Mux.HandleFunc("/lobby/{gid}", gs.LobbyHandler)
 	gs.Mux.HandleFunc("/ws/{gid}", gs.WSHandler)
 
-	gs.HTTPServer.Handler = handlers.CORS()(gs.Mux)
+	gs.HTTPServer.Handler = gs.handler(os.Getenv("ADMIN_KEY"))
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "1111"
@@ -162,6 +169,7 @@ func (gs *GameServer) WSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	gs.metrics.PlayerJoinEventCount.Inc()
+	atomic.AddInt64(&gs.joins, 1)
 	err = room.PlayerJoin(c, name, identity)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "player failed to join: %s", err.Error())
@@ -203,6 +211,7 @@ func (gs *GameServer) CreateLobby(gid string) (bool, error) {
 	room := NewRoom(gid, gs.ctx)
 	room.telemetry = gs.Telemetry
 	gs.Rooms[gid] = room
+	atomic.AddInt64(&gs.roomsCreated, 1)
 	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
 	if gs.Telemetry.Enabled() {
 		gs.Telemetry.Emit(telemetry.RoomOpened(room.telemetryID, gs.Telemetry.Hash(gid)))
@@ -346,6 +355,15 @@ type Room struct {
 	heroesSeen   map[string]map[string]struct{} // playerHash -> heroName
 	peakClients  int
 	stateUpdates int64
+
+	// Per-name presence for the admin view, guarded by mutex. Kept for every
+	// name that ever joined, like FieldState.Players.
+	presence map[string]*presence
+}
+
+type presence struct {
+	joinedAt   time.Time // first join
+	lastSeenAt time.Time // when the name's last connection exited
 }
 
 func NewRoom(gid string, ctx context.Context) *Room {
@@ -370,6 +388,7 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r.telemetryID = telemetry.NewRoomID()
 	r.playerHashes = make(map[string]struct{})
 	r.heroesSeen = make(map[string]map[string]struct{})
+	r.presence = make(map[string]*presence)
 
 	return r
 }
@@ -483,6 +502,11 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string, identity Identity) err
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.Clients[player] = struct{}{}
+	if p, ok := r.presence[name]; ok {
+		p.lastSeenAt = time.Time{}
+	} else {
+		r.presence[name] = &presence{joinedAt: time.Now()}
+	}
 	if len(r.Clients) > r.peakClients {
 		r.peakClients = len(r.Clients)
 	}
@@ -611,6 +635,7 @@ func (r *Room) broadcastAll(mt int, msg []byte) {
 			}).Error("write failed: dropping connection")
 			delete(r.Clients, c)
 			_ = c.Close()
+			r.noteExit(c.Name)
 			r.emitLeft(c)
 		}
 	}
@@ -626,6 +651,7 @@ func (r *Room) PlayerExit(c *PlayerConn) bool {
 		return false
 	}
 	delete(r.Clients, c)
+	r.noteExit(c.Name)
 	r.emitLeft(c)
 	log.WithFields(log.Fields{
 		"gid":     r.GameID,
