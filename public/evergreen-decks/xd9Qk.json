@@ -193,7 +193,8 @@
       "isRanged": true,
       "move": 3,
       "name": "Frankestein",
-      "specialAbility": "Monster moves 1.\nEverytime when Frankestein have to discard a card, you may deal 1 damage to Monster for every discarded card for, instead, put them at the bottom of the deck. \n"
+      "specialAbility": "Monster moves 1.\nEverytime when Frankestein have to discard a card, you may deal 1 damage to Monster for every discarded card for, instead, put them at the bottom of the deck. \n",
+      "tokenImageUrl": "/evergreen-decks/art/frankenstein/token-frankestein.webp"
     },
     "name": "",
     "ruleCards": [],
@@ -202,7 +203,8 @@
       "isRanged": false,
       "name": "Monster",
       "quantity": 1,
-      "quote": null
+      "quote": null,
+      "tokenImageUrl": "/evergreen-decks/art/frankenstein/token-monster.webp"
     }
   },
   "deck_first_published_on": "Sat, 12 Sep 2026 16:05:34 GMT",
