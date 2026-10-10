@@ -438,6 +438,37 @@ describe("overlay placement (#1114)", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ display: "flex" });
   });
+
+  it("desktop: the toggle collapses the static panels, keeps the live column, and is remembered (#1346)", () => {
+    cleanup();
+    window.localStorage.clear();
+    const mm = window.matchMedia;
+    window.matchMedia = ((q: string) => ({
+      matches: /min-width/.test(q),
+      media: q,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      onchange: null,
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      mount("adventure");
+      const toggle = screen.getByTestId("adventure-drawer-toggle");
+      expect(toggle).toHaveTextContent("▴");
+      fireEvent.click(toggle);
+      expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ display: "none" });
+      expect(screen.getByTestId("adventure-board-live")).toBeInTheDocument();
+      expect(window.localStorage.getItem("pro:adventure-drawer")).toBe("closed");
+      cleanup();
+      mount("adventure");
+      expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ display: "none" });
+    } finally {
+      window.matchMedia = mm;
+      window.localStorage.clear();
+    }
+  });
 });
 
 // #1128: the fixed Actions dock (z 140) fully covered the enemy dials (z 5).

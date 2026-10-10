@@ -60,6 +60,9 @@ const PANEL = {
   maxW: "100%",
 } as const;
 
+const DRAWER_KEY = "pro:adventure-drawer";
+// md breakpoint (48em); jsdom has no matchMedia.
+const desktopNow = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 48em)").matches;
 const GOLD = "#E0A82E";
 const ENEMY_RED = "#E58B8B";
 
@@ -205,7 +208,6 @@ const AtRoundEnd = ({ model }: { model: AdventureBoardModel }) => (
         data-resolving={b.resolving ? "true" : undefined}
         fontSize="0.65rem"
         lineHeight="1.2"
-        noOfLines={2}
         color={b.resolving ? GOLD : "whiteAlpha.900"}
         fontWeight={b.resolving ? "bold" : "normal"}
       >
@@ -864,7 +866,20 @@ export const AdventureBoard = ({
     onBoardArrow?.(arrow);
   }, [onBoardArrow, arrow?.attacker, arrow?.target]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onBoardArrow?.(null), [onBoardArrow]);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // null = never toggled in this browser: closed on a phone (#1310), open on desktop (#1346).
+  const [stored, setStored] = useState<boolean | null>(null);
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(DRAWER_KEY);
+      if (v === "open" || v === "closed") setStored(v === "open");
+    } catch {}
+  }, []);
+  const toggleDrawer = (current: boolean) => {
+    setStored(!current);
+    try {
+      window.localStorage.setItem(DRAWER_KEY, current ? "closed" : "open");
+    } catch {}
+  };
   const breakout = useBreakoutMoment(view, events);
   const walk = useEndOfRoundWalk(view, events);
   const model = adventureBoardModel(view);
@@ -904,11 +919,11 @@ export const AdventureBoard = ({
       zIndex={5}
       pointerEvents="none"
     >
-      {/* Phone only (#1310): the static panels fold into a drawer so they never cover the
-          board; the live decision/narrator panels below stay put. */}
+      {/* The static panels fold into a drawer (#1310 phone, #1346 desktop) so they never
+          cover the board; the live decision/narrator panels below stay put. */}
       <Button
         data-testid="adventure-drawer-toggle"
-        display={{ base: "inline-flex", md: "none" }}
+        display="inline-flex"
         size="xs"
         variant="unstyled"
         pointerEvents="auto"
@@ -920,14 +935,21 @@ export const AdventureBoard = ({
         border="1px solid rgba(231,204,152,0.14)"
         borderRadius="md"
         {...LBL}
-        aria-expanded={drawerOpen}
-        onClick={() => setDrawerOpen((o) => !o)}
+        // Responsive default: the CSS media rule picks it until the player toggles.
+        aria-expanded={stored ?? undefined}
+        onClick={() => toggleDrawer(stored ?? desktopNow())}
       >
-        ADVENTURE {drawerOpen ? "▴" : "▾"}
+        ADVENTURE{" "}
+        {stored == null ? (
+          <>
+            <Box as="span" display={{ base: "none", md: "inline" }}>▴</Box>
+            <Box as="span" display={{ base: "inline", md: "none" }}>▾</Box>
+          </>
+        ) : stored ? "▴" : "▾"}
       </Button>
       <Flex
         data-testid="adventure-board-scroll"
-        display={{ base: drawerOpen ? "flex" : "none", md: "flex" }}
+        display={stored == null ? { base: "none", md: "flex" } : stored ? "flex" : "none"}
         direction="column"
         align="flex-end"
         gap="0.4rem"
