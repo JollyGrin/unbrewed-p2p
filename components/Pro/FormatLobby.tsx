@@ -3,9 +3,8 @@ import type { ComponentType, ReactNode } from "react";
 import type { PlayerId } from "@/lib/pro/protocol";
 import type { ProRoomInfo } from "@/lib/pro/useProSocket";
 import { ALL_FORMATS, PRO_FORMATS } from "@/lib/pro/multiplayerPlaytest";
-import { adventureLabEnabled } from "@/lib/pro/adventureGate";
 import { AdventureSetup, adventureSeats, defaultAdventureSetup, scenarioFor } from "@/lib/pro/adventureLobby";
-import { useScenarios } from "@/lib/pro/adventureScenarios";
+import { useAdventureListed, useScenarios } from "@/lib/pro/adventureScenarios";
 
 export interface FormatLobbySeatsProps<S = unknown> {
   setup: S;
@@ -62,8 +61,8 @@ export const formatLobby = (formatId?: string | null): FormatLobbyEntry<unknown>
 export const initialFormatSetups = (): Record<string, unknown> =>
   Object.fromEntries(Object.entries(LOBBIES).map(([id, e]) => [id, e.initialSetup()]));
 
-/** The formats the lobby's FORMAT strip offers (a lab format only behind its gate). */
-export const lobbyFormats = () => (adventureLabEnabled() ? ALL_FORMATS : PRO_FORMATS);
+/** The formats the lobby's FORMAT strip offers: Adventure only while the server lists a scenario. */
+export const useLobbyFormats = () => (useAdventureListed() ? ALL_FORMATS : PRO_FORMATS);
 
 /** The lobby summary's stage leg for a format that names its own board; null for the rest. */
 export const useFormatStageName = (formatId: string, setup: unknown): string | null => {

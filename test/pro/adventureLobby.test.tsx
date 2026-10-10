@@ -1,7 +1,8 @@
 /**
  * The Adventure lobby panel (Wave 4.2, unbrewed-p2p#1094), mounted on the real
- * pro page with the lab gate on. Covers: the Adventure format tab appears only
- * behind the gate, the panel replaces the regular plates, the table size rides
+ * pro page. Covers: the Adventure format tab appears only while the server lists a
+ * scenario (#1343 — an older engine or an empty roster leaves the lobby as it was),
+ * every listed scenario is pickable, the panel replaces the regular plates, the table size rides
  * CREATE_ROOM.humans (and nothing else carries it), bot plans for vanished seats
  * are dropped. Mount recipe is the shared render-fuzz one (see lobbySetupRail).
  */
@@ -15,6 +16,9 @@ import { theme } from "@/styles/style";
 import ProGamePage from "@/pages/pro/game";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { ClientMsg } from "@/lib/pro/protocol";
+import type { ScenarioListing } from "@/lib/pro/protocol";
+import { resetAdventureScenarios } from "@/lib/pro/adventureScenarios";
+import { resetEngineVersions } from "@/lib/pro/wireVersion";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
 jest.mock("@chakra-ui/focus-lock", () => ({
@@ -48,10 +52,29 @@ const fakeRouter = () =>
     beforePopState() {},
   }) as never;
 
+const scenario = (id: string, label: string): ScenarioListing =>
+  ({
+    id,
+    label,
+    formatIds: ["adventure"],
+    mapId: "isla",
+    villain: "rex",
+    villains: [{ id: "rex", name: "Rex", role: "VILLAIN", hp: [9], move: 3, size: "LARGE" }],
+    fixedMinions: [],
+    minionPool: [{ id: "raptor", name: "Raptor", role: "MINION", hp: [3], move: 4, size: "NORMAL" }],
+    minionsPerPlayer: 1,
+    duplicateMinions: false,
+  }) as ScenarioListing;
+const SCENARIOS = [scenario("isla", "Isla Nublar"), scenario("heist", "Clockwork Heist")];
+
 let sent: ClientMsg[] = [];
 
-const mountPicker = async () => {
-  render(
+/**
+ * Mount the lobby against an engine stamping `engineV` on its frames (38 = the
+ * adventure lane, which answers LIST_SCENARIOS with `scenarios`; 37 = main, never asked).
+ */
+const mountPicker = async ({ engineV = 38, scenarios = SCENARIOS }: { engineV?: number; scenarios?: ScenarioListing[] } = {}) => {
+  const view = render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <RouterContext.Provider value={fakeRouter()}>
         <ChakraProvider theme={theme}>
@@ -67,9 +90,17 @@ const mountPicker = async () => {
     ws.onopen?.({});
   });
   await act(async () => {
-    ws.onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, type: "HEROES", heroes: HEROES }) });
+    ws.onmessage?.({ data: JSON.stringify({ v: engineV, type: "HEROES", heroes: HEROES }) });
   });
+  if (sent.some((m) => m.type === "LIST_SCENARIOS")) {
+    await act(async () => {
+      ws.onmessage?.({ data: JSON.stringify({ v: engineV, type: "SCENARIOS", scenarios }) });
+    });
+  }
+  return view;
 };
+
+const formatStrip = () => screen.getByRole("button", { name: "Duel" }).parentElement!.outerHTML;
 
 const click = async (el: Element) => {
   await act(async () => {
@@ -93,20 +124,48 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.NEXT_PUBLIC_ADVENTURE_LAB;
+  resetAdventureScenarios();
+  resetEngineVersions();
   window.sessionStorage.clear();
   window.localStorage.clear();
 });
 
 describe("adventure lobby panel", () => {
-  it("hides the Adventure tab without the lab gate", async () => {
-    await mountPicker();
+  it("never asks an older engine for scenarios and shows no Adventure tab", async () => {
+    await mountPicker({ engineV: PROTOCOL_VERSION });
+    expect(sent.map((m) => m.type)).not.toContain("LIST_SCENARIOS");
     expect(screen.getByRole("button", { name: "Duel" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Adventure" })).toBeNull();
   });
 
+  it("shows no Adventure tab when the engine lists no scenario, the lobby identical to an older engine's", async () => {
+    const older = await mountPicker({ engineV: PROTOCOL_VERSION });
+    const olderStrip = formatStrip();
+    older.unmount();
+    resetAdventureScenarios();
+    sent = [];
+    await mountPicker({ scenarios: [] });
+    expect(sent.map((m) => m.type)).toContain("LIST_SCENARIOS");
+    expect(screen.queryByRole("button", { name: "Adventure" })).toBeNull();
+    expect(formatStrip()).toBe(olderStrip);
+  });
+
+  it("shows the Adventure tab when the engine lists scenarios, each one pickable", async () => {
+    await mountPicker();
+    await pickAdventure();
+    for (const s of SCENARIOS) {
+      // the closed menu's items stay mounted (hidden): pick by label
+      const item = screen.getAllByRole("menuitem", { hidden: true }).find((e) => e.textContent === s.label);
+      await click(item!);
+      expect(screen.getByTestId("adventure-scenario")).toHaveTextContent(s.label);
+    }
+    await click(screen.getByLabelText(/^King Kong/));
+    await click(screen.getAllByRole("button", { name: /^Create/ })[0]!);
+    const created = sent.filter((m) => m.type === "CREATE_ROOM") as Array<ClientMsg & { scenarioId?: string }>;
+    expect(created.at(-1)!.scenarioId).toBe(SCENARIOS.at(-1)!.id);
+  });
+
   it("swaps the seat plates for the adventure panel and sizes the table", async () => {
-    process.env.NEXT_PUBLIC_ADVENTURE_LAB = "1";
     await mountPicker();
     expect(screen.queryByTestId("adventure-lobby")).toBeNull();
     await pickAdventure();
@@ -123,7 +182,6 @@ describe("adventure lobby panel", () => {
   });
 
   it("sends the table size as CREATE_ROOM.humans for adventure only", async () => {
-    process.env.NEXT_PUBLIC_ADVENTURE_LAB = "1";
     await mountPicker();
     await pickAdventure();
     await click(screen.getByTestId("adventure-humans-3"));

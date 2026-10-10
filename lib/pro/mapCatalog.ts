@@ -17,7 +17,7 @@ import type { ProMapDef } from "./protocol";
 import { ALL_FORMATS, MULTIPLAYER_PLAYTEST_MAP, ProFormatId } from "./multiplayerPlaytest";
 import { normalizeMap } from "./normalizeMap";
 import mendedDrumJson from "./fixtures/mended-drum.map.json";
-import { adventureLabEnabled } from "./adventureGate";
+import { adventureListed } from "./adventureScenarios";
 import islandOfDespairJson from "./fixtures/island-of-despair.map.json";
 import cityDocksJson from "./fixtures/city-docks.map.json";
 import polusJson from "./fixtures/polus.map.json";
@@ -219,11 +219,11 @@ export function ineligibleReason(map: CatalogMap, formatId: ProFormatId): string
 
 /**
  * Formats this board can host, in canonical order (for badges). `adventure` is
- * listed only when the lab gate is on, so regular catalogs are unchanged.
+ * listed only while the server lists a scenario, so regular catalogs are unchanged.
  */
-export function eligibleFormats(map: CatalogMap, labEnabled: boolean = adventureLabEnabled()): ProFormatId[] {
+export function eligibleFormats(map: CatalogMap, withAdventure: boolean = adventureListed()): ProFormatId[] {
   return ALL_FORMATS.map((f) => f.id)
-    .filter((id) => id !== "adventure" || labEnabled)
+    .filter((id) => id !== "adventure" || withAdventure)
     .filter((id) => mapEligibleForFormat(map, id));
 }
 

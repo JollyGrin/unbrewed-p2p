@@ -1111,7 +1111,7 @@ describe("adventure format (Wave 4.1)", () => {
     supportedFormats: [{ formatId: "adventure" as const, seats: { H1: { startSlot: 1 }, H2: { startSlot: 2 } } }],
   };
 
-  it("is eligible only for maps that author it, and badges only with the lab gate on", () => {
+  it("is eligible only for maps that author it, and badges only while the server lists a scenario", () => {
     expect(mapEligibleForFormat(fixture, "adventure")).toBe(true);
     expect(eligibleFormats(fixture, true)).toContain("adventure");
     expect(eligibleFormats(fixture, false)).not.toContain("adventure");

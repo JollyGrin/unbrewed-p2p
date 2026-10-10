@@ -13,6 +13,7 @@
 import { Box, Flex, Image, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, Tag, Text } from "@chakra-ui/react";
 import type { MapCatalogEntry } from "@/lib/pro/mapCatalog";
 import { FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
+import { useAdventureListed } from "@/lib/pro/adventureScenarios";
 import { ItemBadge } from "./ItemBadge";
 import { itemBadgeTitle } from "@/lib/pro/itemInfo";
 
@@ -24,6 +25,7 @@ export interface MapPreviewModalProps {
 }
 
 export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps) => {
+  const withAdventure = useAdventureListed();
   const meta = entry?.map.meta;
   const imageUrl = meta?.imageUrl || entry?.thumbnailUrl;
   const aspectRatio =
@@ -35,7 +37,7 @@ export const MapPreviewModal = ({ isOpen, onClose, entry }: MapPreviewModalProps
   if (meta?.source) attribution.push({ label: "Source", value: meta.source });
   if (meta?.license) attribution.push({ label: "License", value: meta.license });
 
-  const formats = entry ? eligibleFormats(entry.map) : [];
+  const formats = entry ? eligibleFormats(entry.map, withAdventure) : [];
   // 🎁 items (#725): boards that print battlefield items say so beside their
   // format pills. Wedding Crashers (#727) is the first catalog board to print
   // them; any later item board lights the tag up automatically.
