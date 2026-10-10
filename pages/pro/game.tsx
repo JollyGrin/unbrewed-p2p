@@ -212,7 +212,7 @@ import {
   lobbyFormats,
   useFormatStageName,
 } from "@/components/Pro/FormatLobby";
-import { BoardArrow, FormatOverlay, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
+import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
 import { FormatEndScreen, hasFormatEndScreen } from "@/components/Pro/FormatEndScreen";
 import { EngineFaultBanner } from "@/components/Pro/EngineFaultBanner";
 import { deriveTeams } from "@/lib/pro/teams";
@@ -4897,7 +4897,10 @@ const LiveGame = ({
   // interaction: the board fills the whole stage and the fixed HUD/hand/dock
   // float over it (issue #450). Turning the flag off falls back to the old
   // boxed, padded board — no transform, no gestures.
-  const [zoomMapOn] = useFlag("zoomMap");
+  const [zoomMapFlag] = useFlag("zoomMap");
+  // A format overlay (Adventure) is laid out for the full-screen board (#1171
+  // inset fit), so it ignores a stored "off" — drag/zoom is not optional there.
+  const zoomMapOn = boardZoomable(zoomMapFlag, roomInfo?.formatId);
   // Board presentation (tabletop board view phase 1): flat (default) or
   // tabletop, per device — same game, same socket, same handlers; only which
   // board component renders below changes.

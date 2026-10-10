@@ -34,6 +34,11 @@ const OVERLAY_INSETS: Record<string, number> = {
 };
 export const formatOverlayInset = (formatId?: string | null): number => (formatId && OVERLAY_INSETS[formatId]) || 0;
 
+/** Whether the board pans/zooms (full-screen layout). A format overlay is laid out for the
+ *  full-screen board, so it forces this on over a stored "Full-screen board" opt-out (#1347). */
+export const boardZoomable = (zoomMapFlag: boolean, formatId?: string | null): boolean =>
+  zoomMapFlag || formatOverlayInset(formatId) > 0;
+
 /** Spaces a format lights gold, unclickable, for a seat watching a decision it doesn't make
  *  (Adventure: a TEAM prompt's candidates for the read-only teammates, #1169). */
 const WATCH_SPACES: Record<string, (view: PlayerView) => SpaceId[]> = {
