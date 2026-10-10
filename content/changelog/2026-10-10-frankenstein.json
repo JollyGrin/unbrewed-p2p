@@ -1,0 +1,11 @@
+{
+  "id": "2026-10-10-frankenstein",
+  "date": "2026-10-10",
+  "title": "Frankestein and the Monster join the lab",
+  "summary": "The Monster's 25 health is the fuel: spend it to move, draw, heal, and swing for up to 8. Community deck by GabbyTheFlower.",
+  "tags": ["deck"],
+  "pro": true,
+  "highlight": false,
+  "video": { "slug": "frankenstein" },
+  "cta": { "label": "Play Frankestein in Pro", "href": "/pro" }
+}
