@@ -14,6 +14,7 @@
 import { Box } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
+import type { MarkerLabels } from "@/lib/pro/boardObjects";
 import type { FlagTokenBadge } from "@/lib/pro/heroStateFlags";
 import { fighterStatusBadgesFor } from "@/lib/pro/fighterStatuses";
 import { flatTokenTopPx, placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
@@ -80,6 +81,8 @@ export interface TableFighterStandeeProps {
   /** Forwarded to the anchor's root — see TableStandeeAnchor's own note. */
   innerRef?: (el: HTMLElement | null) => void;
   fighter: ViewFighter;
+  /** `scenario.display.markers` — labels for generic fighter-mark rim badges. */
+  markerLabels?: MarkerLabels | null;
   x: number;
   y: number;
   tiltDeg: number;
@@ -134,6 +137,7 @@ export interface TableFighterStandeeProps {
 
 export const TableFighterStandee = ({
   fighter,
+  markerLabels,
   x,
   y,
   tiltDeg,
@@ -180,7 +184,7 @@ export const TableFighterStandee = ({
   const { widthPx, heightPx } = use3d
     ? mini3dPlateSize(model3d, mini3d!, rig!, standingPose(x, y), figureBaseDiamPx, groundScale, strip.widthPx, strip.heightPx)
     : heroPlateSize(figure, tokenPx, figureBaseDiamPx);
-  const statusBadges = fighterStatusBadgesFor(fighter);
+  const statusBadges = fighterStatusBadgesFor(fighter, markerLabels);
   const fighterClickable = targetable && !!onClick;
   const clickHandler = fighterClickable ? () => onClick!(fighter.id) : onSpaceFallbackClick;
   const badgeLowestPx = Math.min(

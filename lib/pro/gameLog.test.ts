@@ -1277,6 +1277,23 @@ describe("enrichLines", () => {
       ).toBe("hero is marked — REVENGE (×3)");
     });
 
+    it("FIGHTER_MARKED — adventure view: scenario label, else humanized id; non-adventure stays raw", () => {
+      const ev = (name: string): GameEvent => ({
+        type: "FIGHTER_MARKED",
+        fighter: "p1/hero",
+        name,
+        count: 1,
+        total: 3,
+        expiresAtTurn: null,
+        expiresAt: null,
+      });
+      const withLabels = (markerLabels?: Record<string, string>) =>
+        enrichLines([], [ev("did-not-attack")], { ...ctx(), markerLabels })[0].text;
+      expect(withLabels()).toBe("hero is marked — did-not-attack (×3)");
+      expect(withLabels({})).toBe("hero is marked — Did not attack (×3)");
+      expect(withLabels({ "did-not-attack": "Held back" })).toBe("hero is marked — Held back (×3)");
+    });
+
     it("FIGHTER_MARKS_CLEARED — names the marker, or says 'marks' for the no-name form", () => {
       expect(
         line({ type: "FIGHTER_MARKS_CLEARED", fighter: "p2/hero", name: "MERIDIAN", removed: 2 }).text

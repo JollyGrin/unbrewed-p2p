@@ -92,6 +92,22 @@ describe("MARKED / MERIDIAN (issue #596 ↔ engine #360, protocol v29)", () => {
     expect(badges[0].title).toBe("REVENGE ×2");
   });
 
+  it("adventure (a marker map given): label from display.markers, else a humanized id — never the raw id", () => {
+    const st = (name: string) => fighter({ statuses: [{ kind: "MARKED", name, count: 7 }] });
+    const labelled = fighterStatusBadgesFor(st("dilophosaurus/venom"), { "dilophosaurus/venom": "Venom" });
+    expect(labelled[0]).toMatchObject({ icon: "◈", label: "Venom", key: "MARKED:dilophosaurus/venom" });
+    expect(labelled[0].title).toBe("Venom ×7");
+    expect(fighterStatusBadgesFor(st("dilophosaurus/venom"), {})[0].title).toBe("Venom ×7");
+    expect(fighterStatusBadgesFor(st("did-not-attack"), {})[0].label).toBe("Did not attack");
+  });
+
+  it("non-adventure (no marker map): the generic badge keeps the raw name, exactly as before", () => {
+    const st = fighter({ statuses: [{ kind: "MARKED", name: "did-not-attack", count: 2 }] });
+    const [badge] = fighterStatusBadgesFor(st);
+    expect(badge).toMatchObject({ label: "did-not-attack", title: "did-not-attack ×2" });
+    expect(fighterStatusBadgesFor(st, null)[0].title).toBe("did-not-attack ×2");
+  });
+
   it("gives every badge a UNIQUE key — several markers can ride one fighter", () => {
     const badges = fighterStatusBadgesFor(
       fighter({

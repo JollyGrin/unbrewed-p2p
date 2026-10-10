@@ -110,6 +110,15 @@ export const markerGlyph = (label: string, markers?: MarkerLabels | null): strin
   return stem.slice(0, n);
 };
 
+/**
+ * The marker label map a view hands to badges and the log. `undefined` for a non-adventure
+ * game (no scenario) — consumers read that as "render exactly as before"; an adventure
+ * view always yields a map (possibly empty) so unlabelled marks get a humanized name.
+ */
+export const scenarioMarkerLabels = (
+  view: { scenario?: { display?: { markers?: MarkerLabels | null } | null } | null }
+): MarkerLabels | undefined => (view.scenario ? view.scenario.display?.markers ?? {} : undefined);
+
 /** Friendly name for a marker/mark identity, or null when the scenario does not label it. */
 export const markerIdentityLabel = (identity: string | null | undefined, markers?: MarkerLabels | null): string | null =>
   (identity && markers?.[identity]) || null;

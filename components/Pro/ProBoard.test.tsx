@@ -1596,7 +1596,7 @@ describe("ProBoard marker badges", () => {
     ]);
     expect(screen.getByTitle(/Rooted/)).toBeInTheDocument();
     expect(screen.getByTitle(/Meridian/)).toBeInTheDocument();
-    // an unknown marker still renders, under its raw engine name (protocol v29)
+    // an unknown marker still renders, under its raw engine name (protocol v29) (protocol v29)
     expect(screen.getByTitle(/REVENGE ×2/)).toBeInTheDocument();
     expect(container.querySelectorAll('[title*="Rooted"], [title*="Meridian"], [title*="REVENGE"]')).toHaveLength(3);
   });
