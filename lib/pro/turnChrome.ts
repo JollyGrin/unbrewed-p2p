@@ -1,5 +1,5 @@
 /** Live-turn chrome visibility for the Pro side panel (issue #194). */
-import { adventureTurnLabel } from "./adventureBoard";
+import { adventureEnemySeatName, adventureTurnLabel } from "./adventureBoard";
 import type { PlayerView } from "./protocol";
 
 /**
@@ -32,9 +32,14 @@ export function seatOwesDecision(view: PlayerView, legalActionCount: number): bo
 /**
  * The dock's turn chip text ("YOUR TURN" / "OPPONENT'S TURN" / "P3'S TURN"). A view with an
  * initiative row uses the turn banner's own label so the chip and banner name the same mover.
+ * With no initiative card current (#1361) an adventure reads "ROUND END" at end of round and
+ * names the engine seat the way the log does, never "P5'S TURN".
  */
 export function dockTurnLabel(view: PlayerView, myTurn: boolean, seatPossessive: string): string {
   const banner = adventureTurnLabel(view);
   if (banner) return banner.text;
+  if (view.initiative?.phase === "END_OF_ROUND") return "ROUND END";
+  const enemySeat = adventureEnemySeatName(view, view.activePlayer);
+  if (enemySeat) return `${enemySeat.toUpperCase()}'S TURN`;
   return myTurn ? "YOUR TURN" : `${seatPossessive.toUpperCase()} TURN`;
 }
