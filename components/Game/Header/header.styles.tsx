@@ -209,6 +209,14 @@ export const HudOverlay = styled(Flex)`
     padding-right: ${ADVENTURE_PLATE_PAD_RIGHT};
   }
 
+  /* #1310: on a phone the overlay is a drawer at the screen edge, not a column beside the
+     dock, so the plates keep the whole row. */
+  @media (max-width: 47.99em) {
+    &[data-adventure] {
+      padding-right: 8.5rem;
+    }
+  }
+
   /* #1145: too narrow for the plates and the chip cluster side by side: drop the row under
      the cluster instead of letting the last plate (and its TURN chip) sit beneath it. */
   @media (max-width: ${ADVENTURE_PLATE_DROP_BELOW_PX}px) {

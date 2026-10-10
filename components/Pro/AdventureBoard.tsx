@@ -1,11 +1,13 @@
 import {
   ADVENTURE_BOARD_MAX_HEIGHT,
   ADVENTURE_BOARD_TOP,
+  ADVENTURE_BOARD_TOP_PHONE,
+  ADVENTURE_BOARD_MAX_HEIGHT_PHONE,
   ADVENTURE_BOARD_WIDTH,
   DOCK_RIGHT,
   DOCK_WIDTH,
 } from "./dockLayout";
-import { Box, Flex, Popover, PopoverContent, PopoverTrigger, Portal, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Popover, PopoverContent, PopoverTrigger, Portal, Text } from "@chakra-ui/react";
 import { TbHourglass } from "react-icons/tb";
 import { useEffect, useState } from "react";
 import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
@@ -862,6 +864,7 @@ export const AdventureBoard = ({
     onBoardArrow?.(arrow);
   }, [onBoardArrow, arrow?.attacker, arrow?.target]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onBoardArrow?.(null), [onBoardArrow]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const breakout = useBreakoutMoment(view, events);
   const walk = useEndOfRoundWalk(view, events);
   const model = adventureBoardModel(view);
@@ -885,22 +888,46 @@ export const AdventureBoard = ({
       // seat plates flow left-to-right from the top-left and, with an enemy seat
       // among them, reach the middle of the screen at ~1500px. They stop 8.5rem
       // short of the right edge, and five 15rem plates end well before this column.
-      top={ADVENTURE_BOARD_TOP}
+      // Phone: below the HUD's SETUP/phase bar, which spans the width under the plates.
+      top={{ base: ADVENTURE_BOARD_TOP_PHONE, md: ADVENTURE_BOARD_TOP }}
       // ...and to the LEFT of the fixed Actions dock (z 140, right 0.75rem, 18.5rem
       // wide, from 7.5rem down) which otherwise fully covers the dials (#1128).
-      right={ADVENTURE_BOARD_RIGHT}
-      maxW={ADVENTURE_BOARD_WIDTH}
+      // On a phone there is no dock slot to clear (#1310): hug the screen edge instead.
+      right={{ base: "0.5rem", md: ADVENTURE_BOARD_RIGHT }}
+      maxW={{ base: `min(${ADVENTURE_BOARD_WIDTH}, calc(100vw - 1rem))`, md: ADVENTURE_BOARD_WIDTH }}
       // Capped to end above the hand fan (#1178) so nothing is tucked under it; the
       // static panels scroll inside, the live decision/narrator panels stay pinned.
-      maxH={ADVENTURE_BOARD_MAX_HEIGHT}
+      maxH={{ base: ADVENTURE_BOARD_MAX_HEIGHT_PHONE, md: ADVENTURE_BOARD_MAX_HEIGHT }}
       direction="column"
       align="flex-end"
       gap="0.4rem"
       zIndex={5}
       pointerEvents="none"
     >
+      {/* Phone only (#1310): the static panels fold into a drawer so they never cover the
+          board; the live decision/narrator panels below stay put. */}
+      <Button
+        data-testid="adventure-drawer-toggle"
+        display={{ base: "inline-flex", md: "none" }}
+        size="xs"
+        variant="unstyled"
+        pointerEvents="auto"
+        alignSelf="flex-end"
+        px="0.6rem"
+        h="1.6rem"
+        bg="rgba(20,8,24,0.72)"
+        color="white"
+        border="1px solid rgba(231,204,152,0.14)"
+        borderRadius="md"
+        {...LBL}
+        aria-expanded={drawerOpen}
+        onClick={() => setDrawerOpen((o) => !o)}
+      >
+        ADVENTURE {drawerOpen ? "▴" : "▾"}
+      </Button>
       <Flex
         data-testid="adventure-board-scroll"
+        display={{ base: drawerOpen ? "flex" : "none", md: "flex" }}
         direction="column"
         align="flex-end"
         gap="0.4rem"
