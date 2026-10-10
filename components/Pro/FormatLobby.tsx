@@ -32,7 +32,7 @@ interface FormatLobbyEntry<S> {
   /** replaces the seat panel */
   Seats: ComponentType<FormatLobbySeatsProps<S>>;
   /** above the hero roster, while creating */
-  Briefing?: ComponentType<{ setup: S }>;
+  Briefing?: ComponentType<{ setup: S; onChooseHero?: () => void }>;
   /** replaces the waiting room's "waiting for an opponent" line */
   WaitingRoom?: ComponentType<{ roomInfo: ProRoomInfo }>;
 }
@@ -76,9 +76,9 @@ export const FormatLobbySeats = ({ formatId, ...props }: FormatLobbySeatsProps &
   return Seats ? <Seats {...props} /> : null;
 };
 
-export const FormatLobbyBriefing = ({ formatId, setup }: { formatId: string; setup: unknown }) => {
+export const FormatLobbyBriefing = ({ formatId, setup, onChooseHero }: { formatId: string; setup: unknown; onChooseHero?: () => void }) => {
   const Briefing = formatLobby(formatId)?.Briefing;
-  return Briefing ? <Briefing setup={setup} /> : null;
+  return Briefing ? <Briefing setup={setup} onChooseHero={onChooseHero} /> : null;
 };
 
 /** true when the room's format brings its own waiting room. */

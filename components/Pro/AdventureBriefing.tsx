@@ -1,5 +1,5 @@
 import { Box, Button, Flex, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, Text } from "@chakra-ui/react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { TbBook2, TbChevronDown } from "react-icons/tb";
 import type { ScenarioBriefing, ScenarioDisplay } from "@/lib/pro/protocol";
 import { heroSeatRange, heroSeatsLabel, scenarioFor, type AdventureSetup, type HeroSeatRange } from "@/lib/pro/adventureLobby";
@@ -256,10 +256,17 @@ export const DifficultyNote = () =>
   ) : null;
 
 /** The lobby's briefing for the scenario the setup points at (default = the server's first listing). */
-export const LobbyBriefing = ({ setup }: { setup: AdventureSetup }) => {
+export const LobbyBriefing = ({ setup, onChooseHero }: { setup: AdventureSetup; onChooseHero?: () => void }) => {
   const { scenarios } = useScenarios();
   const scenario = scenarioFor(setup, scenarios);
   const [open, setOpen] = useState(true);
+  // The bottom control's scroll waits for the collapse to lay out, so the roster header lands where it ends up.
+  const [chooseHero, setChooseHero] = useState(false);
+  useEffect(() => {
+    if (!chooseHero || open) return;
+    setChooseHero(false);
+    onChooseHero?.();
+  }, [chooseHero, open, onChooseHero]);
   if (!scenario) return null;
   // The setup rail is pinned; the briefing yields height to the hero roster below it.
   return (
@@ -284,6 +291,26 @@ export const LobbyBriefing = ({ setup }: { setup: AdventureSetup }) => {
       {open && (
         <Box overflowY="auto" minH={0}>
           <AdventureBriefing label={scenario.label} briefing={scenario.briefing} display={scenario.display} seats={heroSeatRange(scenario)} scenarioId={scenario.id} />
+          <Button
+            type="button"
+            w="100%"
+            mt="0.6rem"
+            onClick={() => {
+              setOpen(false);
+              setChooseHero(true);
+            }}
+            rightIcon={<TbChevronDown />}
+            bg="brand.accent"
+            color="brand.surfaceDim"
+            _hover={{ opacity: 0.9 }}
+            fontFamily="LeagueGothic"
+            fontWeight="normal"
+            fontSize="1.15rem"
+            letterSpacing="0.08em"
+            data-testid="adventure-briefing-toggle-bottom"
+          >
+            HIDE BRIEFING — CHOOSE YOUR HERO
+          </Button>
         </Box>
       )}
       <DifficultyNote />

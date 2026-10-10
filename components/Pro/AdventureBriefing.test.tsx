@@ -147,6 +147,18 @@ describe("Adventure lobby with a scenario listing (#1153)", () => {
     expect(screen.getByTestId("adventure-briefing-win")).toBeInTheDocument();
   });
 
+  it("ends the open briefing with a choose-your-hero control that collapses it (#1368)", () => {
+    const onChooseHero = jest.fn();
+    wrap(<LobbyBriefing setup={defaultAdventureSetup()} onChooseHero={onChooseHero} />);
+    fireEvent.click(screen.getByTestId("adventure-briefing-toggle-bottom"));
+    expect(screen.getByTestId("adventure-briefing-toggle")).toHaveTextContent("Show briefing");
+    expect(screen.queryByTestId("adventure-briefing-win")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("adventure-briefing-toggle-bottom")).not.toBeInTheDocument();
+    expect(onChooseHero).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("adventure-briefing-toggle"));
+    expect(screen.getByTestId("adventure-briefing-toggle-bottom")).toBeInTheDocument();
+  });
+
   it("kicks the briefing with the scenario's hero-seat range (#1360)", () => {
     setScenarios([{ ...ISLA, heroSeats: { min: 2, max: 3 } }]);
     wrap(<LobbyBriefing setup={defaultAdventureSetup()} />);
