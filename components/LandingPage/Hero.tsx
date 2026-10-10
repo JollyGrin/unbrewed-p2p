@@ -2,7 +2,6 @@ import { Box, HStack, Text, VStack } from "@chakra-ui/react";
 import Link from "next/link";
 import { IconLogoTextmark } from "@/components/Icons/IconLogoTextmark";
 import { DiscordPresence } from "@/components/Discord";
-import { HeroCanvas } from "./HeroCanvas";
 import { PlayChooser } from "./PlayChooser";
 import type { LandingFighter } from "./useLandingRoster";
 
@@ -22,6 +21,52 @@ const Pill = ({ children }: { children: React.ReactNode }) => (
   >
     {children}
   </Text>
+);
+
+/**
+ * Two oversized gradient layers over brand.secondary that drift in opposite
+ * directions. Pure CSS, transform-only (compositor, no JS). Each loop starts and
+ * ends at translate(0) — the same frame SSR paints and reduced motion keeps — so
+ * there is no jump on hydration. The warm plum is translucent and kept to the
+ * corners, so the hero's text stays AA at the lightest moment of the loop.
+ * Gradients go in inline style: Chakra's bg parser chokes on `… at …` in jsdom.
+ */
+const DRIFT = {
+  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+  willChange: "transform",
+} as const;
+
+const HeroGradient = () => (
+  <Box position="absolute" inset="0" overflow="hidden" pointerEvents="none" aria-hidden="true">
+    <Box
+      position="absolute"
+      inset="-30%"
+      style={{ backgroundImage: "radial-gradient(40% 38% at 24% 26%, rgba(90,50,99,.7), transparent 70%), radial-gradient(46% 42% at 78% 80%, rgba(44,24,49,.85), transparent 72%)" }}
+      sx={{
+        "@keyframes heroDriftA": {
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "30%": { transform: "translate3d(7%, 5%, 0) rotate(4deg)" },
+          "70%": { transform: "translate3d(-6%, -4%, 0) rotate(-3deg)" },
+        },
+        animation: "heroDriftA 34s ease-in-out infinite alternate",
+        ...DRIFT,
+      }}
+    />
+    <Box
+      position="absolute"
+      inset="-30%"
+      style={{ backgroundImage: "radial-gradient(48% 44% at 76% 24%, rgba(58,33,64,.9), transparent 70%), radial-gradient(38% 36% at 20% 78%, rgba(58,33,64,.7), transparent 70%)" }}
+      sx={{
+        "@keyframes heroDriftB": {
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "40%": { transform: "translate3d(-6%, 6%, 0)" },
+          "75%": { transform: "translate3d(5%, -5%, 0)" },
+        },
+        animation: "heroDriftB 27s ease-in-out infinite alternate",
+        ...DRIFT,
+      }}
+    />
+  </Box>
 );
 
 /**
@@ -46,9 +91,7 @@ export const Hero = ({
     pt={{ base: "2.5rem", md: "4rem" }}
     pb={{ base: "2.5rem", md: "3.5rem" }}
   >
-    <Box position="absolute" inset="0" overflow="hidden" pointerEvents="none">
-      <HeroCanvas />
-    </Box>
+    <HeroGradient />
     <VStack position="relative" spacing="1.25rem" textAlign="center" px="1rem" maxW="48rem" mx="auto">
       <Text
         fontFamily="SpaceGrotesk"

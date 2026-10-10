@@ -56,7 +56,7 @@ const Ladder = () => (
 
 /**
  * The live roster as a wrapped strip of name chips. Static on purpose: the
- * page's motion budget is the hero canvas, the card lift and the chooser.
+ * page's motion budget is the hero gradient drift, the card lift and the chooser.
  */
 const Roster = ({ roster }: { roster: LandingFighter[] }) => (
   <Flex as="ul" listStyleType="none" m={0} p={0} wrap="wrap" gap="0.5rem">
