@@ -417,6 +417,36 @@ export function heroIdsForArt(view: {
   return [...new Set(legacy)];
 }
 
+const formatFaceCards = new Map<string, DeckImportCardType>();
+/** A card carrying only a CDN face; one object per url so memoized renderers keep identity. */
+const formatFaceCard = (
+  instance: CardInstanceId,
+  title: string | undefined,
+  faceUrl?: (cardId: string) => string | null
+): DeckImportCardType | null => {
+  const url = faceUrl?.(instance);
+  if (!url) return null;
+  let card = formatFaceCards.get(url);
+  if (!card) {
+    card = {
+      afterText: "",
+      basicText: "",
+      boost: 0,
+      characterName: "",
+      duringText: "",
+      imageUrl: url,
+      immediateText: "",
+      quantity: 1,
+      title: title ?? instance,
+      type: "attack",
+      value: null,
+      cardImage: { url },
+    } as DeckImportCardType;
+    formatFaceCards.set(url, card);
+  }
+  return card;
+};
+
 export function useProCardArt(
   heroIds: string[],
   catalog: Record<CardDefId, CardMeta>,
@@ -425,7 +455,12 @@ export function useProCardArt(
    * — by the sandbox surfaces and by any caller with no seats yet — means the
    * local debug registry decides, exactly as it did before the wire existed.
    */
-  cosmetics?: SeatCosmetics | null
+  cosmetics?: SeatCosmetics | null,
+  /**
+   * The format's own card faces: CDN url for an instance the hero catalog can't
+   * resolve (enemy / scenario cards). Consulted only after the hero art misses.
+   */
+  formatFace?: (cardId: string) => string | null
 ): {
   resolveCard: ResolveCard;
   resolveCardAppearance: ResolveCardAppearance;
@@ -490,7 +525,7 @@ export function useProCardArt(
     const defId = instance.split("#")[0];
     const heroId = defId.split("/")[0];
     const meta = catalog[defId];
-    if (!meta || !data?.[heroId]) return null;
+    if (!meta || !data?.[heroId]) return formatFaceCard(instance, meta?.title, formatFace);
     const card = data[heroId].cards[norm(meta.title)] ?? null;
     if (!card) return null;
     // Face art AND treatment come from the seam, never straight off the

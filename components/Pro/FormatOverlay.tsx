@@ -2,6 +2,7 @@ import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import type { FighterId, GameEvent, PlayerView, SpaceId, ViewFighter } from "@/lib/pro/protocol";
 import { teamDecisionModel } from "@/lib/pro/adventureBoard";
+import { adventureCardArt } from "@/lib/pro/adventureCardArt";
 import { ADVENTURE_OVERLAY_INSET } from "@/lib/pro/mobileLayout";
 
 /** An attacker → target pair for the board's attack arrow. */
@@ -40,6 +41,16 @@ const WATCH_SPACES: Record<string, (view: PlayerView) => SpaceId[]> = {
 };
 export const formatWatchSpaces = (formatId: string | null | undefined, view: PlayerView): SpaceId[] =>
   (formatId && WATCH_SPACES[formatId]?.(view)) || [];
+
+/** CDN face URL for a card id the hero catalog doesn't know (a format's own cards), or null. */
+export type CardFaceUrl = (cardId: string) => string | null;
+
+/** Per-format card-face sources; `resolveCard` consults these for ids outside the hero catalog. */
+const CARD_FACES: Record<string, CardFaceUrl> = {
+  adventure: adventureCardArt,
+};
+export const formatCardFace = (formatId?: string | null): CardFaceUrl | undefined =>
+  (formatId && CARD_FACES[formatId]) || undefined;
 
 export const FormatOverlay = ({ formatId, ...props }: FormatOverlayProps & { formatId?: string }) => {
   const Overlay = formatId ? OVERLAYS[formatId] : undefined;

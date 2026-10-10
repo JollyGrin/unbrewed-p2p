@@ -211,7 +211,7 @@ import {
   lobbyFormats,
   useFormatStageName,
 } from "@/components/Pro/FormatLobby";
-import { BoardArrow, FormatOverlay, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
+import { BoardArrow, FormatOverlay, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
 import { FormatEndScreen, hasFormatEndScreen } from "@/components/Pro/FormatEndScreen";
 import { EngineFaultBanner } from "@/components/Pro/EngineFaultBanner";
 import { deriveTeams } from "@/lib/pro/teams";
@@ -4657,7 +4657,8 @@ const LiveGame = ({
   const { resolveCard, resolveHero, resolveRuleCards, resolveFighterToken } = useProCardArt(
     snapshot ? heroIdsForArt(snapshot.view) : [],
     snapshot?.view.catalog ?? {},
-    cosmetics
+    cosmetics,
+    formatCardFace(roomInfo?.formatId)
   );
 
   // owner seat -> heroId, so the board can resolve a fighter's token art by hero
