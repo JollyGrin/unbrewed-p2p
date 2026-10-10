@@ -8,6 +8,8 @@
  */
 import type { EnemyListing, PlayerId, RoomScenarioStatus, RosterPicks, ScenarioListing } from "./protocol";
 
+// TODO(unbrewed-engine#826, p2p#1330 part C): read `heroSeats {min,max}` off ScenarioListing once the
+// engine projects it; these two stay only as the fallback for an older server.
 export const ADVENTURE_MIN_HUMANS = 1;
 export const ADVENTURE_MAX_HUMANS = 4;
 
