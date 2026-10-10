@@ -2014,6 +2014,22 @@ describe("counterChangeLines suppresses engine bookkeeping counters", () => {
     expect(lines).toEqual([]);
   });
 
+  it("says nothing about Frankestein's MAD / COS / ITS_ALIVE bookkeeping (#1332)", () => {
+    const lines = counterChangeLines(
+      [
+        { type: "COUNTER_CHANGED", player: "p1", name: "ITS_ALIVE", value: 1 },
+        { type: "COUNTER_CHANGED", player: "p1", name: "MAD", value: 5 },
+        { type: "COUNTER_CHANGED", player: "p1", name: "MAD", value: 0 },
+        { type: "COUNTER_CHANGED", player: "p1", name: "COS", value: 1 },
+        { type: "COUNTER_CHANGED", player: "p1", name: "COS", value: 0 },
+        { type: "COUNTER_CHANGED", player: "p1", name: "ITS_ALIVE", value: 0 },
+      ] as GameEvent[],
+      () => 0,
+      whoOf
+    );
+    expect(lines).toEqual([]);
+  });
+
   it("still narrates the clock itself, and every other counter", () => {
     const lines = counterChangeLines(
       [

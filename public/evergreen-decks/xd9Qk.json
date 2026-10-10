@@ -200,7 +200,7 @@
     "sidekick": {
       "hp": 25,
       "isRanged": false,
-      "name": "monster",
+      "name": "Monster",
       "quantity": 1,
       "quote": null
     }

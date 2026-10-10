@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { computeDigest, normalizeType } from "../../scripts/lib/deckManifest";
 import { EVERGREEN_MANIFEST } from "./evergreenManifest";
 import { HERO_DECK_IDS, norm } from "./useProCardArt";
-import { BOUNTY_PILES, HERO_STATE_COUNTERS, HERO_STATE_FLAGS } from "./heroStateFlags";
+import {
+  BOUNTY_PILES,
+  counterChipsFor,
+  fighterTokenCounterBadgeFor,
+  HERO_STATE_COUNTERS,
+  HERO_STATE_FLAGS,
+} from "./heroStateFlags";
 import { POPULAR_DECKS } from "../constants/top-decks";
 
 const DECKS_DIR = join(__dirname, "..", "..", "public", "evergreen-decks");
@@ -1279,10 +1285,25 @@ describe("Frankestein (xd9Qk) deck data", () => {
     expect(JSON.stringify(deck)).not.toMatch(/https?:\/\//);
   });
 
-  it("declares NO public hero state — MAD and COS are transient within one combat", () => {
-    // Stated rather than assumed: the engine's MAD / COS counters live only inside
-    // one card's combat, so they deliberately get no heroStateFlags.ts row.
+  it("declares NO public hero state — MAD, COS and ITS_ALIVE are internal bookkeeping", () => {
+    // Stated rather than assumed: MAD / COS live only inside one card's combat and
+    // ITS_ALIVE is the ongoing scheme's own memory (the scheme is on the board), so
+    // none gets a heroStateFlags.ts row — by decision (#1332).
     expect(HERO_STATE_FLAGS.filter((e) => e.heroes.includes("frankenstein"))).toEqual([]);
     expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("frankenstein"))).toEqual([]);
+  });
+
+  it("never draws its unregistered counters as a raw nameplate chip or token badge", () => {
+    // frankenstein.rules.ts @c1936b9 moves ITS_ALIVE (0/1), MAD and COS. With no
+    // registry row, neither surface may render them (the log hides them too —
+    // BOOKKEEPING_COUNTERS in gameLog.ts).
+    const counters = { ITS_ALIVE: 1, MAD: 3, COS: 1 };
+    expect(counterChipsFor("frankenstein", counters)).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("frankenstein", counters)).toBeNull();
+  });
+
+  it("names the sidekick 'Monster', as the engine does (R14)", () => {
+    // The API payload says "monster"; the preview modal reads this field.
+    expect(deck.deck_data.sidekick).toMatchObject({ name: "Monster", hp: 25, quantity: 1, isRanged: false });
   });
 });

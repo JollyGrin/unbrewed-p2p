@@ -913,9 +913,9 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   {
     // Frankestein [sic — the author's spelling, both language versions] —
     // unmatched.cards xd9Qk (serves the English version W6PG_H2D9b), author
-    // GabbyTheFlower (issue #1332 ↔ engine #833). Served at tier `lab`. PAIRED
-    // with the engine's `feature/frankenstein` train: this client PR targets
-    // feature/frankenstein-client and pair-merges with it. Art: the 11 faces
+    // GabbyTheFlower (issue #1332 ↔ engine #833, PR #837 @c1936b9). Served at
+    // tier `lab`. PAIRED with the engine's `feature/frankenstein` train: this
+    // client PR targets feature/frankenstein-client and pair-merges with it. Art: the 11 faces
     // (full composed renders via cardImage, The Narrator #859 shape) plus the
     // hero/sidekick card are cropped from the author's card sheet posted
     // 2026-10-03 in Discord #pro-deck-request thread 1555777265592307863; the
