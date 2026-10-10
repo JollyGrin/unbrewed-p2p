@@ -435,7 +435,10 @@ export const teamDecisionModel = (
   const seatName = (id: string) => {
     const pl = view.players?.find((x) => x.id === id);
     const owned = view.fighters.filter((f) => f.owner === id);
-    const seatFighter = (owned.find((f) => f.kind === "HERO") ?? owned[0])?.name;
+    // An enemy the engine is placing (spawnEnemy, #651) may not be owned by the seat yet, and may
+    // be off the board: read the same enemy roster the dials use, by fighter id or enemy id.
+    const enemy = view.fighters.find((f) => f.enemy && (f.id === id || f.enemy.enemyId === id));
+    const seatFighter = (owned.find((f) => f.kind === "HERO") ?? owned[0] ?? enemy)?.name;
     if (pl) return pl.displayName?.trim() || seatFighter || pl.heroId || id;
     return seatFighter ?? id;
   };
@@ -485,7 +488,12 @@ export const teamDecisionModel = (
     chooser: youChoose ? "You" : seatName(p.player),
     forName: p.forSeat ? seatName(p.forSeat) : null,
     youChoose,
-    description: p.description ?? null,
+    // The engine's placement prompt does not say WHO is placed ("Choose a space to place the
+    // fighter"): name them client-side from the seat the decision is for.
+    description:
+      p.description && p.forSeat && p.kind === "CHOOSE_SPACE"
+        ? p.description.replace(/\bplace the fighter\b/i, `place ${seatName(p.forSeat)}`)
+        : (p.description ?? null),
     options: youChoose ? [] : readableOptions(),
     spaces: youChoose
       ? []
