@@ -63,6 +63,7 @@ import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
 import { TableHudPlate } from "@/components/Pro/Table/Hud/TableHudPlate";
 import { SEAT_COLOR } from "@/lib/pro/seatColors";
+import { adventureBoardModel } from "@/lib/pro/adventureBoard";
 
 export const MOBILE_CHIPS_TEST_ID = "pro-mobile-chips";
 
@@ -114,6 +115,7 @@ const HpChip = ({
   local,
   offline,
   onOpen,
+  scroll = false,
 }: {
   seat: PlayerId;
   label: string;
@@ -123,6 +125,8 @@ const HpChip = ({
   local: boolean;
   offline: boolean;
   onOpen: () => void;
+  /** #1362: in a scrolling row the chip keeps its natural width instead of a share of it */
+  scroll?: boolean;
 }) => (
   <Flex
     as="button"
@@ -133,7 +137,7 @@ const HpChip = ({
     alignItems="center"
     gap="0.3rem"
     minH="2.5rem"
-    maxW="48%"
+    {...(scroll ? { flexShrink: 0 } : { maxW: "48%" })}
     px="0.7rem"
     py="0.35rem"
     borderRadius="999px"
@@ -540,6 +544,11 @@ export const ProMobileHud = ({
     );
   };
   const [own, ...others] = ordered;
+  // #1362: an Adventure fields up to 4 heroes + the enemy, more than a phone row holds at
+  // 48% a chip, so its row scrolls sideways (natural-width chips) instead of running off
+  // the edge. The extra bottom padding keeps the chip shadows from clipping in the scroll
+  // box; the matching negative margin keeps the strip below where it was.
+  const scrollRow = !!adventureBoardModel(view);
 
   return (
     <>
@@ -591,7 +600,28 @@ export const ProMobileHud = ({
           paddingRight: layoutMode === "rail" ? 0 : "env(safe-area-inset-right, 0px)",
         }}
       >
-        <Flex alignItems="flex-start" justifyContent="space-between" gap="0.4rem" px="0.6rem" pt="0.6rem">
+        <Flex
+          alignItems="flex-start"
+          justifyContent={scrollRow ? "flex-start" : "space-between"}
+          gap="0.4rem"
+          px="0.6rem"
+          pt="0.6rem"
+          {...(scrollRow
+            ? {
+                "data-scroll-row": "",
+                overflowX: "auto",
+                pointerEvents: "auto",
+                pb: "0.6rem",
+                mb: "-0.6rem",
+                sx: {
+                  WebkitOverflowScrolling: "touch",
+                  overscrollBehaviorX: "contain",
+                  scrollbarWidth: "none",
+                  "::-webkit-scrollbar": { display: "none" },
+                },
+              }
+            : {})}
+        >
           {ordered.map((seat) => {
             const hero = heroOf(seat.id);
             return (
@@ -609,6 +639,7 @@ export const ProMobileHud = ({
                 local={seat.you}
                 offline={!!presenceOf(seat)}
                 onOpen={() => setOpenSeat(seat.id)}
+                scroll={scrollRow}
               />
             );
           })}
