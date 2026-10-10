@@ -305,8 +305,14 @@ const COUNTER_KEY_SEP = "\u001f";
  * prompt's running-total line (lib/pro/clockTower.ts). This stays a deliberately
  * SHORT denylist — a counter belongs here only if it is transient within a single
  * resolution, never a resource a player can plan around.
+ *
+ * Frankestein (issue #1332): `MAD` (*mad, they call me!*) and `COS` (*child of
+ * storm*) carry a number from one combat window to the next inside ONE card's
+ * combat; `ITS_ALIVE` is 0/1 "the +2 Move is live" memory for *IT´S ALIVE!*, whose
+ * effect the face-up ongoing scheme already shows on the board. None is printed on
+ * a card or ever spendable, and none has a heroStateFlags.ts row, by decision.
  */
-const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER]);
+const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER, "MAD", "COS", "ITS_ALIVE"]);
 
 export function counterChangeLines(
   events: GameEvent[],

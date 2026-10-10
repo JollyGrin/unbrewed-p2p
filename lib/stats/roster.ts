@@ -1,5 +1,5 @@
 /**
- * The public Pro roster, for "N of 33 played" and the roster grids.
+ * The public Pro roster, for "N of 34 played" and the roster grids.
  *
  * Source: the prod engine's `HEROES` registry (JollyGrin/unbrewed-engine
  * `server/content.ts`), keeping exactly what `heroListings(false)` shows the
@@ -36,6 +36,7 @@ export const PUBLIC_ROSTER: readonly RosterHero[] = [
   { heroId: "darth-vader", name: "Darth Vader" },
   { heroId: "doppelganger", name: "The Doppelgänger" },
   { heroId: "ellen-ripley", name: "Ellen Ripley" },
+  { heroId: "frankenstein", name: "Frankestein" },
   { heroId: "general-grievous", name: "General Grievous" },
   { heroId: "gerry-the-isopod", name: "Gerry the Isopod" },
   { heroId: "gingerbread-man", name: "Gingerbread Man" },
@@ -65,7 +66,7 @@ export const ROSTER_SIZE = PUBLIC_ROSTER.length;
 /**
  * Engine ids hidden from the public roster (reflavored baselines). Telemetry
  * can still carry old games on them, so they resolve a name, but they never
- * count towards "N of 33".
+ * count towards "N of 34".
  */
 export const HIDDEN_HERO_NAMES: Readonly<Record<string, string>> = {
   "king-taranis": "King Taranis",

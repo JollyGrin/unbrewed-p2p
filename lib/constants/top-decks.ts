@@ -910,4 +910,27 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // author's own cardback, mirrored from the deck's appearance block.
     cardbackUrl: "/evergreen-decks/art/narrator/cardback.webp",
   },
+  {
+    // Frankestein [sic — the author's spelling, both language versions] —
+    // unmatched.cards xd9Qk (serves the English version W6PG_H2D9b), author
+    // GabbyTheFlower (issue #1332 ↔ engine #833, PR #837 @c1936b9). Served at
+    // tier `lab`. PAIRED with the engine's `feature/frankenstein` train: this
+    // client PR targets feature/frankenstein-client and pair-merges with it. Art: the 11 faces
+    // (full composed renders via cardImage, The Narrator #859 shape) plus the
+    // hero/sidekick card are cropped from the author's card sheet posted
+    // 2026-10-03 in Discord #pro-deck-request thread 1555777265592307863; the
+    // payload's hot-linked film-still imageUrls are NOT used. Cardback: the
+    // author's appearance.cardbackUrl upload (1488x2079, sharper than the sheet
+    // crop) — the author credits "whoever made the card back", designer unknown.
+    id: "xd9Qk",
+    name: "Frankestein",
+    hero: "Frankestein",
+    author: "GabbyTheFlower",
+    likes: 0,
+    highlightColour: "#3d493c",
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Narrator precedent): the author's cardback upload, mirrored.
+    cardbackUrl: "/evergreen-decks/art/frankenstein/cardback.webp",
+  },
 ];
