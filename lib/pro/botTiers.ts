@@ -39,7 +39,7 @@ export type ClientBotTier = Exclude<BotDifficulty, "jev">;
 export const FALLBACK_BOT_TIERS: readonly ClientBotTier[] = ["easy", "medium", "hard"];
 
 /** Weakest → strongest. Drives render order regardless of the server's ordering. */
-const TIER_ORDER: readonly ClientBotTier[] = ["easy", "medium", "hard", "expert", "jevx3"];
+export const TIER_ORDER: readonly ClientBotTier[] = ["easy", "medium", "hard", "expert", "jevx3"];
 
 export interface BotTierChoice {
   id: BotDifficulty;

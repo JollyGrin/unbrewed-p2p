@@ -9,7 +9,11 @@ import { TablePage } from "@/components/TablePlace/TablePage";
 export default function Table() {
   return (
     <>
-      <PageSeo path="/table" title="3D Table — Unbrewed" />
+      <PageSeo
+        path="/table"
+        title="3D Table — Unbrewed"
+        description="Set up a 3D table for you and a friend: pick both decks and a map, and our lobby spawns a table at table.place — deal, drag, flip, stack, with minis for the heroes that have them."
+      />
       <TablePage />
     </>
   );

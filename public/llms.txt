@@ -1,25 +1,38 @@
 # Unbrewed
 
-> Unbrewed is a free, open-source, browser-based simulator for playing Unmatched
-> board game fan decks online. No accounts, no installs, no cost. It imports decks
-> from unmatched.cards and the-unmatched.club, as well as Tabletop Simulator (TTS)
-> exports, and turns any image URL into a custom battle map. Two players connect to
-> a shared lobby and play head-to-head. It is an unofficial hobby project and is not
-> affiliated with Restoration Games, the publisher of Unmatched.
+> Unbrewed is a free, open-source, browser-based way to play Unmatched board game
+> fan decks online. There are four tables: a free-form 2D Sandbox where any deck
+> and any image map work and the players apply the rules; Unbrewed Pro, where a
+> referee server enforces the full rules and you can fight bots or people; a 3D
+> table, where our lobby spawns a table.place table (also ours) for both decks and
+> a map; and IRL mode, which turns a phone into the deck tray at a real board.
+> No install and no account needed; signing in with Discord is optional. It is an
+> unofficial hobby project and is not affiliated with Restoration Games, the
+> publisher of Unmatched.
 
-## Pages
-- [Home](https://unbrewed.xyz/): overview and a four-step getting-started guide
-- [Deck bag](https://unbrewed.xyz/bag): import and manage decks and custom maps
-- [Connect](https://unbrewed.xyz/connect): create or join a game lobby to play
+## Ways to play
+- [Sandbox](https://unbrewed.xyz/connect): a shared 2D table with hand, dice, tokens and any image as a map. Name a lobby and send the invite link; nothing is enforced, so any fan deck works on day one.
+- [Unbrewed Pro](https://unbrewed.xyz/pro): rules-enforced matches. Only legal moves, combat math done for you, hidden hands. Bots from Easy through Medium, Hard and Expert to Prodigy (unlocked by beating Expert); duel, three-player free-for-all and 2v2; an optional move timer; Quick Match; replays of every finished game; a flat board or a 3D tabletop view with minis. Its roster is hand-converted fan decks and grows a few heroes at a time.
+- [3D table](https://unbrewed.xyz/table): our lobby that spawns a 3D table at table.place. Pick both decks and a map, send your friend their seat link, then deal, drag, flip and stack; minis for the heroes that have them.
+- [IRL mode](https://unbrewed.xyz/irl): your phone is the deck tray (hand, deck, discard, health) while the board and the opponent are real. Installable and works offline.
+
+## Compete and progress
+- [Tournaments](https://unbrewed.xyz/tournaments): async Pro tournaments — single elimination or round robin — shared by one link; players ready up on their own time and results and replays land on the bracket. Creating one needs a Discord sign-in.
+- [Leaderboard](https://unbrewed.xyz/leaderboard): community standings for Pro games.
+- [Heroes](https://unbrewed.xyz/heroes): every Pro hero with its ladder.
+- [Stats](https://unbrewed.xyz/stats): public player profiles.
+- [Collection](https://unbrewed.xyz/collection): signed-in players earn XP, badges and cosmetic points from Pro games and spend points on card and token rims (bronze to iridescent). Cosmetics never change a card, a rule or a result.
+
+## Decks and maps
+- [Deck bag](https://unbrewed.xyz/bag): import decks from unmatched.cards, Unmatched Labs, the-unmatched.club, Tabletop Simulator (TTS) exports, raw JSON, or lists of card image URLs; manage custom maps. Signed-in bags sync across devices.
+- Maps: a bundled set of legacy and community boards, or any image URL.
+
+## Project
+- [Changelog](https://unbrewed.xyz/changelog): every update, newest first.
+- [GitHub](https://github.com/JollyGrin/unbrewed-p2p): MIT-licensed source and issue tracker.
+- [Discord](https://discord.gg/qPxHFjwkNN): community, match-making and support.
 
 ## Key facts
-- Price: Free (open-source, MIT-licensed)
-- Account required: No
-- Runs in: Any modern web browser (desktop or mobile)
-- Deck sources: unmatched.cards, the-unmatched.club, Tabletop Simulator exports, raw JSON, image URLs
-- Maps: any image URL
-- Multiplayer: two players share a lobby name
-
-## Source
-- [GitHub](https://github.com/JollyGrin/unbrewed-p2p): source code and issue tracker
-- [Discord](https://discord.gg/qPxHFjwkNN): community and support
+- Price: free (open-source, MIT-licensed)
+- Account: optional (Discord sign-in syncs the bag and records Pro games)
+- Runs in: any modern web browser, desktop or phone

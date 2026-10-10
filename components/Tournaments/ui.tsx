@@ -54,7 +54,9 @@ export const Page = ({
       path={path}
       title={`${title} | Unbrewed`}
       description="Async tournaments for Unbrewed Pro: brackets and round robins, played on your own time."
-      noindex
+      // Only the browse page is in the sitemap (#1353); event, match and
+      // create views stay out of the index.
+      noindex={path !== "/tournaments"}
     />
     <Box color="brand.secondary">
       <Navbar />

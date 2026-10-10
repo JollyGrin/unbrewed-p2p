@@ -50,7 +50,7 @@ export const Navbar = () => {
  * useSyncExternalStore, which itself returns the empty snapshot for SSR/first
  * paint — see the hook's doc comment).
  */
-const ChangelogNavLink = () => {
+export const ChangelogNavLink = () => {
   const { unseen } = useChangelogSeen();
   const count = unseen.length;
 

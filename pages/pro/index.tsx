@@ -1,7 +1,12 @@
 import { useEffect } from "react";
-import Head from "next/head";
+import { PageSeo } from "@/components/Helmet/Head";
+import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
+import { TIER_ORDER } from "@/lib/pro/botTiers";
 import { ProLanding } from "@/components/Pro/ProLanding";
 import { markProNewSeen } from "@/components/Navbar/ProNavButton";
+
+/** Counted from the catalogs, so the meta can't drift from the product (#1353). */
+const PRO_DESCRIPTION = `Play Unmatched fan decks with full rules enforcement in your browser: legal moves only, combat math done, hands hidden. Fight bots at ${TIER_ORDER.length} tiers up to Prodigy, a friend or a stranger, on ${MAP_CATALOG.filter((entry) => !entry.hidden).length} boards. No install.`;
 
 /**
  * Unbrewed Pro — the rules-enforced mode (open beta).
@@ -15,14 +20,12 @@ const ProPage = () => {
 
   return (
     <>
-      <Head>
-        {/* single string child: next/head warns on a multi-child <title> */}
-        <title>{"Unbrewed Pro — rules-enforced Unmatched: play vs bots or friends in your browser"}</title>
-        <meta
-          name="description"
-          content="Play Unmatched with full rules enforcement in your browser. A referee server allows only legal moves, does the combat math, and keeps hands hidden — battle a bot at three difficulties, a friend, or a stranger. No account, no install."
-        />
-      </Head>
+      <PageSeo
+        path="/pro"
+        title="Unbrewed Pro — rules-enforced Unmatched: play vs bots or friends in your browser"
+        description={PRO_DESCRIPTION}
+        image="/og-pro.png"
+      />
       <ProLanding />
     </>
   );
