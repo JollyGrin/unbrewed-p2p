@@ -148,7 +148,7 @@ describe("/stats?u= — a player who exists", () => {
       expect(screen.queryByRole("heading", { name })).toBeNull();
     }
     // Roster and badges still render from the fields prod has.
-    expect(screen.getByTestId("roster-played")).toHaveTextContent("1 of 33 played");
+    expect(screen.getByTestId("roster-played")).toHaveTextContent("1 of 34 played");
     expect(screen.getByTestId("main-hero")).toHaveTextContent("Thrall");
     expect(screen.queryByTestId("main-hero-crown")).toBeNull();
     expect(screen.queryByTestId("roster-generalist")).toBeNull();
@@ -227,7 +227,7 @@ describe("/stats?u= — the full contract payload", () => {
     expect(await screen.findByRole("button", { name: "Older games" })).toBeInTheDocument();
     // Every roster slot links to its hero page.
     const links = screen.getByTestId("roster-grid").querySelectorAll("a");
-    expect(links).toHaveLength(33);
+    expect(links).toHaveLength(34);
     expect(links[0].getAttribute("href")).toMatch(/^\/heroes\?h=/);
   });
 
