@@ -2114,6 +2114,11 @@ export interface ViewCombat {
  * `title` (and `seat` / `fighter`) OMITTED, because its identity is not public; ids and
  * counts are. `seat` names a SEAT card's player (or a FIGHTER card's owner), `fighter` the
  * fighter a FIGHTER card activates.
+ *
+ * #819 — the card as PRINTED, on REVEALED cards only (a face-down card projects none of it):
+ * `rightNow` / `endOfRound` are its RIGHT NOW / END OF ROUND boxes' wording, verbatim; `move` is a
+ * FIGHTER card's printed MOVE. All ABSENT-WHEN-EMPTY (a SEAT card, a box the card does not print),
+ * and only adventure games have a row, so no other view's bytes change.
  */
 export interface ViewInitiativeCard {
   id: string;
@@ -2122,6 +2127,9 @@ export interface ViewInitiativeCard {
   seat?: PlayerId;
   fighter?: FighterId;
   faceDown?: true;
+  move?: number;
+  rightNow?: string;
+  endOfRound?: string;
 }
 
 export interface ViewInitiative {

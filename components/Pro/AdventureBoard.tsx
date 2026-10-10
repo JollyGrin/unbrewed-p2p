@@ -5,7 +5,8 @@ import {
   DOCK_RIGHT,
   DOCK_WIDTH,
 } from "./dockLayout";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Popover, PopoverContent, PopoverTrigger, Portal, Text } from "@chakra-ui/react";
+import { TbHourglass } from "react-icons/tb";
 import { useEffect, useState } from "react";
 import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
 import { EngineFaultBanner } from "./EngineFaultBanner";
@@ -23,8 +24,10 @@ import { TEAM_GUIDANCE, teamChoosingTitle } from "@/lib/pro/adventureCopy";
 import {
   adventureBoardModel,
   enemyCombatModel,
+  firstLineOf,
   teamDecisionModel,
 } from "@/lib/pro/adventureBoard";
+import { useEndOfRoundWalk } from "@/lib/pro/useEndOfRoundWalk";
 import type {
   AdventureBoardModel,
   EnemyCombatSide,
@@ -75,6 +78,141 @@ const CardFace = ({ cardId, h, testid }: { cardId: string | null | undefined; h:
   );
 };
 
+/** The gold ring: the card taking its turn, or the END OF ROUND box resolving (#1149). */
+const hot = (e: InitiativeRowEntry) => e.state === "now" || e.resolving;
+
+/** A revealed row card has a face worth opening: CDN art, or printed text (engine #819). */
+const hasFace = (e: InitiativeRowEntry) =>
+  e.state !== "down" && (!!adventureCardArt(e.artKey) || e.move != null || !!e.rightNow || !!e.endOfRound);
+
+const PrintedBox = ({ label, text, testid }: { label: string; text: string; testid: string }) => (
+  <Box data-testid={testid} border="1px solid" borderColor="whiteAlpha.400" borderRadius="sm" px="0.4rem" py="0.3rem">
+    <Text {...LBL} color={GOLD} opacity={1}>
+      {label}
+    </Text>
+    <Text fontSize="0.72rem" lineHeight="1.25" whiteSpace="pre-line">
+      {text}
+    </Text>
+  </Box>
+);
+
+/**
+ * A row card read the way a player reads the physical card (#1149): the real face from the CDN
+ * when one is uploaded (`contain` — initiative faces are ~0.62 w:h), else a text card in the
+ * same shape from the printed fields: title, MOVE, RIGHT NOW, END OF ROUND.
+ */
+export const InitiativeCardFace = ({ e }: { e: InitiativeRowEntry }) => {
+  const src = adventureCardArt(e.artKey);
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={e.card.title ?? e.label}
+        data-testid={`adv-init-face-${e.card.id}`}
+        style={{ height: "min(22rem, 70vh)", width: "auto", maxWidth: "90vw", objectFit: "contain", display: "block" }}
+      />
+    );
+  }
+  return (
+    <Flex
+      data-testid={`adv-init-face-${e.card.id}`}
+      direction="column"
+      gap="0.35rem"
+      w="12rem"
+      maxW="90vw"
+      minH="19.4rem"
+      p="0.6rem"
+      bg="rgba(20,8,24,0.96)"
+      color="white"
+      border="1px solid"
+      borderColor={e.who === "enemy" ? ENEMY_RED : "rgba(231,204,152,0.4)"}
+      borderRadius="md"
+    >
+      <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.06em" lineHeight="1.05">
+        {(e.card.title ?? e.name ?? e.label).toUpperCase()}
+      </Text>
+      {e.name && e.card.title && e.name !== e.card.title && (
+        <Text {...LBL}>{e.name.toUpperCase()}</Text>
+      )}
+      {e.move != null && (
+        <Text data-testid={`adv-init-face-move-${e.card.id}`} fontFamily="LeagueGothic" fontSize="1rem" letterSpacing="0.08em">
+          MOVE {e.move}
+        </Text>
+      )}
+      {e.rightNow && <PrintedBox label="RIGHT NOW" text={e.rightNow} testid={`adv-init-face-rn-${e.card.id}`} />}
+      {e.endOfRound && <PrintedBox label="END OF ROUND" text={e.endOfRound} testid={`adv-init-face-eor-${e.card.id}`} />}
+    </Flex>
+  );
+};
+
+/** Hover (desktop) or tap (touch) a revealed row card to read its face (#1149). */
+const WithCardFace = ({ e, children }: { e: InitiativeRowEntry; children: JSX.Element }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover isOpen={open} onClose={() => setOpen(false)} placement="left-start" isLazy gutter={6}>
+      <PopoverTrigger>
+        <Box
+          as="button"
+          type="button"
+          cursor="pointer"
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {children}
+        </Box>
+      </PopoverTrigger>
+      <Portal>
+        {/* rootProps: the popper wrapper otherwise sits at z 10, under the seat plates (as ProHud). */}
+        <PopoverContent rootProps={{ zIndex: "popover" }} w="auto" bg="transparent" border="none" boxShadow="dark-lg">
+          <InitiativeCardFace e={e} />
+        </PopoverContent>
+      </Portal>
+    </Popover>
+  );
+};
+
+/** The row chip's END OF ROUND marker: the icon and the box's first line, so the pile-up reads
+ *  without hovering (#1149). */
+const EndOfRoundMarker = ({ e }: { e: InitiativeRowEntry }) => (
+  <Flex
+    data-testid={`adv-init-eor-${e.card.id}`}
+    align="center"
+    gap="0.1rem"
+    maxW="3.4rem"
+    color={e.resolving ? GOLD : "whiteAlpha.800"}
+    fontSize="0.5rem"
+    lineHeight="1.1"
+  >
+    <Box as={TbHourglass} flexShrink={0} boxSize="0.6rem" />
+    <Text noOfLines={1} wordBreak="break-all">
+      {firstLineOf(e.endOfRound!)}
+    </Text>
+  </Flex>
+);
+
+/** AT ROUND END (#1155): the row's END OF ROUND boxes in the order they will resolve. */
+const AtRoundEnd = ({ model }: { model: AdventureBoardModel }) => (
+  <Flex data-testid="adv-at-round-end" direction="column" gap="0.15rem" borderTop="1px solid" borderColor="whiteAlpha.200" pt="0.25rem">
+    <Text {...LBL}>AT ROUND END</Text>
+    {model.atRoundEnd.map((b, i) => (
+      <Text
+        key={b.id}
+        data-testid={`adv-at-round-end-${b.id}`}
+        data-resolving={b.resolving ? "true" : undefined}
+        fontSize="0.65rem"
+        lineHeight="1.2"
+        noOfLines={2}
+        color={b.resolving ? GOLD : "whiteAlpha.900"}
+        fontWeight={b.resolving ? "bold" : "normal"}
+      >
+        {i + 1}. {b.title}: {b.text}
+      </Text>
+    ))}
+  </Flex>
+);
+
 const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => {
   const enemy = e.who === "enemy";
   // #1181: two letters ("Darth Vader" → DV) so sibling chips with the same first word differ.
@@ -95,8 +233,8 @@ const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => 
       flexShrink={0}
       bg={enemy ? "rgba(229,139,139,0.22)" : "whiteAlpha.300"}
       border="2px solid"
-      borderColor={e.state === "now" ? GOLD : enemy ? ENEMY_RED : "whiteAlpha.400"}
-      boxShadow={e.state === "now" ? `0 0 8px 1px ${GOLD}` : "none"}
+      borderColor={hot(e) ? GOLD : enemy ? ENEMY_RED : "whiteAlpha.400"}
+      boxShadow={hot(e) ? `0 0 8px 1px ${GOLD}` : "none"}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -178,7 +316,8 @@ export const InitiativeRow = ({
           const dupN = dupOrdinals.get(e.card.id);
           const down = e.state === "down";
           const src = e.fighter && fighterTokenArt ? fighterTokenArt(e.fighter) : null;
-          return (
+          const face = hasFace(e);
+          const chip = (
             <Flex
               key={e.card.id}
               data-testid={`adv-init-${e.card.id}`}
@@ -187,12 +326,13 @@ export const InitiativeRow = ({
               data-current={e.current ? "true" : undefined}
               data-face-down={down ? "true" : undefined}
               data-state={e.state}
+              data-resolving={e.resolving ? "true" : undefined}
               position="relative"
               direction="column"
               align="center"
               gap="0.1rem"
-              opacity={e.state === "done" ? 0.45 : 1}
-              title={tip}
+              opacity={e.state === "done" && !e.resolving ? 0.45 : 1}
+              title={face ? undefined : tip}
               aria-label={tip}
             >
               {down ? (
@@ -233,7 +373,15 @@ export const InitiativeRow = ({
                   {dupN}
                 </Text>
               )}
+              {e.endOfRound && <EndOfRoundMarker e={e} />}
             </Flex>
+          );
+          return face ? (
+            <WithCardFace key={e.card.id} e={e}>
+              {chip}
+            </WithCardFace>
+          ) : (
+            chip
           );
         })}
         {model.stillToFlip > 0 && (
@@ -242,6 +390,7 @@ export const InitiativeRow = ({
           </Text>
         )}
       </Flex>
+      {model.atRoundEnd.length > 0 && <AtRoundEnd model={model} />}
     </Flex>
   );
 };
@@ -714,8 +863,12 @@ export const AdventureBoard = ({
   }, [onBoardArrow, arrow?.attacker, arrow?.target]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onBoardArrow?.(null), [onBoardArrow]);
   const breakout = useBreakoutMoment(view, events);
+  const walk = useEndOfRoundWalk(view, events);
   const model = adventureBoardModel(view);
   if (!model) return null;
+  // The END OF ROUND walk replays on the strip from the row it resolved (#1149).
+  const walkModel = walk ? adventureBoardModel(walk.view, { resolvingId: walk.resolvingId }) : null;
+  const strip = walkModel ? { ...walkModel, phase: "END_OF_ROUND" } : model;
   const faulted = engineFault != null;
   // A stopped table has no one "choosing" and no mover: clear those indicators.
   const decision = faulted ? null : teamDecisionModel(view);
@@ -757,8 +910,8 @@ export const AdventureBoard = ({
         overflowY="auto"
         sx={{ "& > *": { pointerEvents: "auto", flexShrink: 0 } }}
       >
-      {(model.row.length > 0 || model.round != null) && (
-        <InitiativeRow model={model} fighterTokenArt={fighterTokenArt} />
+      {(strip.row.length > 0 || strip.round != null) && (
+        <InitiativeRow model={strip} fighterTokenArt={fighterTokenArt} />
       )}
       {model.villain && (
         <VillainHeader villain={model.villain} objective={model.objective} />

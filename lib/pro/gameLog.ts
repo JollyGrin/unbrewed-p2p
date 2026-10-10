@@ -752,6 +752,10 @@ export interface EnrichContext {
    *  ("You", "Opponent", a fighter or effect name), or null when the card is face-down /
    *  unknown — the line then says "a hidden card". */
   initiative?: (card: string) => string | null | undefined;
+  /** Adventure: the END OF ROUND boxes this batch resolved, left to right, as printed (#1149,
+   *  `lib/pro/endOfRoundWalk`). Each gets a line naming its card — before "End of round n" when
+   *  the batch ends the round, else (a box parked on a prompt) at the end of the batch. */
+  endOfRound?: { title: string; text: string }[];
   /** Adventure: the threat track's last numbered position (for "s/S"). */
   threatSize?: number;
   /** Adventure: the scenario's marker / mark labels (`scenario.display.markers`). */
@@ -792,6 +796,14 @@ export function enrichLines(
   const objectOf = (space: string) => {
     const n = ctx.objectNumber?.(space);
     return n != null ? `${objectNoun.singular} ${String(n).padStart(2, "0")}` : null;
+  };
+
+  // The END OF ROUND boxes, once per batch (#1149).
+  let boxesLogged = false;
+  const endOfRoundLines = (): ProLogLine[] => {
+    if (boxesLogged) return [];
+    boxesLogged = true;
+    return (ctx.endOfRound ?? []).map((b) => ({ text: `End of round · ${b.title}: ${b.text}`, who: "game" as const }));
   };
 
   // A card instance rendered on a NEW line so the panel can hover its face.
@@ -1002,6 +1014,7 @@ export function enrichLines(
         added.push({ text: `ROUND ${e.round}`, who: "game", round: e.round });
         break;
       case "ROUND_ENDED":
+        added.push(...endOfRoundLines());
         added.push({ text: `End of round ${e.round}`, who: "game" });
         break;
       case "INITIATIVE_REVEALED": {
@@ -1277,5 +1290,6 @@ export function enrichLines(
     }
   }
 
+  added.push(...endOfRoundLines());
   return [...out, ...added];
 }

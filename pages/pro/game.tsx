@@ -200,6 +200,7 @@ import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
 import { scenarioObjectModel, scenarioObjectNumbers } from "@/lib/pro/scenarioObjects";
+import { endOfRoundSteps } from "@/lib/pro/endOfRoundWalk";
 import {
   FormatLobbyBriefing,
   FormatLobbySeats,
@@ -5064,6 +5065,10 @@ const LiveGame = ({
             objectNoun: next.scenario?.display?.objectNoun,
             threatSize: next.scenario?.threat.positions.length,
             markerLabels: next.scenario?.display?.markers,
+            endOfRound: endOfRoundSteps(prevViewRef.current, next, snapshot.events)?.cards.map((c) => ({
+              title: c.title ?? c.id,
+              text: c.endOfRound!,
+            })),
             initiative: (card) => {
               const c = next.initiative?.row.find((r) => r.id === card);
               if (!c || c.faceDown) return null;
