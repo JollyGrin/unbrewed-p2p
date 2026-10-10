@@ -27,8 +27,9 @@ const Pill = ({ children }: { children: React.ReactNode }) => (
  * Two oversized gradient layers over brand.secondary that drift in opposite
  * directions. Pure CSS, transform-only (compositor, no JS). Each loop starts and
  * ends at translate(0) — the same frame SSR paints and reduced motion keeps — so
- * there is no jump on hydration. The warm plum is translucent and kept to the
- * corners, so the hero's text stays AA at the lightest moment of the loop.
+ * there is no jump on hydration. Loops are 14 s / 11 s so the wash moves within
+ * seconds but never syncs into a pulse. The warm plum is translucent and sits
+ * below the eyebrow line, so the hero's text stays AA at the lightest moment.
  * Gradients go in inline style: Chakra's bg parser chokes on `… at …` in jsdom.
  */
 const DRIFT = {
@@ -41,14 +42,14 @@ const HeroGradient = () => (
     <Box
       position="absolute"
       inset="-30%"
-      style={{ backgroundImage: "radial-gradient(40% 38% at 24% 26%, rgba(90,50,99,.7), transparent 70%), radial-gradient(46% 42% at 78% 80%, rgba(44,24,49,.85), transparent 72%)" }}
+      style={{ backgroundImage: "radial-gradient(40% 38% at 20% 38%, rgba(106,59,116,.7), transparent 70%), radial-gradient(46% 42% at 78% 80%, rgba(44,24,49,.85), transparent 72%)" }}
       sx={{
         "@keyframes heroDriftA": {
           "0%, 100%": { transform: "translate3d(0, 0, 0)" },
-          "30%": { transform: "translate3d(7%, 5%, 0) rotate(4deg)" },
-          "70%": { transform: "translate3d(-6%, -4%, 0) rotate(-3deg)" },
+          "30%": { transform: "translate3d(12%, 9%, 0) rotate(6deg)" },
+          "70%": { transform: "translate3d(-11%, -7%, 0) rotate(-5deg)" },
         },
-        animation: "heroDriftA 34s ease-in-out infinite alternate",
+        animation: "heroDriftA 14s ease-in-out infinite alternate",
         ...DRIFT,
       }}
     />
@@ -59,10 +60,10 @@ const HeroGradient = () => (
       sx={{
         "@keyframes heroDriftB": {
           "0%, 100%": { transform: "translate3d(0, 0, 0)" },
-          "40%": { transform: "translate3d(-6%, 6%, 0)" },
-          "75%": { transform: "translate3d(5%, -5%, 0)" },
+          "40%": { transform: "translate3d(-11%, 10%, 0)" },
+          "75%": { transform: "translate3d(9%, -9%, 0)" },
         },
-        animation: "heroDriftB 27s ease-in-out infinite alternate",
+        animation: "heroDriftB 11s ease-in-out infinite alternate",
         ...DRIFT,
       }}
     />
