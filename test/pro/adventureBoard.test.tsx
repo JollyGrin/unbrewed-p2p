@@ -962,6 +962,27 @@ describe("teamDecisionModel readability (#1169)", () => {
     (v as unknown as { players: unknown[] }).players.push({ id: "e1", heroId: "indominus-rex", you: false });
     expect(teamDecisionModel(v)?.forName).toBe("Indominus Rex");
   });
+  it("names an unplaced enemy being spawned (#1150), and who is placed", () => {
+    const v = base("CHOOSE_SPACE", [{ id: "s2", label: "s2" }]);
+    (v.prompt as unknown as { forSeat: string; description: string }).forSeat = "indominus-rex";
+    (v.prompt as unknown as { description: string }).description = "Choose a space to place the fighter";
+    (v.fighters as unknown[]).push(
+      fighter("m1/indominus-rex", "Indominus Rex", {
+        owner: "engine",
+        kind: "ENEMY",
+        space: null,
+        enemy: { role: "MINION", enemyId: "indominus-rex", move: 2, deckCount: 5, discardTop: null },
+      }),
+    );
+    const m = teamDecisionModel(v);
+    expect(m?.forName).toBe("Indominus Rex");
+    expect(m?.description).toBe("Choose a space to place Indominus Rex");
+  });
+  it("an unknown seat still renders the raw id", () => {
+    const v = base("CHOOSE_SPACE", [{ id: "s2", label: "s2" }]);
+    (v.prompt as unknown as { forSeat: string }).forSeat = "ghost";
+    expect(teamDecisionModel(v)?.forName).toBe("ghost");
+  });
   it("space prompts become a count plus highlighted spaces", () => {
     const m = teamDecisionModel(
       base("CHOOSE_SPACE", [
