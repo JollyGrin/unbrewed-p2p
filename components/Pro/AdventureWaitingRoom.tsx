@@ -1,5 +1,5 @@
 import { Flex, Text } from "@chakra-ui/react";
-import { enemyHpAt, enemySizeMove, waitingRoster } from "@/lib/pro/adventureLobby";
+import { enemyHpAt, enemySizeMove, heroSeatRange, waitingRoster } from "@/lib/pro/adventureLobby";
 import { useScenarios } from "@/lib/pro/adventureScenarios";
 import type { ProRoomInfo } from "@/lib/pro/useProSocket";
 import { EnemyToken } from "@/components/Pro/EnemyToken";
@@ -17,6 +17,7 @@ export const AdventureWaitingRoom = ({ roomInfo }: { roomInfo: ProRoomInfo }) =>
   const required = roomInfo.requiredPlayers;
   const seated = roomInfo.seats.length;
   const rows = status ? waitingRoster(status, scenarios) : [];
+  const seatRange = heroSeatRange(scenarios.find((s) => s.id === status?.id) ?? null);
   return (
     <Flex direction="column" align="center" gap="0.6rem" data-testid="adventure-waiting">
       <Text opacity={0.85} textAlign="center" data-testid="adventure-waiting-line">
@@ -43,7 +44,7 @@ export const AdventureWaitingRoom = ({ roomInfo }: { roomInfo: ProRoomInfo }) =>
               </Flex>
               {r.enemy && (
                 <Text fontFamily="SpaceGrotesk" fontSize="0.64rem" textAlign="right" opacity={0.85}>
-                  <b>{enemyHpAt(r.enemy, required) ?? "?"}</b> HP · {enemySizeMove(r.enemy)}
+                  <b>{enemyHpAt(r.enemy, required, seatRange) ?? "?"}</b> HP · {enemySizeMove(r.enemy)}
                 </Text>
               )}
             </Flex>

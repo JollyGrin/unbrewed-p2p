@@ -57,6 +57,14 @@ describe("AdventureBriefing (#1153)", () => {
     expect(screen.getByTestId("adventure-briefing-turn")).toHaveTextContent("2 actions");
   });
 
+  it("kicks with the given hero-seat range, 1–4 when no listing is known (#1360)", () => {
+    const { unmount } = wrap(<AdventureBriefing label="X" seats={{ min: 1, max: 4 }} />);
+    expect(screen.getByTestId("adventure-briefing-header")).toHaveTextContent("1–4 HEROES");
+    unmount();
+    wrap(<AdventureBriefing label="X" />);
+    expect(screen.getByTestId("adventure-briefing-header")).toHaveTextContent("ADVENTURE · CO-OP · 1–4 HEROES");
+  });
+
   it("hides scenario tiles when the briefing is missing; format tiles still render", () => {
     wrap(<AdventureBriefing label="Isla Nublar" briefing={undefined} display={DISPLAY} />);
     for (const id of ["scenario", "win", "lose", "threat", "special", "tagline"]) {
@@ -137,6 +145,12 @@ describe("Adventure lobby with a scenario listing (#1153)", () => {
   it("renders the lobby briefing for the selected scenario", () => {
     wrap(<LobbyBriefing setup={defaultAdventureSetup()} />);
     expect(screen.getByTestId("adventure-briefing-win")).toBeInTheDocument();
+  });
+
+  it("kicks the briefing with the scenario's hero-seat range (#1360)", () => {
+    setScenarios([{ ...ISLA, heroSeats: { min: 2, max: 3 } }]);
+    wrap(<LobbyBriefing setup={defaultAdventureSetup()} />);
+    expect(screen.getByTestId("adventure-briefing-header")).toHaveTextContent("ADVENTURE · CO-OP · 2–3 HEROES");
   });
 });
 

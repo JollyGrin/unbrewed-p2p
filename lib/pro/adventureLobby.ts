@@ -24,6 +24,9 @@ const FALLBACK_SEATS: HeroSeatRange = { min: ADVENTURE_MIN_HUMANS, max: ADVENTUR
 export const heroSeatRange = (scenario: Pick<ScenarioListing, "heroSeats"> | null): HeroSeatRange =>
   scenario?.heroSeats ?? FALLBACK_SEATS;
 
+/** "1–4 HEROES", or "2 HEROES" for a scenario that plays at one table size. */
+export const heroSeatsLabel = ({ min, max }: HeroSeatRange): string => `${min === max ? min : `${min}–${max}`} HEROES`;
+
 /** Every pickable table size in a range, ascending. */
 export const heroSeatCounts = ({ min, max }: HeroSeatRange): number[] =>
   Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => min + i);
@@ -38,10 +41,10 @@ export interface AdventureEnemyOption {
 
 const optionOf = (e: EnemyListing): AdventureEnemyOption => ({ id: e.id, name: e.name, enemy: e });
 
-/** An enemy's HP at a table of `humans` heroes: `hp` is indexed by hero count, clamped to its last entry. null if the listing carries none. */
-export const enemyHpAt = (enemy: Pick<EnemyListing, "hp">, humans: number): number | null => {
+/** An enemy's HP at a table of `humans` heroes (clamped to the scenario's `range`): `hp` is indexed by hero count, clamped to its last entry. null if the listing carries none. */
+export const enemyHpAt = (enemy: Pick<EnemyListing, "hp">, humans: number, range: HeroSeatRange = FALLBACK_SEATS): number | null => {
   if (enemy.hp.length === 0) return null;
-  const i = Math.min(clampHumans(humans), enemy.hp.length) - 1;
+  const i = Math.min(clampHumans(humans, range), enemy.hp.length) - 1;
   return enemy.hp[i] ?? null;
 };
 
@@ -143,9 +146,9 @@ export const setMinion = (setup: AdventureSetup, slot: number, minionId: string 
   return { ...setup, minionIds: setup.minionIds.map((m, i) => (i === slot ? minionId : m)) };
 };
 
-/** The seats the creator can pre-fill with a bot at a table of `humans` heroes (p1 is theirs). */
-export const adventureSeats = (humans: number): PlayerId[] =>
-  (["p2", "p3", "p4"] as PlayerId[]).slice(0, Math.max(0, clampHumans(humans) - 1));
+/** The seats the creator can pre-fill with a bot at a table of `humans` heroes (clamped to the scenario's `range`; p1 is theirs). */
+export const adventureSeats = (humans: number, range: HeroSeatRange = FALLBACK_SEATS): PlayerId[] =>
+  (["p2", "p3", "p4"] as PlayerId[]).slice(0, Math.max(0, clampHumans(humans, range) - 1));
 
 export interface WaitingEnemyRow {
   role: "VILLAIN" | "MINION";
