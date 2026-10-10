@@ -751,6 +751,10 @@ export const SeatPlate = ({
   const [openPile, setOpenPile] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // #1345: a compact plate is always the collapsed bar, so its chevron pins the full
+  // plate (the hover-peek body) open as an anchored popover instead of writing layout.
+  const [pinned, setPinned] = useState(false);
+  const plateRef = useRef<HTMLDivElement>(null);
   const handCount = typeof hand === "number" ? hand : hand.length;
   const heroName = heroFighter?.name ?? hero?.name ?? "";
   const rules = ruleCards.filter((r) => r.content?.trim());
@@ -784,7 +788,27 @@ export const SeatPlate = ({
     animate(y, 0, spring);
     onUpdate({ x: 0, y: 0 });
   };
-  const toggleCollapse = () => onUpdate({ collapsed: !collapsed });
+  const pinnedOpen = compact && pinned;
+  const toggleCollapse = () =>
+    compact ? setPinned((p) => !p) : onUpdate({ collapsed: !collapsed });
+
+  // Escape or a click/tap outside the plate closes the pinned popover. Listeners
+  // exist only while it is open and never swallow the event, so board clicks go through.
+  useEffect(() => {
+    if (!pinnedOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPinned(false);
+    };
+    const onDown = (e: PointerEvent) => {
+      if (plateRef.current && !plateRef.current.contains(e.target as Node)) setPinned(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [pinnedOpen]);
 
   // The seat's worn badges (issues #577/#718), on BOTH plates — this is the
   // first cosmetic the opponent can see, which is the whole point of putting
@@ -987,15 +1011,17 @@ export const SeatPlate = ({
     </Tag>
   ) : null;
 
-  const controls = hovered ? (
+  // Compact plates keep the chevron visible: hover never fires on touch.
+  const showExpanded = compact ? pinned : !collapsed;
+  const controls = hovered || compact ? (
     <Flex alignItems="center" gap="0.15rem" flexShrink={0}>
       {moved && (
         <CtrlBtn title="Reset position" onClick={resetPos}>
           <TbArrowBackUp size="0.8rem" />
         </CtrlBtn>
       )}
-      <CtrlBtn title={collapsed ? "Expand plate" : "Collapse plate"} onClick={toggleCollapse}>
-        {collapsed ? <TbChevronDown size="0.8rem" /> : <TbChevronUp size="0.8rem" />}
+      <CtrlBtn title={showExpanded ? "Collapse plate" : "Expand plate"} onClick={toggleCollapse}>
+        {showExpanded ? <TbChevronUp size="0.8rem" /> : <TbChevronDown size="0.8rem" />}
       </CtrlBtn>
     </Flex>
   ) : null;
@@ -1248,6 +1274,7 @@ export const SeatPlate = ({
         sheetBody
       ) : (
       <motion.div
+        ref={plateRef}
         drag
         dragListener={false}
         dragControls={dragControls}
@@ -1271,6 +1298,7 @@ export const SeatPlate = ({
             p={0}
             maxW="none"
             label={peekPlate}
+            isDisabled={pinnedOpen}
           >
             <StatContainer isLocal={isLocal} compact={compact}>
               <PlayerTitleBar {...titleBarDrag}>
@@ -1340,6 +1368,21 @@ export const SeatPlate = ({
             {pipFooter}
             {timerBar}
           </StatContainer>
+        )}
+        {pinnedOpen && (
+          // #1345: absolutely anchored under the plate, so it never moves the row or
+          // the board; only its own box takes clicks.
+          <Box
+            position="absolute"
+            top="100%"
+            left={0}
+            mt="0.25rem"
+            zIndex={60}
+            data-testid="plate-pinned-detail"
+            onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+          >
+            {peekPlate}
+          </Box>
         )}
       </motion.div>
       )}

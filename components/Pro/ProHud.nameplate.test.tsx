@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProHud } from "./ProHud";
 import { PlayerId, PlayerView, ProMapDef, ViewPlayer } from "@/lib/pro/protocol";
@@ -295,5 +295,35 @@ describe("ProHud title bar — chip wrap guard + compact pills (issue #786)", ()
       expect(pill).toHaveAttribute("title", "TREASURE: 2");
       expect(pill).toHaveAttribute("aria-label", "TREASURE: 2");
     });
+  });
+});
+
+describe("ProHud compact plate — chevron pins the detail (issue #1345)", () => {
+  const adventureView = () => {
+    const view = makeView([seat("p1", true, "Dean")], "p1");
+    // an initiative track marks the view as an Adventure board → compact plates
+    (view as unknown as { initiative: unknown }).initiative = { order: [], active: null };
+    return view;
+  };
+
+  it("expands the full plate on chevron click, hides it on the second, and closes on Escape", () => {
+    renderHud(adventureView());
+    expect(screen.queryByTestId("plate-pinned-detail")).toBeNull();
+
+    fireEvent.click(screen.getByTitle("Expand plate"));
+    const detail = screen.getByTestId("plate-pinned-detail");
+    // the pile row (hand/deck/discard pips) is only in the full plate body
+    expect(detail.querySelectorAll("svg").length).toBeGreaterThan(4);
+
+    fireEvent.click(screen.getByTitle("Collapse plate"));
+    expect(screen.queryByTestId("plate-pinned-detail")).toBeNull();
+
+    fireEvent.click(screen.getByTitle("Expand plate"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("plate-pinned-detail")).toBeNull();
+
+    fireEvent.click(screen.getByTitle("Expand plate"));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByTestId("plate-pinned-detail")).toBeNull();
   });
 });
