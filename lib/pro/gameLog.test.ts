@@ -2347,6 +2347,30 @@ describe("dockTurnLabel", () => {
   it("falls back to the seat possessive outside adventure", () => {
     expect(dockTurnLabel(view({}), false, "opponent's")).toBe("OPPONENT'S TURN");
     expect(dockTurnLabel(view({}), true, "your")).toBe("YOUR TURN");
+    expect(dockTurnLabel(view({ activePlayer: "p2" }), false, "p2's")).toBe("P2'S TURN");
+  });
+
+  // #1361 — no initiative card current (end of round, breakout placement)
+  const adv = (phase: "TURN" | "END_OF_ROUND", activePlayer: PlayerView["activePlayer"]): PlayerView =>
+    view({
+      activePlayer,
+      players: [
+        ...view({}).players,
+        { id: "p3", heroId: "isla-nublar", you: false, handCount: 0, deckCount: 0, discard: [], hasCommitted: false, counters: {}, flags: {}, wonCombatThisTurn: false, lostCombatThisTurn: false, firstAttackThisTurn: false, playedACardThisTurn: false, tookDamageThisTurn: false },
+      ] as PlayerView["players"],
+      fighters: [
+        fighter({}),
+        { ...fighter({ id: "e/boss", owner: "p3", name: "Dr. Wu", space: "s3" }), enemy: { role: "VILLAIN", enemyId: "wu", deckCount: 3, discardTop: null } },
+      ] as unknown as PlayerView["fighters"],
+      initiative: { round: 1, phase, deckCount: 1, current: null, row: [{ id: "wu", title: "Dr. Wu", entry: "FIGHTER", fighter: "e/boss" }] } as unknown as PlayerView["initiative"],
+      scenario: { label: "Isla Nublar" } as unknown as PlayerView["scenario"],
+    });
+  it("names the enemy seat, not P3, when it is active with no current card", () => {
+    expect(dockTurnLabel(adv("TURN", "p3"), false, "p3's")).toBe("ISLA NUBLAR'S TURN");
+  });
+  it("reads ROUND END at end of round instead of a seat", () => {
+    expect(dockTurnLabel(adv("END_OF_ROUND", "p3"), false, "p3's")).toBe("ROUND END");
+    expect(dockTurnLabel(adv("END_OF_ROUND", "p1"), true, "your")).toBe("ROUND END");
   });
 });
 
