@@ -164,7 +164,8 @@ const WithCardFace = ({ e, children }: { e: InitiativeRowEntry; children: JSX.El
         </Box>
       </PopoverTrigger>
       <Portal>
-        <PopoverContent w="auto" bg="transparent" border="none" boxShadow="dark-lg" zIndex={1500}>
+        {/* rootProps: the popper wrapper otherwise sits at z 10, under the seat plates (as ProHud). */}
+        <PopoverContent rootProps={{ zIndex: "popover" }} w="auto" bg="transparent" border="none" boxShadow="dark-lg">
           <InitiativeCardFace e={e} />
         </PopoverContent>
       </Portal>
