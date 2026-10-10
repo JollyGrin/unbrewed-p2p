@@ -22,7 +22,6 @@ import {
   setToken,
 } from "./recentRooms";
 import { botsFromCreateRoom, RoomBots } from "./rematch";
-import { adventureLabEnabled } from "./adventureGate";
 import { adventureCreateFields, NO_SCENARIO_REASON } from "./adventureLobby";
 import { currentAdventureSetup, scenariosLoaded, getScenarios, setScenarios } from "./adventureScenarios";
 import {
@@ -63,7 +62,13 @@ import {
   RematchOfferState,
   rematchOfferReducer,
 } from "./rematchOffer";
-import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
+import {
+  engineListsScenarios,
+  engineSpeaksRematch,
+  forgetEngineVersion,
+  rememberEngineVersion,
+  wireVersionFor,
+} from "./wireVersion";
 
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
@@ -802,6 +807,7 @@ export function useProSocket(
     setStatus((s) => (s === "idle" || s === "connecting" ? "connecting" : "reconnecting"));
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    let scenariosAsked = false;
 
     ws.onopen = () => {
       retryRef.current.attempts = 0;
@@ -817,12 +823,6 @@ export function useProSocket(
         type: "LIST_HEROES",
         ...(debugRef.current ? { debug: true } : {}),
       });
-      // The Adventure lobby's scenario roster (engine #664) — lab-gated so the
-      // regular lobby never asks a server that may not know the message.
-      if (adventureLabEnabled()) {
-        scenariosPendingRef.current = true;
-        send({ v: PROTOCOL_VERSION, type: "LIST_SCENARIOS" });
-      }
       const room = roomRef.current;
       const token = room ? getToken(room) : null;
       if (room && token) {
@@ -846,6 +846,18 @@ export function useProSocket(
       // Every frame stamps the engine's version — how the tab learns it may
       // speak v35 (p2p #880; /healthz has no CORS header to read it from).
       if (wsUrl) rememberEngineVersion(wsUrl, (msg as { v?: unknown }).v);
+      // The Adventure lobby's scenario roster (engine #664, #1343): asked once per
+      // socket, after its first frame says which engine this is — only one that
+      // speaks it is ever sent LIST_SCENARIOS. Any other engine lists none.
+      if (!scenariosAsked && wsRef.current === ws) {
+        scenariosAsked = true;
+        if (engineListsScenarios((msg as { v?: unknown }).v)) {
+          scenariosPendingRef.current = true;
+          send({ v: PROTOCOL_VERSION, type: "LIST_SCENARIOS" });
+        } else {
+          setScenarios([]);
+        }
+      }
       switch (msg.type) {
         case "HEROES":
           setHeroes(msg.heroes);

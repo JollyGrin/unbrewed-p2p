@@ -33,6 +33,7 @@ import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
 import { MAP_CATALOG, FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
+import { useAdventureListed } from "@/lib/pro/adventureScenarios";
 import type { BotDifficulty, HeroListing } from "@/lib/pro/protocol";
 import { vsParamFor } from "@/lib/pro/vsParam";
 
@@ -98,6 +99,7 @@ const skewChip = (deg = -6) => ({
 
 export const ProLanding = () => {
   const [replaysEnabled] = useFlag("replays");
+  const withAdventure = useAdventureListed();
   const [picked, setPicked] = useState<RosterEntry>();
   const [hovered, setHovered] = useState<RosterEntry>();
   const [previewEntry, setPreviewEntry] = useState<RosterEntry>();
@@ -593,7 +595,7 @@ export const ProLanding = () => {
                     {entry.title}
                   </Text>
                   <Flex gap="0.25rem" flexWrap="wrap">
-                    {eligibleFormats(entry.map).map((formatId) => (
+                    {eligibleFormats(entry.map, withAdventure).map((formatId) => (
                       <Text
                         key={formatId}
                         fontFamily="SpaceGrotesk"

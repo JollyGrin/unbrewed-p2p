@@ -67,6 +67,17 @@ export function engineSpeaksRematch(url: string): boolean {
   return v !== null && v >= REMATCH_PROTOCOL_VERSION;
 }
 
+/**
+ * The lowest engine version that answers `LIST_SCENARIOS` (#1343): the adventure-lane engines
+ * (v38, engine #783 on). A main-lane engine (v37) may not know the message, so it is never sent one.
+ */
+export const SCENARIOS_PROTOCOL_VERSION = 38;
+
+/** True when an engine frame stamped `v` says the engine can be asked for its scenario roster. */
+export function engineListsScenarios(v: unknown): boolean {
+  return typeof v === "number" && v >= SCENARIOS_PROTOCOL_VERSION;
+}
+
 /** The `v` to bind a seat with on `url`. Always `PROTOCOL_VERSION` since #1201 —
  *  a prod engine refuses anything below 35, so there is no older version to fall
  *  back to. Kept as a function so callers stay unchanged. */

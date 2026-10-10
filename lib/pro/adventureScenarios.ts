@@ -44,6 +44,12 @@ export const useScenarios = (): { scenarios: readonly ScenarioListing[]; loaded:
   return { scenarios: list, loaded: done };
 };
 
+/** true when the server listed at least one scenario — the one switch for the Adventure format
+ *  (#1343): an empty roster, or a server too old to be asked, leaves the lobby exactly as before. */
+export const adventureListed = (): boolean => scenarios.length > 0;
+
+export const useAdventureListed = (): boolean => useScenarios().scenarios.length > 0;
+
 /** Test seam. */
 export const resetAdventureScenarios = (): void => {
   scenarios = NONE;

@@ -12,7 +12,7 @@ import {
   useProSocket,
 } from "./useProSocket";
 import { resetEngineVersions } from "./wireVersion";
-import { publishAdventureSetup, resetAdventureScenarios, setScenarios } from "./adventureScenarios";
+import { adventureListed, getScenarios, publishAdventureSetup, resetAdventureScenarios, scenariosLoaded, setScenarios } from "./adventureScenarios";
 import { defaultAdventureSetup, setMinion, setVillain } from "./adventureLobby";
 import { PROTOCOL_VERSION } from "./protocol";
 
@@ -793,10 +793,12 @@ describe("useProSocket — move timer wire (issue #223)", () => {
     FakeWebSocket.last = null;
   });
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -985,10 +987,12 @@ describe("useProSocket — mulligan opt-out wire (issue #631)", () => {
     FakeWebSocket.last = null;
   });
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -1056,10 +1060,12 @@ describe("useProSocket — items opt-out wire (issue #725)", () => {
     FakeWebSocket.last = null;
   });
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -1135,10 +1141,12 @@ describe("useProSocket — player identity on create/join", () => {
     };
   };
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -1238,10 +1246,12 @@ describe("useProSocket — worn badges on create/join", () => {
     };
   };
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -1368,10 +1378,12 @@ describe("useProSocket — equipped cosmetics on create/join", () => {
     ];
   };
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -2283,10 +2295,12 @@ describe("useProSocket — room bot seats survive a reload (#876)", () => {
     FakeWebSocket.last = null;
   });
 
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
 
@@ -2636,7 +2650,6 @@ describe("useProSocket — the ticket fallback never eats a resume blob (p2p #12
 
 describe("useProSocket — Adventure scenario roster (#1107, #1113)", () => {
   const realWS = global.WebSocket;
-  const realFlag = process.env.NEXT_PUBLIC_ADVENTURE_LAB;
   const SCEN = {
     id: "isla", label: "Isla", formatIds: ["adventure"], mapId: "isla", villain: "rex",
     villains: [{ id: "rex", name: "Rex", role: "VILLAIN", hp: [9], move: 3, size: "LARGE" }],
@@ -2649,30 +2662,48 @@ describe("useProSocket — Adventure scenario roster (#1107, #1113)", () => {
     // @ts-expect-error — swap in the fake for the test
     global.WebSocket = FakeWebSocket;
     window.localStorage.clear();
-    process.env.NEXT_PUBLIC_ADVENTURE_LAB = "1";
     resetAdventureScenarios();
   });
   afterEach(() => {
     global.WebSocket = realWS;
     FakeWebSocket.last = null;
-    if (realFlag === undefined) delete process.env.NEXT_PUBLIC_ADVENTURE_LAB;
-    else process.env.NEXT_PUBLIC_ADVENTURE_LAB = realFlag;
     resetAdventureScenarios();
   });
-  const boot = () => {
+  // `engineV`: the version the engine stamps on its first frame (the HEROES reply).
+  const boot = (engineV = 38) => {
     const hook = renderHook(() => useProSocket("ws://test"));
     const ws = FakeWebSocket.last!;
     act(() => ws.open());
+    act(() => ws.emit({ v: engineV, type: "HEROES", heroes: [] }));
     return { hook, ws };
   };
   const created = (ws: FakeWebSocket) => ws.sent.map((s) => JSON.parse(s)).find((m) => m.type === "CREATE_ROOM");
   // an island-of-despair customMap, as the lobby's board pick would supply
   const fallbackBoard = { schemaVersion: "1.0", id: "island-of-despair" } as never;
 
-  it("asks for LIST_SCENARIOS on open only behind the lab flag", () => {
-    expect(boot().ws.sentTypes).toContain("LIST_SCENARIOS");
-    delete process.env.NEXT_PUBLIC_ADVENTURE_LAB;
-    expect(boot().ws.sentTypes).not.toContain("LIST_SCENARIOS");
+  it("asks an engine that speaks it for LIST_SCENARIOS once per socket, after its first frame", () => {
+    const { ws } = boot();
+    expect(ws.sentTypes.filter((t) => t === "LIST_SCENARIOS")).toHaveLength(1);
+    act(() => ws.emit({ v: 38, type: "LOBBIES", lobbies: [] }));
+    expect(ws.sentTypes.filter((t) => t === "LIST_SCENARIOS")).toHaveLength(1);
+  });
+
+  it("never sends LIST_SCENARIOS to an older engine, and lists no scenario", () => {
+    const { ws } = boot(37);
+    expect(ws.sentTypes).not.toContain("LIST_SCENARIOS");
+    expect(scenariosLoaded()).toBe(true);
+    expect(adventureListed()).toBe(false);
+  });
+
+  it("records the listed roster, and an empty one as none", () => {
+    const { ws } = boot();
+    act(() => ws.emit({ v: 38, type: "SCENARIOS", scenarios: [SCEN] }));
+    expect(getScenarios()).toEqual([SCEN]);
+    expect(adventureListed()).toBe(true);
+    const { ws: ws2 } = boot();
+    act(() => ws2.emit({ v: 38, type: "SCENARIOS", scenarios: [] }));
+    expect(getScenarios()).toEqual([]);
+    expect(adventureListed()).toBe(false);
   });
 
   it("treats BAD_MESSAGE to LIST_SCENARIOS as an empty roster, not an error", () => {

@@ -25,7 +25,7 @@ export const PRO_FORMATS: ProFormatChoice[] = [
 /**
  * The Adventures co-op format (engine `adventure`). Deliberately NOT in
  * `PRO_FORMATS`: that list is the regular-format picker and stays byte-identical.
- * Adventure is surfaced only behind the lab gate (`lib/pro/adventureGate.ts`).
+ * Adventure is surfaced only while the server lists a scenario (`adventureListed`).
  * `requiredPlayers` is the minimum hero table (CREATE_ROOM.humans defaults to 1).
  */
 export const ADVENTURE_FORMAT: ProFormatChoice = {

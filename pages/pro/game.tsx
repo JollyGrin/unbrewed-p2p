@@ -209,7 +209,7 @@ import {
   formatLobby,
   hasFormatWaitingRoom,
   initialFormatSetups,
-  lobbyFormats,
+  useLobbyFormats,
   useFormatStageName,
 } from "@/components/Pro/FormatLobby";
 import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
@@ -3085,6 +3085,7 @@ const HeroSelectLobby = ({
   const format = formatChoice(selectedFormat);
   const ownLobby = formatLobby(selectedFormat);
   const formatStageName = useFormatStageName(selectedFormat, formatSetup);
+  const lobbyFormats = useLobbyFormats();
   const multiplayer = selectedFormat !== "duel";
   const [previewHero, setPreviewHero] = useState<HeroListing>();
   const [previewMap, setPreviewMap] = useState<MapCatalogEntry | null>(null);
@@ -3579,7 +3580,7 @@ const HeroSelectLobby = ({
                 ariaLabel="Format"
                 value={selectedFormat}
                 onChange={onSelectFormat}
-                options={lobbyFormats().map((f) => ({ value: f.id, label: f.label }))}
+                options={lobbyFormats.map((f) => ({ value: f.id, label: f.label }))}
               />
               {ownLobby?.showDetail && format.detail && (
                 <Text fontSize="0.72rem" opacity={0.7} fontFamily="SpaceGrotesk" data-testid="format-detail">
