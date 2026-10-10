@@ -85,9 +85,14 @@ type adminRoom struct {
 type adminPlayer struct {
 	Name        string `json:"name"`
 	Connections int    `json:"connections"`
-	Status      string `json:"status"`               // connected | left
-	JoinedAt    int64  `json:"joinedAt"`             // unix ms, first join
-	LastSeenAt  int64  `json:"lastSeenAt,omitempty"` // unix ms, last connection exited
+	Status      string `json:"status"`   // connected | left
+	JoinedAt    int64  `json:"joinedAt"` // unix ms, first join
+	LastSeenAt  int64  `json:"lastSeenAt,omitempty"`
+
+	// Unverified labels from the name's most recent live connection (see
+	// Identity); empty once the name has left.
+	Account string `json:"account,omitempty"`
+	Discord string `json:"discord,omitempty"` // unix ms, last connection exited
 
 	// From the player's blob; empty when there is no pool or it won't decode.
 	DeckName     string `json:"deckName,omitempty"`
@@ -130,6 +135,7 @@ type roomCopy struct {
 	blobs      map[string]json.RawMessage
 	conns      map[string]int
 	presence   map[string]presence
+	identity   map[string]Identity // name -> most recent live connection's
 }
 
 func (gs *GameServer) snapshot() adminSnapshot {
@@ -142,7 +148,9 @@ func (gs *GameServer) snapshot() adminSnapshot {
 
 	copies := make([]roomCopy, 0, len(rooms))
 	for _, room := range rooms {
-		copies = append(copies, room.adminCopy())
+		rc := room.adminCopy()
+		rc.identity = latestIdentity(room.Roster())
+		copies = append(copies, rc)
 	}
 
 	now := time.Now()
@@ -182,6 +190,9 @@ func (gs *GameServer) snapshot() adminSnapshot {
 				p.Status = "connected"
 			}
 			snap.WSClients += p.Connections
+			if id, ok := rc.identity[name]; ok {
+				p.Account, p.Discord = id.AccountID, id.Discord
+			}
 			if pr, ok := rc.presence[name]; ok {
 				p.JoinedAt = unixMs(pr.joinedAt)
 				p.LastSeenAt = unixMs(pr.lastSeenAt)
@@ -250,6 +261,16 @@ func (r *Room) adminCopy() roomCopy {
 		rc.heroes = append(rc.heroes, hero)
 	}
 	return rc
+}
+
+// latestIdentity maps each name to its newest connection's identity. Roster
+// is oldest join first, so later entries win.
+func latestIdentity(roster []RosterEntry) map[string]Identity {
+	out := make(map[string]Identity, len(roster))
+	for _, e := range roster {
+		out[e.Name] = Identity{AccountID: e.AccountID, Discord: e.Discord}
+	}
+	return out
 }
 
 // noteExit stamps lastSeenAt once a name has no connection left. Caller holds
@@ -360,10 +381,12 @@ var adminPage = template.Must(template.New("view").Funcs(template.FuncMap{
 <h2><code>{{.ID}}</code> <span class="dim">· roomId <code>{{.RoomID}}</code> · age {{dur .AgeMs}} · idle {{dur .IdleMs}}{{if .MapURL}} · map {{.MapURL}}{{end}}</span></h2>
 <p class="dim">peak {{.PeakConnections}} connections · {{.StateUpdates}} state updates · {{count .DistinctPlayers}} distinct players{{if .HeroesSeen}} · heroes seen: {{range $i, $h := .HeroesSeen}}{{if $i}}, {{end}}{{$h}}{{end}}{{end}}</p>
 <table>
-<thead><tr><th>player</th><th>status</th><th>deck</th><th>hero</th><th>author</th><th class="num">deck</th><th class="num">hand</th><th class="num">discard</th><th class="num">joined</th><th class="num">last seen</th></tr></thead>
+<thead><tr><th>player</th><th>discord</th><th>account</th><th>status</th><th>deck</th><th>hero</th><th>author</th><th class="num">deck</th><th class="num">hand</th><th class="num">discard</th><th class="num">joined</th><th class="num">last seen</th></tr></thead>
 <tbody>
 {{range .Players}}<tr>
 <td>{{.Name}}</td>
+<td>{{.Discord}}</td>
+<td>{{if .Account}}<code>{{.Account}}</code>{{end}}</td>
 <td>{{if eq .Status "connected"}}<span class="on">connected</span>{{if gt .Connections 1}} <span class="dim">×{{.Connections}}</span>{{end}}{{else}}<span class="off">left</span>{{end}}</td>
 <td>{{.DeckName}}{{if .DeckID}} <span class="dim">{{.DeckID}}</span>{{end}}</td>
 <td>{{.HeroName}}</td>

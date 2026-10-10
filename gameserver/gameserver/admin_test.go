@@ -98,11 +98,12 @@ func TestAdminAuth(t *testing.T) {
 
 func TestAdminSnapshotPlayers(t *testing.T) {
 	gs, srv := startAdminServer(t, testAdminKey)
-	tab1 := dial(t, srv, "alice")
+	// Identity labels ride the ws URL (#1322); the newer tab's win.
+	tab1 := dial(t, srv, "alice&account=acc-old&discord=alice_laptop")
 	next(t, tab1, MsgTypePlayerPosition)
-	tab2 := dial(t, srv, "alice")
+	tab2 := dial(t, srv, "alice&account=acc-alice&discord=alice_phone")
 	next(t, tab2, MsgTypePlayerPosition)
-	bob := dial(t, srv, "bob")
+	bob := dial(t, srv, "bob&account=acc-bob&discord=bobby")
 	next(t, bob, MsgTypePlayerPosition)
 
 	send(t, tab1, MsgTypePlayerState, `{"mapUrl":"https://maps.example/castle.png","pool":{
@@ -170,6 +171,12 @@ func TestAdminSnapshotPlayers(t *testing.T) {
 			t.Errorf("%s lastSeenAt = %d, left = %v", name, p.LastSeenAt, w.left)
 		}
 	}
+	if a := byName["alice"]; a.Account != "acc-alice" || a.Discord != "alice_phone" {
+		t.Errorf("alice identity = %q/%q, want the newest connection's acc-alice/alice_phone", a.Account, a.Discord)
+	}
+	if b := byName["bob"]; b.Account != "" || b.Discord != "" {
+		t.Errorf("bob left but identity = %q/%q", b.Account, b.Discord)
+	}
 	if byName["alice"].DeckID != "deck-a" || byName["bob"].Author != "ben" {
 		t.Errorf("deckid/author = %q/%q", byName["alice"].DeckID, byName["bob"].Author)
 	}
@@ -231,17 +238,25 @@ func TestAdminViewHidesCardNames(t *testing.T) {
 
 func TestAdminViewEscapesPlayerStrings(t *testing.T) {
 	_, srv := startAdminServer(t, testAdminKey)
-	evil := dial(t, srv, "%3Cscript%3Ealert(1)%3C%2Fscript%3E")
+	evil := dial(t, srv, "%3Cscript%3Ealert(1)%3C%2Fscript%3E"+
+		"&discord=%3Cb%3Ediscord%3C%2Fb%3E&account=%3Ci%3Eaccount%3C%2Fi%3E")
 	next(t, evil, MsgTypePlayerPosition)
 	send(t, evil, MsgTypePlayerState, `{"pool":{"deckName":"<img src=x onerror=alert(2)>"}}`)
 	next(t, evil, MsgTypeGameState)
 
 	_, _, body := getAdmin(t, srv, "/view", testAdminKey, true)
-	if strings.Contains(body, "<script>") || strings.Contains(body, "<img") {
+	if strings.Contains(body, "<script>") || strings.Contains(body, "<img") ||
+		strings.Contains(body, "<b>discord") || strings.Contains(body, "<i>account") {
 		t.Fatalf("unescaped player string in view:\n%s", body)
 	}
-	if !strings.Contains(body, "&lt;script&gt;alert(1)&lt;/script&gt;") {
-		t.Fatalf("escaped name missing from view:\n%s", body)
+	for _, escaped := range []string{
+		"&lt;script&gt;alert(1)&lt;/script&gt;",
+		"&lt;b&gt;discord&lt;/b&gt;",
+		"&lt;i&gt;account&lt;/i&gt;",
+	} {
+		if !strings.Contains(body, escaped) {
+			t.Fatalf("escaped %s missing from view:\n%s", escaped, body)
+		}
 	}
 }
 
