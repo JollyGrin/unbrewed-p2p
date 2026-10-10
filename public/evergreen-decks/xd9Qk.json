@@ -1,0 +1,278 @@
+{
+  "bgg_link": null,
+  "created_on": "Sat, 12 Sep 2026 19:13:49 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#ffffff",
+      "cardbackUrl": "/evergreen-decks/art/frankenstein/cardback.webp",
+      "highlightColour": "#3d493c",
+      "isPNP": false,
+      "patternName": "Eyes"
+    },
+    "cards": [
+      {
+        "afterText": null,
+        "basicText": "ONGOING: Monster gains +2 Move. Discard this card when Monster attacks or defends.",
+        "boost": 4,
+        "characterName": "FRANKESTEIN",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/frankenstein/its-alive.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "IT´S ALIVE!",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/its-alive.webp"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/frankenstein/feint.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "feint",
+        "type": "versatile",
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/feint.webp"
+        }
+      },
+      {
+        "afterText": "You may move Monster up to 3 spaces. Discard 1 card for each space he moved.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/frankenstein/in-the-name-of-science.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "in THE NAME OF SCIENCE",
+        "type": "versatile",
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/in-the-name-of-science.webp"
+        }
+      },
+      {
+        "afterText": " Discard 1 card for every 2 spaces Monster moved.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "FRANKESTEIN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/frankenstein/mad-they-call-me.webp",
+        "immediateText": "You may move Monster up to 6 spaces. Increase the value of this card by 1 for every 2 spaces he moved.",
+        "quantity": 3,
+        "title": "mad, they call me!",
+        "type": "attack",
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/mad-they-call-me.webp"
+        }
+      },
+      {
+        "afterText": "Discard 1 card and draw 1 card in any order.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "FRANKESTEIN",
+        "duringText": "Blind BOOST this card.",
+        "imageUrl": "/evergreen-decks/art/frankenstein/the-edge-of-sanity.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "the edge of sanity",
+        "type": "versatile",
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/the-edge-of-sanity.webp"
+        }
+      },
+      {
+        "afterText": "Discard 2 cards.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "MONSTER ",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/frankenstein/unnatural-strength.webp",
+        "immediateText": "Discard all your Frankestein cards. Decrease the value of this card by 1 for every discarded card and by every Frankestein card in your discard pile.",
+        "quantity": 2,
+        "title": "unnatural strength",
+        "type": "attack",
+        "value": 8,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/unnatural-strength.webp"
+        }
+      },
+      {
+        "afterText": "If you double the BOOST value, deal that amount of damage to Monster.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "ANY",
+        "duringText": "Blind BOOST this card. You may double the BOOST value.",
+        "imageUrl": "/evergreen-decks/art/frankenstein/child-of-storm.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "child of storm",
+        "type": "versatile",
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/child-of-storm.webp"
+        }
+      },
+      {
+        "afterText": "If the BOOST was a Frankenstein card, Monster heals 3, draw a card. If it was a Monster or Any card, Frankestein heals the BOOST value of that card.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "MONSTER",
+        "duringText": "Blind BOOST this card.",
+        "imageUrl": "/evergreen-decks/art/frankenstein/little-maria.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "little maria",
+        "type": "defence",
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/little-maria.webp"
+        }
+      },
+      {
+        "afterText": null,
+        "basicText": "Deal up to 3 damage to Monster, then, choose one of these effects:\n- Frankestein heals equal to the damage dealt.\n- Draw cards equal to the damage dealt.",
+        "boost": 3,
+        "characterName": "FRANKESTEIN",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/frankenstein/tragic-bond.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "tragic bond",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/tragic-bond.webp"
+        }
+      },
+      {
+        "afterText": null,
+        "basicText": "Deal 3 damage to Monster. Deal 3 damage to each adjacent fighter to Monster. If Frankestein is damaged by this, draw 3 cards.",
+        "boost": 2,
+        "characterName": "MONSTER",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/frankenstein/burning-windmill.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "burning windmill",
+        "type": "scheme",
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/burning-windmill.webp"
+        }
+      },
+      {
+        "afterText": "",
+        "basicText": "The effects of this card cannot be canceled.",
+        "boost": 4,
+        "characterName": "ANY",
+        "duringText": "If Frankestein is adjacent to Monster, the attack affects the other, you may defend to that attack. The value of this card is 6.",
+        "imageUrl": "/evergreen-decks/art/frankenstein/blind-rage.webp",
+        "immediateText": "",
+        "quantity": 4,
+        "title": "blind rage",
+        "type": "versatile",
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/frankenstein/blind-rage.webp"
+        }
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 8,
+      "isRanged": true,
+      "move": 3,
+      "name": "Frankestein",
+      "specialAbility": "Monster moves 1.\nEverytime when Frankestein have to discard a card, you may deal 1 damage to Monster for every discarded card for, instead, put them at the bottom of the deck. \n"
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": 25,
+      "isRanged": false,
+      "name": "monster",
+      "quantity": 1,
+      "quote": null
+    }
+  },
+  "deck_first_published_on": "Sat, 12 Sep 2026 16:05:34 GMT",
+  "deck_published": true,
+  "family_id": "xd9Qk",
+  "id": "xd9Qk",
+  "liked": false,
+  "likes": 0,
+  "name": "Frankestein",
+  "note": "Cobble and Fog vol II 1st character ",
+  "published": true,
+  "published_on": "Sat, 12 Sep 2026 19:14:59 GMT",
+  "tags": [
+    {
+      "name": "Male Hero",
+      "slug": "male-hero"
+    },
+    {
+      "name": "Ranged Hero",
+      "slug": "ranged-hero"
+    },
+    {
+      "name": "Movie",
+      "slug": "movie"
+    },
+    {
+      "name": "spanish",
+      "slug": "spanish"
+    },
+    {
+      "name": "español",
+      "slug": "espanol"
+    }
+  ],
+  "updated_on": "Tue, 29 Sep 2026 15:54:22 GMT",
+  "user": "GabbyTheFlower",
+  "version_id": "W6PG_H2D9b",
+  "version_name": "English",
+  "versions": [
+    {
+      "created_on": "Sat, 12 Sep 2026 19:13:49 GMT",
+      "id": "W6PG_H2D9b",
+      "name": "Frankestein",
+      "published": true,
+      "updated_on": "Tue, 29 Sep 2026 15:54:22 GMT",
+      "version_name": "English"
+    },
+    {
+      "created_on": "Sat, 12 Sep 2026 19:12:39 GMT",
+      "id": "92zNQsNZvO",
+      "name": "Frankestein",
+      "published": true,
+      "updated_on": "Tue, 29 Sep 2026 16:11:29 GMT",
+      "version_name": "Español"
+    },
+    {
+      "created_on": "Sat, 12 Sep 2026 16:39:48 GMT",
+      "id": "ZYxPwiAq3z",
+      "name": "Frankestein",
+      "published": true,
+      "updated_on": "Sat, 12 Sep 2026 19:09:42 GMT",
+      "version_name": "Initial version"
+    },
+    {
+      "created_on": "Sat, 12 Sep 2026 02:47:33 GMT",
+      "id": "NQMjDHJ9K-",
+      "name": "Frankestein",
+      "published": true,
+      "updated_on": "Sat, 12 Sep 2026 16:20:19 GMT",
+      "version_name": "Initial version"
+    }
+  ]
+}

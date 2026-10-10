@@ -327,6 +327,12 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // the author's own, mirrored from the deck's appearance block (imgur), so
   // the whole deck is repo-relative and remote-free at runtime.
   "the-narrator": "5jBEXsA55e",
+  // Frankestein [sic] & Monster — GabbyTheFlower's community deck (unmatched.cards
+  // xd9Qk, English version W6PG_H2D9b), lab tier: issue #1332 ↔ engine #833 on
+  // feature/frankenstein (PAIRED — the deck only reaches the roster once both
+  // trains land). Faces are cropped from the author's composed card sheet,
+  // self-hosted under public/evergreen-decks/art/frankenstein.
+  frankenstein: "xd9Qk",
 };
 
 /**

@@ -1230,3 +1230,59 @@ describe("The Narrator (5jBEXsA55e) card faces use the club's full composed card
     expect(existsSync(join(DECKS_DIR, "art", "narrator", "cardback.webp"))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Frankestein [sic] (issue #1332). unmatched.cards xd9Qk by GabbyTheFlower.
+// Every face is cropped from the author's composed card sheet (Discord
+// #pro-deck-request, 2026-10-03) and drawn full-bleed via cardImage; the
+// payload's imageUrls were third-party film-still hotlinks and must never ship.
+// ---------------------------------------------------------------------------
+
+describe("Frankestein (xd9Qk) deck data", () => {
+  const deck = readDeck("xd9Qk");
+  const cards = deck.deck_data.cards as {
+    title: string;
+    imageUrl: string;
+    quantity: number;
+    cardImage?: { url: string };
+  }[];
+
+  it("is the English version, 11 unique / 30 total", () => {
+    expect(deck.version_id).toBe("W6PG_H2D9b");
+    expect(cards).toHaveLength(11);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+  });
+
+  it("keeps the printed titles verbatim — the art index is keyed on them", () => {
+    expect(cards.map((c) => c.title)).toEqual(
+      expect.arrayContaining(["IT´S ALIVE!", "in THE NAME OF SCIENCE", "mad, they call me!"])
+    );
+    expect(new Set(cards.map((c) => norm(c.title))).size).toBe(cards.length);
+  });
+
+  it("ships every card face as a LOCAL file that exists, drawn full-bleed", () => {
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/frankenstein\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(cards.length);
+  });
+
+  it("mirrors the cardback and the hero card locally, and no remote URL survives", () => {
+    for (const file of ["cardback.webp", "hero-card.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "art", "frankenstein", file))).toBe(true);
+    }
+    expect(deck.deck_data.appearance.cardbackUrl).toBe(
+      "/evergreen-decks/art/frankenstein/cardback.webp"
+    );
+    expect(JSON.stringify(deck)).not.toMatch(/https?:\/\//);
+  });
+
+  it("declares NO public hero state — MAD and COS are transient within one combat", () => {
+    // Stated rather than assumed: the engine's MAD / COS counters live only inside
+    // one card's combat, so they deliberately get no heroStateFlags.ts row.
+    expect(HERO_STATE_FLAGS.filter((e) => e.heroes.includes("frankenstein"))).toEqual([]);
+    expect(HERO_STATE_COUNTERS.filter((e) => e.heroes.includes("frankenstein"))).toEqual([]);
+  });
+});
