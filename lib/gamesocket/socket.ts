@@ -8,12 +8,22 @@ import {
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
 
+// Who the client says is signed in. An unverified display hint for the relay
+// operator: the relay must never authorize anything on it.
+export interface SocketIdentity {
+  accountId: string;
+  discord: string;
+}
+
 export interface WebsocketProps {
   // Game lobby id
   gid: string;
   // Name of the player
   name: string;
   connectURL: URL;
+  // Signed-in account, if any. A getter is re-read on every connect attempt,
+  // so an account that resolves late rides along on the next reconnect.
+  identity?: SocketIdentity | (() => SocketIdentity | undefined);
   // Callbacks
   onGameState: (state: string) => void;
   onGamePositions: (state: string) => void;
@@ -31,18 +41,34 @@ const jp = (e: string) => JSON.parse(e);
 
 const MAX_RETRY_DELAY_MS = 10_000;
 
+export const buildSocketURL = (
+  connectURL: URL,
+  gid: string,
+  name: string,
+  identity?: SocketIdentity,
+): URL => {
+  const url = new URL(`/ws/${gid}`, connectURL);
+
+  url.searchParams.append("name", name);
+  if (identity) {
+    url.searchParams.append("account", identity.accountId);
+    url.searchParams.append("discord", identity.discord);
+  }
+  url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+  return url;
+};
+
 export const initializeWebsocket = ({
   name,
   gid,
   connectURL,
+  identity,
   onGameState,
   onGamePositions,
   onStatus,
 }: WebsocketProps): WebsocketReturn => {
-  const url = new URL(`/ws/${gid}`, connectURL);
-
-  url.searchParams.append("name", name);
-  url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+  const readIdentity =
+    typeof identity === "function" ? identity : () => identity;
 
   let ws: WebSocket;
   let retries = 0;
@@ -51,7 +77,7 @@ export const initializeWebsocket = ({
 
   const connect = () => {
     onStatus?.("connecting");
-    ws = new WebSocket(url);
+    ws = new WebSocket(buildSocketURL(connectURL, gid, name, readIdentity()));
     ws.onopen = (_: any): void => {
       retries = 0;
       onStatus?.("open");

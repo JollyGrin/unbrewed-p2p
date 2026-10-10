@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unicode"
 
-	"github.com/gorilla/handlers"
+	"github.com/Emyrk/unbrewed-server/telemetry"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,11 +30,20 @@ type gameServerMetrics struct {
 }
 
 type GameServer struct {
+	// Since-boot counters for the admin view, updated atomically. First in
+	// the struct so they stay 64-bit aligned on 32-bit platforms.
+	roomsCreated int64
+	joins        int64
+	startedAt    time.Time
+
 	HTTPServer *http.Server
 	Mux        *mux.Router
 	ctx        context.Context
 	registry   prometheus.Registerer
 	metrics    *gameServerMetrics
+	// Telemetry receives sandbox room/player events. Noop unless main wires
+	// one up from the environment.
+	Telemetry telemetry.Emitter
 
 	roomLock sync.RWMutex
 	Rooms    map[string]*Room
@@ -43,6 +55,8 @@ func NewGameServer(reg prometheus.Registerer) *GameServer {
 	gs.Rooms = make(map[string]*Room)
 	gs.ctx = context.Background()
 	gs.registry = reg
+	gs.Telemetry = telemetry.Noop{}
+	gs.startedAt = time.Now()
 
 	fact := promauto.With(gs.registry)
 	gs.metrics = &gameServerMetrics{
@@ -87,7 +101,7 @@ func (gs *GameServer) Serve(ctx context.Context) error {
 	gs.Mux.HandleFunc("/lobby/{gid}", gs.LobbyHandler)
 	gs.Mux.HandleFunc("/ws/{gid}", gs.WSHandler)
 
-	gs.HTTPServer.Handler = handlers.CORS()(gs.Mux)
+	gs.HTTPServer.Handler = gs.handler(os.Getenv("ADMIN_KEY"))
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "1111"
@@ -146,13 +160,40 @@ func (gs *GameServer) WSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.Join(values["name"], " ")
+	// Unverified display hints for the operator: never use them to decide
+	// anything (auth, seating, state). The client sends them only when
+	// signed in, and anyone can spoof them.
+	identity := Identity{
+		AccountID: cleanLabel(values.Get("account")),
+		Discord:   cleanLabel(values.Get("discord")),
+	}
 
 	gs.metrics.PlayerJoinEventCount.Inc()
-	err = room.PlayerJoin(c, name)
+	atomic.AddInt64(&gs.joins, 1)
+	err = room.PlayerJoin(c, name, identity)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "player failed to join: %s", err.Error())
 		return
 	}
+}
+
+// maxLabelLen caps each identity label, in runes.
+const maxLabelLen = 64
+
+// cleanLabel trims a client-supplied label, drops control characters (so it
+// can't forge log lines) and caps it at maxLabelLen runes.
+func cleanLabel(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > maxLabelLen {
+		s = strings.TrimSpace(string(r[:maxLabelLen]))
+	}
+	return s
 }
 
 func (gs *GameServer) CreateLobby(gid string) (bool, error) {
@@ -167,8 +208,14 @@ func (gs *GameServer) CreateLobby(gid string) (bool, error) {
 		return false, nil
 	}
 
-	gs.Rooms[gid] = NewRoom(gid, gs.ctx)
+	room := NewRoom(gid, gs.ctx)
+	room.telemetry = gs.Telemetry
+	gs.Rooms[gid] = room
+	atomic.AddInt64(&gs.roomsCreated, 1)
 	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
+	if gs.Telemetry.Enabled() {
+		gs.Telemetry.Emit(telemetry.RoomOpened(room.telemetryID, gs.Telemetry.Hash(gid)))
+	}
 
 	return true, nil
 }
@@ -181,43 +228,73 @@ func (gs *GameServer) GarbageCollector(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
-
-		start := time.Now()
-		gs.roomLock.Lock()
-		closed := 0
-		for gid, room := range gs.Rooms {
-			room.mutex.Lock()
-			if time.Since(room.FieldState.LastUpdate) > time.Hour*12 {
-				// Close the room to kill any active go routines, all clients
-				// will be disconnected if present.
-				room.Close()
-				gs.metrics.GCRoomsCloseCounter.Inc()
-				gs.metrics.GCRoomLifetime.Observe(room.FieldState.LastUpdate.Sub(room.openedAt).Seconds())
-				delete(gs.Rooms, gid)
-				log.WithFields(log.Fields{
-					"time":       start,
-					"inactivity": time.Since(room.FieldState.LastUpdate),
-					"gid":        gid,
-				}).Info("room removed due to inactivity")
-				closed++
-			}
-			room.mutex.Unlock()
-		}
-		gs.roomLock.Unlock()
-
-		if closed > 0 {
-			log.WithFields(log.Fields{
-				"time":         start,
-				"dur":          time.Since(start),
-				"closed_count": closed,
-			}).Info("GC Run")
-		}
-		gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
+		gs.collectGarbage()
 	}
+}
+
+func (gs *GameServer) collectGarbage() {
+	start := time.Now()
+	gs.roomLock.Lock()
+	closed := 0
+	for gid, room := range gs.Rooms {
+		room.mutex.Lock()
+		if time.Since(room.FieldState.LastUpdate) > time.Hour*12 {
+			// Close the room to kill any active go routines, all clients
+			// will be disconnected if present.
+			room.Close()
+			room.emitClosed(telemetry.ReasonInactive)
+			gs.metrics.GCRoomsCloseCounter.Inc()
+			gs.metrics.GCRoomLifetime.Observe(room.FieldState.LastUpdate.Sub(room.openedAt).Seconds())
+			delete(gs.Rooms, gid)
+			log.WithFields(log.Fields{
+				"time":       start,
+				"inactivity": time.Since(room.FieldState.LastUpdate),
+				"gid":        gid,
+			}).Info("room removed due to inactivity")
+			closed++
+		}
+		room.mutex.Unlock()
+	}
+	gs.roomLock.Unlock()
+
+	if closed > 0 {
+		log.WithFields(log.Fields{
+			"time":         start,
+			"dur":          time.Since(start),
+			"closed_count": closed,
+		}).Info("GC Run")
+	}
+	gs.metrics.OpenRooms.Set(float64(len(gs.Rooms)))
+}
+
+// EmitShutdown reports every open room as closed by a relay shutdown. The
+// caller still has to flush the emitter before exiting.
+func (gs *GameServer) EmitShutdown() {
+	gs.roomLock.RLock()
+	defer gs.roomLock.RUnlock()
+	for _, room := range gs.Rooms {
+		room.mutex.Lock()
+		room.emitClosed(telemetry.ReasonShutdown)
+		room.mutex.Unlock()
+	}
+}
+
+// Identity is who the client says is signed in: an unverified display hint
+// for the operator, never an authorization input. Both fields may be empty.
+type Identity struct {
+	AccountID string
+	Discord   string
 }
 
 type PlayerConn struct {
 	Name string
+	// hash is Name as telemetry sees it; empty when telemetry is off.
+	hash string
+	// Unverified labels from the ws URL; see Identity. Never sent to
+	// telemetry.
+	AccountID string
+	Discord   string
+	joinedAt  time.Time
 	*websocket.Conn
 	// Serializes writes: gorilla conns forbid concurrent WriteMessage, and
 	// with permessage-deflate a racing write corrupts the flate stream for
@@ -268,6 +345,25 @@ type Room struct {
 	openedAt time.Time
 	ctx      context.Context
 	stop     context.CancelFunc
+
+	// Sandbox telemetry, guarded by mutex. playerHashes and heroesSeen are
+	// only filled while telemetry is enabled. telemetryID is this sitting's
+	// roomId: gids are reused, so they are never sent.
+	telemetry    telemetry.Emitter
+	telemetryID  string
+	playerHashes map[string]struct{}
+	heroesSeen   map[string]map[string]struct{} // playerHash -> heroName
+	peakClients  int
+	stateUpdates int64
+
+	// Per-name presence for the admin view, guarded by mutex. Kept for every
+	// name that ever joined, like FieldState.Players.
+	presence map[string]*presence
+}
+
+type presence struct {
+	joinedAt   time.Time // first join
+	lastSeenAt time.Time // when the name's last connection exited
 }
 
 func NewRoom(gid string, ctx context.Context) *Room {
@@ -288,8 +384,67 @@ func NewRoom(gid string, ctx context.Context) *Room {
 	r.ctx, r.stop = context.WithCancel(ctx)
 	r.Clients = make(map[*PlayerConn]struct{})
 	r.openedAt = time.Now()
+	r.telemetry = telemetry.Noop{}
+	r.telemetryID = telemetry.NewRoomID()
+	r.playerHashes = make(map[string]struct{})
+	r.heroesSeen = make(map[string]map[string]struct{})
+	r.presence = make(map[string]*presence)
 
 	return r
+}
+
+// emitClosed reports the room's end. Lifetime is open to last activity, as
+// the gc_room_lifetime metric measures it. Caller holds r.mutex.
+func (r *Room) emitClosed(reason string) {
+	if !r.telemetry.Enabled() {
+		return
+	}
+	r.telemetry.Emit(telemetry.RoomClosed(r.telemetryID, reason,
+		r.FieldState.LastUpdate.Sub(r.openedAt),
+		len(r.playerHashes), r.peakClients, r.stateUpdates))
+}
+
+// emitLeft reports a connection removed from Clients. Caller holds r.mutex.
+func (r *Room) emitLeft(c *PlayerConn) {
+	if r.telemetry.Enabled() {
+		r.telemetry.Emit(telemetry.PlayerLeft(r.telemetryID, c.hash, len(r.Clients)))
+	}
+}
+
+// heroName pulls pool.hero.name out of an otherwise opaque player blob.
+func (r *Room) heroName(blob json.RawMessage) string {
+	if !r.telemetry.Enabled() {
+		return ""
+	}
+	var state struct {
+		Pool struct {
+			Hero struct {
+				Name string `json:"name"`
+			} `json:"hero"`
+		} `json:"pool"`
+	}
+	if json.Unmarshal(blob, &state) != nil {
+		return ""
+	}
+	return telemetry.TruncateHeroName(state.Pool.Hero.Name)
+}
+
+// noteHero emits hero_seen once per (player, hero), for at most
+// MaxHeroesPerPlayer heroes. Caller holds r.mutex.
+func (r *Room) noteHero(c *PlayerConn, hero string) {
+	if hero == "" || !r.telemetry.Enabled() {
+		return
+	}
+	seen := r.heroesSeen[c.hash]
+	if seen == nil {
+		seen = make(map[string]struct{})
+		r.heroesSeen[c.hash] = seen
+	}
+	if _, ok := seen[hero]; ok || len(seen) >= telemetry.MaxHeroesPerPlayer {
+		return
+	}
+	seen[hero] = struct{}{}
+	r.telemetry.Emit(telemetry.HeroSeen(r.telemetryID, c.hash, hero))
 }
 
 func (r *Room) Close() {
@@ -299,10 +454,39 @@ func (r *Room) Close() {
 	}
 }
 
-func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
+// RosterEntry is one live connection as the operator sees it.
+type RosterEntry struct {
+	Name      string    `json:"name"`
+	AccountID string    `json:"account,omitempty"`
+	Discord   string    `json:"discord,omitempty"`
+	JoinedAt  time.Time `json:"joinedAt"`
+}
+
+// Roster lists every live connection, oldest join first.
+func (r *Room) Roster() []RosterEntry {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	out := make([]RosterEntry, 0, len(r.Clients))
+	for c := range r.Clients {
+		out = append(out, RosterEntry{
+			Name:      c.Name,
+			AccountID: c.AccountID,
+			Discord:   c.Discord,
+			JoinedAt:  c.joinedAt,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].JoinedAt.Before(out[j].JoinedAt) })
+	return out
+}
+
+func (r *Room) PlayerJoin(c *websocket.Conn, name string, identity Identity) error {
 	player := &PlayerConn{
-		Conn: c,
-		Name: name,
+		Conn:      c,
+		Name:      name,
+		hash:      r.telemetry.Hash(name),
+		AccountID: identity.AccountID,
+		Discord:   identity.Discord,
+		joinedAt:  time.Now(),
 	}
 
 	if name == "" {
@@ -318,10 +502,30 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.Clients[player] = struct{}{}
+	if p, ok := r.presence[name]; ok {
+		p.lastSeenAt = time.Time{}
+	} else {
+		r.presence[name] = &presence{joinedAt: time.Now()}
+	}
+	if len(r.Clients) > r.peakClients {
+		r.peakClients = len(r.Clients)
+	}
+	if r.telemetry.Enabled() {
+		r.playerHashes[player.hash] = struct{}{}
+		r.telemetry.Emit(telemetry.PlayerJoined(r.telemetryID, player.hash, len(r.Clients)))
+	}
 	if _, ok := r.FieldState.Players[name]; !ok {
 		r.FieldState.Players[name] = []byte("{}")
 		r.FieldState.LastUpdate = time.Now()
 	}
+
+	log.WithFields(log.Fields{
+		"gid":     r.GameID,
+		"name":    name,
+		"account": player.AccountID,
+		"discord": player.Discord,
+		"clients": len(r.Clients),
+	}).Info("player joined")
 
 	go r.PlayerListener(player, r.ctx)
 	r.broadcastAll(websocket.TextMessage, r.GetGameState())
@@ -344,7 +548,12 @@ func (r *Room) PlayerListener(c *PlayerConn, ctx context.Context) {
 
 		mt, message, err := c.ReadMessage()
 		if err != nil {
-			log.WithError(err).Error("read failed: player exited")
+			log.WithError(err).WithFields(log.Fields{
+				"gid":     r.GameID,
+				"name":    c.Name,
+				"account": c.AccountID,
+				"discord": c.Discord,
+			}).Error("read failed: player exited")
 			r.PlayerExit(c)
 			break
 		}
@@ -362,6 +571,7 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 	switch gm.MessageType {
 	case MsgTypePlayerPosition:
 		r.mutex.Lock()
+		r.stateUpdates++
 		r.PlayerPositions[c.Name] = gm.Content
 		msg := r.GetPlayerPositions()
 		r.FieldState.LastUpdate = time.Now()
@@ -370,7 +580,10 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 
 	case MsgTypePlayerState:
 		// Update player state
+		hero := r.heroName(gm.Content) // decoded outside the lock
 		r.mutex.Lock()
+		r.stateUpdates++
+		r.noteHero(c, hero)
 		r.FieldState.Players[c.Name] = gm.Content
 		r.FieldState.LastUpdate = time.Now()
 		msg := r.GetGameState()
@@ -414,9 +627,16 @@ func (r *Room) broadcastAll(mt int, msg []byte) {
 			// A failed write leaves the conn unusable, and a dead-but-open one
 			// would cost every later broadcast the full write deadline. Drop
 			// it; its read loop errors out next and PlayerExit is a no-op.
-			log.WithError(err).Error("write failed: dropping connection")
+			log.WithError(err).WithFields(log.Fields{
+				"gid":     r.GameID,
+				"name":    c.Name,
+				"account": c.AccountID,
+				"discord": c.Discord,
+			}).Error("write failed: dropping connection")
 			delete(r.Clients, c)
 			_ = c.Close()
+			r.noteExit(c.Name)
+			r.emitLeft(c)
 		}
 	}
 }
@@ -431,6 +651,15 @@ func (r *Room) PlayerExit(c *PlayerConn) bool {
 		return false
 	}
 	delete(r.Clients, c)
+	r.noteExit(c.Name)
+	r.emitLeft(c)
+	log.WithFields(log.Fields{
+		"gid":     r.GameID,
+		"name":    c.Name,
+		"account": c.AccountID,
+		"discord": c.Discord,
+		"clients": len(r.Clients),
+	}).Info("player exited")
 	return true
 }
 

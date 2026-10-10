@@ -8,7 +8,7 @@ describe("public roster", () => {
     const roster = PUBLIC_ROSTER.map((h) => h.heroId);
     const hidden = Object.keys(HIDDEN_HERO_NAMES);
     expect([...roster, ...hidden].sort()).toEqual(deckHeroes);
-    expect(ROSTER_SIZE).toBe(33);
+    expect(ROSTER_SIZE).toBe(34);
     expect(new Set(roster).size).toBe(roster.length);
   });
 

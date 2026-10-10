@@ -1,0 +1,15 @@
+{
+  "id": "2026-10-08-tournaments",
+  "date": "2026-10-08",
+  "title": "Run your own tournament in Pro",
+  "summary": "Create a single-elimination or round-robin bracket, share the link, and let players ready up and jump straight into their match. Results and replays land on the bracket as games finish.",
+  "body": [
+    "Organizers can leave heroes and the map open or lock them per match. Your next match shows as a banner on the Pro page and in the account menu, so you never have to hunt for a room code.",
+    "Every finished match gets a public replay link, and organizers have tools to override a result, extend signup or cancel."
+  ],
+  "tags": ["feature"],
+  "pro": true,
+  "highlight": true,
+  "video": { "slug": "tournaments" },
+  "cta": { "label": "Browse tournaments", "href": "/tournaments" }
+}

@@ -80,6 +80,30 @@ You can run the server on your own machine — free, and independent of Unbrewed
 
 Want to run a 24/7 public server for the community? Open an issue or PR so we can add it to the default server list. (`Dockerfile.gameserver` is included if you like containers — it's what the default relay on [Railway](https://railway.com) builds from.)
 
+### 📊 Sandbox telemetry (optional)
+
+The relay can report sandbox room/player lifecycle events (`room_opened`, `player_joined`, `player_left`, `hero_seen`, `room_closed`) to [unbrewed-telemetry](https://github.com/Emyrk/unbrewed-telemetry) at `POST /v1/sandbox-events`. It is off unless all three are set; with any unset the relay behaves exactly as before and makes no outbound requests:
+
+| env var | what |
+|---|---|
+| `SANDBOX_TELEMETRY_URL` | telemetry base URL (events go to `{URL}/v1/sandbox-events`) |
+| `SANDBOX_TELEMETRY_KEY` | bearer credential with the `sandbox:submit` scope |
+| `SANDBOX_NAME_SALT` | secret HMAC salt for player names and lobby names. Required when the other two are set (without it telemetry stays off and the relay logs an error). Player names only leave the relay as a 16-hex `playerHash`, and lobby names only as `lobbyHash` on `room_opened`. Each room sitting is identified by a fresh uuid `roomId`, because lobby names get reused. |
+
+Events are buffered and posted in batches (every 30s or 200 events), never on the game path: a slow or down telemetry server drops events, it never delays play. With telemetry on, on SIGTERM the relay reports open rooms as `room_closed` (`reason: shutdown`) and flushes for up to 3s.
+
+Deploy order: telemetry live and a `sandbox:submit` credential issued → set `SANDBOX_TELEMETRY_URL`, `SANDBOX_TELEMETRY_KEY`, `SANDBOX_NAME_SALT` on Railway → deploy the relay.
+
+### 🔎 Admin view (optional)
+
+Set `ADMIN_KEY` and the relay serves a live room monitor on its main port: `GET /view` (HTML, auto-refreshes every 10s) and `GET /view.json`. It lists every open room, newest activity first, by lobby name and by its telemetry `roomId` (to match a row on telemetry.unbrewed.xyz's Sandbox tab), with the room's `peakConnections`/`stateUpdates` (plus `distinctPlayers` and `heroesSeen` while telemetry is on), and each player who joined, their Discord username and account id while connected (unverified labels the client sends, from the newest connection), their deck/hero/author, zone **counts** (deck, hand, discard; never card names), and whether they're still connected (`×2` = two tabs/devices) or have left. With `ADMIN_KEY` unset both routes return 404. State is in memory and resets on deploy.
+
+Auth is HTTP Basic: any username, password = `ADMIN_KEY`. On Railway, add `ADMIN_KEY` under the relay service's **Variables** tab (it redeploys), then open `https://unbrewed-relay-production.up.railway.app/view` and enter the key as the password when the browser prompts. From a shell:
+
+```bash
+curl -u admin:$ADMIN_KEY https://unbrewed-relay-production.up.railway.app/view.json
+```
+
 ## 🏗️ How it works
 
 ```mermaid

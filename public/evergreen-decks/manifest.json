@@ -443,6 +443,18 @@
         "file": "data/heroes/the-narrator.rules.ts",
         "commit": "b6958dc1a92489fa734686460e4bbcb32b6b31cc"
       }
+    },
+    {
+      "heroId": "frankenstein",
+      "deckId": "xd9Qk",
+      "version_id": "W6PG_H2D9b",
+      "frozenAt": "2026-10-10",
+      "digest": "sha256:0e8f50f85a45d754b0ed14da70a401014fe685c9355d2121616acbf300566885",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/frankenstein.rules.ts",
+        "commit": "c1936b9d379062997c16f59992e3c1642c321c49"
+      }
     }
   ]
 }
