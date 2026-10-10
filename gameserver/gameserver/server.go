@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/Emyrk/unbrewed-server/telemetry"
 	"github.com/gorilla/handlers"
@@ -151,13 +153,39 @@ func (gs *GameServer) WSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.Join(values["name"], " ")
+	// Unverified display hints for the operator: never use them to decide
+	// anything (auth, seating, state). The client sends them only when
+	// signed in, and anyone can spoof them.
+	identity := Identity{
+		AccountID: cleanLabel(values.Get("account")),
+		Discord:   cleanLabel(values.Get("discord")),
+	}
 
 	gs.metrics.PlayerJoinEventCount.Inc()
-	err = room.PlayerJoin(c, name)
+	err = room.PlayerJoin(c, name, identity)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "player failed to join: %s", err.Error())
 		return
 	}
+}
+
+// maxLabelLen caps each identity label, in runes.
+const maxLabelLen = 64
+
+// cleanLabel trims a client-supplied label, drops control characters (so it
+// can't forge log lines) and caps it at maxLabelLen runes.
+func cleanLabel(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > maxLabelLen {
+		s = strings.TrimSpace(string(r[:maxLabelLen]))
+	}
+	return s
 }
 
 func (gs *GameServer) CreateLobby(gid string) (bool, error) {
@@ -242,10 +270,22 @@ func (gs *GameServer) EmitShutdown() {
 	}
 }
 
+// Identity is who the client says is signed in: an unverified display hint
+// for the operator, never an authorization input. Both fields may be empty.
+type Identity struct {
+	AccountID string
+	Discord   string
+}
+
 type PlayerConn struct {
 	Name string
 	// hash is Name as telemetry sees it; empty when telemetry is off.
 	hash string
+	// Unverified labels from the ws URL; see Identity. Never sent to
+	// telemetry.
+	AccountID string
+	Discord   string
+	joinedAt  time.Time
 	*websocket.Conn
 	// Serializes writes: gorilla conns forbid concurrent WriteMessage, and
 	// with permessage-deflate a racing write corrupts the flate stream for
@@ -395,11 +435,39 @@ func (r *Room) Close() {
 	}
 }
 
-func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
+// RosterEntry is one live connection as the operator sees it.
+type RosterEntry struct {
+	Name      string    `json:"name"`
+	AccountID string    `json:"account,omitempty"`
+	Discord   string    `json:"discord,omitempty"`
+	JoinedAt  time.Time `json:"joinedAt"`
+}
+
+// Roster lists every live connection, oldest join first.
+func (r *Room) Roster() []RosterEntry {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	out := make([]RosterEntry, 0, len(r.Clients))
+	for c := range r.Clients {
+		out = append(out, RosterEntry{
+			Name:      c.Name,
+			AccountID: c.AccountID,
+			Discord:   c.Discord,
+			JoinedAt:  c.joinedAt,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].JoinedAt.Before(out[j].JoinedAt) })
+	return out
+}
+
+func (r *Room) PlayerJoin(c *websocket.Conn, name string, identity Identity) error {
 	player := &PlayerConn{
-		Conn: c,
-		Name: name,
-		hash: r.telemetry.Hash(name),
+		Conn:      c,
+		Name:      name,
+		hash:      r.telemetry.Hash(name),
+		AccountID: identity.AccountID,
+		Discord:   identity.Discord,
+		joinedAt:  time.Now(),
 	}
 
 	if name == "" {
@@ -427,6 +495,14 @@ func (r *Room) PlayerJoin(c *websocket.Conn, name string) error {
 		r.FieldState.LastUpdate = time.Now()
 	}
 
+	log.WithFields(log.Fields{
+		"gid":     r.GameID,
+		"name":    name,
+		"account": player.AccountID,
+		"discord": player.Discord,
+		"clients": len(r.Clients),
+	}).Info("player joined")
+
 	go r.PlayerListener(player, r.ctx)
 	r.broadcastAll(websocket.TextMessage, r.GetGameState())
 	// Replay board positions too — without this a rejoining player sees an
@@ -448,7 +524,12 @@ func (r *Room) PlayerListener(c *PlayerConn, ctx context.Context) {
 
 		mt, message, err := c.ReadMessage()
 		if err != nil {
-			log.WithError(err).Error("read failed: player exited")
+			log.WithError(err).WithFields(log.Fields{
+				"gid":     r.GameID,
+				"name":    c.Name,
+				"account": c.AccountID,
+				"discord": c.Discord,
+			}).Error("read failed: player exited")
 			r.PlayerExit(c)
 			break
 		}
@@ -522,7 +603,12 @@ func (r *Room) broadcastAll(mt int, msg []byte) {
 			// A failed write leaves the conn unusable, and a dead-but-open one
 			// would cost every later broadcast the full write deadline. Drop
 			// it; its read loop errors out next and PlayerExit is a no-op.
-			log.WithError(err).Error("write failed: dropping connection")
+			log.WithError(err).WithFields(log.Fields{
+				"gid":     r.GameID,
+				"name":    c.Name,
+				"account": c.AccountID,
+				"discord": c.Discord,
+			}).Error("write failed: dropping connection")
 			delete(r.Clients, c)
 			_ = c.Close()
 			r.emitLeft(c)
@@ -541,6 +627,13 @@ func (r *Room) PlayerExit(c *PlayerConn) bool {
 	}
 	delete(r.Clients, c)
 	r.emitLeft(c)
+	log.WithFields(log.Fields{
+		"gid":     r.GameID,
+		"name":    c.Name,
+		"account": c.AccountID,
+		"discord": c.Discord,
+		"clients": len(r.Clients),
+	}).Info("player exited")
 	return true
 }
 

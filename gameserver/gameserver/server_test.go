@@ -3,6 +3,7 @@ package gameserver
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 )
 
 func startServer(t *testing.T) (*GameServer, *httptest.Server) {
@@ -135,5 +138,72 @@ func TestClosingOneSameNameConnectionKeepsTheOther(t *testing.T) {
 	send(t, bob, MsgTypePlayerState, `{"pool":{}}`)
 	if got := string(next(t, tab2, MsgTypeGameState)); !strings.Contains(got, `"bob"`) {
 		t.Fatalf("tab2 missed bob's update: %s", got)
+	}
+}
+
+// The account/discord labels are optional: a guest URL (name only) joins as
+// before, and a signed-in one's labels land on the roster, cleaned.
+func TestJoinCarriesOptionalIdentityLabels(t *testing.T) {
+	gs, srv := startServer(t)
+	guest := dial(t, srv, "guest")
+	next(t, guest, MsgTypePlayerPosition)
+
+	long := strings.Repeat("a", 70)
+	q := url.Values{}
+	q.Set("account", "  acct-1  ")
+	q.Set("discord", "dean\n\x07"+long)
+	signed := dial(t, srv, "alice&"+q.Encode())
+	next(t, signed, MsgTypePlayerPosition)
+
+	roster := gs.Rooms["room"].Roster()
+	if len(roster) != 2 {
+		t.Fatalf("roster = %+v, want 2 entries", roster)
+	}
+	if g := roster[0]; g.Name != "guest" || g.AccountID != "" || g.Discord != "" || g.JoinedAt.IsZero() {
+		t.Fatalf("guest entry = %+v", g)
+	}
+	s := roster[1]
+	if s.Name != "alice" || s.AccountID != "acct-1" {
+		t.Fatalf("signed-in entry = %+v", s)
+	}
+	if want := ("dean" + long)[:maxLabelLen]; s.Discord != want {
+		t.Fatalf("discord = %q, want %q", s.Discord, want)
+	}
+	if !s.JoinedAt.After(roster[0].JoinedAt) {
+		t.Fatalf("roster not ordered by join: %+v", roster)
+	}
+}
+
+func TestJoinAndExitLogIdentityFields(t *testing.T) {
+	hook := logtest.NewGlobal()
+	t.Cleanup(func() { log.StandardLogger().ReplaceHooks(make(log.LevelHooks)) })
+	gs, srv := startServer(t)
+	c := dial(t, srv, "logan&account=acct-1&discord=dean")
+	next(t, c, MsgTypePlayerPosition)
+	_ = c.Close()
+	waitClients(t, gs.Rooms["room"], 0)
+
+	// The hook is global: earlier tests' connections may still be logging
+	// their exits, so match on this test's player too.
+	find := func(msg string) *log.Entry {
+		for _, e := range hook.AllEntries() {
+			if e.Message == msg && e.Data["name"] == "logan" {
+				return e
+			}
+		}
+		t.Fatalf("no %q log line", msg)
+		return nil
+	}
+	for _, msg := range []string{"player joined", "read failed: player exited", "player exited"} {
+		e := find(msg)
+		if e.Data["gid"] != "room" || e.Data["name"] != "logan" || e.Data["account"] != "acct-1" || e.Data["discord"] != "dean" {
+			t.Fatalf("%q fields = %v", msg, e.Data)
+		}
+	}
+	if n := find("player joined").Data["clients"]; n != 1 {
+		t.Fatalf("join clients = %v, want 1", n)
+	}
+	if n := find("player exited").Data["clients"]; n != 0 {
+		t.Fatalf("exit clients = %v, want 0", n)
 	}
 }

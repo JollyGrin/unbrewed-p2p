@@ -326,3 +326,30 @@ func TestSandboxTelemetryBadSinkNeverDelaysBroadcast(t *testing.T) {
 		})
 	}
 }
+
+// The account/discord labels (#1322) are for the operator's logs and roster
+// only: telemetry stays hashed, so no batch may carry either raw value.
+func TestSandboxTelemetryOmitsAccountAndDiscord(t *testing.T) {
+	sk := &sink{}
+	sinkSrv := httptest.NewServer(sk)
+	t.Cleanup(sinkSrv.Close)
+	gs, srv, em := startTelemetryServer(t, sinkSrv.URL)
+
+	c := dialLobby(t, srv, "ZeldaQuill&account=acct-PrivateNumbat7&discord=PrivateWombat9")
+	next(t, c, MsgTypePlayerPosition)
+	room := gs.Rooms[testLobby]
+	if r := room.Roster(); len(r) != 1 || r[0].AccountID != "acct-PrivateNumbat7" || r[0].Discord != "PrivateWombat9" {
+		t.Fatalf("roster = %+v", r)
+	}
+	_ = c.Close()
+	waitClients(t, room, 0)
+	flush(t, em)
+
+	types := map[string]bool{}
+	for _, e := range sk.events(t, "PrivateNumbat7", "privatenumbat7", "PrivateWombat9", "privatewombat9") {
+		types[e.Type] = true
+	}
+	if !types["player_joined"] || !types["player_left"] {
+		t.Fatalf("event types = %v, want player_joined and player_left", types)
+	}
+}
