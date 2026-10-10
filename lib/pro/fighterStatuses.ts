@@ -23,6 +23,7 @@
  * Adding a new status kind or marker name is ONE entry here — ProBoard maps every
  * `ViewFighter.statuses` entry through `fighterStatusBadgesFor` generically.
  */
+import { markerIdentityLabel, type MarkerLabels } from "./boardObjects";
 import { ViewFighter } from "./protocol";
 
 /** Board-token rim badge presentation for one status (icon + label + colors). */
@@ -103,19 +104,34 @@ export const FIGHTER_MARKER_BADGES: Record<string, FighterMarkerBadge> = {
 };
 
 /**
+ * Words for a marker identity nobody labelled: the id's last segment, de-slugged
+ * ('dilophosaurus/venom' → 'Venom', 'did-not-attack' → 'Did not attack'). Never the
+ * raw id.
+ */
+export const humanizeMarkerId = (id: string): string => {
+  const last = id.split("/").filter(Boolean).pop() ?? id;
+  const words = last.replace(/[-_]+/g, " ").trim().toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : id;
+};
+
+/**
  * Fallback for a marker name this client does not know — a NEWER engine deck's
  * marker. The protocol's own instruction (v29 note on `FighterStatus.name`): "a name
  * it does not know should still render a generic mark with the count". Rendering
- * nothing would silently hide live, public, rules-relevant state; rendering the raw
- * name in a tooltip is honest and degrades gracefully.
+ * nothing would silently hide live, public, rules-relevant state. The label comes
+ * from the scenario's `display.markers` (same source as the log and board markers),
+ * else a humanized id.
  */
-const genericMarkerBadge = (name: string): FighterMarkerBadge => ({
-  icon: "◈",
-  label: name,
-  titleTemplate: `${name} ×{n}`,
-  bg: "#4A3B57",
-  color: "#F1EAF7",
-});
+const genericMarkerBadge = (name: string, markers?: MarkerLabels | null): FighterMarkerBadge => {
+  const label = markerIdentityLabel(name, markers) ?? humanizeMarkerId(name);
+  return {
+    icon: "◈",
+    label,
+    titleTemplate: `${label} ×{n}`,
+    bg: "#4A3B57",
+    color: "#F1EAF7",
+  };
+};
 
 /**
  * The rim badges to render for one fighter, in `ViewFighter.statuses` order. Pure +
@@ -128,7 +144,8 @@ const genericMarkerBadge = (name: string): FighterMarkerBadge => ({
  * an explicit clear, or the fighter's defeat — which clears markers engine-side).
  */
 export const fighterStatusBadgesFor = (
-  fighter: Pick<ViewFighter, "statuses">
+  fighter: Pick<ViewFighter, "statuses">,
+  markerLabels?: MarkerLabels | null
 ): FighterStatusBadge[] =>
   (fighter.statuses ?? [])
     .map((s): FighterStatusBadge | null => {
@@ -136,7 +153,7 @@ export const fighterStatusBadgesFor = (
       // A MARKED entry with no name is malformed (the engine always sets one); treat
       // it as an unknown marker rather than dropping the fact on the floor.
       const name = s.name ?? "MARK";
-      const badge = FIGHTER_MARKER_BADGES[name] ?? genericMarkerBadge(name);
+      const badge = FIGHTER_MARKER_BADGES[name] ?? genericMarkerBadge(name, markerLabels);
       const count = s.count ?? 1;
       return {
         kind: "MARKED",

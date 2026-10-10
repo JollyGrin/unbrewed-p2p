@@ -1261,7 +1261,7 @@ describe("enrichLines", () => {
       ).toBe("hero is marked — Meridian (×2) until end of turn");
     });
 
-    it("FIGHTER_MARKED — an unknown marker narrates under its raw engine name", () => {
+    it("FIGHTER_MARKED — an unknown marker narrates under a humanized name", () => {
       // Inigo's REVENGE tokens land before this client has a badge for them; the log
       // must not swallow public state (protocol v29's degrade-gracefully rule).
       expect(
@@ -1274,7 +1274,7 @@ describe("enrichLines", () => {
           expiresAtTurn: null,
           expiresAt: null,
         }).text
-      ).toBe("hero is marked — REVENGE (×3)");
+      ).toBe("hero is marked — Revenge (×3)");
     });
 
     it("FIGHTER_MARKS_CLEARED — names the marker, or says 'marks' for the no-name form", () => {

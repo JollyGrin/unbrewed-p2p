@@ -767,7 +767,7 @@ export const useRegionPanels = ({
     // hero-state tokenBadge above, these apply to ANY fighter (hero OR sidekick,
     // any hero) since a status is typically inflicted by the opponent. Head
     // segment only, same rule as the HP/state badges.
-    const statusBadges = segment === "head" ? fighterStatusBadgesFor(f) : [];
+    const statusBadges = segment === "head" ? fighterStatusBadgesFor(f, markerLabels) : [];
     // Cosmetic metal rim (#613, design doc §10). HERO head segment only —
     // sidekick cosmetics are explicitly deferred (§10b), and a LARGE fighter's
     // tail is a plain body, same head-only rule as every badge. It resolves

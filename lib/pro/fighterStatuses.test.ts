@@ -88,8 +88,17 @@ describe("MARKED / MERIDIAN (issue #596 ↔ engine #360, protocol v29)", () => {
       fighter({ statuses: [{ kind: "MARKED", name: "REVENGE", count: 2 }] })
     );
     expect(badges).toHaveLength(1);
-    expect(badges[0]).toMatchObject({ key: "MARKED:REVENGE", label: "REVENGE", count: 2 });
-    expect(badges[0].title).toBe("REVENGE ×2");
+    expect(badges[0]).toMatchObject({ key: "MARKED:REVENGE", label: "Revenge", count: 2 });
+    expect(badges[0].title).toBe("Revenge ×2");
+  });
+
+  it("labels a generic mark from scenario.display.markers, else a humanized id — never the raw id", () => {
+    const st = (name: string) => fighter({ statuses: [{ kind: "MARKED", name, count: 7 }] });
+    const labelled = fighterStatusBadgesFor(st("dilophosaurus/venom"), { "dilophosaurus/venom": "Venom" });
+    expect(labelled[0]).toMatchObject({ icon: "◈", label: "Venom", key: "MARKED:dilophosaurus/venom" });
+    expect(labelled[0].title).toBe("Venom ×7");
+    expect(fighterStatusBadgesFor(st("dilophosaurus/venom"))[0].title).toBe("Venom ×7");
+    expect(fighterStatusBadgesFor(st("did-not-attack"))[0].label).toBe("Did not attack");
   });
 
   it("gives every badge a UNIQUE key — several markers can ride one fighter", () => {

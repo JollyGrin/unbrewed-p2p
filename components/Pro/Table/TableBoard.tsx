@@ -786,6 +786,7 @@ export const TableBoard = ({
                   </TableStandeeAnchor>
                 )}
                 <TableFighterStandee
+                  markerLabels={markerLabels}
                   fighter={badgeProbe ? { ...f, statuses: [...(f.statuses ?? []), BADGE_PROBE_STATUS] } : f}
                   x={stand.x}
                   y={stand.y}

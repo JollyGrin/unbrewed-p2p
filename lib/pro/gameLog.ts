@@ -19,7 +19,7 @@ import {
   ViewPlayer,
 } from "./protocol";
 import { boardObjectOriginFighter, boardObjectVisualFor, markerIdentityLabel, type MarkerLabels } from "./boardObjects";
-import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
+import { FIGHTER_MARKER_BADGES, humanizeMarkerId } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
@@ -717,7 +717,7 @@ function valueBreakdownText(
  * raw engine name, rather than vanishing from the feed.
  */
 const markerLabel = (name: string, markers?: MarkerLabels | null): string =>
-  FIGHTER_MARKER_BADGES[name]?.label ?? markerIdentityLabel(name, markers) ?? name;
+  FIGHTER_MARKER_BADGES[name]?.label ?? markerIdentityLabel(name, markers) ?? humanizeMarkerId(name);
 
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
