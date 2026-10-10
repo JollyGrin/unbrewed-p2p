@@ -16,6 +16,8 @@
  * (the alternate faces) and `<prefix>-<first word of slug>` (the CDN's short names, e.g.
  * `irex-bigger` for `bigger-louder-more-teeth`), first listed stem wins.
  *
+ * The 11 Isla Nublar minions (#1367) follow the plain convention (`prefix: ""`): `<dir>/<slug>.webp`.
+ *
  * Faces are ~0.696 w:h (initiative cards ~0.62), NOT 63:88 — render with `object-fit: contain`.
  * Scenario decks (support / terrain / genetic-enhancements / observation-tower / mosasaurus) have
  * faces uploaded but no engine ids yet. Enemies with no entry (every Clockwork Heist enemy) are null.
@@ -38,11 +40,32 @@ export interface EnemyArt {
   scenario: string;
   /** Folder under `<base>/` holding this enemy's faces. */
   dir: string;
-  /** File-name prefix: `<prefix>-<slug>.webp`. */
+  /** File-name prefix: `<prefix>-<slug>.webp`; "" = the plain convention `<slug>.webp`. */
   prefix: string;
   /** Uploaded stems, without the `<prefix>-` and `.webp`. Verified by HEAD, 2026-10-10. */
   stems: readonly string[];
 }
+
+/** The 11 v1 Isla Nublar minions (#1367): engine enemy id -> uploaded stems (= engine card slugs). */
+const MINIONS: readonly (readonly [string, readonly string[]])[] = [
+  ["ankylosaurus", ["initiative", "armored-plates", "deception", "fused-lizard", "living-tank"]],
+  ["apatosaurus", ["initiative", "deceptive-lizard", "hulking-sauropod", "lumbering-titan", "sweeping-tail", "unbothered-grazing"]],
+  ["carnotaurus", ["initiative", "back-into-the-brush", "deception", "highly-aggressive", "meat-eating-bull"]],
+  ["dilophosaurus", ["initiative", "blinding-venom", "deception", "savage-hunter", "two-crested-lizard"]],
+  ["gallimimus", ["initiative", "across-the-open-field", "deception", "flight-response", "thunder-on-the-plains", "trampled"]],
+  ["oviraptor", ["initiative", "deception", "egg-thief", "hit-and-run", "outmaneuver", "silent-heist"]],
+  ["parasaurolophus", ["initiative", "deception", "hadrosaur-stampede", "near-crested-lizard", "warning-call"]],
+  ["stygimoloch", ["initiative", "deception", "demon-from-the-river-styx", "momentum", "shattering-impact"]],
+  ["therizinosaurus", ["initiative", "deception", "looming-dread", "primordial-harvest", "reaping-talons", "scythe-lizard"]],
+  ["triceratops-minion", ["initiative", "deception", "gore", "herd-protection", "three-horned-face"]],
+  ["tyrannosaurus", ["initiative", "bone-crushing-jaws", "deception", "drawn-to-movement", "primordial-roar", "thrash", "tyrant-queen"]],
+];
+const minionArt = (dir: string, stems: readonly string[]): EnemyArt => ({
+  scenario: "jurassic-park",
+  dir,
+  prefix: "",
+  stems,
+});
 
 /** engine enemy id -> its art layout. Only enemies with uploaded faces appear. */
 export const ENEMY_ART: Record<string, EnemyArt> = {
@@ -60,7 +83,17 @@ export const ENEMY_ART: Record<string, EnemyArt> = {
       "deception",
     ],
   },
+  ...Object.fromEntries(MINIONS.map(([id, stems]): [string, EnemyArt] => [id, minionArt(id, stems)])),
 };
+
+/**
+ * A released asset minion is its own enemy id (`<dinosaur>-asset`; `triceratops-asset` for the
+ * `triceratops-minion` deck) and its initiative card id is that bare id. Its combat cards reuse the
+ * minion's deck, so they already carry the minion's ids; only the initiative needs this alias.
+ */
+const ASSET_ALIAS: Record<string, string> = Object.fromEntries(
+  MINIONS.map(([id]) => [`${id.replace(/-minion$/, "")}-asset`, id]),
+);
 
 /** The pure convention: `<scenario base>/<enemy dir>/<card slug>.webp` (no prefix, no inventory). */
 export const conventionArtUrl = (scenario: string, enemyDir: string, slug: string): string =>
@@ -71,11 +104,15 @@ export const adventureCardArt = (cardId: string | null | undefined): string | nu
   if (!cardId) return null;
   const id = cardId.replace(/[#@].*$/, "");
   const slash = id.indexOf("/");
-  const art = ENEMY_ART[slash < 0 ? id : id.slice(0, slash)];
+  const enemy = slash < 0 ? id : id.slice(0, slash);
+  const art = ENEMY_ART[ASSET_ALIAS[enemy] ?? enemy];
   if (!art) return null;
   const slug = slash < 0 ? "initiative" : id.slice(slash + 1);
-  const stem = [slug, `alt-${slug}`, slug.split("-")[0]].find((s) => art.stems.includes(s));
-  return stem ? `${cardBase(art.scenario)}/${art.dir}/${art.prefix}-${stem}.webp` : null;
+  // Legacy (prefixed) enemies also try the alt-/short names; plain-convention ones are exact.
+  const tries = art.prefix ? [slug, `alt-${slug}`, slug.split("-")[0]] : [slug];
+  const stem = tries.find((s) => art.stems.includes(s));
+  if (!stem) return null;
+  return art.prefix ? `${cardBase(art.scenario)}/${art.dir}/${art.prefix}-${stem}.webp` : conventionArtUrl(art.scenario, art.dir, stem);
 };
 
 /**
