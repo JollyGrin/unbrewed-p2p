@@ -6,7 +6,7 @@ export const SITE_URL = "https://unbrewed.xyz";
 export const DEFAULT_TITLE =
   "Unbrewed — Play Unmatched Fan Decks Online in Your Browser";
 export const DEFAULT_DESCRIPTION =
-  "Free browser simulator for the Unmatched board game. Play homebrew fan decks head-to-head — no account, no install. Imports from unmatched.cards, the-unmatched.club, and Tabletop Simulator.";
+  "Play Unmatched fan decks free in your browser: a 2D sandbox, rules-enforced Pro with bots, a 3D table, tournaments, and IRL mode for your phone. No install.";
 export const DEFAULT_IMAGE = "/og.png";
 const THEME_COLOR = "#48284f";
 

@@ -79,7 +79,12 @@ const Irl = () => {
 
   return (
     <>
-      <PageSeo path="/irl" title="IRL Mode — Unbrewed" noindex />
+      {/* Indexable since #1353 lists /irl in the sitemap. */}
+      <PageSeo
+        path="/irl"
+        title="IRL Mode — Your Phone as an Unmatched Deck Tray | Unbrewed"
+        description="Playing Unmatched at a real table? IRL mode turns your phone into the deck tray: hand, deck, discard and health for any fan deck. Installable and works offline."
+      />
       {/* Installable to the home screen (#800). Only this page links the
           manifest, so only /irl can be installed; its scope is "/irl".
           theme-color and viewport-fit=cover already come from PageSeo. */}

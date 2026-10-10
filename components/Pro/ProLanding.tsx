@@ -762,6 +762,9 @@ const SectionHead = ({
   </Text>
 );
 
+/** The boards the create screen's picker offers (hidden dev boards excluded). */
+const PICKER_BOARDS = MAP_CATALOG.filter((entry) => !entry.hidden);
+
 /** Parallel facts about what ships today — deliberately unnumbered (not a sequence). */
 const MODES = [
   {
@@ -773,8 +776,9 @@ const MODES = [
     text: "Warm up on Easy, spar Medium, grind Hard's Monte-Carlo search — or challenge Expert, an alpha search bot (ISMCTS) that beats Hard 8 times in 10 in simulation. Real players still beat it more often than not — it's the one we're actively training.",
   },
   {
-    title: "Fourteen boards — or yours",
-    text: "The Mended Drum, Island of Despair, City Docks, Polus, Weathertop, Count's Castle, USCSS Nostromo, The Bog, Wedding Crashers, Pyramids, Secluded Temple, Unseen University, River Cruise, The Altar — or import a custom map.",
+    // Counted and named from MAP_CATALOG so the copy can't drift from the picker (#1353).
+    title: `${PICKER_BOARDS.length} boards — or yours`,
+    text: `${PICKER_BOARDS.map((board) => board.title).join(", ")} — or import a custom map.`,
   },
   {
     title: "Every match, a replay",

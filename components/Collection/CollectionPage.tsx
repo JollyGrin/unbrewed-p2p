@@ -87,7 +87,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
       title: "Your collection | Unbrewed",
       description:
         "Spend the points you earn playing Unbrewed Pro on cosmetic upgrades for your decks.",
-      noindex: true,
+      // In the sitemap since #1353: a guest gets the sign-in pitch, not a 404.
     }}
     maxW="58rem"
   >
