@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Emyrk/unbrewed-server/telemetry"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -125,6 +127,16 @@ func TestAdminSnapshotPlayers(t *testing.T) {
 	if room.ID != "room" || room.MapURL != "https://maps.example/castle.png" {
 		t.Errorf("room id=%q mapUrl=%q", room.ID, room.MapURL)
 	}
+	// Telemetry off: the room still has its roomId and the counters it
+	// always keeps, but no hash-based ones.
+	if room.RoomID != gs.Rooms["room"].telemetryID || room.RoomID == "" {
+		t.Errorf("roomId = %q, want %q", room.RoomID, gs.Rooms["room"].telemetryID)
+	}
+	if snap.Telemetry || room.PeakConnections != 3 || room.StateUpdates != 2 ||
+		room.DistinctPlayers != nil || room.HeroesSeen != nil {
+		t.Errorf("telemetry=%v peak=%d updates=%d distinct=%s heroes=%v, want false/3/2/–/nil",
+			snap.Telemetry, room.PeakConnections, room.StateUpdates, fmtCount(room.DistinctPlayers), room.HeroesSeen)
+	}
 	if len(room.Players) != 2 {
 		t.Fatalf("players = %+v, want 2", room.Players)
 	}
@@ -230,5 +242,63 @@ func TestAdminViewEscapesPlayerStrings(t *testing.T) {
 	}
 	if !strings.Contains(body, "&lt;script&gt;alert(1)&lt;/script&gt;") {
 		t.Fatalf("escaped name missing from view:\n%s", body)
+	}
+}
+
+// With telemetry on, the view lines a room up with telemetry's Sandbox tab
+// (gid and roomId side by side, room_closed's counters) without exposing the
+// salt or anything hashed with it.
+func TestAdminViewTelemetryCounters(t *testing.T) {
+	sk := &sink{}
+	sinkSrv := httptest.NewServer(sk)
+	t.Cleanup(sinkSrv.Close)
+	gs := NewGameServer(prometheus.NewRegistry())
+	em := telemetry.NewHTTP(telemetry.Config{
+		URL: sinkSrv.URL, Key: "test-key", Salt: "test-salt",
+		FlushInterval: 10 * time.Millisecond,
+	})
+	gs.Telemetry = em
+	gs.Mux = mux.NewRouter()
+	gs.Mux.HandleFunc("/ws/{gid}", gs.WSHandler)
+	srv := httptest.NewServer(gs.handler(testAdminKey))
+	t.Cleanup(srv.Close)
+	if _, err := gs.CreateLobby(testLobby); err != nil {
+		t.Fatal(err)
+	}
+
+	zelda := dialLobby(t, srv, "ZeldaQuill")
+	next(t, zelda, MsgTypePlayerPosition)
+	bob := dialLobby(t, srv, "BobbyTables")
+	next(t, bob, MsgTypePlayerPosition)
+	send(t, zelda, MsgTypePlayerState, `{"pool":{"hero":{"name":"Medusa"}}}`)
+	next(t, bob, MsgTypeGameState)
+	send(t, bob, MsgTypePlayerState, `{"pool":{"hero":{"name":"Achilles"}}}`)
+	next(t, zelda, MsgTypeGameState)
+
+	snap, jsonBody := viewJSON(t, srv)
+	_, _, htmlBody := getAdmin(t, srv, "/view", testAdminKey, true)
+	if !snap.Telemetry || len(snap.Rooms) != 1 {
+		t.Fatalf("snapshot = %s", jsonBody)
+	}
+	room := snap.Rooms[0]
+	wantID := gs.Rooms[testLobby].telemetryID
+	if room.ID != testLobby || room.RoomID != wantID {
+		t.Errorf("id=%q roomId=%q, want %q/%q", room.ID, room.RoomID, testLobby, wantID)
+	}
+	if room.PeakConnections != 2 || room.StateUpdates != 2 || room.DistinctPlayers == nil || *room.DistinctPlayers != 2 {
+		t.Errorf("peak=%d updates=%d distinct=%s, want 2/2/2", room.PeakConnections, room.StateUpdates, fmtCount(room.DistinctPlayers))
+	}
+	if strings.Join(room.HeroesSeen, ",") != "Achilles,Medusa" {
+		t.Errorf("heroesSeen = %v", room.HeroesSeen)
+	}
+	for _, out := range []string{jsonBody, htmlBody} {
+		if !strings.Contains(out, testLobby) || !strings.Contains(out, wantID) {
+			t.Errorf("gid or roomId missing from output")
+		}
+	}
+	for _, secret := range []string{"test-salt", em.Hash("ZeldaQuill"), em.Hash("BobbyTables"), em.Hash(testLobby)} {
+		if strings.Contains(jsonBody, secret) || strings.Contains(htmlBody, secret) {
+			t.Errorf("view exposes %q", secret)
+		}
 	}
 }

@@ -55,20 +55,31 @@ func (gs *GameServer) adminOnly(adminKey string, h http.HandlerFunc) http.Handle
 }
 
 type adminSnapshot struct {
-	UptimeMs     int64       `json:"uptimeMs"`
-	WSClients    int         `json:"wsClients"`
-	RoomCount    int         `json:"roomCount"`
-	RoomsCreated int64       `json:"roomsCreated"`
-	Joins        int64       `json:"joins"`
-	Rooms        []adminRoom `json:"rooms"`
+	UptimeMs     int64 `json:"uptimeMs"`
+	WSClients    int   `json:"wsClients"`
+	RoomCount    int   `json:"roomCount"`
+	RoomsCreated int64 `json:"roomsCreated"`
+	Joins        int64 `json:"joins"`
+	// Telemetry says whether roomId values line up with telemetry's Sandbox
+	// tab, and whether distinctPlayers/heroesSeen are being counted.
+	Telemetry bool        `json:"telemetry"`
+	Rooms     []adminRoom `json:"rooms"`
 }
 
 type adminRoom struct {
-	ID      string        `json:"id"`
+	ID      string        `json:"id"`     // lobby gid
+	RoomID  string        `json:"roomId"` // this sitting's telemetry roomId
 	AgeMs   int64         `json:"ageMs"`
 	IdleMs  int64         `json:"idleMs"`
 	MapURL  string        `json:"mapUrl,omitempty"`
 	Players []adminPlayer `json:"players"`
+
+	// The room's telemetry counters, as room_closed reports them. Only
+	// peakConnections and stateUpdates are kept with telemetry off.
+	PeakConnections int      `json:"peakConnections"`
+	StateUpdates    int64    `json:"stateUpdates"`
+	DistinctPlayers *int     `json:"distinctPlayers,omitempty"`
+	HeroesSeen      []string `json:"heroesSeen,omitempty"`
 }
 
 type adminPlayer struct {
@@ -108,6 +119,12 @@ type adminBlob struct {
 // roomCopy is what snapshot copies out of a Room under its lock.
 type roomCopy struct {
 	id         string
+	roomID     string
+	peak       int
+	updates    int64
+	telemetry  bool
+	distinct   int
+	heroes     []string
 	openedAt   time.Time
 	lastUpdate time.Time
 	blobs      map[string]json.RawMessage
@@ -135,16 +152,25 @@ func (gs *GameServer) snapshot() adminSnapshot {
 		RoomsCreated: atomic.LoadInt64(&gs.roomsCreated),
 		Joins:        atomic.LoadInt64(&gs.joins),
 		Rooms:        make([]adminRoom, 0, len(copies)),
+		Telemetry:    gs.Telemetry.Enabled(),
 	}
 	sort.Slice(copies, func(i, j int) bool {
 		return copies[i].lastUpdate.After(copies[j].lastUpdate)
 	})
 	for _, rc := range copies {
 		ar := adminRoom{
-			ID:      rc.id,
-			AgeMs:   now.Sub(rc.openedAt).Milliseconds(),
-			IdleMs:  now.Sub(rc.lastUpdate).Milliseconds(),
-			Players: make([]adminPlayer, 0, len(rc.blobs)),
+			ID:              rc.id,
+			RoomID:          rc.roomID,
+			PeakConnections: rc.peak,
+			StateUpdates:    rc.updates,
+			AgeMs:           now.Sub(rc.openedAt).Milliseconds(),
+			IdleMs:          now.Sub(rc.lastUpdate).Milliseconds(),
+			Players:         make([]adminPlayer, 0, len(rc.blobs)),
+		}
+		if rc.telemetry {
+			ar.DistinctPlayers = intPtr(rc.distinct)
+			sort.Strings(rc.heroes)
+			ar.HeroesSeen = rc.heroes
 		}
 		for name, blob := range rc.blobs {
 			p := adminPlayer{
@@ -193,6 +219,11 @@ func (r *Room) adminCopy() roomCopy {
 	defer r.mutex.Unlock()
 	rc := roomCopy{
 		id:         r.GameID,
+		roomID:     r.telemetryID,
+		peak:       r.peakClients,
+		updates:    r.stateUpdates,
+		telemetry:  r.telemetry.Enabled(),
+		distinct:   len(r.playerHashes),
 		openedAt:   r.openedAt,
 		lastUpdate: r.FieldState.LastUpdate,
 		blobs:      make(map[string]json.RawMessage, len(r.FieldState.Players)),
@@ -207,6 +238,16 @@ func (r *Room) adminCopy() roomCopy {
 	}
 	for name, p := range r.presence {
 		rc.presence[name] = *p
+	}
+	// Hero names only: heroesSeen is keyed by playerHash, which stays here.
+	heroes := make(map[string]struct{})
+	for _, seen := range r.heroesSeen {
+		for hero := range seen {
+			heroes[hero] = struct{}{}
+		}
+	}
+	for hero := range heroes {
+		rc.heroes = append(rc.heroes, hero)
 	}
 	return rc
 }
@@ -313,9 +354,11 @@ var adminPage = template.Must(template.New("view").Funcs(template.FuncMap{
   <div class="stat"><b>{{.RoomsCreated}}</b><span>rooms since boot</span></div>
   <div class="stat"><b>{{.Joins}}</b><span>joins since boot</span></div>
   <div class="stat"><b>{{dur .UptimeMs}}</b><span>uptime</span></div>
+  <div class="stat"><b>{{if .Telemetry}}on{{else}}off{{end}}</b><span>telemetry</span></div>
 </div>
 {{range .Rooms}}
-<h2><code>{{.ID}}</code> <span class="dim">· age {{dur .AgeMs}} · idle {{dur .IdleMs}}{{if .MapURL}} · map {{.MapURL}}{{end}}</span></h2>
+<h2><code>{{.ID}}</code> <span class="dim">· roomId <code>{{.RoomID}}</code> · age {{dur .AgeMs}} · idle {{dur .IdleMs}}{{if .MapURL}} · map {{.MapURL}}{{end}}</span></h2>
+<p class="dim">peak {{.PeakConnections}} connections · {{.StateUpdates}} state updates · {{count .DistinctPlayers}} distinct players{{if .HeroesSeen}} · heroes seen: {{range $i, $h := .HeroesSeen}}{{if $i}}, {{end}}{{$h}}{{end}}{{end}}</p>
 <table>
 <thead><tr><th>player</th><th>status</th><th>deck</th><th>hero</th><th>author</th><th class="num">deck</th><th class="num">hand</th><th class="num">discard</th><th class="num">joined</th><th class="num">last seen</th></tr></thead>
 <tbody>
