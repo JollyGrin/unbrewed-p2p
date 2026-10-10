@@ -7,14 +7,14 @@ import type { PlayerId } from "@/lib/pro/protocol";
 import { publishAdventureSetup, useScenarios } from "@/lib/pro/adventureScenarios";
 import { trackFormatOpened, trackLobbyConfigured } from "@/lib/analytics/adventure";
 import {
-  ADVENTURE_MAX_HUMANS,
-  ADVENTURE_MIN_HUMANS,
   AdventureEnemyOption,
   AdventureSetup,
   NO_SCENARIO_REASON,
   adventureSeats,
   enemyHpAt,
   enemySizeMove,
+  heroSeatCounts,
+  heroSeatRange,
   minionSlotCount,
   rosterOptions,
   scenarioFor,
@@ -143,6 +143,7 @@ export const AdventureLobby = ({
   const scenario = scenarioFor(setup, scenarios);
   const roster = rosterOptions(scenario);
   const perPlayer = scenario?.minionsPerPlayer ?? 1;
+  const seatRange = heroSeatRange(scenario);
   // No scenario listed once the server has answered: Create is refused at the wire
   // (never a fallback board, #1113) — say why here instead of failing on click.
   const noScenario = loaded && !scenario;
@@ -150,6 +151,11 @@ export const AdventureLobby = ({
   useEffect(() => {
     publishAdventureSetup(setup);
   }, [setup]);
+  // A table size the (default) scenario doesn't play at — e.g. its listing arrived narrowing the
+  // range — is pulled into range rather than sent as an out-of-range CREATE_ROOM.humans.
+  useEffect(() => {
+    if (setup.humans < seatRange.min || setup.humans > seatRange.max) onChange(setHumans(setup, setup.humans, perPlayer, seatRange));
+  }, [setup, seatRange, perPlayer, onChange]);
   // Mounted only while the Adventure format is selected, so mount = tab opened.
   useEffect(() => {
     trackFormatOpened();
@@ -165,7 +171,7 @@ export const AdventureLobby = ({
           HEROES
         </Text>
         <Flex gap="0.3rem" role="group" aria-label="Number of heroes">
-          {Array.from({ length: ADVENTURE_MAX_HUMANS - ADVENTURE_MIN_HUMANS + 1 }, (_, i) => ADVENTURE_MIN_HUMANS + i).map((n) => {
+          {heroSeatCounts(seatRange).map((n) => {
             const active = n === setup.humans;
             return (
               <Button
@@ -174,7 +180,7 @@ export const AdventureLobby = ({
                 size="xs"
                 data-testid={`adventure-humans-${n}`}
                 aria-pressed={active}
-                onClick={() => configure(setHumans(setup, n, perPlayer))}
+                onClick={() => configure(setHumans(setup, n, perPlayer, seatRange))}
                 fontFamily="SpaceGrotesk"
                 fontWeight={active ? "bold" : "normal"}
                 bg={active ? "brand.accent" : "rgba(0,0,0,0.25)"}

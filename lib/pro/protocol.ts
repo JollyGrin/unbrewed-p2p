@@ -1141,9 +1141,26 @@
  * numbers them, so no client keys on Isla Nublar's `enclosures`.
  */
 /**
- * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 38`; this
+ * v39 (2026-10-10, engine #826 — adventures: the engine projects what the client restated). ADDITIVE:
+ *
+ * - `ScenarioListing.heroSeats?: { min, max }` — the hero seats a scenario plays at (`CREATE_ROOM.humans`
+ *   must lie inside it): the format's range (adventure: 1–4), narrowed by the scenario when it says
+ *   so. Optional on the type only because an older server omits it; this server always sends it.
+ * - `ACCEPTED_PROTOCOL_VERSIONS` / `REMATCH_MIN_PROTOCOL` (below) — the inbound versions this server
+ *   serves and the first one that speaks REMATCH_*, exported so a client can assert the version it
+ *   binds against them. Constants, not wire shapes.
+ * - Not a shape change, a guarantee: `ScenarioDisplay.enemyTurn` stays populated for every scenario
+ *   with a `display` — a scenario that authors none gets the engine's format-level copy.
+ *
+ * The server keeps accepting v34–v38 (`ACCEPTED_PROTOCOL_VERSIONS` = {34, 35, 36, 37, 38, 39}: 37 is
+ * what the p2p client binds today); every accepted version receives the same frames and ignores the
+ * keys it does not know.
+ */
+/**
+ * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 39`; this
  * client binds MAIN's pin, 37 (the version it speaks and sends on the wire). The server accepts
- * {34..38}, so 37 is accepted by an adventure-lane and a main-lane engine alike. Newer engine
+ * `ACCEPTED_PROTOCOL_VERSIONS` (below), so 37 is accepted by an adventure-lane and a main-lane engine
+ * alike — `protocol:check` asserts it is a member. Newer engine
  * versions (v38 and on) ride into this file as TYPES ONLY: a re-sync NEVER bumps this number, and
  * only a client change that actually handles a new version may — keep this value when re-syncing.
  */
@@ -1154,8 +1171,19 @@ export const PROTOCOL_VERSION = 37;
  * rematch negotiation (v35, above) needs — the client's gate for offering it. Since engine #754 the
  * server accepts nothing below 35 from a prod client, so every bind is at `PROTOCOL_VERSION` and is
  * rematch-capable; the old "bind at 34, upgrade to 35" dance in lib/pro/wireVersion.ts is gone.
+ * `protocol:check` asserts it is >= the engine's `REMATCH_MIN_PROTOCOL`.
  */
 export const REMATCH_PROTOCOL_VERSION = 35;
+
+/**
+ * v39 (#826) — every inbound protocol version the server serves (`server/rooms.ts` builds its accept
+ * set from this list; the reason for each member is on that constant). A client asserts its bind
+ * version is a member.
+ */
+export const ACCEPTED_PROTOCOL_VERSIONS: readonly number[] = [34, 35, 36, 37, 38, 39];
+
+/** v39 (#826) — the first protocol version that speaks the REMATCH_* negotiation (#607, v35). */
+export const REMATCH_MIN_PROTOCOL = 35;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -2523,6 +2551,7 @@ export interface ScenarioListing {
   minionPool: EnemyListing[]; // what `RosterPicks.minions[i]` may name; [] = nothing to pick
   minionsPerPlayer: number; // pool minions fielded per hero seat: 1, or 0 for a fixed roster
   duplicateMinions: boolean; // may the same pool minion be picked twice (R5: false unless the scenario says so)
+  heroSeats?: { min: number; max: number }; // v39 (#826): the hero-seat counts it plays at (CREATE_ROOM.humans), from the format, narrowed by the scenario
   briefing?: ScenarioBriefing; // v36 (#735): absent when the scenario authors none
   display?: ScenarioDisplay; // #794 (rides v38): absent when the scenario authors none
 }

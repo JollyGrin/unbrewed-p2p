@@ -11,7 +11,6 @@ import {
   ROUND_COPY,
   YOUR_TURN_COPY,
   emphasisParts,
-  enemyActsCopy,
   yourTurnText,
 } from "@/lib/pro/adventureRulesCopy";
 
@@ -40,7 +39,8 @@ const Tile = ({ testId, bg, border, children }: { testId: string; bg: string; bo
 /**
  * The "how this adventure works" briefing (#1153) — shared by the lobby and the in-game
  * modal. Scenario tiles (win / lose / threat / special) render only when the server sent a
- * `briefing`; the format-level tiles (round, enemy behaviour, your turn) always do, from
+ * `briefing`; the enemy-behaviour tile renders the engine's `display.enemyTurn` (projected for
+ * every scenario with a `display`, engine #826); the round / your-turn tiles always render, from
  * `lib/pro/adventureRulesCopy.ts`.
  */
 export const AdventureBriefing = ({
@@ -52,12 +52,12 @@ export const AdventureBriefing = ({
   /** scenario label; null when none is resolved yet */
   label: string | null;
   briefing?: ScenarioBriefing | null;
-  /** the scenario's display copy (enemy-turn tile, enemy noun); generic copy when absent */
+  /** the scenario's display copy (enemy-turn tile, enemy noun); no enemy-turn tile when absent */
   display?: ScenarioDisplay | null;
   /** tighter spacing for the modal */
   compact?: boolean;
 }) => {
-  const acts = enemyActsCopy(display);
+  const acts = display?.enemyTurn ?? null;
   const special = briefing?.special ?? [];
   const win = splitFirstSentence(briefing?.win ?? "");
   return (
@@ -106,11 +106,12 @@ export const AdventureBriefing = ({
         </Box>
       )}
 
-      <Box display="grid" gridTemplateColumns={{ base: "1fr", xl: `repeat(${2 + (special.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }} gap="0.7rem" data-testid="adventure-briefing-rules">
+      <Box display="grid" gridTemplateColumns={{ base: "1fr", xl: `repeat(${1 + (acts ? 1 : 0) + (special.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }} gap="0.7rem" data-testid="adventure-briefing-rules">
         <Tile testId="adventure-briefing-round" bg="rgba(44,24,49,0.75)" border="rgba(231,204,152,0.2)">
           <Text {...HEAD}>{ROUND_COPY.title}</Text>
           <Text fontSize="0.78rem" lineHeight={1.5} opacity={0.9}><Rich text={ROUND_COPY.text} /></Text>
         </Tile>
+        {acts && (
         <Tile testId="adventure-briefing-acts" bg="rgba(44,24,49,0.75)" border="rgba(231,204,152,0.2)">
           <Text {...HEAD}>{acts.title}</Text>
           {acts.steps.map((step, i) => (
@@ -123,6 +124,7 @@ export const AdventureBriefing = ({
           ))}
           {acts.note && <Text fontSize="0.7rem" lineHeight={1.45} opacity={0.68}>{acts.note}</Text>}
         </Tile>
+        )}
         {special.length > 0 && (
           <Tile testId="adventure-briefing-special" bg="rgba(44,24,49,0.75)" border="rgba(231,204,152,0.2)">
             {special.map((s, i) => (

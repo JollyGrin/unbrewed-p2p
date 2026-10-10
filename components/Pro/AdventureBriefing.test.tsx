@@ -6,7 +6,7 @@ import { AdventureLobby } from "./AdventureLobby";
 import { AdventureWaitingRoom } from "./AdventureWaitingRoom";
 import { defaultAdventureSetup } from "@/lib/pro/adventureLobby";
 import { resetAdventureScenarios, setScenarios } from "@/lib/pro/adventureScenarios";
-import type { ScenarioBriefing, ScenarioListing } from "@/lib/pro/protocol";
+import type { ScenarioBriefing, ScenarioDisplay, ScenarioListing } from "@/lib/pro/protocol";
 
 // jsdom's selector engine rejects Chakra's focus-trap probe (see MapPreviewModal.test.tsx).
 jest.mock("react-focus-lock", () => ({
@@ -21,6 +21,14 @@ const BRIEFING: ScenarioBriefing = {
   lose: "When the 4th pen is destroyed.",
   threat: "It climbs at every round's end.",
   special: [{ title: "Pens", text: "Locked spaces." }],
+};
+const DISPLAY: ScenarioDisplay = {
+  verdict: { win: "Won", lose: "Lost" },
+  enemyNoun: { singular: "dino", plural: "dinos" },
+  setting: "Isla Nublar",
+  markers: {},
+  enemyTurn: { title: "WHAT A DINO DOES", steps: ["Stomps the nearest hero."] },
+  lossLimit: null,
 };
 const e = (id: string, role: "VILLAIN" | "MINION", hp: number[], size: "NORMAL" | "LARGE" = "NORMAL") => ({ id, name: id, role, hp, move: 2, size });
 const ISLA: ScenarioListing = {
@@ -43,19 +51,28 @@ describe("AdventureBriefing (#1153)", () => {
     wrap(<AdventureBriefing label="Isla Nublar" briefing={BRIEFING} />);
     expect(screen.getByTestId("adventure-briefing-label")).toHaveTextContent("ISLA NUBLAR");
     expect(screen.getByTestId("adventure-briefing-tagline")).toHaveTextContent("Indominus Rex has escaped.");
-    for (const id of ["win", "lose", "threat", "special", "round", "acts", "turn"]) {
+    for (const id of ["win", "lose", "threat", "special", "round", "turn"]) {
       expect(screen.getByTestId(`adventure-briefing-${id}`)).toBeInTheDocument();
     }
     expect(screen.getByTestId("adventure-briefing-turn")).toHaveTextContent("2 actions");
   });
 
   it("hides scenario tiles when the briefing is missing; format tiles still render", () => {
-    wrap(<AdventureBriefing label="Isla Nublar" briefing={undefined} />);
+    wrap(<AdventureBriefing label="Isla Nublar" briefing={undefined} display={DISPLAY} />);
     for (const id of ["scenario", "win", "lose", "threat", "special", "tagline"]) {
       expect(screen.queryByTestId(`adventure-briefing-${id}`)).not.toBeInTheDocument();
     }
     for (const id of ["round", "acts", "turn"]) expect(screen.getByTestId(`adventure-briefing-${id}`)).toBeInTheDocument();
-    expect(screen.getByTestId("adventure-briefing-acts")).toHaveTextContent("threat +1");
+  });
+
+  it("renders the engine's projected enemyTurn, and no client fallback without a display (#1330)", () => {
+    const { unmount } = wrap(<AdventureBriefing label="X" briefing={BRIEFING} display={DISPLAY} />);
+    expect(screen.getByTestId("adventure-briefing-acts")).toHaveTextContent("WHAT A DINO DOES");
+    expect(screen.getByTestId("adventure-briefing-acts")).toHaveTextContent("Stomps the nearest hero.");
+    unmount();
+    wrap(<AdventureBriefing label="X" briefing={BRIEFING} />);
+    expect(screen.queryByTestId("adventure-briefing-acts")).not.toBeInTheDocument();
+    expect(screen.getByTestId("adventure-briefing-round")).toBeInTheDocument();
   });
 
   it("omits the threat tile when the scenario has none", () => {
@@ -102,6 +119,19 @@ describe("Adventure lobby with a scenario listing (#1153)", () => {
     const villain = screen.getByTestId("adventure-villain").closest("div")!.parentElement!.parentElement!;
     expect(villain).toHaveTextContent("18");
     expect(villain).toHaveTextContent("LARGE · MOVE 2");
+  });
+
+  it("offers the scenario's projected hero-seat range, 1–4 when the listing has none (#1330)", () => {
+    lobby(1);
+    expect([1, 2, 3, 4].map((n) => !!screen.queryByTestId(`adventure-humans-${n}`))).toEqual([true, true, true, true]);
+  });
+
+  it("offers only the projected range, pulling an out-of-range table into it (#1330)", () => {
+    setScenarios([{ ...ISLA, heroSeats: { min: 2, max: 3 } }]);
+    const onChange = jest.fn();
+    wrap(<AdventureLobby setup={defaultAdventureSetup()} onChange={onChange} youSeat={<div />} renderSeat={() => <div />} />);
+    expect([1, 2, 3, 4].map((n) => !!screen.queryByTestId(`adventure-humans-${n}`))).toEqual([false, true, true, false]);
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ humans: 2, minionIds: [null, null] }));
   });
 
   it("renders the lobby briefing for the selected scenario", () => {

@@ -2,8 +2,8 @@
  * Format-level rules copy for the Adventure briefing (unbrewed-p2p#1153) — the ONE
  * place the client words how an Adventure works. Scenario-specific text (win / lose /
  * threat / special, the enemy noun, the enemy-turn tile) is data from
- * `ScenarioListing.briefing` / `.display`, never written here; this file holds only the
- * generic fallbacks for a scenario that authors none.
+ * `ScenarioListing.briefing` / `.display`, never written here (the engine always projects
+ * `display.enemyTurn`, engine #826); this file holds only format-level copy.
  * Source of truth for the rules: research/adventures-coop-rules.md §2.3–2.5.
  *
  * Text may carry `**bold**` spans; render with `emphasisParts`.
@@ -27,26 +27,15 @@ export const ROUND_COPY = {
 
 /**
  * §2.5 — the enemy targeting ladder: ADJACENT → CLOSEST → NO TARGET. `label` / `does` are the
- * enemy-turn card's short rows; `rule` is the briefing's sentence (when the scenario authors no
- * `display.enemyTurn`).
+ * enemy-turn card's short rows.
  */
 export const ENEMY_LADDER = [
-  { n: 1, label: "Hero adjacent?", does: "attacks", rule: "Next to a hero? **Attacks it.**" },
-  { n: 2, label: "Closest reachable hero", does: "moves, attacks", rule: "Can reach one with its MOVE? **Goes for the closest** and attacks." },
-  { n: 3, label: "No one in reach", does: "threat +1", rule: "No one in reach? **Stays put — threat +1.**" },
+  { n: 1, label: "Hero adjacent?", does: "attacks" },
+  { n: 2, label: "Closest reachable hero", does: "moves, attacks" },
+  { n: 3, label: "No one in reach", does: "threat +1" },
 ] as const;
 
 export const LARGE_REACH_NOTE = "hits from 2 away";
-
-/** The briefing's enemy-behaviour tile: the scenario's own copy, else the generic ladder.
- *  TODO(unbrewed-engine#826, p2p#1330 part C): drop the generic fallback once the engine always
- *  projects `display.enemyTurn`. */
-export const enemyActsCopy = (display?: ScenarioDisplay | null): { title: string; steps: readonly string[]; note?: string } =>
-  display?.enemyTurn ?? {
-    title: "HOW AN ENEMY ACTS",
-    steps: ENEMY_LADDER.map((s) => s.rule),
-    note: "Its attack is the top card of its deck. LARGE enemies hit from 2 spaces away. On a tie, your team picks.",
-  };
 
 /**
  * What an activating enemy does, in the words the log, the enemy-turn card and the board share:

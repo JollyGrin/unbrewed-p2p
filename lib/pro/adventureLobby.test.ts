@@ -9,6 +9,8 @@ import {
   defaultAdventureSetup,
   enemyHpAt,
   enemySizeMove,
+  heroSeatCounts,
+  heroSeatRange,
   waitingRoster,
   minionSlotCount,
   setHumans,
@@ -22,7 +24,7 @@ describe("adventure lobby setup", () => {
   });
 
   it("clamps the table to 1..4", () => {
-    expect([0, 1, 4, 9, NaN].map(clampHumans)).toEqual([1, 1, 4, 4, 1]);
+    expect([0, 1, 4, 9, NaN].map((n) => clampHumans(n))).toEqual([1, 1, 4, 4, 1]);
   });
 
   it("scales minion slots with the table, keeping existing picks", () => {
@@ -51,6 +53,31 @@ describe("adventure lobby setup", () => {
     expect(adventureSeats(1)).toEqual([]);
     expect(adventureSeats(3)).toEqual(["p2", "p3"]);
     expect(adventureSeats(4)).toEqual(["p2", "p3", "p4"]);
+  });
+});
+
+describe("hero-seat range from the wire (engine #826)", () => {
+  it("reads the listing's projected heroSeats", () => {
+    expect(heroSeatRange({ heroSeats: { min: 2, max: 3 } })).toEqual({ min: 2, max: 3 });
+    expect(heroSeatCounts(heroSeatRange({ heroSeats: { min: 2, max: 3 } }))).toEqual([2, 3]);
+  });
+
+  it("falls back to 1..4 for a listing without heroSeats (pre-v39 server) or no listing", () => {
+    expect(heroSeatRange({})).toEqual({ min: 1, max: 4 });
+    expect(heroSeatRange(null)).toEqual({ min: 1, max: 4 });
+    expect(heroSeatCounts(heroSeatRange(null))).toEqual([1, 2, 3, 4]);
+  });
+
+  it("clamps the table to the projected range", () => {
+    const r = { min: 2, max: 3 };
+    expect([0, 2, 3, 9, NaN].map((n) => clampHumans(n, r))).toEqual([2, 2, 3, 3, 2]);
+    expect(setHumans(defaultAdventureSetup(), 4, 1, r)).toMatchObject({ humans: 3, minionIds: [null, null, null] });
+  });
+
+  it("pulls the table into a newly chosen scenario's range", () => {
+    const four = setHumans(defaultAdventureSetup(), 4);
+    expect(setScenario(four, { ...ISLA, heroSeats: { min: 1, max: 2 } })).toMatchObject({ humans: 2, minionIds: [null, null] });
+    expect(setScenario(four, ISLA).humans).toBe(4);
   });
 });
 

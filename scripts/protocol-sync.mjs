@@ -6,6 +6,8 @@
 //
 // check (offline, runs in `npm test`): reverse the overrides on the committed file and compare the
 // result's sha256 with the pin — fails if any mirrored line (or an override) was hand-edited.
+// It also asserts the two hand-overridden versions against the pinned engine's exports (engine #826):
+// PROTOCOL_VERSION must be in ACCEPTED_PROTOCOL_VERSIONS, REMATCH_PROTOCOL_VERSION >= REMATCH_MIN_PROTOCOL.
 // With --engine, also regenerate from that engine source and compare byte-for-byte (verifies the pin).
 //
 // <engine-ref-or-path>: a path to a protocol.ts file, to an engine checkout, or a git ref (resolved in
@@ -86,6 +88,30 @@ function readEngine(spec) {
   return { source: git("show", `${rev}:${ENGINE_FILE}`), ref: rev };
 }
 
+// `export const NAME ... = <value>;` from a protocol.ts source, parsed as JSON (a number or a number list).
+function constOf(source, name, label) {
+  const m = [...source.matchAll(new RegExp(`^export const ${name}\\b[^=]*=\\s*([^;]+);`, "gm"))];
+  if (m.length !== 1) fail(`expected exactly one \`export const ${name}\` in ${label} (found ${m.length})`);
+  try {
+    return JSON.parse(m[0][1]);
+  } catch {
+    fail(`cannot read ${name} in ${label}: ${m[0][1]}`);
+  }
+}
+
+// The client's wire pin must be one the pinned engine serves, and its rematch gate no lower than the engine's.
+function assertVersions(engine, committed) {
+  const accepted = constOf(engine, "ACCEPTED_PROTOCOL_VERSIONS", "the pinned engine file");
+  const rematchMin = constOf(engine, "REMATCH_MIN_PROTOCOL", "the pinned engine file");
+  const bind = constOf(committed, "PROTOCOL_VERSION", "lib/pro/protocol.ts");
+  const rematch = constOf(committed, "REMATCH_PROTOCOL_VERSION", "lib/pro/protocol.ts");
+  if (!Array.isArray(accepted) || !accepted.includes(bind))
+    fail(`PROTOCOL_VERSION ${bind} (lib/pro/protocol.overrides.mjs) is not in the engine's ACCEPTED_PROTOCOL_VERSIONS [${accepted}]`);
+  if (!(rematch >= rematchMin))
+    fail(`REMATCH_PROTOCOL_VERSION ${rematch} (lib/pro/protocol.overrides.mjs) is below the engine's REMATCH_MIN_PROTOCOL ${rematchMin}`);
+  return { accepted, rematchMin, bind, rematch };
+}
+
 const [cmd, ...rest] = process.argv.slice(2);
 const ops = await loadOverrides();
 
@@ -109,6 +135,7 @@ if (cmd === "sync") {
       `lib/pro/protocol.ts differs from engine ${pin.ref ?? ""} + overrides (a mirrored line was edited by hand, or the pin is stale). ` +
         `Fix the engine, or re-run \`npm run protocol:sync -- <engine-ref>\`.`,
     );
+  const v = assertVersions(rev.out, committed);
   const i = rest.indexOf("--engine");
   if (i >= 0) {
     const spec = rest[i + 1] ?? pin.ref;
@@ -116,7 +143,10 @@ if (cmd === "sync") {
     if (sha(source) !== pin.engineSha256) fail(`engine ${spec} does not match the pin (${pin.ref}); re-sync or update the pin`);
     if (applyOverrides(source, ops) !== committed) fail("regenerated file differs from lib/pro/protocol.ts");
   }
-  console.log(`protocol: ok (engine ${pin.ref ? pin.ref.slice(0, 9) : "?"} + ${ops.length} overrides)`);
+  console.log(
+    `protocol: ok (engine ${pin.ref ? pin.ref.slice(0, 9) : "?"} + ${ops.length} overrides; ` +
+      `binds v${v.bind} ∈ [${v.accepted}], rematch v${v.rematch} >= ${v.rematchMin})`,
+  );
 } else {
   fail("usage: protocol-sync.mjs sync <engine-ref-or-path> | check [--engine <ref-or-path>]");
 }

@@ -5,9 +5,8 @@
 # never clones the private engine repo). Read-only token. Independent of nextjs.yml (the Pages
 # deploy, which only runs on pushes to main and is untouched).
 #
-# TODO(unbrewed-engine#826, p2p#1330): once the engine exports its accepted protocol set, add a
-# step asserting PROTOCOL_VERSION / REMATCH_PROTOCOL_VERSION (lib/pro/protocol.overrides.mjs)
-# against it.
+# protocol:check also asserts the client's overridden PROTOCOL_VERSION is in the pinned engine's
+# ACCEPTED_PROTOCOL_VERSIONS and REMATCH_PROTOCOL_VERSION >= its REMATCH_MIN_PROTOCOL (engine #826).
 name: Pro check
 
 on:

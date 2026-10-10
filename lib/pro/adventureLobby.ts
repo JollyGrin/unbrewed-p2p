@@ -8,10 +8,25 @@
  */
 import type { EnemyListing, PlayerId, RoomScenarioStatus, RosterPicks, ScenarioListing } from "./protocol";
 
-// TODO(unbrewed-engine#826, p2p#1330 part C): read `heroSeats {min,max}` off ScenarioListing once the
-// engine projects it; these two stay only as the fallback for an older server.
+// Fallback hero-seat range for a listing without `heroSeats` (a pre-v39 server); the engine's
+// `ScenarioListing.heroSeats` (engine #826) is the source of truth — read it through `heroSeatRange`.
 export const ADVENTURE_MIN_HUMANS = 1;
 export const ADVENTURE_MAX_HUMANS = 4;
+
+export interface HeroSeatRange {
+  min: number;
+  max: number;
+}
+
+const FALLBACK_SEATS: HeroSeatRange = { min: ADVENTURE_MIN_HUMANS, max: ADVENTURE_MAX_HUMANS };
+
+/** The hero-seat counts a scenario plays at: its projected `heroSeats`, else the 1–4 fallback. */
+export const heroSeatRange = (scenario: Pick<ScenarioListing, "heroSeats"> | null): HeroSeatRange =>
+  scenario?.heroSeats ?? FALLBACK_SEATS;
+
+/** Every pickable table size in a range, ascending. */
+export const heroSeatCounts = ({ min, max }: HeroSeatRange): number[] =>
+  Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => min + i);
 
 /** A pickable enemy. `null` in a pick slot means "random / scenario default". */
 export interface AdventureEnemyOption {
@@ -36,7 +51,7 @@ export const enemySizeMove = (enemy: Pick<EnemyListing, "size" | "move">): strin
 export interface AdventureSetup {
   /** chosen scenario id, or null for the server's default (its first listing) */
   scenarioId: string | null;
-  /** hero seats at the table, 1..4 — rides as `CREATE_ROOM.humans` */
+  /** hero seats at the table, within the scenario's `heroSeatRange` — rides as `CREATE_ROOM.humans` */
   humans: number;
   /** chosen villain id, or null for random */
   villainId: string | null;
@@ -44,8 +59,8 @@ export interface AdventureSetup {
   minionIds: Array<string | null>;
 }
 
-export const clampHumans = (n: number): number =>
-  Math.min(ADVENTURE_MAX_HUMANS, Math.max(ADVENTURE_MIN_HUMANS, Math.round(Number.isFinite(n) ? n : ADVENTURE_MIN_HUMANS)));
+export const clampHumans = (n: number, { min, max }: HeroSeatRange = FALLBACK_SEATS): number =>
+  Math.min(max, Math.max(min, Math.round(Number.isFinite(n) ? n : min)));
 
 /** Pickable minion slots: `perPlayer` per hero seat (the engine's `minionsPerPlayer`; 1 unless a scenario fixes its roster). */
 export const minionSlotCount = (humans: number, perPlayer: number = 1): number => clampHumans(humans) * Math.max(0, perPlayer);
@@ -60,8 +75,8 @@ export const defaultAdventureSetup = (): AdventureSetup => ({
   minionIds: fitMinions([], ADVENTURE_MIN_HUMANS),
 });
 
-export const setHumans = (setup: AdventureSetup, humans: number, perPlayer: number = 1): AdventureSetup => {
-  const n = clampHumans(humans);
+export const setHumans = (setup: AdventureSetup, humans: number, perPlayer: number = 1, range: HeroSeatRange = FALLBACK_SEATS): AdventureSetup => {
+  const n = clampHumans(humans, range);
   return { ...setup, humans: n, minionIds: fitMinions(setup.minionIds, n, perPlayer) };
 };
 
@@ -69,13 +84,18 @@ export const setHumans = (setup: AdventureSetup, humans: number, perPlayer: numb
 export const scenarioFor = (setup: AdventureSetup, scenarios: readonly ScenarioListing[]): ScenarioListing | null =>
   scenarios.find((s) => s.id === setup.scenarioId) ?? scenarios[0] ?? null;
 
-/** Choose a scenario; the picks belong to the old roster, so they reset. */
-export const setScenario = (setup: AdventureSetup, scenario: ScenarioListing | null): AdventureSetup => ({
-  ...setup,
-  scenarioId: scenario?.id ?? null,
-  villainId: null,
-  minionIds: fitMinions([], setup.humans, scenario?.minionsPerPlayer ?? 1),
-});
+/** Choose a scenario; the picks belong to the old roster, so they reset, and the table size is
+ *  pulled into the new scenario's hero-seat range. */
+export const setScenario = (setup: AdventureSetup, scenario: ScenarioListing | null): AdventureSetup => {
+  const humans = clampHumans(setup.humans, heroSeatRange(scenario));
+  return {
+    ...setup,
+    scenarioId: scenario?.id ?? null,
+    humans,
+    villainId: null,
+    minionIds: fitMinions([], humans, scenario?.minionsPerPlayer ?? 1),
+  };
+};
 
 /** What the lobby may offer for a scenario (empty pools → Random only). */
 export const rosterOptions = (
