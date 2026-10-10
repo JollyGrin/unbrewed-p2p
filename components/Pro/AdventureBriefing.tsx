@@ -2,7 +2,7 @@ import { Box, Button, Flex, Modal, ModalBody, ModalCloseButton, ModalContent, Mo
 import { useState, type ReactNode } from "react";
 import { TbChevronDown } from "react-icons/tb";
 import type { ScenarioBriefing, ScenarioDisplay } from "@/lib/pro/protocol";
-import { scenarioFor, type AdventureSetup } from "@/lib/pro/adventureLobby";
+import { heroSeatRange, heroSeatsLabel, scenarioFor, type AdventureSetup, type HeroSeatRange } from "@/lib/pro/adventureLobby";
 import { useScenarios } from "@/lib/pro/adventureScenarios";
 import {
   BRIEFING_TITLE,
@@ -47,6 +47,7 @@ export const AdventureBriefing = ({
   label,
   briefing,
   display,
+  seats = null,
   compact = false,
 }: {
   /** scenario label; null when none is resolved yet */
@@ -54,6 +55,8 @@ export const AdventureBriefing = ({
   briefing?: ScenarioBriefing | null;
   /** the scenario's display copy (enemy-turn tile, enemy noun); no enemy-turn tile when absent */
   display?: ScenarioDisplay | null;
+  /** the scenario's hero-seat range (`heroSeatRange` of its listing); the 1–4 fallback when no listing is known */
+  seats?: HeroSeatRange | null;
   /** tighter spacing for the modal */
   compact?: boolean;
 }) => {
@@ -72,7 +75,7 @@ export const AdventureBriefing = ({
         data-testid="adventure-briefing-header"
       >
         <Text fontFamily="SpaceGrotesk" fontSize="0.62rem" letterSpacing="0.18em" fontWeight="bold" color="brand.accent">
-          {FORMAT_KICKER} · 1–4 HEROES
+          {FORMAT_KICKER} · {heroSeatsLabel(seats ?? heroSeatRange(null))}
         </Text>
         <Text fontFamily="LeagueGothic" fontSize="2.2rem" lineHeight={0.95} letterSpacing="0.03em" data-testid="adventure-briefing-label">
           {(label ?? "Adventure").toUpperCase()}
@@ -182,7 +185,7 @@ export const LobbyBriefing = ({ setup }: { setup: AdventureSetup }) => {
       </Button>
       {open && (
         <Box overflowY="auto" minH={0}>
-          <AdventureBriefing label={scenario.label} briefing={scenario.briefing} display={scenario.display} />
+          <AdventureBriefing label={scenario.label} briefing={scenario.briefing} display={scenario.display} seats={heroSeatRange(scenario)} />
         </Box>
       )}
       <DifficultyNote />

@@ -11,6 +11,7 @@ import {
   enemySizeMove,
   heroSeatCounts,
   heroSeatRange,
+  heroSeatsLabel,
   waitingRoster,
   minionSlotCount,
   setHumans,
@@ -66,6 +67,23 @@ describe("hero-seat range from the wire (engine #826)", () => {
     expect(heroSeatRange({})).toEqual({ min: 1, max: 4 });
     expect(heroSeatRange(null)).toEqual({ min: 1, max: 4 });
     expect(heroSeatCounts(heroSeatRange(null))).toEqual([1, 2, 3, 4]);
+  });
+
+  it("labels the range for the briefing kicker (#1360)", () => {
+    expect(heroSeatsLabel(heroSeatRange({ heroSeats: { min: 1, max: 4 } }))).toBe("1–4 HEROES");
+    expect(heroSeatsLabel(heroSeatRange({ heroSeats: { min: 2, max: 3 } }))).toBe("2–3 HEROES");
+    expect(heroSeatsLabel(heroSeatRange({ heroSeats: { min: 2, max: 2 } }))).toBe("2 HEROES");
+    expect(heroSeatsLabel(heroSeatRange(null))).toBe("1–4 HEROES");
+  });
+
+  it("clamps enemy HP and bot seats to the scenario's range, 1–4 without one (#1360)", () => {
+    const hp = { hp: [14, 16, 18, 20] };
+    expect(enemyHpAt(hp, 1, { min: 2, max: 3 })).toBe(16);
+    expect(enemyHpAt(hp, 4, { min: 2, max: 3 })).toBe(18);
+    expect(enemyHpAt(hp, 9)).toBe(20);
+    expect(adventureSeats(4, { min: 1, max: 2 })).toEqual(["p2"]);
+    expect(adventureSeats(1, { min: 2, max: 3 })).toEqual(["p2"]);
+    expect(adventureSeats(9)).toEqual(["p2", "p3", "p4"]);
   });
 
   it("clamps the table to the projected range", () => {

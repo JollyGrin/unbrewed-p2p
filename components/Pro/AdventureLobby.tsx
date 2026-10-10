@@ -9,6 +9,7 @@ import { trackFormatOpened, trackLobbyConfigured } from "@/lib/analytics/adventu
 import {
   AdventureEnemyOption,
   AdventureSetup,
+  HeroSeatRange,
   NO_SCENARIO_REASON,
   adventureSeats,
   enemyHpAt,
@@ -35,6 +36,7 @@ const EnemyPick = ({
   taken = [],
   allowRandom = true,
   humans,
+  seatRange,
   villain = false,
   onPick,
 }: {
@@ -48,6 +50,8 @@ const EnemyPick = ({
   allowRandom?: boolean;
   /** hero count: when set, rows show the enemy's HP / size / MOVE at that table (enemy picks only) */
   humans?: number;
+  /** the scenario's hero-seat range the HP lookup clamps to */
+  seatRange?: HeroSeatRange;
   villain?: boolean;
   onPick: (id: string | null) => void;
 }) => {
@@ -56,7 +60,7 @@ const EnemyPick = ({
   const stats = (o: AdventureEnemyOption | undefined) =>
     o?.enemy ? (
       <Box textAlign="right" fontSize="0.64rem" lineHeight={1.35} flexShrink={0} data-testid="enemy-stats">
-        <Text as="span" fontWeight="bold">{enemyHpAt(o.enemy, humans ?? 1) ?? "?"}</Text> HP
+        <Text as="span" fontWeight="bold">{enemyHpAt(o.enemy, humans ?? 1, seatRange) ?? "?"}</Text> HP
         <Text opacity={0.7}>{enemySizeMove(o.enemy)}</Text>
       </Box>
     ) : null;
@@ -138,12 +142,12 @@ export const AdventureLobby = ({
   youSeat: ReactNode;
   renderSeat: (seat: PlayerId) => ReactNode;
 }) => {
-  const seats = adventureSeats(setup.humans);
   const { scenarios, loaded } = useScenarios();
   const scenario = scenarioFor(setup, scenarios);
   const roster = rosterOptions(scenario);
   const perPlayer = scenario?.minionsPerPlayer ?? 1;
   const seatRange = heroSeatRange(scenario);
+  const seats = adventureSeats(setup.humans, seatRange);
   // No scenario listed once the server has answered: Create is refused at the wire
   // (never a fallback board, #1113) — say why here instead of failing on click.
   const noScenario = loaded && !scenario;
@@ -250,6 +254,7 @@ export const AdventureLobby = ({
           label="VILLAIN"
           villain
           humans={setup.humans}
+          seatRange={seatRange}
           value={setup.villainId}
           options={roster.villains}
           onPick={(id) => configure(setVillain(setup, id))}
@@ -260,6 +265,7 @@ export const AdventureLobby = ({
             testId={`adventure-minion-${slot + 1}`}
             label={`MINION ${slot + 1}`}
             humans={setup.humans}
+            seatRange={seatRange}
             value={m}
             options={roster.minions}
             taken={setup.minionIds}
@@ -278,7 +284,7 @@ export const AdventureLobby = ({
               </Text>
             </Box>
             <Box textAlign="right" fontSize="0.64rem" lineHeight={1.35} data-testid="enemy-stats">
-              <Text as="span" fontWeight="bold">{enemyHpAt(e, setup.humans) ?? "?"}</Text> HP
+              <Text as="span" fontWeight="bold">{enemyHpAt(e, setup.humans, seatRange) ?? "?"}</Text> HP
               <Text opacity={0.7}>{enemySizeMove(e)}</Text>
             </Box>
           </Flex>
