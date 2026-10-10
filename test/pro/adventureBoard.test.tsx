@@ -2,10 +2,11 @@
  * Adventure board overlays (Wave 4.3, unbrewed-p2p#1099) — fixture-driven, no engine.
  */
 import "@testing-library/jest-dom";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import {
   ADVENTURE_BOARD_MAX_HEIGHT,
+  ADVENTURE_BOARD_MAX_HEIGHT_PHONE,
   ADVENTURE_BOARD_TOP,
   ADVENTURE_BOARD_WIDTH,
   ADVENTURE_PLATE_DROP,
@@ -419,8 +420,23 @@ describe("overlay placement (#1114)", () => {
     cleanup();
     mount("adventure");
     const el = screen.getByTestId("adventure-board");
-    expect(el).toHaveStyle({ right: ADVENTURE_BOARD_RIGHT });
+    // Desktop (md+) keeps the dock slot; the base (phone) value is the screen edge (#1310).
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((st) => st.textContent ?? "")
+      .join("\n");
+    expect(css.replace(/\s/g, "")).toContain(`right:${ADVENTURE_BOARD_RIGHT}`.replace(/\s/g, ""));
+    expect(el).toHaveStyle({ right: "0.5rem" });
     expect(el).not.toHaveStyle({ left: "50%" });
+  });
+
+  it("phone: the static panels fold into a drawer toggled by a button (#1310)", () => {
+    cleanup();
+    mount("adventure");
+    const toggle = screen.getByTestId("adventure-drawer-toggle");
+    expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ display: "none" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ display: "flex" });
   });
 });
 
@@ -897,7 +913,14 @@ describe("adventure column vs hand fan probe (#1178)", () => {
       </ChakraProvider>,
     );
     const col = screen.getByTestId("adventure-board");
-    expect(col).toHaveStyle({ "max-height": ADVENTURE_BOARD_MAX_HEIGHT });
+    // base (phone) value in jsdom; the desktop cap sits in the md media rule (#1310).
+    expect(col).toHaveStyle({ "max-height": ADVENTURE_BOARD_MAX_HEIGHT_PHONE });
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((st) => st.textContent ?? "")
+      .join("")
+      .replace(/\s/g, "");
+    expect(css).toContain(`max-height:${ADVENTURE_BOARD_MAX_HEIGHT}`.replace(/\s/g, ""));
+    expect(columnBottom(844, ADVENTURE_BOARD_MAX_HEIGHT_PHONE)).toBeLessThanOrEqual(fanTop(844));
     expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ "overflow-y": "auto" });
     expect(screen.getByTestId("adventure-board-scroll")).toContainElement(screen.getByTestId("adv-villain"));
     expect(screen.getByTestId("adventure-board-live")).toContainElement(screen.getByTestId("adv-engine-fault"));

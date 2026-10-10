@@ -47,3 +47,10 @@ export const COMPACT_PLATE_MAX_HEIGHT_REM = 4.6;
 export const ADVENTURE_PLATE_DROP_BELOW_PX = 1650;
 export const ADVENTURE_PLATE_DROP = "2.2rem";
 export const CHIP_CLUSTER_WIDTH_REM = 48;
+
+/**
+ * #1310: phone (< md) overlay column. It hugs the screen edge (no dock slot), and starts
+ * below the HUD phase bar that spans the width under the seat plates.
+ */
+export const ADVENTURE_BOARD_TOP_PHONE = "5.8rem";
+export const ADVENTURE_BOARD_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_BOARD_TOP_PHONE} - ${HAND_FAN_RESERVE_REM}rem)`;
