@@ -38,9 +38,23 @@ describe("adventureVerdictModel", () => {
     expect(m.releases.map((t) => [t.round, t.objectLabel, t.defeatedRound, t.final])).toEqual([
       [3, "2", 6, false],
       [5, "2", 6, false],
-      [9, "4", null, true],
+      [9, null, null, true],
     ]);
+    expect(m.releases[2].ordinal).toBe("fourth");
     expect(m.facts[0].text).toContain("Round ends 19");
+  });
+
+  it("the final tile never prints finalSlot as a space label (#1327)", () => {
+    // pen 8 broke 4th: the release tiles carry printed labels, the final one only the ordinal
+    const v = view(objective, {
+      scenario: { releases: [{ round: 3, fighter: "e1/trex", enemyId: "trex", spaceLabel: "4" }] },
+    });
+    const tiles = adventureVerdictModel(v)!.releases;
+    expect(tiles.map((t) => t.objectLabel)).toEqual(["4", null]);
+    expect(tiles[1]).toMatchObject({ final: true, ordinal: "fourth" });
+    // no finalSlot on the wire: no number at all
+    const noSlot = adventureVerdictModel(view({ ...objective, finalSlot: undefined }))!.releases.at(-1)!;
+    expect(noSlot).toMatchObject({ objectLabel: null, ordinal: null });
   });
 
   it("YOUR TEAM names the heroes who fell, with the round when it was watched (#1182)", () => {

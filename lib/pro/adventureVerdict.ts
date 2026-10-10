@@ -19,8 +19,14 @@ import { objectNounOf, type ObjectNoun } from "./scenarioObjects";
 
 export interface VerdictReleaseTile {
   round: number;
-  /** printed scenario-object number (`display.objectGroup` order), else its order of release */
-  objectLabel: string;
+  /**
+   * printed scenario-object number (`display.objectGroup` order), else its order of release.
+   * null on the final tile: the wire has no label for the space the last overflow opened, and
+   * `finalSlot` is an ordinal, not a printed number — use `ordinal` there.
+   */
+  objectLabel: string | null;
+  /** final tile only: "fourth" (the overflow slot that cost the game), null when the wire has none */
+  ordinal: string | null;
   enemyName: string;
   /** the round the released enemy fell, when we watched it happen */
   defeatedRound: number | null;
@@ -82,6 +88,7 @@ const releaseTiles = (
   releases.map((r, i) => ({
     round: r.round,
     objectLabel: r.spaceLabel ?? String(i + 1),
+    ordinal: null,
     enemyName: view.fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId,
     defeatedRound: defeatRounds[r.fighter] ?? null,
     final: false,
@@ -155,7 +162,7 @@ export const adventureVerdictModel = (
     const n = finalSlot(view);
     lines.push(`${villainName} broke open the ${n ? `${ordinalWord(n)} ` : "last "}${objectNoun.singular}.`);
     if (hpText) lines.push(`${villainName} was left at ${hpText} health.`);
-    tiles.push({ round: result.round, objectLabel: n ? String(n) : "?", enemyName: "", defeatedRound: null, final: true });
+    tiles.push({ round: result.round, objectLabel: null, ordinal: n ? ordinalWord(n) : null, enemyName: "", defeatedRound: null, final: true });
   } else if (cause.kind === "WIPE") {
     headline = "THE HEROES FELL";
     lines.push("Every hero and sidekick is down.");

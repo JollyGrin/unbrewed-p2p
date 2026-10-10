@@ -52,7 +52,7 @@ const ReleaseTiles = ({ model }: { model: AdventureVerdictModel }) => (
           color="brand.parchment"
         >
           <Text fontWeight={700}>
-            Round {t.round} · {model.objectNoun.singular} {t.objectLabel}
+            Round {t.round} · {t.objectLabel != null ? `${model.objectNoun.singular} ${t.objectLabel}` : `${t.ordinal ?? "last"} ${model.objectNoun.singular}`}
           </Text>
           {t.final ? (
             <Text color="red.200">game over</Text>
