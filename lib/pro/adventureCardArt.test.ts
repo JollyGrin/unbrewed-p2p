@@ -1,4 +1,4 @@
-import { ADVENTURE_CARD_CDN_BASE, ENEMY_ART, adventureCardArt, adventureEnemyTokenArt } from "./adventureCardArt";
+import { ADVENTURE_CARD_CDN_BASE, ENEMY_ART, adventureCardArt, conventionArtUrl, adventureEnemyTokenArt } from "./adventureCardArt";
 
 const B = ADVENTURE_CARD_CDN_BASE;
 
@@ -39,5 +39,11 @@ describe("adventureCardArt", () => {
           : null,
       );
     }
+  });
+  it("the pure convention for an enemy with no inventory entry is <base>/<enemy>/<slug>.webp", () => {
+    expect(ENEMY_ART["gear-rat"]).toBeUndefined();
+    expect(conventionArtUrl("jurassic-park", "gear-rat", "wrench-swing")).toBe(`${B}/gear-rat/wrench-swing.webp`);
+    // ...but it is never handed to a renderer without an inventory entry (no broken images)
+    expect(adventureCardArt("gear-rat/wrench-swing")).toBeNull();
   });
 });

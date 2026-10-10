@@ -20,6 +20,13 @@
  * Scenario decks (support / terrain / genetic-enhancements / observation-tower / mosasaurus) have
  * faces uploaded but no engine ids yet. Enemies with no entry (every Clockwork Heist enemy) are null.
  */
+/*
+ * FUTURE UPLOADS: `<base>/<enemy-dir>/<card-slug>.<ext>` with the engine card slug (`conventionArtUrl`
+ * below), e.g. `.../jurassic-park/cards/<enemy>/<slug>.webp`. The Indominus `ENEMY_ART` stem list is
+ * LEGACY uploads (irex- prefix, short names) that predate the convention and cannot be renamed.
+ * `adventureCardArt` only returns a URL for an enemy with an `ENEMY_ART` entry, because the shared
+ * card renderers have no image-error fallback: an unlisted enemy's URL would render a broken image.
+ */
 const CDN_ROOT = "https://cdn.unbrewed.xyz/p2p/adventures";
 const cardBase = (scenario: string) => `${CDN_ROOT}/${scenario}/cards`;
 
@@ -54,6 +61,10 @@ export const ENEMY_ART: Record<string, EnemyArt> = {
     ],
   },
 };
+
+/** The pure convention: `<scenario base>/<enemy dir>/<card slug>.webp` (no prefix, no inventory). */
+export const conventionArtUrl = (scenario: string, enemyDir: string, slug: string): string =>
+  `${cardBase(scenario)}/${enemyDir}/${slug}.webp`;
 
 /** CDN URL of a card face, or null when none is uploaded. Strips a `#n` instance / `@fighter` suffix. */
 export const adventureCardArt = (cardId: string | null | undefined): string | null => {
