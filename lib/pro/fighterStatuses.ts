@@ -120,10 +120,11 @@ export const humanizeMarkerId = (id: string): string => {
  * it does not know should still render a generic mark with the count". Rendering
  * nothing would silently hide live, public, rules-relevant state. The label comes
  * from the scenario's `display.markers` (same source as the log and board markers),
- * else a humanized id.
+ * else a humanized id. Both only when `markers` is given (adventure); without it the raw name.
  */
 const genericMarkerBadge = (name: string, markers?: MarkerLabels | null): FighterMarkerBadge => {
-  const label = markerIdentityLabel(name, markers) ?? humanizeMarkerId(name);
+  // Adventure only (a scenario view always passes a map): every other game keeps the raw name.
+  const label = markers ? markerIdentityLabel(name, markers) ?? humanizeMarkerId(name) : name;
   return {
     icon: "◈",
     label,

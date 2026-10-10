@@ -52,6 +52,7 @@ import {
   boardObjectOriginFighter,
   boardObjectVisualFor,
   disambiguateLabels,
+  scenarioMarkerLabels,
 } from "@/lib/pro/boardObjects";
 import { buildPromptSpaceMap } from "@/lib/pro/promptSpaces";
 import { replayId, saveReplay } from "@/lib/pro/replayStore";
@@ -5064,7 +5065,7 @@ const LiveGame = ({
             objectNumber: (space) => scenarioObjectNumbers(next.map, next.scenario?.display)[space],
             objectNoun: next.scenario?.display?.objectNoun,
             threatSize: next.scenario?.threat.positions.length,
-            markerLabels: next.scenario?.display?.markers,
+            markerLabels: scenarioMarkerLabels(next),
             endOfRound: endOfRoundSteps(prevViewRef.current, next, snapshot.events)?.cards.map((c) => ({
               title: c.title ?? c.id,
               text: c.endOfRound!,
@@ -7243,7 +7244,7 @@ const LiveGame = ({
     fighterTokenRim,
     boardObjectArt,
     boardObjectOriginName,
-    markerLabels: view.scenario?.display?.markers,
+    markerLabels: scenarioMarkerLabels(view),
     fx: boardFx,
     pendingMove: pendingMove ?? incomingMove,
     swaps: positionSwaps,

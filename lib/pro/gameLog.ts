@@ -717,7 +717,7 @@ function valueBreakdownText(
  * raw engine name, rather than vanishing from the feed.
  */
 const markerLabel = (name: string, markers?: MarkerLabels | null): string =>
-  FIGHTER_MARKER_BADGES[name]?.label ?? markerIdentityLabel(name, markers) ?? humanizeMarkerId(name);
+  FIGHTER_MARKER_BADGES[name]?.label ?? markerIdentityLabel(name, markers) ?? (markers ? humanizeMarkerId(name) : name);
 
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
