@@ -44,6 +44,22 @@ export interface InitiativeRowEntry {
   name: string | null;
   /** face-down cards carry no title (hidden info) — the label falls back to the entry kind */
   label: string;
+  /** #1149: the card as printed (engine #819), revealed cards only. `move` is null when the
+   *  card prints no MOVE box (the engine projects Gallimimus's missing box as 0). */
+  move: number | null;
+  rightNow: string | null;
+  endOfRound: string | null;
+  /** END_OF_ROUND phase: this card's box is the one resolving */
+  resolving: boolean;
+}
+
+/** An END OF ROUND box as the row shows it, left to right (#1149). */
+export interface EndOfRoundBox {
+  id: string;
+  /** the printed card title, else the owner's name */
+  title: string;
+  text: string;
+  resolving: boolean;
 }
 
 export interface ThreatCell {
@@ -117,6 +133,10 @@ export interface AdventureBoardModel {
   stillToFlip: number;
   /** who the `current` card belongs to, as the banner/NOW chip names them */
   nowName: string | null;
+  /** END_OF_ROUND phase: the row card whose box is resolving (#1149), null when not known */
+  resolvingId: string | null;
+  /** the revealed row's END OF ROUND boxes, left to right — the AT ROUND END box (#1155) */
+  atRoundEnd: EndOfRoundBox[];
   enemies: EnemyDial[];
 }
 
@@ -261,9 +281,42 @@ export const adventureEnemySeatName = (view: PlayerView, player: string): string
   return view.scenario?.label ?? (setting ? setting[0].toUpperCase() + setting.slice(1) : "The enemy");
 };
 
-/** null when the view carries no adventure data (every regular format). */
+/** The first line of a printed box, for the row chip's END OF ROUND marker: up to the first
+ *  sentence end or line break. */
+export const firstLineOf = (text: string): string => {
+  const line = text.trim().split(/\n/)[0]!.trim();
+  const stop = line.search(/[.;:](\s|$)/);
+  return stop > 0 ? line.slice(0, stop) : line;
+};
+
+const INITIATIVE_SOURCE = "initiative:";
+
+/**
+ * END_OF_ROUND phase: the row card whose box is resolving, or null. The view only stays in
+ * END_OF_ROUND while a box is parked on a prompt, so the prompt names it: by `source` when the
+ * engine projects one, else by its description — the engine authors a box's TEAM prompt as
+ * "<card title>, end of round: …" (effects.ts `teamPromptDescription`).
+ */
+export const endOfRoundResolvingId = (view: PlayerView): string | null => {
+  const init = view.initiative;
+  if (init?.phase !== "END_OF_ROUND" || !view.prompt) return null;
+  const boxes = init.row.filter((c) => !c.faceDown && c.endOfRound);
+  const src = view.prompt.source;
+  if (src && "card" in src) {
+    const id = src.card.startsWith(INITIATIVE_SOURCE) ? src.card.slice(INITIATIVE_SOURCE.length) : src.card;
+    const hit = boxes.find((c) => c.id === id);
+    if (hit) return hit.id;
+  }
+  const desc = view.prompt.description?.toLowerCase();
+  if (!desc) return null;
+  return boxes.find((c) => c.title && desc.startsWith(`${c.title.toLowerCase()}, end of round`))?.id ?? null;
+};
+
+/** null when the view carries no adventure data (every regular format). `resolvingId` overrides
+ *  the END OF ROUND box the view names (the client-side walk replay, #1149). */
 export const adventureBoardModel = (
   view: PlayerView,
+  opts: { resolvingId?: string | null } = {},
 ): AdventureBoardModel | null => {
   const { initiative, scenario } = view;
   const enemies: EnemyDial[] = view.fighters
@@ -297,8 +350,10 @@ export const adventureBoardModel = (
     ...(() => {
       const cards = initiative?.row ?? [];
       const curIdx = cards.findIndex((c) => c.id === initiative?.current);
-      const row = cards.map((card, i) => {
+      const resolvingId = opts.resolvingId !== undefined ? opts.resolvingId : endOfRoundResolvingId(view);
+      const row = cards.map((card, i): InitiativeRowEntry => {
         const o = resolveCardOwner(view, card);
+        const up = !card.faceDown;
         return {
           card,
           artKey: parseInitiativeCardId(card.id).cardId,
@@ -316,14 +371,23 @@ export const adventureBoardModel = (
           name: o.name,
           label:
             card.title ?? (card.faceDown ? "Face down" : ENTRY_LABEL[card.entry]),
+          move: up && card.move ? card.move : null,
+          rightNow: (up && card.rightNow) || null,
+          endOfRound: (up && card.endOfRound) || null,
+          resolving: up && card.id === resolvingId,
         };
       });
       const now = row.find((r) => r.current);
+      const resolving = row.find((r) => r.resolving);
       return {
         row,
+        resolvingId: resolving?.card.id ?? null,
+        atRoundEnd: row
+          .filter((r) => r.endOfRound)
+          .map((r) => ({ id: r.card.id, title: r.card.title ?? r.name ?? r.label, text: r.endOfRound!, resolving: r.resolving })),
         stillToFlip:
           cards.filter((c) => c.faceDown).length + (initiative?.deckCount ?? 0),
-        nowName: now?.name ?? null,
+        nowName: (resolving ?? now)?.name ?? null,
       };
     })(),
     threat: scenario ? threatModel(scenario) : null,
