@@ -1,0 +1,24 @@
+{
+  "deckSlug": "xd9Qk",
+  "tagline": "Monster's 25 health is the fuel: spend it to move him, draw, heal, and swing for 8",
+  "particleStyle": "ash",
+  "featuredCards": [
+    {
+      "title": "mad, they call me!",
+      "caption": "The setup. Monster only moves 1 on his own, so this drags him up to 6 spaces at once, and every 2 spaces adds +1 to the swing. The discards are the price."
+    },
+    {
+      "title": "tragic bond",
+      "caption": "The engine. Monster's health is a bank: hurt him for up to 3, then cash it in as a heal for Frankestein or three fresh cards."
+    },
+    {
+      "title": "unnatural strength",
+      "caption": "The payoff. An 8 that loses 1 for every Frankestein card it makes you discard and every one already in your discard pile. Bottom-deck them with the ability to keep the pile clean."
+    },
+    {
+      "title": "blind rage",
+      "caption": "The twist, four copies deep. Nothing can cancel it, and if the two stand side by side the attack lands on the other fighter and the value is 6."
+    }
+  ],
+  "backdropColour": "#1e2b20"
+}

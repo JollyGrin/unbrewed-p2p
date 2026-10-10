@@ -1306,4 +1306,25 @@ describe("Frankestein (xd9Qk) deck data", () => {
     // The API payload says "monster"; the preview modal reads this field.
     expect(deck.deck_data.sidekick).toMatchObject({ name: "Monster", hp: 25, quantity: 1, isRanged: false });
   });
+
+  it("ships BOTH board token portraits locally", () => {
+    // Without these the board falls back to "FRA"/"MON" initials and the promo's
+    // cold open flips the cardback onto a blank card (#1338 — the same miss Appa
+    // had in #739). Both are crops of the author's own card faces (Monster from
+    // UNNATURAL STRENGTH, Frankestein from IT´S ALIVE!) — never generated, never
+    // hotlinked.
+    expect(deck.deck_data.hero.tokenImageUrl).toBe(
+      "/evergreen-decks/art/frankenstein/token-frankestein.webp"
+    );
+    expect(deck.deck_data.sidekick.tokenImageUrl).toBe(
+      "/evergreen-decks/art/frankenstein/token-monster.webp"
+    );
+    for (const url of [
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(url).toMatch(/^\/evergreen-decks\//); // local-only, never a hotlink
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
 });
