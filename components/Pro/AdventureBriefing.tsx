@@ -4,6 +4,8 @@ import { TbChevronDown } from "react-icons/tb";
 import type { ScenarioBriefing, ScenarioDisplay } from "@/lib/pro/protocol";
 import { heroSeatRange, heroSeatsLabel, scenarioFor, type AdventureSetup, type HeroSeatRange } from "@/lib/pro/adventureLobby";
 import { useScenarios } from "@/lib/pro/adventureScenarios";
+import { rulebookFor } from "@/lib/pro/adventureRulebook";
+import { RulebookViewer } from "./RulebookViewer";
 import {
   BRIEFING_TITLE,
   DIFFICULTY_NOTE,
@@ -49,6 +51,7 @@ export const AdventureBriefing = ({
   display,
   seats = null,
   compact = false,
+  scenarioId = null,
 }: {
   /** scenario label; null when none is resolved yet */
   label: string | null;
@@ -59,7 +62,11 @@ export const AdventureBriefing = ({
   seats?: HeroSeatRange | null;
   /** tighter spacing for the modal */
   compact?: boolean;
+  /** engine scenario id; a scenario with a published booklet gets the "Read the original rulebook" link (#1371) */
+  scenarioId?: string | null;
 }) => {
+  const [rulebookOpen, setRulebookOpen] = useState(false);
+  const book = rulebookFor(scenarioId);
   const acts = display?.enemyTurn ?? null;
   const special = briefing?.special ?? [];
   const win = splitFirstSentence(briefing?.win ?? "");
@@ -146,6 +153,25 @@ export const AdventureBriefing = ({
         </Text>
         <Text fontSize="0.78rem" lineHeight={1.45} flex="1" minW="12rem"><Rich text={yourTurnText(display)} /></Text>
       </Flex>
+
+      {book && (
+        <>
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            alignSelf="flex-start"
+            color="brand.accent"
+            fontFamily="SpaceGrotesk"
+            fontWeight="normal"
+            onClick={() => setRulebookOpen(true)}
+            data-testid="adventure-rulebook-link"
+          >
+            Read the original rulebook
+          </Button>
+          <RulebookViewer book={book} isOpen={rulebookOpen} onClose={() => setRulebookOpen(false)} />
+        </>
+      )}
     </Flex>
   );
 };
@@ -185,7 +211,7 @@ export const LobbyBriefing = ({ setup }: { setup: AdventureSetup }) => {
       </Button>
       {open && (
         <Box overflowY="auto" minH={0}>
-          <AdventureBriefing label={scenario.label} briefing={scenario.briefing} display={scenario.display} seats={heroSeatRange(scenario)} />
+          <AdventureBriefing label={scenario.label} briefing={scenario.briefing} display={scenario.display} seats={heroSeatRange(scenario)} scenarioId={scenario.id} />
         </Box>
       )}
       <DifficultyNote />
@@ -200,12 +226,14 @@ export const AdventureBriefingModal = ({
   label,
   briefing,
   display,
+  scenarioId,
 }: {
   isOpen: boolean;
   onClose: () => void;
   label: string | null;
   briefing?: ScenarioBriefing | null;
   display?: ScenarioDisplay | null;
+  scenarioId?: string | null;
 }) => (
   <Modal isOpen={isOpen} onClose={onClose} size="4xl" scrollBehavior="inside" isCentered>
     <ModalOverlay />
@@ -215,7 +243,7 @@ export const AdventureBriefingModal = ({
       </ModalHeader>
       <ModalCloseButton data-testid="adventure-rules-close" />
       <ModalBody pb="1.2rem">
-        <AdventureBriefing label={label} briefing={briefing} display={display} compact />
+        <AdventureBriefing label={label} briefing={briefing} display={display} scenarioId={scenarioId} compact />
       </ModalBody>
     </ModalContent>
   </Modal>

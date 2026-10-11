@@ -972,6 +972,7 @@ export const AdventureBoard = ({
         label={view.scenario?.label ?? null}
         briefing={view.scenario?.briefing}
         display={view.scenario?.display}
+        scenarioId={view.scenario?.id}
       />
       {model.threat && <ThreatTrack threat={model.threat} />}
       {model.objectives && model.objectives.slots.length > 0 && (
