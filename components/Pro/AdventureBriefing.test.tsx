@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { AdventureBriefing, AdventureBriefingModal, LobbyBriefing } from "./AdventureBriefing";
+import { AdventureBriefing, AdventureBriefingModal, LobbyBriefing, RulebookButton } from "./AdventureBriefing";
 import { AdventureLobby } from "./AdventureLobby";
 import { AdventureWaitingRoom } from "./AdventureWaitingRoom";
 import { defaultAdventureSetup } from "@/lib/pro/adventureLobby";
@@ -178,5 +178,46 @@ describe("AdventureWaitingRoom (#1153)", () => {
     expect(line).not.toHaveTextContent(/opponent|playing on/i);
     expect(screen.getByTestId("adventure-waiting-enemy-0")).toHaveTextContent("16");
     expect(screen.getByTestId("adventure-waiting-enemy-2")).toHaveTextContent("Random");
+  });
+});
+
+describe("Rulebook entry points (#1373)", () => {
+  beforeEach(() => {
+    resetAdventureScenarios();
+    setScenarios([ISLA]);
+  });
+  afterEach(() => resetAdventureScenarios());
+
+  it("header button opens the viewer for Jurassic; the bottom link stays", () => {
+    wrap(<AdventureBriefing label="Isla Nublar" briefing={BRIEFING} scenarioId="isla-nublar" />);
+    expect(screen.getByTestId("adventure-rulebook-link")).toBeInTheDocument();
+    const btn = screen.getByTestId("adventure-rulebook-header-button");
+    expect(screen.getByTestId("adventure-briefing-header")).toContainElement(btn);
+    fireEvent.click(btn);
+    expect(screen.getByTestId("rulebook-counter")).toBeInTheDocument();
+  });
+
+  it("shows nothing new for a scenario without a booklet", () => {
+    wrap(<AdventureBriefing label="Other" briefing={BRIEFING} scenarioId="other" />);
+    expect(screen.queryByTestId("adventure-rulebook-header-button")).toBeNull();
+    expect(screen.queryByTestId("adventure-rulebook-link")).toBeNull();
+  });
+
+  it("collapsed lobby keeps a rulebook button that opens the viewer", () => {
+    wrap(<LobbyBriefing setup={defaultAdventureSetup()} />);
+    expect(screen.queryByTestId("adventure-rulebook-lobby-button")).toBeNull();
+    fireEvent.click(screen.getByTestId("adventure-briefing-toggle"));
+    expect(screen.queryByTestId("adventure-briefing-header")).toBeNull();
+    fireEvent.click(screen.getByTestId("adventure-rulebook-lobby-button"));
+    expect(screen.getByTestId("rulebook-counter")).toBeInTheDocument();
+  });
+
+  it("in-game button opens the viewer for Jurassic only", () => {
+    const { unmount } = wrap(<RulebookButton scenarioId="isla-nublar" testId="adventure-board-rulebook-button" compact />);
+    fireEvent.click(screen.getByTestId("adventure-board-rulebook-button"));
+    expect(screen.getByTestId("rulebook-counter")).toBeInTheDocument();
+    unmount();
+    wrap(<RulebookButton scenarioId="other" testId="adventure-board-rulebook-button" compact />);
+    expect(screen.queryByTestId("adventure-board-rulebook-button")).toBeNull();
   });
 });

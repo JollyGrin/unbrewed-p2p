@@ -1,6 +1,6 @@
 import { Box, Button, Flex, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, Text } from "@chakra-ui/react";
 import { useState, type ReactNode } from "react";
-import { TbChevronDown } from "react-icons/tb";
+import { TbBook2, TbChevronDown } from "react-icons/tb";
 import type { ScenarioBriefing, ScenarioDisplay } from "@/lib/pro/protocol";
 import { heroSeatRange, heroSeatsLabel, scenarioFor, type AdventureSetup, type HeroSeatRange } from "@/lib/pro/adventureLobby";
 import { useScenarios } from "@/lib/pro/adventureScenarios";
@@ -37,6 +37,71 @@ const Tile = ({ testId, bg, border, children }: { testId: string; bg: string; bo
     {children}
   </Flex>
 );
+
+/**
+ * A prominent "Read the original rulebook" entry point (#1373): owns its own viewer, renders nothing
+ * for a scenario without a published booklet. `size="xs"` is the compact in-game "Rulebook" chip.
+ */
+export const RulebookButton = ({
+  scenarioId,
+  testId,
+  compact = false,
+  fullWidthOnPhone = false,
+}: {
+  scenarioId?: string | null;
+  testId: string;
+  compact?: boolean;
+  fullWidthOnPhone?: boolean;
+}) => {
+  const [open, setOpen] = useState(false);
+  const book = rulebookFor(scenarioId);
+  if (!book) return null;
+  return (
+    <>
+      {compact ? (
+        <Button
+          type="button"
+          size="xs"
+          variant="outline"
+          leftIcon={<TbBook2 />}
+          onClick={() => setOpen(true)}
+          data-testid={testId}
+          pointerEvents="auto"
+          fontFamily="SpaceGrotesk"
+          fontWeight="normal"
+          letterSpacing="0.06em"
+          color="brand.parchment"
+          borderColor="whiteAlpha.300"
+          bg="rgba(20,8,24,0.72)"
+          _hover={{ borderColor: "brand.accent", color: "brand.accent" }}
+        >
+          Rulebook
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          leftIcon={<TbBook2 />}
+          onClick={() => setOpen(true)}
+          data-testid={testId}
+          fontFamily="SpaceGrotesk"
+          letterSpacing="0.04em"
+          color="brand.accent"
+          borderColor="brand.accent"
+          borderWidth="2px"
+          bg="rgba(231,204,152,0.1)"
+          w={fullWidthOnPhone ? { base: "100%", sm: "auto" } : undefined}
+          flexShrink={0}
+          _hover={{ bg: "brand.accent", color: "brand.surfaceDim" }}
+        >
+          Read the original rulebook
+        </Button>
+      )}
+      <RulebookViewer book={book} isOpen={open} onClose={() => setOpen(false)} />
+    </>
+  );
+};
 
 /**
  * The "how this adventure works" briefing (#1153) — shared by the lobby and the in-game
@@ -81,12 +146,17 @@ export const AdventureBriefing = ({
         bg="linear-gradient(180deg, rgba(58,33,64,0.85), rgba(44,24,49,0.9))"
         data-testid="adventure-briefing-header"
       >
-        <Text fontFamily="SpaceGrotesk" fontSize="0.62rem" letterSpacing="0.18em" fontWeight="bold" color="brand.accent">
-          {FORMAT_KICKER} · {heroSeatsLabel(seats ?? heroSeatRange(null))}
-        </Text>
-        <Text fontFamily="LeagueGothic" fontSize="2.2rem" lineHeight={0.95} letterSpacing="0.03em" data-testid="adventure-briefing-label">
-          {(label ?? "Adventure").toUpperCase()}
-        </Text>
+        <Flex direction={{ base: "column", sm: "row" }} align={{ base: "stretch", sm: "flex-start" }} justify="space-between" gap="0.6rem">
+          <Flex direction="column" gap="0.3rem" minW="0">
+            <Text fontFamily="SpaceGrotesk" fontSize="0.62rem" letterSpacing="0.18em" fontWeight="bold" color="brand.accent">
+              {FORMAT_KICKER} · {heroSeatsLabel(seats ?? heroSeatRange(null))}
+            </Text>
+            <Text fontFamily="LeagueGothic" fontSize="2.2rem" lineHeight={0.95} letterSpacing="0.03em" data-testid="adventure-briefing-label">
+              {(label ?? "Adventure").toUpperCase()}
+            </Text>
+          </Flex>
+          <RulebookButton scenarioId={scenarioId} testId="adventure-rulebook-header-button" fullWidthOnPhone />
+        </Flex>
         {briefing?.tagline && (
           <Text fontSize="0.9rem" lineHeight={1.45} opacity={0.9} data-testid="adventure-briefing-tagline">
             {briefing.tagline}
@@ -209,6 +279,8 @@ export const LobbyBriefing = ({ setup }: { setup: AdventureSetup }) => {
       >
         {open ? "Hide briefing" : "Show briefing"}
       </Button>
+      {/* the header card (and its rulebook button) is unmounted while collapsed, so it surfaces here */}
+      {!open && <RulebookButton scenarioId={scenario.id} testId="adventure-rulebook-lobby-button" />}
       {open && (
         <Box overflowY="auto" minH={0}>
           <AdventureBriefing label={scenario.label} briefing={scenario.briefing} display={scenario.display} seats={heroSeatRange(scenario)} scenarioId={scenario.id} />
