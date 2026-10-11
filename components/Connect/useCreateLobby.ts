@@ -54,14 +54,9 @@ export function useCreateLobby({ gidRef, nameRef, mapUrl }: Props) {
             gidRef.current.value +
             (mapUrl ? "&mapUrl=" + encodeURIComponent(mapUrl) : ""),
         );
-
-        // HACK: the loading props are borked, so manually setting and resetting state
-        setTimeout(() => {
-          setLoading(false);
-          toast.success(
-            `Successfully connected to GameServer: \n ${activeServer}`,
-          );
-        }, 10000);
+        // The game page owns the "connected" toast (it fires on the real
+        // socket open); the button spinner just ends when we navigate away.
+        setLoading(false);
       },
       onError: () => {
         // if there's an error connecting, prompt the Gameserver Settings modal so they can input a new server url
