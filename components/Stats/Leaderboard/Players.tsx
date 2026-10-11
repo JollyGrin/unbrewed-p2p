@@ -107,6 +107,8 @@ const PodiumFigure = ({ value, label }: { value: string | number; label: string 
   </div>
 );
 
+const RANKED_GAMES_HINT = "Games counted toward the monthly ranking. Excludes games against casual bots.";
+
 export const Podium = ({
   players,
   window,
@@ -233,8 +235,13 @@ export const ChasePack = ({
         <div>Player</div>
         <Box display={WIDE_ONLY}>{window === "month" ? "Wins to next rank" : "XP to next rank"}</Box>
         <div>{hasForm ? "Last 5" : ""}</div>
-        <Box display={WIDE_ONLY} textAlign="right">
-          Games
+        <Box
+          display={WIDE_ONLY}
+          textAlign="right"
+          title={window === "month" ? RANKED_GAMES_HINT : undefined}
+          aria-label={window === "month" ? RANKED_GAMES_HINT : undefined}
+        >
+          {window === "month" ? "Ranked games" : "Games"}
         </Box>
       </Box>
       <Box as="ol" listStyleType="none" m={0} p={0} display="flex" flexDirection="column" aria-label="Ranks 4 and below">
