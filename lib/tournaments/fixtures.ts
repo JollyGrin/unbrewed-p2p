@@ -293,7 +293,8 @@ export const fixtureSignup8 = (): FixturePayload => ({
     entryCount: 6,
     signupOpen: true,
     startsAt: null,
-    signupClosesAt: "2026-10-09T18:00:00Z",
+    // Relative to the wall clock so the signup window never decays into "closed".
+    signupClosesAt: new Date(Date.now() + 7 * 24 * 3_600_000).toISOString(),
     latestPossibleFinal: null,
   }),
   entries: fixtureEntries(6, false),
