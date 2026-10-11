@@ -11,7 +11,7 @@ import {
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { DeckLinkHold } from "@/components/DeckLink/DeckLinkHold";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
@@ -183,7 +183,7 @@ export const TablePage = () => {
         minH="100svh"
       >
         <Box>
-          <Navbar />
+          <SiteNav />
         </Box>
         <VStack
           spacing="1.5rem"
@@ -218,7 +218,7 @@ export const TablePage = () => {
       h={{ lg: "100svh" }}
     >
       <Box flexShrink={0}>
-        <Navbar />
+        <SiteNav />
       </Box>
       <Flex
         flex="1"

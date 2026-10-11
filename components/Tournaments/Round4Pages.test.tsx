@@ -20,7 +20,7 @@ import { MatchView } from "./MatchView";
 import { NextMatchCard } from "./NextMatchBanner";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn(), asPath: "/pro" }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div data-testid="replay-open" /> }));
 
 const reply = (status: number, b: unknown) => ({ ok: status >= 200 && status < 300, status, json: async () => b }) as Response;

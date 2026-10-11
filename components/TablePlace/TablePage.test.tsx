@@ -29,7 +29,7 @@ import { TablePage } from "./TablePage";
 jest.mock("next/router", () => ({
   useRouter: () => ({ query: {}, isReady: true }),
 }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("../DeckLink/DeckLinkHold", () => ({
   DeckLinkHold: () => <div data-testid="deck-link-hold" />,
 }));

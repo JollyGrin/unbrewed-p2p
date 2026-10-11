@@ -21,7 +21,7 @@ import NextLink from "next/link";
 import { useRouter } from "next/router";
 
 import { PageSeo } from "@/components/Helmet/Head";
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { AccountShell, Panel } from "@/components/Account/Shell";
 import { PlayerDashboard } from "@/components/Stats/PlayerDashboard";
 import { PAGE_BG } from "@/components/Stats/tokens";
@@ -61,7 +61,7 @@ const WideShell = ({ username, children }: { username: string; children: React.R
   <Flex flexDir="column" bg={PAGE_BG} minH="100svh">
     <PageSeo {...seoFor(username)} />
     <Box color="brand.secondary">
-      <Navbar />
+      <SiteNav />
     </Box>
     {children}
   </Flex>

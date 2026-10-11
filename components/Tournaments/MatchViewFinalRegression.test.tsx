@@ -9,7 +9,7 @@ import type { MatchPageKind } from "@/lib/tournaments/matchPage";
 import type { MatchDetail } from "@/lib/tournaments/types";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div /> }));
 
 const NOW = Date.parse(FIXTURE_NOW);

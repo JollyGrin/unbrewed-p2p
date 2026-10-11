@@ -13,7 +13,7 @@ import {
 } from "@/lib/tournaments/fixtures";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 const page = (p: ReturnType<typeof fixtureRoundRobin4>) =>
   render(

@@ -9,7 +9,7 @@ import { FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
 import { myTournamentCount } from "@/lib/tournaments/browse";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div data-testid="replay-open" /> }));
 
 const NOW = Date.parse(FIXTURE_NOW);

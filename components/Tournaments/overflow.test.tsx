@@ -24,7 +24,7 @@ import { MatchBody } from "./MatchView";
 import { Page } from "./ui";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div /> }));
 
 const LONG_USER = "x".repeat(32);

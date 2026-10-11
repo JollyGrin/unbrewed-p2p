@@ -10,7 +10,7 @@ import { fixtureTournament } from "@/lib/tournaments/fixtures";
 import { BrowseView } from "./BrowseView";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 beforeEach(() => __resetAccountStoreForTests());
 

@@ -5,7 +5,7 @@
 import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { Navbar } from "./index";
+import { SiteNav } from "./index";
 
 // AccountChip reaches for next/router; not under test here.
 jest.mock("../Account/AccountChip", () => ({ AccountChip: () => null }));
@@ -24,17 +24,17 @@ const entry = (id: string) => ({
   highlight: false,
 });
 
-const renderNavbar = () =>
+const renderNav = () =>
   render(
     <ChakraProvider>
-      <Navbar />
+      <SiteNav />
     </ChakraProvider>,
   );
 
-describe("Navbar What's new link", () => {
+describe("SiteNav What's new link", () => {
   it("always links to /changelog", () => {
     mockUseChangelogSeen.mockReturnValue({ unseen: [], markAllSeen: jest.fn() });
-    renderNavbar();
+    renderNav();
     expect(screen.getByRole("link", { name: "What's new" })).toHaveAttribute(
       "href",
       "/changelog",
@@ -43,7 +43,7 @@ describe("Navbar What's new link", () => {
 
   it("hides the pill when unseen is empty", () => {
     mockUseChangelogSeen.mockReturnValue({ unseen: [], markAllSeen: jest.fn() });
-    renderNavbar();
+    renderNav();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
@@ -52,7 +52,7 @@ describe("Navbar What's new link", () => {
       unseen: [entry("2026-01-02-a"), entry("2026-01-01-b")],
       markAllSeen: jest.fn(),
     });
-    renderNavbar();
+    renderNav();
     expect(screen.getByText("2")).toBeInTheDocument();
   });
 });

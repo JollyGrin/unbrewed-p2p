@@ -2,7 +2,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { PageSeo } from "@/components/Helmet/Head";
 import {
   BAND_MUTED,
@@ -59,7 +59,7 @@ export const Page = ({
       noindex={path !== "/tournaments"}
     />
     <Box color="brand.secondary">
-      <Navbar />
+      <SiteNav />
     </Box>
     <Box bg={INK_DEEP} color={PARCHMENT} px={{ base: "16px", md: "32px" }} py={{ base: "28px", md: "44px" }}>
       <Flex maxW={wide ? "90rem" : "64rem"} mx="auto" gap="20px" minW={0} justify="space-between" align="flex-end" flexWrap="wrap">
