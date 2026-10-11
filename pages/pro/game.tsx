@@ -3112,6 +3112,9 @@ const HeroSelectLobby = ({
   const boardPickerRef = useRef<HTMLDivElement>(null);
   const viewBoardRef = useRef<HTMLButtonElement>(null);
   const clearStagePreview = () => setStageHover(undefined);
+  // The adventure briefing's bottom "choose your hero" control lands here.
+  const heroHeaderRef = useRef<HTMLDivElement>(null);
+  const scrollToHeroHeader = useCallback(() => heroHeaderRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), []);
   /** true while `related` is still inside the splash / stage row / popover */
   const insideStageRegion = (related: EventTarget | null) => {
     if (!(related instanceof Node)) return false;
@@ -3865,8 +3868,8 @@ const HeroSelectLobby = ({
           position="relative"
           onMouseEnter={clearStagePreview}
         >
-          {!room && <FormatLobbyBriefing formatId={selectedFormat} setup={formatSetup} />}
-          <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
+          {!room && <FormatLobbyBriefing formatId={selectedFormat} setup={formatSetup} onChooseHero={scrollToHeroHeader} />}
+          <Flex ref={heroHeaderRef} align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
             <Flex align="baseline" gap="0.5rem">
               <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
                 SELECT YOUR HERO
