@@ -69,7 +69,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "TheRealNomiMalonely",
     likes: 23,
     highlightColour: "#fada0b",
-    cardbackUrl: "https://i.imgur.com/Wh9hG5d.jpeg",
+    cardbackUrl: "/evergreen-decks/art/nPnv/cardback.webp",
   },
   {
     // Pro deck (unmatched.cards xBvn / version ojN2f49QE) — server hero
