@@ -134,6 +134,10 @@ export type TableBoardProps = Omit<ProBoardProps, TableBoardDeferredProp> & {
   fighterMini3d?: (fighter: ViewFighter) => Mini3d | null;
   /** see TableStage — moved out from under the tabletop HUD's side buttons */
   resetViewSpot?: { left: string; bottom: string };
+  /** Paint the zone discs over the art (#1395, lib/pro/zoneDiscs.ts). Off —
+   *  the default — leaves only the invisible hit circles and the pick rings,
+   *  like the flat board. */
+  zoneDiscs?: boolean;
   /** The combat strike beat that is playing (#962): 3D minis lunge, recoil
    *  and face each other on the combat panel's own clock. */
   fighterStrike?: TableStrike | null;
@@ -188,6 +192,7 @@ export const TableBoard = ({
   fighterFigure,
   fighterMini3d,
   resetViewSpot,
+  zoneDiscs = false,
   fighterStrike = null,
   // Whatever the caller spread in that this view deliberately doesn't draw
   // (TableBoardDeferredProp). Typed as the REST of TableBoardProps, so it is
@@ -673,6 +678,7 @@ export const TableBoard = ({
               highlighted={highlightSet.has(space.id)}
               relocateOrigin={relocateSet.has(space.id)}
               relocateArmed={relocateArmed}
+              zoneDiscs={zoneDiscs}
               coarsePointer={coarsePointer}
               hitCapPx={pickHitCaps(frameW, frameH).get(space.id)}
               onClick={onSpaceClick}
