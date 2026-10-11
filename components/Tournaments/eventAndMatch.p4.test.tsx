@@ -11,7 +11,7 @@ import { EventView } from "./EventView";
 import { MatchBody } from "./MatchView";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div data-testid="replay-open" /> }));
 
 const reply = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body }) as Response;

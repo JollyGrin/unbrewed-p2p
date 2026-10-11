@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { Hero } from "./Hero";
-import { LandingNav } from "./LandingNav";
+import { SiteNav } from "@/components/SiteNav";
 import { FourTables } from "./FourTables";
 import { IntentHelper } from "./IntentHelper";
 import { ProBand } from "./ProBand";
@@ -101,7 +101,7 @@ export const LandingPage = ({ catalog }: { catalog: LandingCatalog }) => {
     <Flex direction="column" minH="100svh" overflowX="clip">
       <JsonLd />
       <ChangelogUpdateDialog />
-      <LandingNav />
+      <SiteNav />
       <Box as="main">
         <Hero roster={roster} sandboxMapCount={catalog.sandboxMapCount} />
         <Disclaimer />

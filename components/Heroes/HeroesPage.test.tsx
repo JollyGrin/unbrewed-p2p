@@ -20,7 +20,7 @@ let query: Record<string, string> = {};
 jest.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/heroes", query, isReady: true, push: jest.fn() }),
 }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 const reply = (status: number, body: unknown = {}) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;

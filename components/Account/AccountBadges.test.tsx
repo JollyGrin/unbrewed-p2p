@@ -27,7 +27,7 @@ jest.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/account", query: {}, push: jest.fn() }),
 }));
 // Relative paths: SWC rewrites `@/` in imports, but not inside jest.mock().
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("../../lib/pro/replayStore", () => ({ listReplays: () => [] }));
 
 const USER = { id: "u1", username: "JollyGrin", avatarUrl: null };

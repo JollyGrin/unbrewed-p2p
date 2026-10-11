@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Flex } from "@chakra-ui/react";
 
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { PageSeo } from "@/components/Helmet/Head";
 import { getChangelogEntries } from "@/lib/changelog/entries";
 import { useChangelogSeen } from "@/lib/changelog/useChangelogSeen";
@@ -103,7 +103,7 @@ export const ChangelogPage = () => {
       />
 
       <Box bg="brand.secondary" color="brand.primary">
-        <Navbar />
+        <SiteNav />
         <Flex justify="center" px={{ base: "16px", md: "40px" }} pt={{ base: "24px", md: "36px" }} pb={{ base: "28px", md: "44px" }}>
           <Flex direction="column" gap="10px" maxW="880px" w="100%">
             <Box fontFamily="ArchivoNarrow" textTransform="uppercase" letterSpacing="0.08em" fontSize="0.85rem" opacity={0.75}>

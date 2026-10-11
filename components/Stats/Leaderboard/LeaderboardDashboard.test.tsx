@@ -33,7 +33,7 @@ const router = {
   push: jest.fn(),
 };
 jest.mock("next/router", () => ({ useRouter: () => router }));
-jest.mock("../../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 const reply = (status: number, body?: unknown) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;

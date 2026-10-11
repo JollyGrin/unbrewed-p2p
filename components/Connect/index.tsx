@@ -18,7 +18,7 @@ import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { SelectedDeckContainer } from "./SelectedDeck";
 import { InviteLink } from "./InviteLink";
 import { useCreateLobby } from "./useCreateLobby";
@@ -122,8 +122,8 @@ export const ConnectPage = () => {
         onClose={disclosure.onClose}
         serverStorage={{ activeServer, setActiveServer, serverList }}
       />
-      <Box position="absolute" top="0" w="100%" color="brand.primary">
-        <Navbar />
+      <Box w="100%" color="brand.primary">
+        <SiteNav />
       </Box>
       <ConnectContainer>
         <VStack spacing={1} textAlign="center">
@@ -364,10 +364,13 @@ const StepLabel = (props: { number: string; label: string }) => (
 // Flat purple backdrop (issue #1192) — the AI-art photo background is gone,
 // so /connect and /join share the same theme-token surface.
 const Wrapper = styled(Flex)`
-  height: 100svh;
+  /* The nav sits in flow; the card centres in the rest via auto margins and
+     the page scrolls (rather than clipping under the bar) when it is taller. */
+  min-height: 100svh;
+  flex-direction: column;
   background-color: var(--chakra-colors-brand-surface);
-  justify-content: center;
   align-items: center;
+  padding-bottom: 1rem;
 `;
 
 const ConnectContainer = styled(Flex)`
@@ -378,6 +381,7 @@ const ConnectContainer = styled(Flex)`
   border-radius: 1rem;
   padding: 1.5rem 2rem;
   gap: 1.25rem;
+  margin: auto 0;
   justify-content: flex-start;
   align-items: center;
   box-shadow: 0 12px 40px rgba(44, 24, 49, 0.45);

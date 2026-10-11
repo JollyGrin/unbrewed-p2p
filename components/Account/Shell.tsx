@@ -8,7 +8,7 @@
  */
 import { Box, Flex } from "@chakra-ui/react";
 
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { PageSeo, SeoProps } from "@/components/Helmet/Head";
 
 /** One parchment card. The unit every section on these pages is built from. */
@@ -35,7 +35,7 @@ export const AccountShell = ({
   <Flex flexDir="column" bg="brand.highlight" minH="100svh">
     <PageSeo {...seo} />
     <Box color="brand.secondary">
-      <Navbar />
+      <SiteNav />
     </Box>
     <Box
       flex="1"

@@ -1,47 +1,7 @@
-import styled from "@emotion/styled";
-import { Box, HStack, Text } from "@chakra-ui/react";
-import { IconLogo } from "../Icons/IconLogo";
-import { IconChangelog } from "../Icons/IconChangelog";
-import { ProNavButton } from "./ProNavButton";
-import { AccountChip } from "../Account/AccountChip";
+import { Box, Text } from "@chakra-ui/react";
 import Link from "next/link";
+import { IconChangelog } from "@/components/Icons/IconChangelog";
 import { useChangelogSeen } from "@/lib/changelog/useChangelogSeen";
-
-import { FaDiscord } from "react-icons/fa";
-import { GiSwapBag } from "@/components/Icons/gi";
-import { FaGithub } from "react-icons/fa";
-import { FaYoutube } from "react-icons/fa";
-import { IconType } from "react-icons";
-
-export const Navbar = () => {
-  return (
-    <HStack p="0.75rem 0.5rem" justifyContent="space-between">
-      <Link href="/">
-        <IconLogo fontSize="2rem" />
-      </Link>
-
-      <HStack flexWrap="wrap" justifyContent="flex-end">
-        <ChangelogNavLink />
-        <ProNavButton />
-        <Link href="/bag">
-          <BagIcon />
-        </Link>
-        <Link href="https://discord.gg/qPxHFjwkNN">
-          <DiscordIcon />
-        </Link>
-        <Link href="https://youtube.com/playlist?list=PLjsjwAfJTj3a2NMDzOENFMwOYUzsFQn_C&si=Wi-MwpmS6loyBpB3">
-          <YoutubeIcon />
-        </Link>
-        <Link href="https://github.com/jollygrin/unbrewed-p2p/">
-          <GithubIcon />
-        </Link>
-        {/* Optional Discord account (#459) — renders nothing unless the
-            accounts API answers, so guest play is untouched. */}
-        <AccountChip />
-      </HStack>
-    </HStack>
-  );
-};
 
 /**
  * "What's new" entry point (unbrewed-p2p-984): always links to /changelog;
@@ -101,23 +61,3 @@ export const ChangelogNavLink = () => {
     </Link>
   );
 };
-
-const iconProps = `
-  font-size: 2rem;
-  transition: all 0.25s ease-in-out;
-  :hover {
-    filter: saturate(2);
-    transform: scale(1.2);
-  }
-
-  :active {
-    transform: scale(1.1);
-  }
-`;
-function i(icon: IconType) {
-  return styled(icon)(iconProps);
-}
-const BagIcon = i(GiSwapBag);
-const DiscordIcon = i(FaDiscord);
-const GithubIcon = i(FaGithub);
-const YoutubeIcon = i(FaYoutube);

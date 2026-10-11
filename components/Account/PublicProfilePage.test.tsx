@@ -26,7 +26,7 @@ let isReady = true;
 jest.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/stats", query, isReady, push: jest.fn() }),
 }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("../../lib/pro/replayStore", () => ({ listReplays: () => [] }));
 
 const reply = (status: number, body: unknown) =>

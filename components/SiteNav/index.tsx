@@ -14,9 +14,9 @@ import {
 import Link from "next/link";
 import { FaBars, FaChevronDown, FaDiscord, FaTimes } from "react-icons/fa";
 import { IconLogo } from "@/components/Icons/IconLogo";
-import { ChangelogNavLink } from "@/components/Navbar";
+import { ChangelogNavLink } from "./ChangelogNavLink";
 import { AccountChip } from "@/components/Account/AccountChip";
-import { DISCORD_URL, TABLES } from "./content";
+import { DISCORD_URL, TABLES } from "@/components/LandingPage/content";
 
 const NAV_LINKS = [
   { label: "Decks", href: "/bag" },
@@ -36,11 +36,11 @@ const linkStyle = {
 } as const;
 
 /**
- * The landing page's own sticky nav: wordmark, a "Play" menu listing all four
+ * The site-wide sticky nav (landing page and every other page): wordmark, a "Play" menu listing all four
  * tables, Decks, Tournaments, Leaderboard, What's new, Discord and the account
  * chip. Below `lg` the links fold into a disclosure panel behind a menu button.
  */
-export const LandingNav = () => {
+export const SiteNav = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -106,7 +106,7 @@ export const LandingNav = () => {
             display={{ base: "inline-flex", lg: "none" }}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
-            aria-controls="landing-mobile-nav"
+            aria-controls="site-mobile-nav"
             icon={mobileOpen ? <FaTimes /> : <FaBars />}
             variant="ghost"
             color="brand.primary"
@@ -118,7 +118,7 @@ export const LandingNav = () => {
 
       <Box
         as="nav"
-        id="landing-mobile-nav"
+        id="site-mobile-nav"
         aria-label="Mobile"
         hidden={!mobileOpen}
         display={{ lg: "none" }}
