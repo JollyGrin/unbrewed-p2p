@@ -196,6 +196,7 @@ import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { useAccount } from "@/lib/account/useAccount";
 import { useAccountStats } from "@/lib/account/useAccountStats";
+import { GameEndReason, gameEndReasonOf } from "@/lib/pro/postGame";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
@@ -4962,6 +4963,20 @@ const LiveGame = ({
     for: unknown;
     batch: ActionSpotlightBatch;
   } | null>(null);
+  // The end reason (p2p #1397): GAME_ENDED rides in the final STATE's events
+  // and nowhere else — it is not on the view, and the server omits events on
+  // a reconnect — so it is captured the moment it arrives and kept for the
+  // post-game panel. Null after a reload into a finished room: the panel
+  // then omits the line rather than guess.
+  const [gameEndReason, setGameEndReason] = useState<GameEndReason | null>(null);
+  useEffect(() => {
+    setGameEndReason(null);
+  }, [roomId]);
+  useEffect(() => {
+    const reason = snapshot ? gameEndReasonOf(snapshot.events) : null;
+    if (reason) setGameEndReason(reason);
+  }, [snapshot]);
+
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -7286,6 +7301,13 @@ const LiveGame = ({
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
       }
       shareLinkBusy={sharingReplay}
+      postGame={{
+        endReason: gameEndReason,
+        heroNameOf: (heroId) => heroNameOf(heroes, heroId),
+        bots: roomInfo?.bots ?? null,
+        accountStatus,
+        username: accountState.account?.username ?? null,
+      }}
       undoPending={undoPending}
       onUndo={requestUndo}
       canForfeit={canForfeit}

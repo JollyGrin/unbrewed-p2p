@@ -46,9 +46,19 @@ const QUIET = {
  * a short box under a 3rem VICTORY/DEFEAT — the copy shrinks to one line so
  * Accept / Decline stay on screen without scrolling. Tap targets never shrink.
  */
-export function RematchOfferPanel({ negotiation, compact = false }: { negotiation: RematchNegotiation; compact?: boolean }) {
+export function RematchOfferPanel({
+  negotiation,
+  compact = false,
+  fullWidth = false,
+}: {
+  negotiation: RematchNegotiation;
+  compact?: boolean;
+  /** The phone sheet (p2p #1397): the gold Rematch button fills the row, 48px tall. */
+  fullWidth?: boolean;
+}) {
   const { state, nameOf, waitingFor, onOffer, onCancel, onRespond } = negotiation;
   const copy = compact ? "0.78rem" : "0.95rem";
+  const gold = fullWidth ? { ...GOLD, w: "100%", h: "48px" } : GOLD;
   return (
     <Flex
       direction="column"
@@ -56,6 +66,7 @@ export function RematchOfferPanel({ negotiation, compact = false }: { negotiatio
       gap={compact ? "0.2rem" : "0.35rem"}
       mt={compact ? "0.1rem" : "0.3rem"}
       mb="0.15rem"
+      w={fullWidth ? "100%" : undefined}
       data-testid="rematch-offer"
     >
       {state.phase === "idle" && (
@@ -65,7 +76,7 @@ export function RematchOfferPanel({ negotiation, compact = false }: { negotiatio
               {rematchNoticeText(state.notice, nameOf)}
             </Text>
           )}
-          <Button {...GOLD} leftIcon={<TbRepeat size="1.1rem" />} onClick={onOffer}>
+          <Button {...gold} leftIcon={<TbRepeat size="1.1rem" />} onClick={onOffer}>
             Rematch — same setup
           </Button>
         </>
