@@ -52,6 +52,32 @@
       "modelName": "Hollow Oak",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
+    },
+    "piper-of-the-underroads": {
+      "files": {
+        "play": "piper-of-the-underroads.play.glb"
+      },
+      "defaultLod": "play",
+      "baseDiameter": 0.9279049630714837,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Piper of the Underroads",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "piper-of-the-underroads-spice": {
+      "files": {
+        "play": "piper-of-the-underroads.play.glb"
+      },
+      "defaultLod": "play",
+      "baseDiameter": 0.9279049630714837,
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Piper of the Underroads",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   }
 }
