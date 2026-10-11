@@ -45,6 +45,8 @@ import { profileHref } from "@/lib/account/publicProfile";
 import { BadgeCluster, wornBadgeIds } from "@/components/Badges/BadgeGlyph";
 import { useSignInReturn } from "@/components/Account/AccountChip";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
+import { ProPostGameEarned } from "@/components/Pro/ProPostGameEarned";
+import type { GameEarnedView } from "@/lib/pro/useGameEarned";
 
 /** What the page knows about this game beyond the view (see ProDock's `postGame`). */
 export interface ProPostGameContext {
@@ -57,6 +59,12 @@ export interface ProPostGameContext {
   accountStatus: AccountState["status"];
   /** The signed-in username, for "You · name"; null as a guest. */
   username: string | null;
+  /**
+   * Part 3 (p2p #1399): what this game earned, as `useGameEarned` tracks it —
+   * null until the page has a game end to snapshot (or for a guest, whose
+   * line the panel renders itself).
+   */
+  earned?: GameEarnedView | null;
 }
 
 export interface ProPostGameProps extends ProPostGameContext {
@@ -74,8 +82,6 @@ export interface ProPostGameProps extends ProPostGameContext {
   shareLinkBusy?: boolean;
   /** Part 2 drops in here: the "How it went" card. */
   howItWent?: ReactNode;
-  /** Part 3 drops in here: the "What you earned" card (the guest line renders in its place when signed out). */
-  earned?: ReactNode;
   /** Part 2: extra meta lines (first player, clock) under map + turns. */
   meta?: ReactNode;
 }
@@ -432,7 +438,16 @@ export const ProPostGame = ({
     </Flex>
   );
 
-  const earnedSlot = accountStatus === "guest" ? <GuestLine compact={!panel} /> : earned ?? null;
+  // The played hero's name for the points tile: your HERO fighter on the view,
+  // else the page's catalog lookup — the same resolution the matchup uses.
+  const earnedHeroName =
+    earned && "before" in earned ? seatHeroName(view, { id: view.you, heroId: earned.before.heroId }, heroNameOf) : "";
+  const earnedSlot =
+    accountStatus === "guest" ? (
+      <GuestLine compact={!panel} />
+    ) : earned ? (
+      <ProPostGameEarned view={earned} heroName={earnedHeroName} compact={!panel} />
+    ) : null;
   // The grid stays in the tree even while both slots are empty, so parts 2 and
   // 3 drop into a layout that is already there.
   const slots = (

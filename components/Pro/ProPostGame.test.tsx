@@ -160,8 +160,8 @@ describe("the earned slot", () => {
     expect(screen.getByTestId("post-game-how-it-went")).toBeEmptyDOMElement();
     expect(screen.queryByTestId("post-game-guest")).toBeNull();
 
-    rerender(<ProPostGame {...props({ earned: <div>Level 7</div>, howItWent: <div>23 damage</div> })} />);
-    expect(screen.getByTestId("post-game-earned")).toHaveTextContent("Level 7");
+    rerender(<ProPostGame {...props({ earned: { phase: "casual" }, howItWent: <div>23 damage</div> })} />);
+    expect(screen.getByTestId("post-game-earned")).toHaveTextContent("No XP");
     expect(screen.getByTestId("post-game-how-it-went")).toHaveTextContent("23 damage");
   });
 });

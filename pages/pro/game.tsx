@@ -196,7 +196,10 @@ import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { useAccount } from "@/lib/account/useAccount";
 import { useAccountStats } from "@/lib/account/useAccountStats";
-import { GameEndReason, gameEndReasonOf } from "@/lib/pro/postGame";
+import { GameEndReason, gameEndReasonOf, gameResultOf, isGameOver } from "@/lib/pro/postGame";
+import { earnedKindOf } from "@/lib/pro/earned";
+import { useGameEarned } from "@/lib/pro/useGameEarned";
+import { useBadges } from "@/lib/account/useBadges";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
@@ -4317,7 +4320,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } = socket;
+  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -4976,6 +4979,32 @@ const LiveGame = ({
     const reason = snapshot ? gameEndReasonOf(snapshot.events) : null;
     if (reason) setGameEndReason(reason);
   }, [snapshot]);
+  // What you earned (p2p #1399): nothing is granted at game end, so the card
+  // is a client-side delta — the pre-game `/me/stats` + cosmetics + badge
+  // case this page already holds, against a bounded post-game refetch. The
+  // badge case is the shared store `useProSocket` already probed (no second
+  // request); the cosmetics are the socket's own copy for the same reason.
+  const badgeCase = useBadges();
+  const endedView = snapshot?.view ?? null;
+  const gameOver = !!endedView && isGameOver(endedView);
+  const earnedKind = useMemo(
+    () =>
+      endedView && gameOver
+        ? earnedKindOf(endedView, roomInfo?.bots ?? null, gameResultOf(endedView) ?? "no-winner", gameEndReason, iForfeited)
+        : null,
+    [endedView, gameOver, roomInfo?.bots, gameEndReason, iForfeited],
+  );
+  const earned = useGameEarned({
+    roomId,
+    gameOver,
+    signedIn: accountStatus === "signed-in",
+    kind: earnedKind,
+    heroId: endedView?.self.heroId ?? null,
+    stats: accountStats,
+    cosmeticHeroes,
+    cosmeticConstants: cosmeticConstants ?? null,
+    badges: badgeCase.badges,
+  });
 
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
@@ -7307,6 +7336,7 @@ const LiveGame = ({
         bots: roomInfo?.bots ?? null,
         accountStatus,
         username: accountState.account?.username ?? null,
+        earned,
       }}
       undoPending={undoPending}
       onUndo={requestUndo}
