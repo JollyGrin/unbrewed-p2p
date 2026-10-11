@@ -1200,9 +1200,8 @@ describe("The Narrator (5jBEXsA55e) board tokens are committed and local", () =>
 });
 
 describe("The Narrator (5jBEXsA55e) card faces use the club's full composed card renders", () => {
-  // #859 — 12 of the 13 faces are the-unmatched.club's own composed card images
-  // (border, banner, rules text baked in) wired via cardImage, same shape as
-  // Cecil Palmer (37z5). Filenames are unchanged from the #854 illustration drop.
+  // #859 / #1379 — all 13 faces are full composed card renders (border, banner,
+  // rules text baked in) wired via cardImage, same shape as Cecil Palmer (37z5).
   const deck = readDeck("5jBEXsA55e");
   const cards = deck.deck_data.cards as {
     title: string;
@@ -1210,9 +1209,9 @@ describe("The Narrator (5jBEXsA55e) card faces use the club's full composed card
     cardImage?: { url: string };
   }[];
 
-  it("ships cardImage on 12 faces, matching imageUrl, with files that exist", () => {
+  it("ships cardImage on all 13 faces, matching imageUrl, with files that exist", () => {
     const withCardImage = cards.filter((c) => c.cardImage);
-    expect(withCardImage).toHaveLength(12);
+    expect(withCardImage).toHaveLength(13);
     for (const card of withCardImage) {
       expect(card.cardImage?.url).toBe(card.imageUrl); // full-bleed AND template path agree
       expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/narrator\/[a-z0-9-]+\.webp$/);
@@ -1220,12 +1219,10 @@ describe("The Narrator (5jBEXsA55e) card faces use the club's full composed card
     }
   });
 
-  it("leaves Plot Device: Forshadowing illustration-only (its club render is dead)", () => {
-    // the club's action-136471 render returns 400 not_found (verified 2026-09-16);
-    // it renders through the generated template via imageUrl alone.
+  it("draws Plot Device: Forshadowing full-bleed under its original (typo) title", () => {
     const f = cards.find((c) => c.title === "Plot Device: Forshadowing");
     expect(f).toBeDefined();
-    expect(f!.cardImage).toBeUndefined();
+    expect(f!.cardImage?.url).toBe(f!.imageUrl);
     expect(existsSync(join(DECKS_DIR, "..", f!.imageUrl.replace(/^\//, "")))).toBe(true);
   });
 
