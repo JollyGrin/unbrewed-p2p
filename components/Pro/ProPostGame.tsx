@@ -4,11 +4,13 @@
  * just played, from data the client already holds at game end:
  *
  *   1. Result band — VICTORY / DEFEAT / NO WINNER, the end reason and who
- *      fell, and a meta column (map, turns; first player + clock are part 2).
+ *      fell, and a meta column (map, turns, who moved first, the clock).
  *   2. Matchup cards — you | them: avatar, name (profile link, badges, or the
  *      bot's tier + tag), hero, and one HP row per fighter, sidekicks included.
- *   3. Two slots side by side — "How it went" (part 2) and "What you earned"
- *      (part 3). Empty here except the signed-out guest line.
+ *   3. Two slots side by side — "How it went" (part 2, p2p #1398: damage
+ *      dealt / taken, biggest hit, first blood, the per-turn strip — from
+ *      lib/pro/gameStats, hidden when the page has no numbers) and "What you
+ *      earned" (part 3). Empty here except the signed-out guest line.
  *   4. Actions — unchanged in meaning: Rematch (offer panel vs humans, one-tap
  *      link vs bots, the tournament's "Back to the match" in its place), the
  *      local replay link, Copy share link (signed in + bundle), Back to lobby.
@@ -23,7 +25,8 @@ import { ReactNode } from "react";
 import { Box, Button, Flex, Link, Text, Tooltip } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
 import { TbExternalLink, TbLink, TbRepeat, TbRobot } from "react-icons/tb";
-import type { PlayerView } from "@/lib/pro/protocol";
+import type { PlayerId, PlayerView } from "@/lib/pro/protocol";
+import { GameStats, formatClock, sideSummary } from "@/lib/pro/gameStats";
 import type { RoomBots } from "@/lib/pro/rematch";
 import { knownBotTierMeta } from "@/lib/pro/botTiers";
 import { sanitizeDisplayName } from "@/lib/pro/playerIdentity";
@@ -47,6 +50,7 @@ import { useSignInReturn } from "@/components/Account/AccountChip";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 import { ProPostGameEarned } from "@/components/Pro/ProPostGameEarned";
 import type { GameEarnedView } from "@/lib/pro/useGameEarned";
+import { PostGameHowItWent } from "@/components/Pro/PostGameHowItWent";
 
 /** What the page knows about this game beyond the view (see ProDock's `postGame`). */
 export interface ProPostGameContext {
@@ -65,6 +69,16 @@ export interface ProPostGameContext {
    * line the panel renders itself).
    */
   earned?: GameEarnedView | null;
+  /**
+   * "How it went" (p2p #1398): the game's damage facts, from the live event
+   * reducer or the replay expansion. Null/absent = the page has no numbers
+   * (a reload with no bundle) and the card is not rendered.
+   */
+  stats?: GameStats | null;
+  /** Client-observed game length in ms (first STATE seen → game end); null when the page has no start stamp. */
+  clockMs?: number | null;
+  /** Who took turn 1, when derivable; null = omitted. */
+  firstPlayer?: PlayerId | null;
 }
 
 export interface ProPostGameProps extends ProPostGameContext {
@@ -80,10 +94,6 @@ export interface ProPostGameProps extends ProPostGameContext {
   replayHref: string | null;
   onCopyShareLink?: () => void;
   shareLinkBusy?: boolean;
-  /** Part 2 drops in here: the "How it went" card. */
-  howItWent?: ReactNode;
-  /** Part 2: extra meta lines (first player, clock) under map + turns. */
-  meta?: ReactNode;
 }
 
 export const PANEL_SURFACE = {
@@ -165,6 +175,18 @@ const seatIdentity = (
   if (!claimed) return { name: "Guest", initials: heroName, href: null, badges: [], bot: null };
   return { name: claimed, initials: claimed, href: profileHref(claimed), badges: wornBadgeIds(player.badges, player.badge), bot: null };
 };
+
+/** "you" / "bot" / the seat's claimed name / "guest" — how meta lines and captions name a seat. */
+const shortSeatName = (view: PlayerView, id: PlayerId, ctx: Pick<ProPostGameContext, "bots">): string | null => {
+  const player = view.players.find((p) => p.id === id);
+  if (!player) return null;
+  if (player.you || id === view.you) return "you";
+  if (ctx.bots?.[id]) return "bot";
+  const claimed = player.displayName ? sanitizeDisplayName(player.displayName) : undefined;
+  return claimed || "guest";
+};
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const Avatar = ({ initials, bot, gold, size }: { initials: string; bot: boolean; gold: boolean; size: string }) => (
   <Flex
@@ -358,9 +380,10 @@ export const ProPostGame = ({
   replayHref,
   onCopyShareLink,
   shareLinkBusy = false,
-  howItWent,
+  stats = null,
+  clockMs = null,
+  firstPlayer = null,
   earned,
-  meta,
 }: ProPostGameProps) => {
   const result = gameResultOf(view) ?? "no-winner";
   const victory = result === "victory";
@@ -369,6 +392,9 @@ export const ProPostGame = ({
   const mapTitle = view.map?.meta?.title ?? null;
   const turns = view.turnNumber;
   const panel = layout === "panel";
+  // Client-observed (first STATE seen → game end), never the engine's duration.
+  const clock = clockMs === null ? null : formatClock(clockMs);
+  const firstPlayerName = firstPlayer ? shortSeatName(view, firstPlayer, { bots }) : null;
   const rematchLine =
     !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
 
@@ -412,7 +438,12 @@ export const ProPostGame = ({
     <Flex direction="column" align="flex-end" gap="0.2rem" fontSize="0.85rem" color="rgba(250, 235, 215, 0.75)" flexShrink={0} textAlign="right">
       {mapTitle && <Text>{mapTitle}</Text>}
       {turns > 0 && <Text>{turns === 1 ? "1 turn" : `${turns} turns`}</Text>}
-      {meta}
+      {clock && (
+        <Text data-testid="post-game-clock" sx={{ fontVariantNumeric: "tabular-nums" }}>
+          {clock}
+        </Text>
+      )}
+      {firstPlayerName && <Text data-testid="post-game-first-player">{capitalize(firstPlayerName)} moved first</Text>}
     </Flex>
   );
 
@@ -420,6 +451,17 @@ export const ProPostGame = ({
     const heroName = seatHeroName(view, seat.player, heroNameOf);
     return { seat, heroName, identity: seatIdentity(seat, heroName, { bots, username, accountStatus }) };
   });
+
+  const summary = stats ? sideSummary(stats, view.you, view.players.map((p) => p.id), turns) : null;
+  const howItWent = summary && (
+    <PostGameHowItWent
+      summary={summary}
+      layout={layout}
+      clock={clock}
+      firstBloodBy={summary.firstBlood?.dealtBy ? shortSeatName(view, summary.firstBlood.dealtBy, { bots }) : null}
+      firstPlayer={firstPlayerName}
+    />
+  );
 
   const matchup = panel ? (
     <Box display="grid" gridTemplateColumns="repeat(2, minmax(0, 1fr))" gap="1rem" data-testid="post-game-matchup">
@@ -457,7 +499,7 @@ export const ProPostGame = ({
       gap={panel ? "1rem" : "0.6rem"}
       data-testid="post-game-slots"
     >
-      <Box data-testid="post-game-how-it-went">{howItWent ?? null}</Box>
+      <Box data-testid="post-game-how-it-went">{howItWent}</Box>
       <Box data-testid="post-game-earned">{earnedSlot}</Box>
     </Box>
   );

@@ -200,6 +200,15 @@ import { GameEndReason, gameEndReasonOf, gameResultOf, isGameOver } from "@/lib/
 import { earnedKindOf } from "@/lib/pro/earned";
 import { useGameEarned } from "@/lib/pro/useGameEarned";
 import { useBadges } from "@/lib/account/useBadges";
+import {
+  EMPTY_GAME_STATS_ACCUMULATOR,
+  GameStats,
+  firstActorOf,
+  readOrMarkClockStart,
+  reduceGameStats,
+  statsFromExpansion,
+} from "@/lib/pro/gameStats";
+import { fetchReplayExpansion } from "@/lib/pro/replayApi";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
@@ -5006,6 +5015,58 @@ const LiveGame = ({
     badges: badgeCase.badges,
   });
 
+  // "How it went" (p2p #1398). Two routes to the same damage numbers:
+  //  1. `liveStats` folds every STATE's events as they arrive — instant on the
+  //     panel's first paint, but it only knows what this page saw (a reload
+  //     starts it empty, and the join STATE carries no events).
+  //  2. `expansionStats` is read off the replay expansion once the bundle has
+  //     landed at game end: complete and reload-safe, fetched once per bundle,
+  //     and it silently replaces the live numbers. A failed or diverged fetch
+  //     leaves the live numbers in place.
+  // Neither → the panel renders no card.
+  const [liveStats, setLiveStats] = useState(EMPTY_GAME_STATS_ACCUMULATOR);
+  const [expansionStats, setExpansionStats] = useState<GameStats | null>(null);
+  useEffect(() => {
+    setLiveStats(EMPTY_GAME_STATS_ACCUMULATOR);
+    setExpansionStats(null);
+  }, [roomId]);
+  useEffect(() => {
+    if (!snapshot) return;
+    setLiveStats((acc) => reduceGameStats(acc, snapshot.events, snapshot.view));
+  }, [snapshot]);
+  useEffect(() => {
+    if (!replayBundle) return;
+    let live = true;
+    void fetchReplayExpansion(replayBundle).then((res) => {
+      if (!live || !res.ok) return;
+      const stats = statsFromExpansion(res.expansion);
+      if (stats) setExpansionStats(stats);
+    });
+    return () => {
+      live = false;
+    };
+  }, [replayBundle]);
+  const gameStats = expansionStats ?? (liveStats.observed ? liveStats.stats : null);
+  const firstPlayer = expansionStats?.firstPlayer ?? liveStats.stats.firstPlayer ?? firstActorOf(replayBundle);
+
+  // The game clock, CLIENT-OBSERVED: stamped when this page first receives a
+  // STATE for the room (kept in sessionStorage so a reload resumes it), read
+  // against the bundle's `endedAt`, else the moment this page saw GAME_OVER.
+  // Not the engine's duration — it includes the creator's wait for a seat.
+  const [clockStart, setClockStart] = useState<number | null>(null);
+  const [clockEnd, setClockEnd] = useState<number | null>(null);
+  useEffect(() => {
+    setClockStart(null);
+    setClockEnd(null);
+  }, [roomId]);
+  useEffect(() => {
+    if (!snapshot || !roomId) return;
+    setClockStart((prev) => prev ?? readOrMarkClockStart(roomId));
+    if (isGameOver(snapshot.view)) setClockEnd((prev) => prev ?? Date.now());
+  }, [snapshot, roomId]);
+  const clockEndedAt = replayBundle?.meta.endedAt ?? clockEnd;
+  const clockMs = clockStart !== null && clockEndedAt !== null ? Math.max(0, clockEndedAt - clockStart) : null;
+
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -7337,6 +7398,9 @@ const LiveGame = ({
         accountStatus,
         username: accountState.account?.username ?? null,
         earned,
+        stats: gameStats,
+        clockMs,
+        firstPlayer,
       }}
       undoPending={undoPending}
       onUndo={requestUndo}

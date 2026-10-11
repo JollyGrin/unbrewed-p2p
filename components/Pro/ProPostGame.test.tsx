@@ -6,6 +6,7 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import type { GameStats } from "@/lib/pro/gameStats";
 import { ProPostGame, ProPostGameProps } from "./ProPostGame";
 
 const fighter = (over: Partial<ViewFighter>): ViewFighter =>
@@ -160,9 +161,73 @@ describe("the earned slot", () => {
     expect(screen.getByTestId("post-game-how-it-went")).toBeEmptyDOMElement();
     expect(screen.queryByTestId("post-game-guest")).toBeNull();
 
-    rerender(<ProPostGame {...props({ earned: { phase: "casual" }, howItWent: <div>23 damage</div> })} />);
+    rerender(<ProPostGame {...props({ earned: { phase: "casual" }, stats: STATS })} />);
     expect(screen.getByTestId("post-game-earned")).toHaveTextContent("No XP");
-    expect(screen.getByTestId("post-game-how-it-went")).toHaveTextContent("23 damage");
+    expect(screen.getByTestId("post-game-how-it-went")).toHaveTextContent("How it went");
+  });
+});
+
+// p1 (you) moved first; p2 drew first blood on turn 1; your biggest hit was 6 on turn 4.
+const STATS: GameStats = {
+  turns: [{ p1: 3 }, { p2: 4 }, {}, { p2: 6, p1: 2 }, { p2: 1 }],
+  biggestHitOn: { p1: { amount: 3, turn: 1 }, p2: { amount: 6, turn: 4 } },
+  firstBlood: { victim: "p1", turn: 1 },
+  firstPlayer: "p1",
+};
+
+describe("how it went (p2p #1398)", () => {
+  it("panel: the four stats, one bar per turn, the clock and first player in the meta column", () => {
+    render(<ProPostGame {...props({ stats: STATS, clockMs: 754_000, firstPlayer: "p1" })} />);
+    const card = within(screen.getByTestId("post-game-how-it-went"));
+    expect(card.getByText("How it went")).toBeInTheDocument();
+    const stat = (name: string) => card.getAllByTestId("how-it-went-stat").find((el) => el.getAttribute("data-stat") === name)!;
+    expect(stat("dealt")).toHaveTextContent("11damage dealt");
+    expect(stat("taken")).toHaveTextContent("5damage taken");
+    expect(stat("biggest-hit")).toHaveTextContent("6biggest hit · t4");
+    expect(stat("first-blood")).toHaveTextContent("t1first blood · Specter_Knight");
+    // The strip pads to the view's 11 turns, light = dealt, dim = taken.
+    const bars = card.getAllByTestId("how-it-went-bar");
+    expect(bars).toHaveLength(11);
+    expect(bars[3]).toHaveAttribute("data-dealt", "6");
+    expect(bars[3]).toHaveAttribute("data-taken", "2");
+    expect(card.getByText("turn 1")).toBeInTheDocument();
+    expect(card.getByText("turn 11")).toBeInTheDocument();
+    // Meta column: the client-observed clock and who moved first.
+    expect(screen.getByTestId("post-game-clock")).toHaveTextContent("12:34");
+    expect(screen.getByTestId("post-game-first-player")).toHaveTextContent("You moved first");
+  });
+
+  it("names a bot or the opponent in the first blood caption; the first player can be the bot", () => {
+    render(<ProPostGame {...props({ stats: { ...STATS, firstPlayer: "p2" }, firstPlayer: "p2", bots: { p2: "medium" } })} />);
+    const stats = screen.getAllByTestId("how-it-went-stat");
+    expect(stats.find((el) => el.getAttribute("data-stat") === "first-blood")).toHaveTextContent("first blood · bot");
+    expect(screen.getByTestId("post-game-first-player")).toHaveTextContent("Bot moved first");
+  });
+
+  it("sheet (phone): dealt, taken, big hit and the clock in one row, no strip, first player as a footer", () => {
+    render(<ProPostGame {...props({ layout: "sheet", stats: STATS, clockMs: 61_000, firstPlayer: "p2" })} />);
+    const card = within(screen.getByTestId("post-game-how-it-went"));
+    const names = card.getAllByTestId("how-it-went-stat").map((el) => el.getAttribute("data-stat"));
+    expect(names).toEqual(["dealt", "taken", "biggest-hit", "clock"]);
+    expect(card.getAllByTestId("how-it-went-stat")[3]).toHaveTextContent("01:01clock");
+    expect(card.queryByTestId("how-it-went-strip")).toBeNull();
+    expect(card.getByTestId("post-game-first-player")).toHaveTextContent("Specter_Knight moved first");
+    expect(screen.queryByTestId("post-game-clock")).toBeNull();
+  });
+
+  it("no numbers (reload, no bundle): no card, no clock, no first player", () => {
+    render(<ProPostGame {...props({ stats: null, clockMs: null, firstPlayer: null })} />);
+    expect(screen.getByTestId("post-game-how-it-went")).toBeEmptyDOMElement();
+    expect(screen.queryByTestId("post-game-clock")).toBeNull();
+    expect(screen.queryByTestId("post-game-first-player")).toBeNull();
+  });
+
+  it("a game with no damage yet still shows the card with dashes, and the clock alone when that is all there is", () => {
+    render(<ProPostGame {...props({ stats: { turns: [], biggestHitOn: {}, firstBlood: null, firstPlayer: null }, clockMs: 5_000 })} />);
+    const stats = screen.getAllByTestId("how-it-went-stat");
+    expect(stats.find((el) => el.getAttribute("data-stat") === "biggest-hit")).toHaveTextContent("—biggest hit");
+    expect(stats.find((el) => el.getAttribute("data-stat") === "first-blood")).toHaveTextContent("—first blood");
+    expect(screen.getByTestId("post-game-clock")).toHaveTextContent("00:05");
   });
 });
 
