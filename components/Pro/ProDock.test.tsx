@@ -141,7 +141,7 @@ describe("ProDock auto-expand guard", () => {
 
   it("expands when the game ends", async () => {
     await collapseThen({ view: view({ winner: "p1", phase: "GAME_OVER" } as Partial<PlayerView>) });
-    expect(screen.getByText(/VICTORY!|DEFEAT/)).toBeInTheDocument();
+    expect(screen.getByText(/^VICTORY$|^DEFEAT$/)).toBeInTheDocument();
   });
 
   it("locks the collapse toggle while a decision is pending", async () => {

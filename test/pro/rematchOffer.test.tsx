@@ -238,7 +238,7 @@ describe("against an engine at the current PROTOCOL_VERSION", () => {
     await deliver({ type: "ERROR", code: "REMATCH_UNAVAILABLE", message: "Another player's client cannot answer a rematch offer" });
     expect(statusText().join(" ")).toMatch(/Your opponent needs to refresh to rematch/);
     expect(rematchButton()).toBeTruthy();
-    expect(screen.getAllByText(/VICTORY!/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^VICTORY$/).length).toBeGreaterThan(0);
   });
 
   it("the other player gets Accept / Decline; Accept answers yes and READY seats it in the new room", async () => {
@@ -346,7 +346,7 @@ describe("an engine that refuses a rematch frame's version", () => {
     fireEvent.click(rematchButton());
     await deliver({ type: "ERROR", code: "VERSION", message: "unsupported protocol version" });
     expect(screen.queryAllByText(/We lost your game/i)).toHaveLength(0);
-    expect(screen.getAllByText(/VICTORY!/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^VICTORY$/).length).toBeGreaterThan(0);
     expect(statusText().join(" ")).toMatch(/Rematch unavailable/);
     expect(rematchButton()).toBeTruthy();
   });

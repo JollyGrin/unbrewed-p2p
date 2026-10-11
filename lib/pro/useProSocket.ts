@@ -51,6 +51,7 @@ import {
 import { useAccount } from "@/lib/account/useAccount";
 import { useBadges } from "@/lib/account/useBadges";
 import { useCosmetics } from "@/lib/account/useCosmetics";
+import type { CosmeticConstants, HeroCosmetics } from "@/lib/account/cosmetics";
 import { cosmeticsField, identityFields } from "./playerIdentity";
 import {
   REMATCH_IDLE,
@@ -130,6 +131,13 @@ export interface ProGameSnapshot {
 
 export interface UseProSocketReturn {
   status: ProConnectionStatus;
+  /**
+   * The signed-in player's cosmetics as this hook's `useCosmetics` holds them
+   * (p2p #1399): the post-game card's pre-game baseline. Read-only — the
+   * spend/toggle half stays on /collection. Empty for a guest.
+   */
+  cosmeticHeroes: HeroCosmetics[];
+  cosmeticConstants: CosmeticConstants;
   /**
    * The seat identity a CREATE_ROOM/JOIN_ROOM would carry has settled: the
    * account probe answered, and for a signed-in player the worn badges and the
@@ -1656,6 +1664,11 @@ export function useProSocket(
 
   return {
     identitySettled,
+    // The pre-game cosmetics, read-only, for the post-game "What you earned"
+    // card (p2p #1399): one `/me/cosmetics` request per page lives here, so
+    // the page diffs against THIS copy rather than mounting a second hook.
+    cosmeticHeroes: cosmetics.heroes,
+    cosmeticConstants: cosmetics.constants,
     status,
     roomId,
     roomInfo,

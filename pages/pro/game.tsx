@@ -196,6 +196,19 @@ import mendedDrum from "@/lib/pro/fixtures/mended-drum.map.json";
 import { PRO_WS_URL as WS_URL } from "@/lib/pro/wsUrl";
 import { useAccount } from "@/lib/account/useAccount";
 import { useAccountStats } from "@/lib/account/useAccountStats";
+import { GameEndReason, gameEndReasonOf, gameResultOf, isGameOver } from "@/lib/pro/postGame";
+import { earnedKindOf } from "@/lib/pro/earned";
+import { useGameEarned } from "@/lib/pro/useGameEarned";
+import { useBadges } from "@/lib/account/useBadges";
+import {
+  EMPTY_GAME_STATS_ACCUMULATOR,
+  GameStats,
+  firstActorOf,
+  readOrMarkClockStart,
+  reduceGameStats,
+  statsFromExpansion,
+} from "@/lib/pro/gameStats";
+import { fetchReplayExpansion } from "@/lib/pro/replayApi";
 import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { ChipCluster } from "@/components/Game/Header/header.styles";
 import { formatChoice, PRO_FORMATS, ProFormatId, teamComposition } from "@/lib/pro/multiplayerPlaytest";
@@ -4316,7 +4329,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } = socket;
+  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -4962,6 +4975,98 @@ const LiveGame = ({
     for: unknown;
     batch: ActionSpotlightBatch;
   } | null>(null);
+  // The end reason (p2p #1397): GAME_ENDED rides in the final STATE's events
+  // and nowhere else — it is not on the view, and the server omits events on
+  // a reconnect — so it is captured the moment it arrives and kept for the
+  // post-game panel. Null after a reload into a finished room: the panel
+  // then omits the line rather than guess.
+  const [gameEndReason, setGameEndReason] = useState<GameEndReason | null>(null);
+  useEffect(() => {
+    setGameEndReason(null);
+  }, [roomId]);
+  useEffect(() => {
+    const reason = snapshot ? gameEndReasonOf(snapshot.events) : null;
+    if (reason) setGameEndReason(reason);
+  }, [snapshot]);
+  // What you earned (p2p #1399): nothing is granted at game end, so the card
+  // is a client-side delta — the pre-game `/me/stats` + cosmetics + badge
+  // case this page already holds, against a bounded post-game refetch. The
+  // badge case is the shared store `useProSocket` already probed (no second
+  // request); the cosmetics are the socket's own copy for the same reason.
+  const badgeCase = useBadges();
+  const endedView = snapshot?.view ?? null;
+  const gameOver = !!endedView && isGameOver(endedView);
+  const earnedKind = useMemo(
+    () =>
+      endedView && gameOver
+        ? earnedKindOf(endedView, roomInfo?.bots ?? null, gameResultOf(endedView) ?? "no-winner", gameEndReason, iForfeited)
+        : null,
+    [endedView, gameOver, roomInfo?.bots, gameEndReason, iForfeited],
+  );
+  const earned = useGameEarned({
+    roomId,
+    gameOver,
+    signedIn: accountStatus === "signed-in",
+    kind: earnedKind,
+    heroId: endedView?.self.heroId ?? null,
+    stats: accountStats,
+    cosmeticHeroes,
+    cosmeticConstants: cosmeticConstants ?? null,
+    badges: badgeCase.badges,
+  });
+
+  // "How it went" (p2p #1398). Two routes to the same damage numbers:
+  //  1. `liveStats` folds every STATE's events as they arrive — instant on the
+  //     panel's first paint, but it only knows what this page saw (a reload
+  //     starts it empty, and the join STATE carries no events).
+  //  2. `expansionStats` is read off the replay expansion once the bundle has
+  //     landed at game end: complete and reload-safe, fetched once per bundle,
+  //     and it silently replaces the live numbers. A failed or diverged fetch
+  //     leaves the live numbers in place.
+  // Neither → the panel renders no card.
+  const [liveStats, setLiveStats] = useState(EMPTY_GAME_STATS_ACCUMULATOR);
+  const [expansionStats, setExpansionStats] = useState<GameStats | null>(null);
+  useEffect(() => {
+    setLiveStats(EMPTY_GAME_STATS_ACCUMULATOR);
+    setExpansionStats(null);
+  }, [roomId]);
+  useEffect(() => {
+    if (!snapshot) return;
+    setLiveStats((acc) => reduceGameStats(acc, snapshot.events, snapshot.view));
+  }, [snapshot]);
+  useEffect(() => {
+    if (!replayBundle) return;
+    let live = true;
+    void fetchReplayExpansion(replayBundle).then((res) => {
+      if (!live || !res.ok) return;
+      const stats = statsFromExpansion(res.expansion);
+      if (stats) setExpansionStats(stats);
+    });
+    return () => {
+      live = false;
+    };
+  }, [replayBundle]);
+  const gameStats = expansionStats ?? (liveStats.observed ? liveStats.stats : null);
+  const firstPlayer = expansionStats?.firstPlayer ?? liveStats.stats.firstPlayer ?? firstActorOf(replayBundle);
+
+  // The game clock, CLIENT-OBSERVED: stamped when this page first receives a
+  // STATE for the room (kept in sessionStorage so a reload resumes it), read
+  // against the bundle's `endedAt`, else the moment this page saw GAME_OVER.
+  // Not the engine's duration — it includes the creator's wait for a seat.
+  const [clockStart, setClockStart] = useState<number | null>(null);
+  const [clockEnd, setClockEnd] = useState<number | null>(null);
+  useEffect(() => {
+    setClockStart(null);
+    setClockEnd(null);
+  }, [roomId]);
+  useEffect(() => {
+    if (!snapshot || !roomId) return;
+    setClockStart((prev) => prev ?? readOrMarkClockStart(roomId));
+    if (isGameOver(snapshot.view)) setClockEnd((prev) => prev ?? Date.now());
+  }, [snapshot, roomId]);
+  const clockEndedAt = replayBundle?.meta.endedAt ?? clockEnd;
+  const clockMs = clockStart !== null && clockEndedAt !== null ? Math.max(0, clockEndedAt - clockStart) : null;
+
   const prevViewRef = useRef<PlayerView | null>(null);
   // Live sub-attack chain (issue #596): the ref is the running value the next batch
   // advances from; the state copy is what the combat panel renders.
@@ -7286,6 +7391,17 @@ const LiveGame = ({
         replayBundle && accountStatus === "signed-in" ? () => void copyReplayShareLink() : undefined
       }
       shareLinkBusy={sharingReplay}
+      postGame={{
+        endReason: gameEndReason,
+        heroNameOf: (heroId) => heroNameOf(heroes, heroId),
+        bots: roomInfo?.bots ?? null,
+        accountStatus,
+        username: accountState.account?.username ?? null,
+        earned,
+        stats: gameStats,
+        clockMs,
+        firstPlayer,
+      }}
       undoPending={undoPending}
       onUndo={requestUndo}
       canForfeit={canForfeit}
