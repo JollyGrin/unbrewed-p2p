@@ -10,7 +10,7 @@ import {
 import { Box, Button, Flex, Popover, PopoverContent, PopoverTrigger, Portal, Text } from "@chakra-ui/react";
 import { TbHourglass } from "react-icons/tb";
 import { useEffect, useState } from "react";
-import { AdventureBriefingModal, RulesButton } from "./AdventureBriefing";
+import { AdventureBriefingModal, RulebookButton, RulesButton } from "./AdventureBriefing";
 import { EngineFaultBanner } from "./EngineFaultBanner";
 import type { ViewFighter } from "@/lib/pro/protocol";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
@@ -965,7 +965,10 @@ export const AdventureBoard = ({
       {model.villain && (
         <VillainHeader villain={model.villain} objective={model.objective} />
       )}
-      <RulesButton onClick={() => setRulesOpen(true)} />
+      <Flex gap="0.4rem" flexWrap="wrap">
+        <RulesButton onClick={() => setRulesOpen(true)} />
+        <RulebookButton scenarioId={view.scenario?.id} testId="adventure-board-rulebook-button" compact />
+      </Flex>
       <AdventureBriefingModal
         isOpen={rulesOpen}
         onClose={() => setRulesOpen(false)}
