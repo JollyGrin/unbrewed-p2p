@@ -4,12 +4,14 @@ import {
   Circle,
   Flex,
   HStack,
+  Image,
   IconButton,
   Input,
   Spinner,
   Tag,
   TagLabel,
   Text,
+  useDisclosure,
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
@@ -30,6 +32,10 @@ import { toast } from "react-hot-toast";
 import Link from "next/link";
 import { DiscordPresence } from "@/components/Discord";
 import { useAccount } from "@/lib/account/useAccount";
+import { MapPickerModal } from "@/components/Game/Header/map.modal";
+import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
+import { useBagMaps } from "@/lib/bag/useBag";
+import { MapData } from "@/lib/hooks";
 
 export const ConnectPage = () => {
   const router = useRouter();
@@ -50,10 +56,34 @@ export const ConnectPage = () => {
   const { starredDeck, decks, setStar, isLoading: bagLoading } = useBagDecks();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
+  // Map chosen before the lobby exists. Local state only — it rides on the
+  // /game push as `mapUrl`; an invite link's ?mapUrl= pre-selects it.
+  const [mapUrl, setMapUrl] = useState<string | undefined>(() => {
+    const q = router.query.mapUrl;
+    return typeof q === "string" && q ? q : undefined;
+  });
+  const mapDisclosure = useDisclosure();
+  const { data: localMaps } = useBagMaps();
+  const chosenMap = mapUrl
+    ? [...localMaps, ...(DEFAULT_MAPS as MapData[])].find(
+        (m) => m.imgUrl === mapUrl,
+      )
+    : undefined;
+
+  // The router query settles after hydration on a statically optimised page,
+  // so adopt an invite link's mapUrl once, if nothing was chosen yet.
+  const queryMapUrl = router.query.mapUrl;
+  useEffect(() => {
+    if (typeof queryMapUrl === "string" && queryMapUrl) {
+      setMapUrl((prev) => prev ?? queryMapUrl);
+    }
+  }, [queryMapUrl]);
+
   // create the lobby and connect to it
   const { refetch, loading, setLoading, disclosure } = useCreateLobby({
     gidRef,
     nameRef,
+    mapUrl,
   });
 
   useEffect(() => {
@@ -122,6 +152,16 @@ export const ConnectPage = () => {
         onClose={disclosure.onClose}
         serverStorage={{ activeServer, setActiveServer, serverList }}
       />
+      <MapPickerModal
+        isOpen={mapDisclosure.isOpen}
+        onClose={mapDisclosure.onClose}
+        selectedUrl={mapUrl}
+        onConfirm={setMapUrl}
+        onReset={() => setMapUrl(undefined)}
+        title="Select a Map"
+        confirmLabel="Select Map"
+        footerNote="Applies to your new lobby. You can still change the map in-game."
+      />
       <Box w="100%" color="brand.primary">
         <SiteNav />
       </Box>
@@ -137,7 +177,7 @@ export const ConnectPage = () => {
             Connect to a Lobby
           </Text>
           <Text color="brand.secondary" opacity={0.7} fontSize="0.95rem">
-            Set up your table in three quick steps
+            Set up your table in a few quick steps
           </Text>
         </VStack>
 
@@ -223,6 +263,46 @@ export const ConnectPage = () => {
               >
                 Join someone else&apos;s game
               </Text>
+            </Text>
+          </Box>
+
+          <Box w="100%">
+            <StepLabel number="4" label="Select map" />
+            <HStack mt={2} spacing={3}>
+              {mapUrl && (
+                <Image
+                  alt=""
+                  src={chosenMap?.thumbUrl ?? mapUrl}
+                  w="3.5rem"
+                  h="2.5rem"
+                  objectFit="cover"
+                  borderRadius="0.35rem"
+                  flexShrink={0}
+                />
+              )}
+              <Text
+                flex="1"
+                minW={0}
+                noOfLines={1}
+                fontWeight={600}
+                color="brand.secondary"
+                data-testid="connect-map-title"
+              >
+                {mapUrl ? (chosenMap?.meta?.title ?? "Custom map") : "Default"}
+              </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                color="brand.secondary"
+                borderColor="brand.secondary"
+                _hover={{ bg: "brand.secondary", color: "brand.primary" }}
+                onClick={mapDisclosure.onOpen}
+              >
+                Select map
+              </Button>
+            </HStack>
+            <Text mt={1} fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
+              Only used if you&apos;re the first one in the lobby.
             </Text>
           </Box>
 

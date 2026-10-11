@@ -9,9 +9,11 @@ import { useDisclosure } from "@chakra-ui/react";
 interface Props {
   gidRef: RefObject<HTMLInputElement>;
   nameRef: RefObject<HTMLInputElement>;
+  /** Map picked on /connect; appended to the /game push only when set. */
+  mapUrl?: string;
 }
 
-export function useCreateLobby({ gidRef, nameRef }: Props) {
+export function useCreateLobby({ gidRef, nameRef, mapUrl }: Props) {
   const router = useRouter();
   const { activeServer } = useLocalServerStorage();
   const serverURL = new URL(activeServer);
@@ -49,7 +51,8 @@ export function useCreateLobby({ gidRef, nameRef }: Props) {
           "/game?name=" +
             nameRef.current.value +
             "&gid=" +
-            gidRef.current.value,
+            gidRef.current.value +
+            (mapUrl ? "&mapUrl=" + encodeURIComponent(mapUrl) : ""),
         );
 
         // HACK: the loading props are borked, so manually setting and resetting state
