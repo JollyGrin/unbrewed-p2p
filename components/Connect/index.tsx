@@ -160,7 +160,7 @@ export const ConnectPage = () => {
         onReset={() => setMapUrl(undefined)}
         title="Select a Map"
         confirmLabel="Select Map"
-        footerNote="Applies to your new lobby. You can still change the map in-game."
+        footerNote="Applies to the lobby you connect to. You can still change the map in-game."
       />
       <Box w="100%" color="brand.primary">
         <SiteNav />
@@ -302,7 +302,7 @@ export const ConnectPage = () => {
               </Button>
             </HStack>
             <Text mt={1} fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
-              Only used if you&apos;re the first one in the lobby.
+              You can also change the map in-game.
             </Text>
           </Box>
 
