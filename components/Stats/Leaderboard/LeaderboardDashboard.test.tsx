@@ -115,6 +115,10 @@ describe("LeaderboardDashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: /Show all 13 players/ }));
     expect(screen.getAllByTestId("chase-row")).toHaveLength(10);
 
+    expect(screen.getByText("Ranked games")).toHaveAttribute(
+      "title",
+      "Games counted toward the monthly ranking. Excludes games against casual bots.",
+    );
     expect(screen.getByText("Games this month")).toBeInTheDocument();
     expect(screen.getByText("214")).toBeInTheDocument();
     expect(screen.getByText("This month's table talk")).toBeInTheDocument();
@@ -180,6 +184,8 @@ describe("LeaderboardDashboard", () => {
     expect(calls.filter((u) => /leaderboard|community/.test(u)).every((u) => u.includes("window=all"))).toBe(true);
     expect(screen.getByRole("button", { name: "All time" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Games all time")).toBeInTheDocument();
+    expect(screen.getByText("Games")).not.toHaveAttribute("title");
+    expect(screen.queryByText("Ranked games")).not.toBeInTheDocument();
     expect(screen.getByText("All-time table talk")).toBeInTheDocument();
     expect(screen.getAllByTestId("chase-row")[0]).toHaveTextContent("13,480 XP · 640 behind #3");
   });
