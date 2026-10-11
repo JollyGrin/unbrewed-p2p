@@ -115,6 +115,7 @@ import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } 
 import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
 import { useFigureManifests } from "@/lib/pro/useFigureManifest";
 import { useFigureStyle } from "@/lib/pro/useFigureStyle";
+import { useZoneDiscs } from "@/lib/pro/useZoneDiscs";
 import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
 import { matchBoardOnScreen, usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
@@ -4886,6 +4887,9 @@ const LiveGame = ({
   const figureStyle = effectiveFigureStyle(preferredFigureStyle, figureStyles);
   const heroPiece = (seat: string) =>
     pieceForStyle(figureManifests, minis3dSource, figureStyle, ownerHeroIds[seat], seat);
+  // The viewer's zone-disc preference for the tabletop (#1395): off by
+  // default — the art carries the zones — and opaque discs when on.
+  const [zoneDiscs, toggleZoneDiscs] = useZoneDiscs();
   // The tabletop HUD (lib/pro/tableHud): a landscape phone looking at the
   // tabletop board gets plates, a banner, a fanned hand and a hexagon instead
   // of the decision rail. The flat board keeps its rail, untouched.
@@ -7056,6 +7060,9 @@ const LiveGame = ({
     figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
     figureStyles: boardView === "table" ? figureStyles : undefined,
     onChooseFigureStyle: boardView === "table" && figureStyles.length > 0 ? chooseFigureStyle : undefined,
+    // Zone discs (#1395): a tabletop-only control, like the figure style.
+    zoneDiscs: boardView === "table" ? zoneDiscs : undefined,
+    onToggleZoneDiscs: boardView === "table" ? toggleZoneDiscs : undefined,
     // The credit for the miniature each seat's hero stands as on the table.
     figureCreditFor: boardView === "table" ? (seat: string) => pieceCredit(heroPiece(seat)) : undefined,
     turnReminderOn,
@@ -7368,6 +7375,7 @@ const LiveGame = ({
             fighterMini3d={(f) => (f.kind === "HERO" ? heroPiece(f.owner).mini3d : null)}
             resetViewSpot={hud ? HUD_RESET_VIEW_SPOT : undefined}
             fighterStrike={tableStrike}
+            zoneDiscs={zoneDiscs}
           />
         ) : (
           <ProBoard {...boardProps} />

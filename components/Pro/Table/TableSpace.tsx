@@ -29,37 +29,35 @@ import { pieSliceAngles, pieSlicePath, tableHitDiameter, tableHitPx } from "@/li
 import { ItemInspectBadge, PassageBadge } from "@/components/Pro/ItemBadge";
 
 /** Fallback fill for a space that belongs to no zone (most maps have some —
- *  hallways, item spaces — a legible neutral rather than a jarring color). */
+ *  hallways, item spaces — a legible neutral rather than a jarring color).
+ *  Drawn only while the zone discs are ON (#1395); off, such a space is as
+ *  invisible as every other. */
 export const TABLE_SPACE_NEUTRAL = "rgba(224, 168, 46, 0.16)";
 
 /**
- * TRANSLUCENCY (phase-2 fault #2). A fully opaque, fully saturated disc buries
- * whatever board art sits under it — the very art that sells "this is a real
- * board", not a diagram. A real Unmatched board photograph reads the zone
- * paint as a thin, clearly-bounded wash: you can tell red from blue at a
- * glance, but you can still see the floorboards or hull plating through it.
- * The recipe here is "a crisp, fully-saturated RIM + a soft, translucent
- * INNER tint": the rim alone would carry zone identity even if the inner fill
- * were removed entirely (so a multi-zone pie wedge stays unmistakable — the
- * requirement this exists to satisfy), and the inner tint is what lets the
- * art show through.
+ * ZONE DISCS ARE A TOGGLE, OFF BY DEFAULT, AND OPAQUE WHEN ON (#1395).
  *
- * `zoneAlphaFill` is the interior wash; `ZONE_RIM_OPACITY` (applied via the
- * `stroke`/`border` on top, at FULL saturation) is the identity-carrying edge.
+ * The discs used to be a translucent wash (40% alpha interior + a saturated
+ * rim) so the board art showed through. But the maps print their own zone
+ * circles — many as a two- or three-colour pie of their own — so a see-through
+ * disc at a slightly different size sat over a printed pie with BOTH patterns
+ * visible at once, and which zones a space belonged to became harder to read,
+ * not easier. So now:
+ *
+ *  - `zoneDiscs` OFF (the default, lib/pro/zoneDiscs.ts): no fill, rim,
+ *    seam, pie or dish shade at all — the art carries the zones, as it does
+ *    on the flat board. Everything INTERACTIVE is untouched: the padded hit
+ *    circle, `data-pick`, the gold walk ring, the dashed cyan relocate ring,
+ *    hover preview.
+ *  - `zoneDiscs` ON: the fill is the zone's plain `#rrggbb`, no alpha, so no
+ *    printed pattern can interfere with it. The inset rim, dark outline and
+ *    wedge seams are kept as they were — they read fine on an opaque disc —
+ *    and the dish shade stays translucent: it is a lighting cue, not a colour.
  */
-const ZONE_FILL_ALPHA = 0.4;
-/** Width (px) of the crisp, fully-saturated rim (see above). Drawn INSET (via
- *  boxShadow / SVG stroke) so it never collides with the highlight/relocate
- *  OUTLINE, which is drawn OUTSET with its own offset. */
+/** Width (px) of the crisp, fully-saturated rim. Drawn INSET (via boxShadow /
+ *  SVG stroke) so it never collides with the highlight/relocate OUTLINE,
+ *  which is drawn OUTSET with its own offset. */
 const ZONE_RIM_PX = 1.75;
-/** Two-hex-digit alpha suffix for a `#rrggbb` zone color (editor zone colors
- *  are always hex — this space always renders a plain rgba fallback if a
- *  future zone color isn't). */
-const alphaHex = (pct: number): string =>
-  Math.round(pct * 255)
-    .toString(16)
-    .padStart(2, "0");
-const ZONE_FILL_SUFFIX = alphaHex(ZONE_FILL_ALPHA);
 
 /**
  * The disc's dark ink outline. The board art prints its spaces as discs with
@@ -78,12 +76,6 @@ export const TABLE_SPACE_SHADE =
   "radial-gradient(circle at 34% 28%, rgba(255, 244, 225, 0.2) 0%, rgba(255, 244, 225, 0) 45%), " +
   "radial-gradient(circle at 66% 74%, rgba(8, 4, 8, 0.32) 0%, rgba(8, 4, 8, 0) 60%)";
 
-/** Translucent interior wash for a zone's own hex color; non-hex colors (there
- *  are none in practice — see above) degrade to the solid input rather than
- *  throwing, so a malformed map still renders something legible. */
-export const zoneAlphaFill = (hex: string): string =>
-  /^#[0-9a-fA-F]{6}$/.test(hex) ? `${hex}${ZONE_FILL_SUFFIX}` : hex;
-
 export interface TableSpaceProps {
   space: ProMapSpace;
   zoneColor: (zoneId: string) => string;
@@ -92,6 +84,9 @@ export interface TableSpaceProps {
   highlighted: boolean;
   relocateOrigin: boolean;
   relocateArmed: boolean;
+  /** Paint the zone disc (fill, rim, outline, pie, shade) over the art
+   *  (#1395). Off — the default — draws nothing visible but the pick rings. */
+  zoneDiscs?: boolean;
   /** Touch device: pad the hit circle for depth (see `tableHitPx`). */
   coarsePointer?: boolean;
   /** Distance (board-plane px) to the nearest other pick — the padded hit
@@ -109,6 +104,7 @@ export const TableSpace = ({
   highlighted,
   relocateOrigin,
   relocateArmed,
+  zoneDiscs = false,
   coarsePointer = false,
   hitCapPx,
   onClick,
@@ -124,22 +120,21 @@ export const TableSpace = ({
   const hoverable = !!onHoverChange && highlighted && !relocateArmed;
 
   const zones = space.zones ?? [];
-  const slices = zones.length > 1 ? pieSliceAngles(zones.length) : null;
-  const singleZoneColor = zones.length === 1 && zones[0] ? zoneColor(zones[0]) : null;
+  const slices = zoneDiscs && zones.length > 1 ? pieSliceAngles(zones.length) : null;
+  const singleZoneColor = zoneDiscs && zones.length === 1 && zones[0] ? zoneColor(zones[0]) : null;
 
   // Relocate origins get a dashed cyan ring, deliberately distinct from the
   // solid gold walk highlight, matching ProBoard's own two affordances.
   const ringed = highlighted || relocateOrigin;
   const ringColor = relocateOrigin ? "#38D9E8" : "#E0A82E";
 
-  // Fault #2 (phase-2 report): translucent interior + crisp rim instead of a
-  // flat opaque fill, so the board art shows through while zone identity
-  // stays unmistakable. The rim is INSET (never collides with the ringed
-  // highlight's own OUTSET outline). The dark ink outline sits OUTSIDE the
-  // disc, and only when no pick ring is drawn: a highlighted space's gold or
-  // cyan ring already separates it from the art, and two rings read as noise.
+  // Opaque fill + crisp inset rim (#1395; the rim never collides with the
+  // ringed highlight's own OUTSET outline). The dark ink outline sits OUTSIDE
+  // the disc, and only when no pick ring is drawn: a highlighted space's gold
+  // or cyan ring already separates it from the art, and two rings read as
+  // noise. With the discs off there is no disc to outline.
   const zoneRimShadow = singleZoneColor ? `inset 0 0 0 ${ZONE_RIM_PX}px ${singleZoneColor}` : undefined;
-  const outline = ringed ? undefined : TABLE_SPACE_OUTLINE;
+  const outline = zoneDiscs && !ringed ? TABLE_SPACE_OUTLINE : undefined;
   const discShadow = [zoneRimShadow, outline].filter(Boolean).join(", ") || undefined;
 
   return (
@@ -169,7 +164,8 @@ export const TableSpace = ({
     >
       {/* The visible disc — smaller than the (padded) hit circle, centred,
           and non-interactive so the outer box is the single source of truth
-          for what counts as "on" this space. */}
+          for what counts as "on" this space. With the zone discs off it is
+          an unpainted circle that still carries the pick ring (#1395). */}
       <Box
         position="absolute"
         top="50%"
@@ -180,7 +176,7 @@ export const TableSpace = ({
         borderRadius="50%"
         pointerEvents="none"
         overflow="hidden"
-        bg={zones.length <= 1 ? (singleZoneColor ? zoneAlphaFill(singleZoneColor) : TABLE_SPACE_NEUTRAL) : undefined}
+        bg={zoneDiscs && zones.length <= 1 ? (singleZoneColor ?? TABLE_SPACE_NEUTRAL) : undefined}
         boxShadow={discShadow}
         sx={
           ringed
@@ -197,10 +193,11 @@ export const TableSpace = ({
                 <path
                   key={zoneId}
                   d={pieSlicePath(50, 50, 49, start, end)}
-                  fill={zoneAlphaFill(color)}
-                  // A seam on EACH wedge (fault #2): with a translucent fill
-                  // alone, two adjacent low-alpha wedges blur into one blob
-                  // on a busy multi-zone map. It used to be a full-saturation
+                  // The plain zone hex, no alpha (#1395): a translucent wedge
+                  // over the art's own printed pie is exactly the interference
+                  // the toggle exists to remove.
+                  fill={color}
+                  // A seam on EACH wedge. It used to be a full-saturation
                   // stroke in the zone's own color, which kept the wedges
                   // apart but drew a colored asterisk over every shared
                   // space. A thin dark seam separates them just as clearly
@@ -212,7 +209,9 @@ export const TableSpace = ({
             })}
           </svg>
         )}
-        <Box data-space-shade position="absolute" inset={0} borderRadius="50%" style={{ backgroundImage: TABLE_SPACE_SHADE }} />
+        {zoneDiscs && (
+          <Box data-space-shade position="absolute" inset={0} borderRadius="50%" style={{ backgroundImage: TABLE_SPACE_SHADE }} />
+        )}
       </Box>
     </Box>
   );

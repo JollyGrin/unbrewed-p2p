@@ -50,6 +50,8 @@ import {
   TbGauge,
   TbBellRinging,
   TbBellOff,
+  TbCircleFilled,
+  TbCircleDashed,
 } from "react-icons/tb";
 import { GiChessKnight, GiFootprint, GiHearts, GiHighTide, GiLowTide } from "@/components/Icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -100,6 +102,7 @@ import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSo
 import { Pace, paceOption } from "@/lib/pro/pace";
 import { BoardView, BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
 import { FIGURE_STYLE_LABEL, type FigureCredit, type FigureStyle } from "@/lib/pro/figures";
+import { ZONE_DISCS_LABEL, zoneDiscsStateLabel } from "@/lib/pro/zoneDiscs";
 import { FigureCredits } from "./FigureCredits";
 import { FLAGS, useFlags } from "@/lib/flags";
 
@@ -1589,6 +1592,11 @@ export interface ProHudProps {
   figureStyle?: FigureStyle;
   figureStyles?: FigureStyle[];
   onChooseFigureStyle?: (style: FigureStyle) => void;
+  /** Tabletop zone discs (#1395): paint the zone colours over the board art
+   *  (off by default — the art prints its own) as opaque discs. Set only in
+   *  the tabletop view; the chip is hidden otherwise. */
+  zoneDiscs?: boolean;
+  onToggleZoneDiscs?: () => void;
   /** The credit for the miniature a seat's hero is shown as on the table, or
    *  null when it lies as its token (#903). Rendered with the hero's rules. */
   figureCreditFor?: (seatId: PlayerId) => FigureCredit | null;
@@ -1634,6 +1642,8 @@ export const ProHud = ({
   figureStyle,
   figureStyles,
   onChooseFigureStyle,
+  zoneDiscs,
+  onToggleZoneDiscs,
   figureCreditFor,
   turnReminderOn,
   onToggleTurnReminder,
@@ -1974,6 +1984,36 @@ export const ProHud = ({
               ))}
             </chakra.select>
           </Flex>
+        )}
+        {onToggleZoneDiscs && zoneDiscs !== undefined && (
+          // Beside the tabletop's other look controls (#1395): one tap flips
+          // the zone discs, the same gesture as the turn-reminder chip.
+          <Tooltip
+            label={
+              zoneDiscs
+                ? "Zone discs are ON — opaque zone colours over the board art. Click to hide them."
+                : "Zone discs are OFF — the board art shows its own zones. Click to paint them."
+            }
+            hasArrow
+          >
+            <Flex
+              {...chipStyles}
+              as="button"
+              type="button"
+              cursor="pointer"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              color="brand.highlight"
+              opacity={zoneDiscs ? 1 : 0.55}
+              onClick={onToggleZoneDiscs}
+              aria-pressed={zoneDiscs}
+              aria-label={`${ZONE_DISCS_LABEL}: ${zoneDiscsStateLabel(zoneDiscs)}. Click to switch.`}
+            >
+              {zoneDiscs ? <TbCircleFilled size="0.85rem" /> : <TbCircleDashed size="0.85rem" />}
+              <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
+                {ZONE_DISCS_LABEL}
+              </Text>
+            </Flex>
+          </Tooltip>
         )}
         <BetaFeaturesChip />
         {roomId && (
