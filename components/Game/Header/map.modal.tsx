@@ -45,16 +45,55 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 /** A map plus the bucket it belongs to (local maps carry no `source`). */
 type MapEntry = { map: MapData; source: FilterKey };
 
+export const IN_GAME_MAP_NOTE =
+  "Changing the map updates it for everyone in the game.";
+
+/**
+ * The in-game entry: the live map is the `mapUrl` router query, and applying
+ * a map pushes it there so WebGameProvider broadcasts it room-wide.
+ */
 export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
   const { query, push } = useRouter();
+
+  return (
+    <MapPickerModal
+      isOpen={props.isOpen}
+      onClose={props.onClose}
+      selectedUrl={query?.mapUrl as string | undefined}
+      onConfirm={(url) => push({ query: { ...query, mapUrl: url } })}
+      onReset={() => {
+        const { mapUrl, ...rest } = query;
+        push({ query: { ...rest } });
+      }}
+      footerNote={IN_GAME_MAP_NOTE}
+    />
+  );
+};
+
+/**
+ * The presentational map picker, shared by the in-game header and /connect.
+ * It owns no routing: `selectedUrl` is the map currently in effect (undefined
+ * = default), `onConfirm` / `onReset` apply a choice.
+ */
+export const MapPickerModal = (props: {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedUrl: string | undefined;
+  onConfirm: (url: string) => void;
+  onReset: () => void;
+  /** Footer copy under the preview; says who the choice affects. */
+  footerNote: string;
+  title?: string;
+  confirmLabel?: string;
+}) => {
   const { data: localMaps } = useBagMaps();
   const { starredDeck } = useBagDecks();
 
-  const queryUrl = query?.mapUrl as string | undefined;
+  const queryUrl = props.selectedUrl;
 
-  // Selection is deliberately local. `mapUrl` in the router query is the sync
-  // channel — WebGameProvider broadcasts every change to the whole room — so
-  // browsing the gallery must not touch it. Only "Set Map" pushes.
+  // Selection is deliberately local. The caller's map is the sync channel
+  // (in-game it is broadcast to the whole room), so browsing the gallery must
+  // not touch it. Only the confirm button applies.
   const [selectedUrl, setSelectedUrl] = useState(queryUrl || DEFAULT_MAP_URL);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -130,19 +169,18 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
 
   const setMap = () => {
     if (!selectedUrl) return;
-    push({ query: { ...query, mapUrl: selectedUrl } });
+    props.onConfirm(selectedUrl);
     props.onClose();
   };
 
   const useDeckMap = (imgUrl: string) => {
-    push({ query: { ...query, mapUrl: imgUrl } });
+    props.onConfirm(imgUrl);
     props.onClose();
   };
 
   const resetToDefault = () => {
-    const { mapUrl, ...rest } = query;
     setSelectedUrl(DEFAULT_MAP_URL);
-    push({ query: { ...rest } });
+    props.onReset();
     props.onClose();
   };
 
@@ -155,7 +193,7 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
     >
       <ModalOverlay />
       <ModalContent bg="brand.parchment" borderRadius={{ base: 0, md: "1rem" }}>
-        <ModalHeader>Change the Map</ModalHeader>
+        <ModalHeader>{props.title ?? "Change the Map"}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <Flex gap="0.75rem" align="center" flexWrap="wrap" pb="0.75rem">
@@ -351,7 +389,7 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
           </Flex>
 
           <Text fontSize="0.75rem" opacity={0.7}>
-            Changing the map updates it for everyone in the game.
+            {props.footerNote}
           </Text>
 
           <Flex gap="1rem" justify="flex-end">
@@ -364,7 +402,7 @@ export const MapModal = (props: { isOpen: boolean; onClose: () => void }) => {
               _hover={{ bg: "brand.accentDeep" }}
               onClick={setMap}
             >
-              Set Map
+              {props.confirmLabel ?? "Set Map"}
             </Button>
           </Flex>
         </ModalFooter>
