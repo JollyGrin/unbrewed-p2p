@@ -26,7 +26,7 @@ jest.mock("react-focus-lock", () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-jest.mock("../Navbar", () => ({ Navbar: () => null }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => null }));
 jest.mock("../Discord", () => ({ DiscordPresence: () => null }));
 jest.mock("../Settings/settings.modal", () => ({
   SettingsModal: () => null,
