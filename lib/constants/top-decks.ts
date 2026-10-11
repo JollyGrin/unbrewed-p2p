@@ -217,7 +217,7 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     author: "Idan",
     likes: 56,
     highlightColour: "#6f7a66",
-    cardbackUrl: "/evergreen-decks/art/yAJ-/cardback.png",
+    cardbackUrl: "/evergreen-decks/art/yAJ-/cardback.webp",
   },
   {
     id: "QkB1",
