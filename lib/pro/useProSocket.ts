@@ -139,6 +139,8 @@ export interface ProGameSnapshot {
    * with `view` so the log effect enriches the same batch's diff atomically.
    */
   events: GameEvent[];
+  /** the seat whose move an adventure self-undo just rewound (STATE.undid); absent otherwise */
+  undid?: PlayerId;
 }
 
 export interface UseProSocketReturn {
@@ -1005,6 +1007,7 @@ export function useProSocket(
               legalActions: msg.legalActions,
               prompt: msg.view.prompt,
               events: msg.events ?? [],
+              ...(msg.undid ? { undid: msg.undid } : {}),
             };
             const ownAction = ownActionRef.current;
             const resume = resumeExpectedRef.current;

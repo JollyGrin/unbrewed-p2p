@@ -1,5 +1,6 @@
 import {
   actionFallbackLine,
+  undidLine,
   diffViews,
   enrichLines,
   batchPhase,
@@ -2396,5 +2397,22 @@ describe("seat nameplates / turn strip — adventure engine seat (#1180)", () =>
     const plain = { ...v, initiative: undefined } as PlayerView;
     expect(seatDisplayName(plain, plain.players[2])).toBe("P3");
     expect(turnStripFor(plain, () => "P3")?.label).toBe("P3'S TURN…");
+  });
+});
+
+describe("undidLine — a self-undo names the seat that rewound", () => {
+  const seat = (p: string) => (p === "p1" ? "You" : p.toUpperCase());
+  it("names a teammate, and says 'your' for the viewer", () => {
+    expect(undidLine("p3" as never, "p1" as never, seat as never)).toEqual({
+      text: "P3 undid their last move",
+      who: "opp",
+    });
+    expect(undidLine("p1" as never, "p1" as never, seat as never)).toEqual({
+      text: "You undid your last move",
+      who: "you",
+    });
+  });
+  it("is nothing when STATE carried no `undid`", () => {
+    expect(undidLine(undefined, "p1" as never, seat as never)).toBeUndefined();
   });
 });

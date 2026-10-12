@@ -110,7 +110,7 @@ import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { dockTurnLabel } from "@/lib/pro/turnChrome";
-import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel, undidLine } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
 import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } from "@/lib/pro/figures";
@@ -5102,7 +5102,8 @@ const LiveGame = ({
       enriched.length === 0
         ? actionFallbackLine(snapshot.events, next.you, (player) => seatLabel(next, player))
         : undefined;
-    const lines = fallback ? [fallback] : enriched;
+    const undid = undidLine(snapshot.undid, next.you, (player) => seatLabel(next, player));
+    const lines = [...(undid ? [undid] : []), ...(fallback ? [fallback] : enriched)];
     // Tag against the PRE-batch view, so a broadcast whose turn number went
     // BACKWARDS (undo rewind, resume/correction) files under the turn it
     // interrupted instead of minting an out-of-place TURN section (issue #522).
@@ -5402,12 +5403,14 @@ const LiveGame = ({
   // a persistent "waiting" toast; it clears when the request resolves (accept
   // rewinds the board — undoPending flips false on the next STATE; reject latches
   // undoRejected below). Mirrors the reconnecting-toast pattern above.
+  const adventureRoom = !!snapshot?.view.scenario;
   useEffect(() => {
     const id = "pro-undo-pending";
-    if (undoPending) toast.loading("Undo requested — waiting for opponent…", { id });
+    // An adventure undo needs no consent (engine #864): nobody to wait for.
+    if (undoPending && !adventureRoom) toast.loading("Undo requested — waiting for opponent…", { id });
     else toast.dismiss(id);
     return () => toast.dismiss(id);
-  }, [undoPending]);
+  }, [undoPending, adventureRoom]);
 
   // A declined undo is a one-shot notice: show it, then acknowledge so it can't
   // re-fire on the next render.

@@ -2259,6 +2259,18 @@ describe("useProSocket — tab-return verify only after a real absence (p2p #869
     expect(hook.result.current.undoPending).toBe(false);
   });
 
+  it("sends UNDO_REQUEST and surfaces `undid` from the self-undo STATE, no consent step", () => {
+    const { hook, ws } = boot();
+    act(() => hook.result.current.requestUndo());
+    expect(ws.sentTypes).toContain("UNDO_REQUEST");
+    act(() => ws.emit({ ...state({ tag: "rewound" }), undid: "p1" }));
+    expect(hook.result.current.undoPending).toBe(false);
+    expect(hook.result.current.incomingUndo).toBeNull();
+    expect(hook.result.current.snapshot?.undid).toBe("p1");
+    act(() => ws.emit(state({ tag: "next" })));
+    expect(hook.result.current.snapshot?.undid).toBeUndefined();
+  });
+
   it("a verify whose answer is the same view does not flush slow-mode pacing", () => {
     const { hook, ws } = boot(true);
     const opp = (tag: string) =>
