@@ -42,6 +42,8 @@ export interface ScenarioObjectModel {
   stakes: ScenarioObjectStakes;
   /** #807: what the objects are called (`display.objectNoun`, else generic). */
   noun: ObjectNoun;
+  /** A CHOOSE_SPACE prompt is open (a tie's "your team picks" wording shows only then). */
+  pickOpen: boolean;
 }
 
 export const scenarioObjectNumbers = (
@@ -66,7 +68,8 @@ export const scenarioObjectModel = (
   map: Pick<ProMapDef, "spaces" | "scenario">,
   blockedSpaces: readonly SpaceId[] | undefined,
   scenario?: PlayerView["scenario"],
-  fighters: readonly { id: string; name: string }[] = []
+  fighters: readonly { id: string; name: string }[] = [],
+  pickOpen = false
 ): ScenarioObjectModel | null => {
   const starts = map.spaces.filter((s) => s.startsBlocked).map((s) => s.id);
   if (!starts.length) return null;
@@ -74,5 +77,5 @@ export const scenarioObjectModel = (
   const destroyed = new Set(starts.filter((id) => !blocked.has(id)));
   const numbers = scenarioObjectNumbers(map, scenario?.display);
   const noun = objectNounOf(scenario?.display);
-  return { blocked, destroyed, numbers, stakes: scenarioObjectStakes(scenario, fighters, blocked, destroyed, numbers), noun };
+  return { blocked, destroyed, numbers, stakes: scenarioObjectStakes(scenario, fighters, blocked, destroyed, numbers), noun, pickOpen };
 };

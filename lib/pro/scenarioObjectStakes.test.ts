@@ -4,6 +4,10 @@ import {
   ADJACENT_CHIP,
   NEXT_CHIP,
   TIE_CHIP,
+  TIE_PICK_TOOLTIP,
+  STAKE_CHIP_STYLE,
+  stakeChipToken,
+  stakeChipTooltip,
   wrapChip,
   scenarioObjectStakes,
   placeStakeChips,
@@ -44,6 +48,23 @@ describe("scenarioObjectStakes mapping", () => {
     const st = scenarioObjectModel(map, ["a", "b", "c"], sc({ contacts: { adjacent: [], nextToOpen: ["a", "c"] } }), fighters)!.stakes;
     expect(stakeChipText(st.a)).toEqual([TIE_CHIP]);
     expect(stakeChipText(st.c)).toEqual([TIE_CHIP]);
+  });
+
+  it("tie chip never reads or looks like the adjacent (or next) chip", () => {
+    expect(TIE_CHIP).toBe("tied to break next");
+    expect(new Set([ADJACENT_CHIP, NEXT_CHIP, TIE_CHIP]).size).toBe(3);
+    const tokens = [ADJACENT_CHIP, NEXT_CHIP, TIE_CHIP].map(stakeChipToken);
+    expect(new Set(tokens).size).toBe(3);
+    const looks = tokens.map((t) => STAKE_CHIP_STYLE[t]);
+    expect(new Set(looks.map((l) => l.borderStyle)).size).toBe(3);
+    expect(new Set(looks.map((l) => l.borderColor)).size).toBe(3);
+    expect(new Set(looks.map((l) => l.bg)).size).toBe(3);
+  });
+
+  it("'your team picks' wording only while the pick is open", () => {
+    expect(stakeChipTooltip(TIE_CHIP, true)).toBe(TIE_PICK_TOOLTIP);
+    expect(stakeChipTooltip(TIE_CHIP, false)).toBe(TIE_CHIP);
+    expect(stakeChipTooltip(ADJACENT_CHIP, true)).toBe(ADJACENT_CHIP);
   });
 
   it("chip texts", () => {

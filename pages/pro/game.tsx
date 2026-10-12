@@ -7278,7 +7278,7 @@ const LiveGame = ({
     },
     closedRegions: view.closedRegions,
     itemTokens: view.itemTokens,
-    scenarioObjects: scenarioObjectModel(view.map, view.blockedSpaces, view.scenario, view.fighters),
+    scenarioObjects: scenarioObjectModel(view.map, view.blockedSpaces, view.scenario, view.fighters, view.prompt?.kind === "CHOOSE_SPACE"),
     onSpaceClick,
     onFighterClick,
     onSpaceHover: setHoveredSpace,
