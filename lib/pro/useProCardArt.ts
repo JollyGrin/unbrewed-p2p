@@ -425,7 +425,7 @@ export function heroIdsForArt(view: {
 
 const formatFaceCards = new Map<string, DeckImportCardType>();
 /** A card carrying only a CDN face; one object per url so memoized renderers keep identity. */
-const formatFaceCard = (
+export const formatFaceCard = (
   instance: CardInstanceId,
   title: string | undefined,
   faceUrl?: (cardId: string) => string | null

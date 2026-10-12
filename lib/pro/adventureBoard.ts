@@ -87,6 +87,11 @@ export interface EnemyDial {
   lastPlayed: string | null;
   /** catalog id (no `#n`) of that card, the key for its CDN face; null when empty */
   lastPlayedId: string | null;
+  /** the whole face-up discard, newest first (engine #862); `[discardTop]` / `[]` against a server
+   *  that omits it. Card INSTANCE ids, like `lastPlayedRef`. */
+  discard: string[];
+  /** instance id of the top of the discard (what `lastPlayed` names), null when empty */
+  lastPlayedRef: string | null;
   /** engine #735 part 4 `enemy.released`; null against a server that omits it */
   released: boolean | null;
 }
@@ -338,6 +343,8 @@ export const adventureBoardModel = (
           null)
         : null,
       lastPlayedId: f.enemy!.discardTop ? f.enemy!.discardTop.split("#")[0] : null,
+      discard: f.enemy!.discard ?? (f.enemy!.discardTop ? [f.enemy!.discardTop] : []),
+      lastPlayedRef: f.enemy!.discardTop ?? null,
       released: (f.enemy as { released?: boolean }).released ?? null,
     }));
   if (!initiative && !scenario && enemies.length === 0) return null;
@@ -393,7 +400,7 @@ export const adventureBoardModel = (
     })(),
     // a pack may author no threat track: the panel then simply does not render
     threat: scenario?.threat ? threatModel(scenario) : null,
-    objectives: scenario ? objectiveSlots(scenario.objectives) : null,
+    objectives: scenario?.objectives ? objectiveSlots(scenario.objectives) : null,
     villain,
     objective: scenario?.briefing?.objective ?? null,
     win: villain

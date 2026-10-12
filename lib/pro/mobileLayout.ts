@@ -30,6 +30,13 @@ export const DESKTOP_INSET = { top: 120, bottom: 136, side: 16, dockColumn: 320 
  */
 export const ADVENTURE_OVERLAY_INSET = 17.75 * 16;
 
+/**
+ * px the Adventure board-side band (initiative strip + threat track, #1405) takes ABOVE the
+ * map, so the initial fit starts under it. Desktop: it sits below the HUD band; phone: below
+ * the chip row. Applied whenever a format overlay is mounted (`formatOverlayRight > 0`).
+ */
+export const ADVENTURE_BAND_FIT = { desktop: 144, mobile: 124 } as const;
+
 /** Breathing room between the board and the mobile chrome. */
 export const MOBILE_GUTTER = 8;
 
@@ -137,15 +144,16 @@ export const boardFitInsetFor = ({
   railW = 0,
   formatOverlayRight = 0,
 }: BoardInsetArgs): Required<ZoomPanInset> => {
+  const band = formatOverlayRight > 0 ? ADVENTURE_BAND_FIT : null;
   if (mode === "desktop")
     return {
-      top: DESKTOP_INSET.top,
+      top: DESKTOP_INSET.top + (band?.desktop ?? 0),
       bottom: DESKTOP_INSET.bottom,
       left: DESKTOP_INSET.side,
       right: DESKTOP_INSET.dockColumn + formatOverlayRight,
     };
 
-  const top = (chipsH || MOBILE_CHIPS_H) + MOBILE_GUTTER;
+  const top = (chipsH || MOBILE_CHIPS_H) + MOBILE_GUTTER + (band?.mobile ?? 0);
   if (mode === "rail")
     return {
       top,

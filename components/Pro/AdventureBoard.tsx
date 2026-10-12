@@ -1,9 +1,11 @@
 import {
   ADVENTURE_BOARD_MAX_HEIGHT,
   ADVENTURE_BOARD_TOP,
-  ADVENTURE_BOARD_TOP_PHONE,
-  ADVENTURE_BOARD_MAX_HEIGHT_PHONE,
   ADVENTURE_BOARD_WIDTH,
+  ADVENTURE_BAND_TOP,
+  ADVENTURE_BAND_TOP_PHONE,
+  ADVENTURE_COLUMN_MAX_HEIGHT_PHONE,
+  ADVENTURE_COLUMN_TOP_PHONE,
   DOCK_RIGHT,
   DOCK_WIDTH,
 } from "./dockLayout";
@@ -13,6 +15,9 @@ import { useEffect, useState } from "react";
 import { AdventureBriefingModal, RulebookButton, RulesButton } from "./AdventureBriefing";
 import { EngineFaultBanner } from "./EngineFaultBanner";
 import type { ViewFighter } from "@/lib/pro/protocol";
+import { ProDiscardsSheet } from "./ProDiscardsSheet";
+import { formatFaceCard } from "@/lib/pro/useProCardArt";
+import { cardLabel } from "@/lib/pro/actionDock";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
 import { adventureCardArt } from "@/lib/pro/adventureCardArt";
 import { useEnemyTurn } from "@/lib/pro/useEnemyTurn";
@@ -203,7 +208,7 @@ const EndOfRoundMarker = ({ e }: { e: InitiativeRowEntry }) => (
 
 /** AT ROUND END (#1155): the row's END OF ROUND boxes in the order they will resolve. */
 const AtRoundEnd = ({ model }: { model: AdventureBoardModel }) => (
-  <Flex data-testid="adv-at-round-end" direction="column" gap="0.15rem" borderTop="1px solid" borderColor="whiteAlpha.200" pt="0.25rem">
+  <Flex data-testid="adv-at-round-end" direction="column" gap="0.15rem" {...PANEL}>
     <Text {...LBL}>AT ROUND END</Text>
     {model.atRoundEnd.map((b, i) => (
       <Text
@@ -292,12 +297,12 @@ export const InitiativeRow = ({
   const dupOrdinals = duplicateOrdinals(model.row);
   return (
     <Flex direction="column" gap="0.3rem" data-testid="adv-initiative" data-phase={model.phase ?? undefined} {...PANEL}>
-      {model.scenarioLabel && (
-        <Text {...LBL} data-testid="adv-scenario" data-scenario-id={model.scenarioId ?? undefined}>
-          {model.scenarioLabel.toUpperCase()}
-        </Text>
-      )}
       <Flex gap="0.6rem" align="baseline" wrap="wrap">
+        {model.scenarioLabel && (
+          <Text {...LBL} data-testid="adv-scenario" data-scenario-id={model.scenarioId ?? undefined}>
+            {model.scenarioLabel.toUpperCase()}
+          </Text>
+        )}
         <Text fontFamily="LeagueGothic" fontSize="1.3rem" letterSpacing="0.1em" lineHeight="1">
           ROUND{" "}
           <Text as="span" data-testid="adv-round">
@@ -313,13 +318,17 @@ export const InitiativeRow = ({
             NOW · {model.nowName.toUpperCase()}
           </Text>
         ) : null}
-        {model.initiativeDeckCount != null && (
-          <Text {...LBL} data-testid="adv-initiative-deck">
-            DECK {model.initiativeDeckCount}
-          </Text>
-        )}
       </Flex>
-      <Flex gap="0.2rem" wrap="wrap" align="center" data-testid="adv-init-chips">
+      <Flex
+        gap="0.2rem"
+        // Phone: one row that scrolls sideways with the deck pile pinned at its left (#1405).
+        wrap={{ base: "nowrap", md: "wrap" }}
+        overflowX={{ base: "auto", md: "visible" }}
+        align="center"
+        data-testid="adv-init-chips"
+        sx={{ "::-webkit-scrollbar": { display: "none" } }}
+      >
+        {model.initiativeDeckCount != null && <DeckPile count={model.initiativeDeckCount} testid="adv-initiative-deck" />}
         {model.row.map((e) => {
           const tip = initiativeChipTip(e);
           const dupN = dupOrdinals.get(e.card.id);
@@ -399,10 +408,43 @@ export const InitiativeRow = ({
           </Text>
         )}
       </Flex>
-      {model.atRoundEnd.length > 0 && <AtRoundEnd model={model} />}
     </Flex>
   );
 };
+
+/** A face-down deck: the card back with the cards left over it (#1405). */
+const DeckPile = ({
+  count,
+  testid,
+  w = "1.5rem",
+  h = "2rem",
+}: {
+  count: number;
+  testid: string;
+  w?: string;
+  h?: string;
+}) => (
+  <Flex
+    data-testid={testid}
+    position="sticky"
+    left={0}
+    flex="none"
+    w={w}
+    h={h}
+    align="center"
+    justify="center"
+    borderRadius="sm"
+    border="1px solid"
+    borderColor="whiteAlpha.500"
+    bg="repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 3px, rgba(255,255,255,0.04) 3px 6px)"
+    title={`${count} left in the deck`}
+    aria-label={`${count} left in the deck`}
+  >
+    <Text fontWeight="bold" fontSize="0.8rem" lineHeight="1" textShadow="0 0 3px #000, 0 0 3px #000">
+      {count}
+    </Text>
+  </Flex>
+);
 
 const Token = ({ name, size = "1.5rem", role }: { name: string; size?: string; role?: EnemyRole }) => (
   <Flex
@@ -461,18 +503,7 @@ export const VillainHeader = ({
             HP
           </Text>
         </Text>
-        <Text {...LBL} data-testid={`adv-enemy-deck-${villain.id}`}>
-          DECK {villain.deckCount}
-        </Text>
       </Flex>
-      {villain.lastPlayed && (
-        <Flex gap="0.4rem" align="center" data-testid="adv-villain-last-played">
-          <CardFace cardId={villain.lastPlayedId} h="4.5rem" testid="adv-villain-last-played-art" />
-          <Text fontSize="0.7rem" opacity={0.85}>
-            Last played: {villain.lastPlayed}
-          </Text>
-        </Flex>
-      )}
       {objective && (
         <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-objective">
           Objective: {objective}
@@ -483,30 +514,34 @@ export const VillainHeader = ({
 };
 
 export const ThreatTrack = ({ threat }: { threat: ThreatModel }) => (
-  <Flex direction="column" gap="0.3rem" data-testid="adv-threat" {...PANEL}>
-    <Flex gap="0.6rem" align="baseline" justify="space-between">
-      <Text {...LBL}>THREAT TRACK</Text>
-      <Text fontSize="0.7rem">
-        level{" "}
-        <Text as="span" data-testid="adv-threat-level" fontWeight="bold" fontSize="0.85rem">
-          {threat.level}
-        </Text>
+  <Flex direction="column" gap="0.2rem" data-testid="adv-threat" {...PANEL}>
+    <Flex
+      gap="0.25rem"
+      align="center"
+      wrap={{ base: "nowrap", md: "wrap" }}
+      overflowX={{ base: "auto", md: "visible" }}
+      sx={{ "::-webkit-scrollbar": { display: "none" } }}
+    >
+      <Text {...LBL} flex="none" mr="0.2rem">
+        THREAT
       </Text>
-    </Flex>
-    <Flex gap="0.2rem" wrap="wrap">
       {threat.cells.map((c) => (
         <Flex
           key={c.space}
           data-testid={`adv-threat-${c.space}`}
           data-marker={c.marker ? "true" : undefined}
+          flex="none"
           w="1.5rem"
           h="1.5rem"
           align="center"
           justify="center"
           borderRadius="sm"
           border="1px solid"
-          borderColor={c.marker ? "yellow.300" : "whiteAlpha.300"}
-          bg={c.marker ? "yellow.600" : "whiteAlpha.100"}
+          borderColor={c.marker ? "yellow.200" : "whiteAlpha.300"}
+          bg={c.marker ? "yellow.500" : "whiteAlpha.100"}
+          color={c.marker ? "black" : undefined}
+          fontWeight={c.marker ? "bold" : undefined}
+          boxShadow={c.marker ? "0 0 0.5rem 0.1rem rgba(236,201,75,0.75)" : undefined}
           fontSize="0.75rem"
         >
           {c.value}
@@ -515,6 +550,7 @@ export const ThreatTrack = ({ threat }: { threat: ThreatModel }) => (
       <Flex
         data-testid="adv-threat-terminal"
         data-marker={threat.terminal.marker ? "true" : undefined}
+        flex="none"
         minW="3.6rem"
         h="1.5rem"
         px="0.25rem"
@@ -523,30 +559,35 @@ export const ThreatTrack = ({ threat }: { threat: ThreatModel }) => (
         borderRadius="sm"
         border="1px solid"
         borderColor="red.300"
-        bg="rgba(160,40,50,0.55)"
+        bg={threat.terminal.marker ? "red.500" : "rgba(160,40,50,0.55)"}
+        boxShadow={threat.terminal.marker ? "0 0 0.5rem 0.1rem rgba(245,101,101,0.75)" : undefined}
         fontSize="0.5rem"
         fontWeight="bold"
         lineHeight="1"
         textAlign="center"
         letterSpacing="0.04em"
       >
-        {threat.terminal.label
-          ? `${threat.terminal.label.toUpperCase()}`
-          : "BREAKOUT"}
+        {threat.terminal.label ? `${threat.terminal.label.toUpperCase()}` : "BREAKOUT"}
       </Flex>
-    </Flex>
-    <Text fontSize="0.7rem" opacity={0.9} data-testid="adv-threat-steps">
-      <b>
-        {threat.stepsToBreakout} step{threat.stepsToBreakout === 1 ? "" : "s"}
-      </b>{" "}
-      to the next breakout
-      {threat.overflows > 0 && (
-        <Text as="span" data-testid="adv-threat-overflows">
-          {" "}
-          · {threat.overflows} breakout{threat.overflows === 1 ? "" : "s"} so far
+      <Text fontSize="0.7rem" flex="none" ml="0.3rem">
+        level{" "}
+        <Text as="span" data-testid="adv-threat-level" fontWeight="bold" fontSize="0.85rem">
+          {threat.level}
         </Text>
-      )}
-    </Text>
+      </Text>
+      <Text flex="none" ml="0.3rem" fontSize="0.7rem" opacity={0.9} data-testid="adv-threat-steps" whiteSpace="nowrap">
+        <b>
+          {threat.stepsToBreakout} step{threat.stepsToBreakout === 1 ? "" : "s"}
+        </b>{" "}
+        to the next breakout
+        {threat.overflows > 0 && (
+          <Text as="span" data-testid="adv-threat-overflows">
+            {" "}
+            · {threat.overflows} breakout{threat.overflows === 1 ? "" : "s"} so far
+          </Text>
+        )}
+      </Text>
+    </Flex>
   </Flex>
 );
 
@@ -663,8 +704,7 @@ export const EnemyDials = ({
             )}
           </Text>
           <Text {...LBL} data-testid={`adv-enemy-meta-${e.id}`}>
-            {e.size !== "NORMAL" ? `${e.size} · ` : ""}MOVE {e.move} · DECK{" "}
-            <span data-testid={`adv-enemy-deck-${e.id}`}>{e.deckCount}</span>
+            {e.size !== "NORMAL" ? `${e.size} · ` : ""}MOVE {e.move}
           </Text>
         </Flex>
         {/* slot for the intent badge (p2p #1148) */}
@@ -680,6 +720,122 @@ export const EnemyDials = ({
     ))}
   </Flex>
 );
+
+/**
+ * Enemy decks + discard piles (#1405): one stack per enemy ROLE the protocol names (villain,
+ * minion, …), a chip per fighter in it (decks are per fighter). Each stack shows the selected
+ * fighter's face-down deck with its count and the top of its discard (last played); clicking
+ * the discard opens the whole pile. Nothing here knows a scenario: roles and names come off the
+ * wire, and a role with no fighters simply has no stack.
+ */
+export const EnemyDecks = ({
+  enemies,
+  onOpenPile,
+}: {
+  enemies: EnemyDial[];
+  onOpenPile: (fighterId: string) => void;
+}) => {
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const roles = Array.from(new Set(enemies.map((e) => e.role)));
+  if (enemies.length === 0) return null;
+  return (
+    <Flex direction="column" gap="0.4rem" data-testid="adv-decks" {...PANEL}>
+      {roles.map((role) => {
+        const group = enemies.filter((e) => e.role === role);
+        const live = group.filter((e) => !e.defeated);
+        const members = live.length > 0 ? live : group;
+        const sel = members.find((e) => e.id === picked[role]) ?? members[0];
+        const art = adventureCardArt(sel.lastPlayedId);
+        return (
+          <Flex key={role} direction="column" gap="0.25rem" data-testid={`adv-decks-${role}`} data-role={role}>
+            <Text {...LBL}>{role} DECK{members.length > 1 ? "S" : ""}</Text>
+            <Flex gap="0.5rem" align="flex-start">
+              <DeckPile count={sel.deckCount} testid={`adv-deck-${sel.id}`} w="3.2rem" h="4.4rem" />
+              <Box
+                as="button"
+                type="button"
+                data-testid={`adv-discard-${sel.id}`}
+                onClick={() => onOpenPile(sel.id)}
+                disabled={sel.discard.length === 0}
+                position="relative"
+                flex="none"
+                w="3.2rem"
+                h="4.4rem"
+                borderRadius="sm"
+                border="1px solid"
+                borderColor={sel.discard.length ? "whiteAlpha.500" : "whiteAlpha.200"}
+                borderStyle={sel.discard.length ? "solid" : "dashed"}
+                overflow="hidden"
+                bg="whiteAlpha.100"
+                aria-label={`${sel.name} discard: ${sel.discard.length} card${sel.discard.length === 1 ? "" : "s"}${sel.lastPlayed ? `, last played ${sel.lastPlayed}` : ""}. Open the pile`}
+                title={sel.lastPlayed ? `Last played: ${sel.lastPlayed}` : "Discard is empty"}
+              >
+                {art ? (
+                  <CardFace cardId={sel.lastPlayedId} h="100%" testid={`adv-discard-art-${sel.id}`} />
+                ) : sel.lastPlayed ? (
+                  <Text fontSize="0.6rem" lineHeight="1.15" p="0.2rem" textAlign="left">
+                    {sel.lastPlayed}
+                  </Text>
+                ) : null}
+                <Text
+                  data-testid={`adv-discard-count-${sel.id}`}
+                  position="absolute"
+                  right="0.1rem"
+                  bottom="0.1rem"
+                  px="0.25rem"
+                  borderRadius="sm"
+                  bg="rgba(20,8,24,0.85)"
+                  fontSize="0.7rem"
+                  fontWeight="bold"
+                  lineHeight="1.1"
+                >
+                  {sel.discard.length}
+                </Text>
+              </Box>
+              <Flex direction="column" gap="0.15rem" minW={0} flex="1">
+                <Text fontSize="0.72rem" fontWeight="bold" noOfLines={2} data-testid={`adv-deck-name-${sel.id}`}>
+                  {sel.name}
+                </Text>
+                <Text {...LBL}>
+                  <span data-testid={`adv-enemy-deck-${sel.id}`}>DECK {sel.deckCount}</span> · DISCARD {sel.discard.length}
+                </Text>
+                {sel.lastPlayed && (
+                  <Text fontSize="0.66rem" opacity={0.85} noOfLines={2} data-testid={`adv-last-played-${sel.id}`}>
+                    Last played: {sel.lastPlayed}
+                  </Text>
+                )}
+              </Flex>
+            </Flex>
+            {members.length > 1 && (
+              <Flex gap="0.25rem" wrap="wrap" data-testid={`adv-decks-tabs-${role}`}>
+                {members.map((m) => (
+                  <Box
+                    as="button"
+                    type="button"
+                    key={m.id}
+                    data-testid={`adv-decks-tab-${m.id}`}
+                    aria-pressed={m.id === sel.id}
+                    onClick={() => setPicked((p) => ({ ...p, [role]: m.id }))}
+                    px="0.35rem"
+                    py="0.1rem"
+                    borderRadius="sm"
+                    border="1px solid"
+                    borderColor={m.id === sel.id ? GOLD : "whiteAlpha.300"}
+                    bg={m.id === sel.id ? "whiteAlpha.200" : "transparent"}
+                    fontSize="0.62rem"
+                    maxW="100%"
+                  >
+                    {m.name} · {m.deckCount}
+                  </Box>
+                ))}
+              </Flex>
+            )}
+          </Flex>
+        );
+      })}
+    </Flex>
+  );
+};
 
 export const TeamDecision = ({ model }: { model: TeamDecisionModel }) => (
   <Flex
@@ -866,6 +1022,7 @@ export const AdventureBoard = ({
 }: FormatOverlayProps) => {
   useAdventureAnalytics(view, events);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [pileFighter, setPileFighter] = useState<string | null>(null);
   // The ONE enemy-turn state (#1156): the narrator card below and the board's enemy→target arrow.
   const turn = useEnemyTurn(view, events);
   const arrow = enemyTurnArrow(turn);
@@ -901,8 +1058,47 @@ export const AdventureBoard = ({
   const enemyTurn = faulted || view.winner ? null : turn;
   const combat = enemyCombatModel(view);
   const others = model.enemies.filter((e) => e !== model.villain);
+  // The pile sheet is the existing discard viewer; one section per fighter of the clicked
+  // fighter's role (a tab per minion), the clicked one first. Instance ids resolve to the
+  // format's CDN face, same as the dials.
+  const pile = pileFighter ? model.enemies.find((e) => e.id === pileFighter) : null;
+  const pileSeats = pile
+    ? [pile, ...model.enemies.filter((e) => e.role === pile.role && e.id !== pile.id)].map((e) => ({
+        id: e.id,
+        name: e.name,
+        // the sheet renders play order reversed; the wire's discard is newest first
+        discard: [...e.discard].reverse(),
+        you: false,
+      }))
+    : [];
   return (
     <>
+    <Flex
+      data-testid="adventure-band"
+      position="fixed"
+      // Above the map, below the HUD band; clear of the column (and dock) on desktop (#1405).
+      top={{ base: ADVENTURE_BAND_TOP_PHONE, md: ADVENTURE_BAND_TOP }}
+      left={{ base: "0.5rem", md: "0.75rem" }}
+      right={{ base: "0.5rem", md: `calc(${ADVENTURE_BOARD_RIGHT} + ${ADVENTURE_BOARD_WIDTH} + 0.75rem)` }}
+      direction="column"
+      align="flex-start"
+      gap="0.3rem"
+      zIndex={5}
+      pointerEvents="none"
+      sx={{ "& > *": { pointerEvents: "auto", maxW: "100%" } }}
+    >
+      {(strip.row.length > 0 || strip.round != null) && (
+        <InitiativeRow model={strip} fighterTokenArt={fighterTokenArt} />
+      )}
+      {model.threat && <ThreatTrack threat={model.threat} />}
+    </Flex>
+    <ProDiscardsSheet
+      isOpen={pile != null}
+      onClose={() => setPileFighter(null)}
+      seats={pileSeats}
+      resolveCard={(id) => formatFaceCard(id, view.catalog?.[id.split("#")[0]]?.title, adventureCardArt)}
+      labelFor={(c) => cardLabel(view.catalog, c)}
+    />
     <Flex
       data-testid="adventure-board"
       position="fixed"
@@ -911,7 +1107,7 @@ export const AdventureBoard = ({
       // among them, reach the middle of the screen at ~1500px. They stop 8.5rem
       // short of the right edge, and five 15rem plates end well before this column.
       // Phone: below the HUD's SETUP/phase bar, which spans the width under the plates.
-      top={{ base: ADVENTURE_BOARD_TOP_PHONE, md: ADVENTURE_BOARD_TOP }}
+      top={{ base: ADVENTURE_COLUMN_TOP_PHONE, md: ADVENTURE_BOARD_TOP }}
       // ...and to the LEFT of the fixed Actions dock (z 140, right 0.75rem, 18.5rem
       // wide, from 7.5rem down) which otherwise fully covers the dials (#1128).
       // On a phone there is no dock slot to clear (#1310): hug the screen edge instead.
@@ -919,7 +1115,7 @@ export const AdventureBoard = ({
       maxW={{ base: `min(${ADVENTURE_BOARD_WIDTH}, calc(100vw - 1rem))`, md: ADVENTURE_BOARD_WIDTH }}
       // Capped to end above the hand fan (#1178) so nothing is tucked under it; the
       // static panels scroll inside, the live decision/narrator panels stay pinned.
-      maxH={{ base: ADVENTURE_BOARD_MAX_HEIGHT_PHONE, md: ADVENTURE_BOARD_MAX_HEIGHT }}
+      maxH={{ base: ADVENTURE_COLUMN_MAX_HEIGHT_PHONE, md: ADVENTURE_BOARD_MAX_HEIGHT }}
       direction="column"
       align="flex-end"
       gap="0.4rem"
@@ -966,9 +1162,7 @@ export const AdventureBoard = ({
         overflowY="auto"
         sx={{ "& > *": { pointerEvents: "auto", flexShrink: 0 } }}
       >
-      {(strip.row.length > 0 || strip.round != null) && (
-        <InitiativeRow model={strip} fighterTokenArt={fighterTokenArt} />
-      )}
+      {model.enemies.length > 0 && <EnemyDecks enemies={model.enemies} onOpenPile={setPileFighter} />}
       {model.villain && (
         <VillainHeader villain={model.villain} objective={model.objective} />
       )}
@@ -984,7 +1178,7 @@ export const AdventureBoard = ({
         display={view.scenario?.display}
         scenarioId={view.scenario?.id}
       />
-      {model.threat && <ThreatTrack threat={model.threat} />}
+      {strip.atRoundEnd.length > 0 && <AtRoundEnd model={strip} />}
       {model.objectives && model.objectives.slots.length > 0 && (
         <ObjectsLost objectives={model.objectives} win={model.win} noun={objectNounOf(view.scenario?.display)} />
       )}
