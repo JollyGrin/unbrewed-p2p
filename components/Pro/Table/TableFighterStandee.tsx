@@ -11,6 +11,7 @@
  * `TableStandeeAnchor` + tableProjection.ts; this file only draws the piece
  * and its badges.
  */
+import { ENEMY_LOOK, enemyLookOf } from "@/lib/pro/enemyLook";
 import { Box } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
@@ -210,6 +211,8 @@ export const TableFighterStandee = ({
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
+      baseRingStyle={enemyLookOf(fighter.enemy?.role)?.ringStyle}
+      basePlate={fighter.enemy?.role === "VILLAIN" ? ENEMY_LOOK.VILLAIN.plate : undefined}
       base={upright && !baseHidden}
       ground={
         use3d ? (
@@ -241,6 +244,8 @@ export const TableFighterStandee = ({
           <TableFlatToken
             sizePx={tokenPx}
             rim={playerColor}
+            rimStyle={enemyLookOf(fighter.enemy?.role)?.ringStyle}
+            plate={fighter.enemy?.role === "VILLAIN" ? ENEMY_LOOK.VILLAIN.plate : undefined}
             spaceId={fighter.space}
             name={fighter.name}
             artUrl={artUrl}

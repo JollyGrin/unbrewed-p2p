@@ -82,6 +82,7 @@ import {
 import { useFlag } from "@/lib/flags";
 import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
 import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
+import { enemyLookOf, fighterColor } from "@/lib/pro/enemyLook";
 import { COSMETIC_RIM_MIN_PX, FighterTokenRim } from "./FighterTokenRim";
 
 /**
@@ -642,7 +643,7 @@ export const useRegionPanels = ({
       fresh.push({
         key: `ko-${id}-${g.key}`,
         space,
-        color: SEAT_COLOR[f.owner] ?? "#999",
+        color: fighterColor(f, SEAT_COLOR),
         art: fighterTokenArt?.(f) ?? null,
         initials: tokenInitials(f.name),
         isHero: f.kind === "HERO",
@@ -709,7 +710,7 @@ export const useRegionPanels = ({
     anim?: { xs: number[]; ys: number[] },
     hitCapSx?: (spaceId: SpaceId, renderedDiameterPx: number) => Record<string, unknown>
   ) => {
-    const color = SEAT_COLOR[f.owner] ?? "#999";
+    const color = fighterColor(f, SEAT_COLOR);
     const isSelected = f.id === selectedFighter;
     const isTarget = highlightFighterSet.has(f.id);
     // Label + badge sizes: token-relative on a touch screen, rem on desktop.
@@ -1101,9 +1102,13 @@ export const useRegionPanels = ({
     // today); `bodyBgHex` is the resolved hex the inner layer needs for inline
     // style. Border/opacity are the same expression on both paths.
     const tokenLifeOn = !!tokenLife;
-    const bodyBgToken = f.kind === "HERO" ? color : "brand.surfaceDim";
-    const bodyBgHex = f.kind === "HERO" ? color : SURFACE_DIM;
-    const bodyBorder = `2px solid ${f.kind === "HERO" ? "#fff" : color}`;
+    // #1406: a villain wears its crimson plate under an ivory solid ring, a minion its dashed
+    // salmon ring on the usual dark plate (lib/pro/enemyLook.ts) — shape as well as hue.
+    const enemyLook = enemyLookOf(f.enemy?.role);
+    const villainPlate = f.enemy?.role === "VILLAIN" && enemyLook ? enemyLook.plate : null;
+    const bodyBgToken = f.kind === "HERO" ? color : (villainPlate ?? "brand.surfaceDim");
+    const bodyBgHex = f.kind === "HERO" ? color : (villainPlate ?? SURFACE_DIM);
+    const bodyBorder = `2px ${enemyLook?.ringStyle ?? "solid"} ${f.kind === "HERO" ? "#fff" : color}`;
     const bodyOpacity = f.kind === "HERO" ? 1 : 0.92;
     // What the token settles back to after an animated opacity beat — the same
     // expression the `opacity` prop below renders at rest, on both token paths.
@@ -1525,7 +1530,7 @@ export const useRegionPanels = ({
       const trailId = previewMove.trailPath?.[previewMove.trailPath.length - 1] ?? null;
       const trail = trailId ? spaces.find((sp) => sp.id === trailId) ?? null : null;
       return {
-        color: SEAT_COLOR[f.owner] ?? "#999",
+        color: fighterColor(f, SEAT_COLOR),
         initials: tokenInitials(f.name),
         isHero: f.kind === "HERO",
         x: ghost.x * 100,
@@ -1543,7 +1548,7 @@ export const useRegionPanels = ({
       const to = spaces.find((sp) => sp.id === h.to);
       const f = fighters.find((x) => x.id === h.fighterId);
       if (!from || !to || !f) return [];
-      return [{ h, from, to, color: SEAT_COLOR[f.owner] ?? "#999", initials: tokenInitials(f.name), isHero: f.kind === "HERO", art: fighterTokenArt?.(f) ?? null }];
+      return [{ h, from, to, color: fighterColor(f, SEAT_COLOR), initials: tokenInitials(f.name), isHero: f.kind === "HERO", art: fighterTokenArt?.(f) ?? null }];
     });
     const stackIndex = new Map<SpaceId, number>();
     return (
@@ -1765,7 +1770,7 @@ export const useRegionPanels = ({
             const head = spaceById.get(f.space as SpaceId);
             const tail = spaceById.get(f.tailSpace as SpaceId);
             if (!head || !tail) return [];
-            const color = SEAT_COLOR[f.owner] ?? "#999";
+            const color = fighterColor(f, SEAT_COLOR);
             // white outer + colored inner stroke, echoing the hero token look
             return [
               <line
@@ -1811,7 +1816,7 @@ export const useRegionPanels = ({
         const tail = spaceById.get(f.tailSpace as SpaceId);
         if (!head || !tail) return null;
         const mid = bandMidpoint(head, tail);
-        const color = SEAT_COLOR[f.owner] ?? "#999";
+        const color = fighterColor(f, SEAT_COLOR);
         return (
           <Flex
             key={`${f.id}-band-label`}

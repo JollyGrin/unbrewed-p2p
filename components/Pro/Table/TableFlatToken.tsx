@@ -44,6 +44,10 @@ export interface TableFlatTokenProps {
   sizePx: number;
   /** Owner's colour for the rim. */
   rim: string;
+  /** #1406: the rim's line style — dashed for a minion, so the role reads without hue. */
+  rimStyle?: "solid" | "dashed";
+  /** #1406: a villain's plate, behind the portrait and down the token's side. */
+  plate?: string;
   /** The space it lies on — tags the bottom layer for the visual probe. */
   spaceId?: string | null;
   /** The face shows this portrait (or the name's initials)... */
@@ -61,6 +65,8 @@ export interface TableFlatTokenProps {
 export const TableFlatToken = ({
   sizePx,
   rim,
+  rimStyle = "solid",
+  plate,
   spaceId,
   name = "",
   artUrl,
@@ -72,7 +78,7 @@ export const TableFlatToken = ({
 }: TableFlatTokenProps) => {
   const layers = Math.max(1, Math.round(sizePx * TOKEN_THICKNESS));
   const disc = (z: number) => `translate(-50%, -50%) translateZ(${z}px)`;
-  const ring = { width: `${sizePx}px`, height: `${sizePx}px`, border: `${TOKEN_RIM_PX}px solid`, borderColor: rim };
+  const ring = { width: `${sizePx}px`, height: `${sizePx}px`, border: `${TOKEN_RIM_PX}px ${rimStyle}`, borderColor: rim };
 
   return (
     <Box position="absolute" left={0} top={0} style={{ transformStyle: "preserve-3d" }}>
@@ -84,7 +90,7 @@ export const TableFlatToken = ({
           key={i}
           position="absolute"
           borderRadius="50%"
-          bg={TOKEN_EDGE_FILL}
+          bg={plate ?? TOKEN_EDGE_FILL}
           boxShadow={i === 0 ? "0 2px 5px rgba(0,0,0,0.7)" : undefined}
           style={{ ...ring, transform: disc(i) }}
           data-fighter-base={i === 0 ? "" : undefined}
@@ -95,7 +101,7 @@ export const TableFlatToken = ({
         position="absolute"
         borderRadius="50%"
         pointerEvents="auto"
-        bg={fill}
+        bg={fill ?? plate}
         boxShadow={selected ? "0 0 0 3px #fff" : friendly ? "0 0 0 2px #39B7A8" : undefined}
         animation={targetable && !selected ? `${targetPulse} 1.4s ease-in-out infinite` : undefined}
         sx={{ "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}

@@ -390,7 +390,8 @@ export const adventureBoardModel = (
         nowName: (resolving ?? now)?.name ?? null,
       };
     })(),
-    threat: scenario ? threatModel(scenario) : null,
+    // a pack may author no threat track: the panel then simply does not render
+    threat: scenario?.threat ? threatModel(scenario) : null,
     objectives: scenario ? objectiveSlots(scenario.objectives) : null,
     villain,
     objective: scenario?.briefing?.objective ?? null,
