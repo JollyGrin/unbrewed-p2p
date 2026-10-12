@@ -38,6 +38,7 @@ import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import { tokenInitials } from "./FighterTokenPortrait";
 import { DockRow } from "@/lib/pro/actionDock";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
+import { UndoButton } from "@/components/Pro/UndoButton";
 import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
 import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
@@ -800,6 +801,14 @@ export const ProDock = ({
     scheme: { label: "Scheme", icon: <TbCards size="1.5rem" /> },
     attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
   };
+  // Undo (issue #154, #1407): always on screen while the game is live — greyed
+  // with a reason when nothing is eligible — so a misclick's way out is never
+  // hunting for a button that appears and disappears. Spectators/forfeited
+  // seats have nothing to undo, so they never see it.
+  const undoLive = view.phase === "PLAY" && !view.winner && !iAmSpectating && !iForfeited;
+  const undoEl = undoLive ? (
+    <UndoButton canUndo={!!view.canUndo} pending={undoPending} onUndo={onUndo} />
+  ) : null;
   const railTiles = narrow;
   const tilesEl =
     tiles.length > 0 &&
@@ -1025,6 +1034,7 @@ export const ProDock = ({
         combatPanel
       )}
       {promptPanel}
+      {undoEl}
       {tilesEl}
       {cardPickerEl}
       <Flex direction="column" gap="0.4rem">
@@ -1276,22 +1286,6 @@ export const ProDock = ({
           </Link>
         </Flex>
       )}
-      {/* Undo — request to rewind our last action, pending opponent consent
-          (issue #154). Shown only while live and only when the server says we
-          have an eligible last action (view.canUndo); disabled while a request
-          is already in flight. The rewind itself is server-side — we just ask. */}
-      {view.phase === "PLAY" && !view.winner && view.canUndo && (
-        <Button
-          size="sm"
-          mt="0.4rem"
-          colorScheme="yellow"
-          variant="outline"
-          isDisabled={undoPending}
-          onClick={onUndo}
-        >
-          {undoPending ? "Undo requested…" : "Undo last action"}
-        </Button>
-      )}
       {/* Forfeit — rendered whenever the engine offers FORFEIT to this seat
           (`canForfeit`, issue #140 + unbrewed-engine #117). No seat-count or
           seat-id gate: duel and multiplayer alike surface it via the same
@@ -1338,6 +1332,7 @@ export const ProDock = ({
         extra,
         canUndo: view.phase === "PLAY" && !view.winner && !!view.canUndo,
         undoPending,
+        undoLive: undoLive,
       },
       describe
     );
@@ -1425,6 +1420,7 @@ export const ProDock = ({
             <Text flex="1" minW={0} fontSize="0.85rem" fontWeight={600} color="brand.accent" noOfLines={2}>
               {boardPickHint ?? boardHint ?? (forcedMinimized ? "A decision is waiting" : "Choose on the board")}
             </Text>
+            {undoLive && <UndoButton compact canUndo={!!view.canUndo} pending={undoPending} onUndo={onUndo} />}
             <Button
               minH={TAP_TARGET}
               px="0.9rem"
@@ -1487,6 +1483,11 @@ export const ProDock = ({
             </Text>
           )}
           <Flex alignItems="center" justifyContent="center" gap="0.5rem" maxW="100%" px="0.5rem">
+            {undoLive && (
+              <Box pointerEvents="auto">
+                <UndoButton compact canUndo={!!view.canUndo} pending={undoPending} onUndo={onUndo} />
+              </Box>
+            )}
             {primary ? (
               <Button
                 data-testid="pro-mobile-primary"

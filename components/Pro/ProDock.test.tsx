@@ -359,3 +359,46 @@ describe("ProDock LARGE two-step pose pick (issue #1170)", () => {
     expect(screen.queryByText(/Step 2 of 2/)).toBeNull();
   });
 });
+
+describe("ProDock Undo (#1407)", () => {
+  const undoState = () => screen.getByTestId("pro-undo").getAttribute("data-undo-state");
+
+  it("is always on screen in a live game: disabled with a reason when nothing can be undone", () => {
+    render(<ProDock {...props()} />);
+    expect(undoState()).toBe("disabled");
+    expect(screen.getByTestId("pro-undo-reason")).toHaveTextContent("Undo isn’t available right now");
+    expect(screen.getByRole("button", { name: /undo move/i })).toBeDisabled();
+  });
+
+  it("is enabled and calls onUndo when the view says canUndo", () => {
+    const onUndo = jest.fn();
+    render(<ProDock {...props({ view: view({ canUndo: true }), onUndo })} />);
+    expect(undoState()).toBe("enabled");
+    fireEvent.click(screen.getByRole("button", { name: /undo move/i }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the pending state, disabled, while the request is out", () => {
+    render(<ProDock {...props({ view: view({ canUndo: true }), undoPending: true })} />);
+    expect(undoState()).toBe("pending");
+    expect(screen.getByRole("button", { name: /undo requested/i })).toBeDisabled();
+  });
+
+  it("does not render for a finished game or a spectator", () => {
+    const { unmount } = render(<ProDock {...props({ view: view({ winner: "p2" as never }) })} />);
+    expect(screen.queryByTestId("pro-undo")).not.toBeInTheDocument();
+    unmount();
+    render(<ProDock {...props({ iAmSpectating: true })} />);
+    expect(screen.queryByTestId("pro-undo")).not.toBeInTheDocument();
+  });
+
+  it("renders from a minimal synthetic pack that is not Isla Nublar (no villain, minions or threat track)", () => {
+    const synthetic = view({
+      canUndo: true,
+      scenario: { id: "synthetic-pack", display: { title: "Synthetic Pack" } },
+      fighters: [],
+    } as unknown as Partial<PlayerView>);
+    render(<ProDock {...props({ view: synthetic })} />);
+    expect(undoState()).toBe("enabled");
+  });
+});

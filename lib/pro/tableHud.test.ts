@@ -134,6 +134,18 @@ describe("tableHudControls", () => {
   });
 });
 
+describe("tableHudControls undo in a live game", () => {
+  test("stays on the HUD, disabled, while nothing can be undone", () => {
+    const c = tableHudControls({ ...base, undoLive: true }, describeAction);
+    expect(c.minor).toEqual([{ id: "undo", label: "Undo", emphasis: "plain", disabled: true }]);
+  });
+
+  test("is enabled once canUndo", () => {
+    const c = tableHudControls({ ...base, undoLive: true, canUndo: true }, describeAction);
+    expect(c.minor).toEqual([{ id: "undo", label: "Undo", emphasis: "plain", disabled: false }]);
+  });
+});
+
 describe("tableHudBanner", () => {
   const turn = { mine: true, pips: 2, label: "Your turn" };
 
