@@ -153,6 +153,8 @@ export interface TableHudControlsInput {
   extra: number;
   canUndo: boolean;
   undoPending: boolean;
+  /** a live game: Undo stays on the HUD (disabled) while nothing can be undone */
+  undoLive?: boolean;
 }
 
 export interface TableHudControls {
@@ -184,7 +186,10 @@ export const tableHudControls = (
       main: hex("end-move", input.stepping.commitLabel ?? "End move", "outline", !input.stepping.canEnd),
       minor: [hex("cancel-move", "Cancel", "plain")],
     };
-  const undo = input.canUndo ? [hex("undo", input.undoPending ? "Asked" : "Undo", "plain", input.undoPending)] : [];
+  const undo =
+    input.canUndo || input.undoLive
+      ? [hex("undo", input.undoPending ? "Asked" : "Undo", "plain", input.undoPending || !input.canUndo)]
+      : [];
   if (input.compact)
     return {
       main:
