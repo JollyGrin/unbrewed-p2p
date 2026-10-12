@@ -54,3 +54,14 @@ export const CHIP_CLUSTER_WIDTH_REM = 48;
  */
 export const ADVENTURE_BOARD_TOP_PHONE = "5.8rem";
 export const ADVENTURE_BOARD_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_BOARD_TOP_PHONE} - ${HAND_FAN_RESERVE_REM}rem)`;
+
+/**
+ * #1405: the board-side band (initiative strip + threat track) floats above the map: desktop
+ * under the HUD band (DOCK_TOP), left of the Adventure column; phone full width under the chip
+ * row, with the column pushed below it (ADVENTURE_COLUMN_TOP_PHONE).
+ */
+export const ADVENTURE_BAND_TOP = DOCK_TOP;
+export const ADVENTURE_BAND_TOP_PHONE = ADVENTURE_BOARD_TOP_PHONE;
+/** 5.8rem (ADVENTURE_BOARD_TOP_PHONE) + the 8rem band + 0.4rem gap, one literal so the cap stays a flat calc. */
+export const ADVENTURE_COLUMN_TOP_PHONE = "14.2rem";
+export const ADVENTURE_COLUMN_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_COLUMN_TOP_PHONE} - ${HAND_FAN_RESERVE_REM}rem)`;

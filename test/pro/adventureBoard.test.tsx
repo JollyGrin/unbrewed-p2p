@@ -6,7 +6,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import {
   ADVENTURE_BOARD_MAX_HEIGHT,
-  ADVENTURE_BOARD_MAX_HEIGHT_PHONE,
+  ADVENTURE_COLUMN_MAX_HEIGHT_PHONE,
   ADVENTURE_BOARD_TOP,
   ADVENTURE_BOARD_WIDTH,
   ADVENTURE_PLATE_DROP,
@@ -35,7 +35,7 @@ import {
   ISLA_NUBLAR_SPACES,
   ISLA_NUBLAR_SPACE_DIAMETER,
 } from "./fixtures/islaNublarSpaces";
-import { ADVENTURE_OVERLAY_INSET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
+import { ADVENTURE_BAND_FIT, ADVENTURE_OVERLAY_INSET, boardFitInsetFor } from "@/lib/pro/mobileLayout";
 import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
 
 const fighter = (id: string, name: string, extra: object = {}) => ({
@@ -710,54 +710,31 @@ describe("overlay column never covers an enclosure badge or space (#1139)", () =
     const base = boardFitInsetFor({ mode: "desktop" });
     expect(base.right).toBe(320);
     expect(boardFitInsetFor({ mode: "desktop", formatOverlayRight: ADVENTURE_OVERLAY_INSET }).right).toBe(320 + 284);
-    expect(boardFitInsetFor({ mode: "portrait", formatOverlayRight: ADVENTURE_OVERLAY_INSET })).toEqual(boardFitInsetFor({ mode: "portrait" }));
+    // phone: no column inset, only the band's height above the map (#1405)
+    const phone = boardFitInsetFor({ mode: "portrait", formatOverlayRight: ADVENTURE_OVERLAY_INSET });
+    const phoneBase = boardFitInsetFor({ mode: "portrait" });
+    expect({ ...phone, top: 0 }).toEqual({ ...phoneBase, top: 0 });
+    expect(phone.top).toBe(phoneBase.top + ADVENTURE_BAND_FIT.mobile);
   });
 });
 
-// #1145 (1): the initiative row sat LEFT of its clipped column (align flex-end + a nowrap
-// chip row wider than the column), cutting the scenario header and the first chip.
-// Model: the panel is as wide as its content, capped at the column only when the chips wrap.
-const CHIP_W = (label: string) => label.length * rem("0.7rem") * 0.55 + 2 * rem("0.4rem") + 2;
-const PANEL_PAD = 2 * rem("0.6rem");
-const CHIP_LABELS = [
-  "Indominus Rex (defeated)", "Therizinosaurus", "Tyrannosaurus Rex", "Gallimimus", "Parasaurolophus", "Hero One", "Hero Two",
-];
-const initiativePanelBox = (vw: number, chips: string[], wraps: boolean): Box => {
-  const { board } = spans(vw);
-  const colW = rem(ADVENTURE_BOARD_WIDTH);
-  const content = chips.reduce((w, c) => w + CHIP_W(c), 0) + (chips.length - 1) * rem("0.25rem") + PANEL_PAD;
-  const w = wraps ? Math.min(content, colW) : content;
-  return { id: "initiative", x0: board[1] - w, y0: 0, x1: board[1], y1: 1 };
-};
-const chipsWrap = () => {
-  cleanup();
-  const model = adventureBoardModel(VIEW as unknown as PlayerView)!;
-  render(
-    <ChakraProvider theme={theme}>
-      <InitiativeRow model={model} />
-    </ChakraProvider>,
-  );
-  return getComputedStyle(screen.getByTestId("adv-init-chips")).flexWrap === "wrap";
-};
-
-describe("initiative row stays inside its overlay column (#1145)", () => {
-  it("probe flags a planted nowrap row left of the column", () => {
-    const { board } = spans(1500);
-    expect(initiativePanelBox(1500, CHIP_LABELS, false).x0).toBeLessThan(board[0]);
-  });
-  it("the chip row wraps (the rendered style the probe relies on)", () => {
-    expect(chipsWrap()).toBe(true);
-  });
-  it.each([
-    [1500, 2],
-    [1500, 4],
-    [1920, 2],
-    [1920, 4],
-  ])("at %ipx with %i heroes: 6+ chips never reach left of the column", (vw, heroes) => {
-    const { board } = spans(vw);
-    const chips = CHIP_LABELS.slice(0, 5 + heroes - 1);
-    expect(chips.length).toBeGreaterThanOrEqual(6);
-    expect(initiativePanelBox(vw, chips, chipsWrap()).x0).toBeGreaterThanOrEqual(board[0]);
+// #1145 (1) → #1405: the initiative row left the overlay column for the board-side band, which is
+// anchored at the left and bounded on the right by the column, so it can no longer sit left of a
+// clipped column. What must hold now is that it lives in the band, not the column.
+describe("initiative strip and threat track live in the board-side band (#1405)", () => {
+  it("band holds initiative + threat; the column holds neither", () => {
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={VIEW as unknown as PlayerView} />
+      </ChakraProvider>,
+    );
+    return screen.findByTestId("adventure-band").then((band) => {
+      expect(band).toContainElement(screen.getByTestId("adv-initiative"));
+      expect(band).toContainElement(screen.getByTestId("adv-threat"));
+      const col = screen.getByTestId("adventure-board-scroll");
+      expect(col).not.toContainElement(screen.getByTestId("adv-initiative"));
+      expect(col).not.toContainElement(screen.getByTestId("adv-threat"));
+    });
   });
 });
 
@@ -849,7 +826,7 @@ describe("villain board (#1154)", () => {
   it("renders all five blocks with live values", () => {
     mount("adventure", withScenario({}, [{ ...OBJ[0], fired: 1 }, ...OBJ.slice(1)]));
     expect(screen.getByTestId("adv-villain-line")).toHaveTextContent("VILLAIN · LARGE · MOVE 2");
-    expect(screen.getByTestId("adv-villain-last-played")).toHaveTextContent("Killing for Sport");
+    expect(screen.getByTestId("adv-last-played-e1/rex")).toHaveTextContent("Killing for Sport");
     expect(screen.getByTestId("adv-threat-terminal")).toHaveTextContent("ENCLOSURE 02");
     expect(screen.getByTestId("adv-threat-steps")).toHaveTextContent("5 steps");
     expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("1 of 4 · the 4th ends the game");
@@ -885,7 +862,7 @@ describe("villain board (#1154)", () => {
   it("any objective count works, and missing optional fields just hide their bits", () => {
     mount("adventure", withScenario({}, OBJ.slice(0, 2), { discardTop: null }));
     expect(screen.getByTestId("adv-objectives-count")).toHaveTextContent("0 of 2 · the 2nd ends the game");
-    expect(screen.queryByTestId("adv-villain-last-played")).toBeNull();
+    expect(screen.queryByTestId("adv-last-played-e1/rex")).toBeNull();
     expect(screen.queryByTestId("adv-villain-objective")).toBeNull();
     cleanup();
     mount("adventure", VIEW); // no objectives, no minions
@@ -945,13 +922,13 @@ describe("adventure column vs hand fan probe (#1178)", () => {
     );
     const col = screen.getByTestId("adventure-board");
     // base (phone) value in jsdom; the desktop cap sits in the md media rule (#1310).
-    expect(col).toHaveStyle({ "max-height": ADVENTURE_BOARD_MAX_HEIGHT_PHONE });
+    expect(col).toHaveStyle({ "max-height": ADVENTURE_COLUMN_MAX_HEIGHT_PHONE });
     const css = Array.from(document.querySelectorAll("style"))
       .map((st) => st.textContent ?? "")
       .join("")
       .replace(/\s/g, "");
     expect(css).toContain(`max-height:${ADVENTURE_BOARD_MAX_HEIGHT}`.replace(/\s/g, ""));
-    expect(columnBottom(844, ADVENTURE_BOARD_MAX_HEIGHT_PHONE)).toBeLessThanOrEqual(fanTop(844));
+    expect(columnBottom(844, ADVENTURE_COLUMN_MAX_HEIGHT_PHONE)).toBeLessThanOrEqual(fanTop(844));
     expect(screen.getByTestId("adventure-board-scroll")).toHaveStyle({ "overflow-y": "auto" });
     expect(screen.getByTestId("adventure-board-scroll")).toContainElement(screen.getByTestId("adv-villain"));
     expect(screen.getByTestId("adventure-board-live")).toContainElement(screen.getByTestId("adv-engine-fault"));
@@ -1111,5 +1088,72 @@ describe("initiative strip chips are distinguishable and stay within 2 rows (#11
     // the "k STILL TO FLIP" text rides the same row
     expect(rows).toBeLessThanOrEqual(2);
     expect(chips).toHaveLength(12);
+  });
+});
+
+// #1405: board-side reference layout, from a synthetic scenario that is NOT Isla Nublar: no villain,
+// no threat track, two minion kinds, a 2-card initiative row.
+describe("board-side decks and discard piles (#1405)", () => {
+  const minion = (id: string, name: string, deckCount: number, discard: string[]) =>
+    fighter(id, name, {
+      kind: "ENEMY",
+      owner: null,
+      enemy: { role: "MINION", enemyId: `kind-${id}`, move: 1, deckCount, discardTop: discard[0] ?? null, discard },
+    });
+  const SYN = {
+    fighters: [
+      fighter("p1/hero", "Hero"),
+      minion("m1", "Mite", 6, ["mite/bite#1", "mite/hide#2", "mite/bite#3"]),
+      minion("m2", "Moth", 2, []),
+    ],
+    initiative: {
+      round: 1,
+      phase: "TURN",
+      deckCount: 3,
+      current: "c1",
+      row: [
+        { id: "c1", title: "Hero", entry: "SEAT", seat: "p1" },
+        { id: "c2", entry: "EFFECT", faceDown: true },
+      ],
+    },
+    scenario: { id: "synthetic-pack", label: "Synthetic" },
+    catalog: { "mite/bite": { title: "Bite" }, "mite/hide": { title: "Hide" } },
+    you: "p1",
+    players: [],
+  } as unknown as PlayerView;
+
+  const mount = () =>
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={SYN} />
+      </ChakraProvider>,
+    );
+
+  it("renders with no villain and no threat; one stack per role, a tab per minion", async () => {
+    mount();
+    await screen.findByTestId("adventure-band");
+    expect(screen.queryByTestId("adv-threat")).toBeNull();
+    expect(screen.queryByTestId("adv-villain")).toBeNull();
+    expect(screen.queryByTestId("adv-decks-VILLAIN")).toBeNull();
+    expect(screen.getByTestId("adv-decks-MINION")).toBeInTheDocument();
+    expect(screen.getByTestId("adv-initiative-deck")).toHaveTextContent("3");
+    expect(screen.getByTestId("adv-enemy-deck-m1")).toHaveTextContent("DECK 6");
+    expect(screen.getByTestId("adv-discard-count-m1")).toHaveTextContent("3");
+    expect(screen.getByTestId("adv-last-played-m1")).toHaveTextContent("Bite");
+    fireEvent.click(screen.getByTestId("adv-decks-tab-m2"));
+    expect(screen.getByTestId("adv-enemy-deck-m2")).toHaveTextContent("DECK 2");
+    expect(screen.getByTestId("adv-discard-m2")).toBeDisabled();
+  });
+
+  it("clicking the discard opens the whole pile (newest first) in the pile sheet", async () => {
+    mount();
+    await screen.findByTestId("adventure-band");
+    expect(screen.queryByTestId("pro-discards")).toBeNull();
+    fireEvent.click(screen.getByTestId("adv-discard-m1"));
+    const sheet = screen.getByTestId("pro-discards");
+    expect(sheet).toHaveTextContent("Mite");
+    expect(sheet).toHaveTextContent("Moth");
+    // newest first: Bite (top), Hide, Bite
+    expect(sheet.textContent).toMatch(/Bite.*Hide.*Bite/);
   });
 });
