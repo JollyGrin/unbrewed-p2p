@@ -57,6 +57,7 @@ import { LARGE_FIGURE_SCALE, straddleAnim, type Figure } from "@/lib/pro/figures
 import { boardObjectVisualFor } from "@/lib/pro/boardObjects";
 import { useRegionPanels } from "@/components/Pro/RegionPanels";
 import { DEFAULT_SPACE_DIAMETER, SEAT_COLOR } from "@/lib/pro/seatColors";
+import { ENEMY_LOOK, enemyLookOf, fighterColor } from "@/lib/pro/enemyLook";
 import { mapImageSrc } from "@/lib/pro/mapImage";
 import {
   fighterStackBySpace,
@@ -368,7 +369,7 @@ export const TableBoard = ({
   const twoSpaceBands = twoSpaceFighters.map((f) => ({
     head: f.space,
     tail: f.tailSpace as SpaceId,
-    color: SEAT_COLOR[f.owner] ?? "#999",
+    color: fighterColor(f, SEAT_COLOR),
   }));
 
   // `pendingMove` tweening (phase-1 deferred item: fighters teleported
@@ -525,7 +526,7 @@ export const TableBoard = ({
       path: previewMove.path,
       lead,
       trail,
-      color: SEAT_COLOR[f.owner] ?? "#999",
+      color: fighterColor(f, SEAT_COLOR),
       initials: tokenInitials(f.name),
       isHero: f.kind === "HERO",
     };
@@ -769,7 +770,9 @@ export const TableBoard = ({
                     heightPx={0}
                     spaceDiamPx={head.diamPx}
                     spaceId={f.space}
-                    baseAccent={SEAT_COLOR[f.owner] ?? "#999"}
+                    baseAccent={fighterColor(f, SEAT_COLOR)}
+                    baseRingStyle={enemyLookOf(f.enemy?.role)?.ringStyle}
+                    basePlate={f.enemy?.role === "VILLAIN" ? ENEMY_LOOK.VILLAIN.plate : undefined}
                     anim={headAnim ?? headSwap}
                     onAnimComplete={headAnim ? onPendingMoveSettled : undefined}
                     // This base is the head space's tap target, like a
@@ -793,7 +796,7 @@ export const TableBoard = ({
                   stack={straddling || probed ? undefined : head.stack}
                   tiltDeg={tiltDeg}
                   diamPx={head.diamPx}
-                  playerColor={SEAT_COLOR[f.owner] ?? "#999"}
+                  playerColor={fighterColor(f, SEAT_COLOR)}
                   artUrl={fighterTokenArt?.(f)}
                   figure={figureOf.get(f.id) ?? null}
                   figureScale={straddling ? LARGE_FIGURE_SCALE : 1}
@@ -823,7 +826,7 @@ export const TableBoard = ({
                 tiltDeg={tiltDeg}
                 diamPx={head.diamPx}
                 artUrl={fighterTokenArt?.(f)}
-                playerColor={SEAT_COLOR[f.owner] ?? "#999"}
+                playerColor={fighterColor(f, SEAT_COLOR)}
                 selected={common.selected}
                 targetable={common.targetable}
                 friendly={common.friendly}
@@ -892,7 +895,7 @@ export const TableBoard = ({
             const tailSpace = spaceById.get(f.tailSpace as SpaceId);
             if (!tailSpace) return null;
             const tail = fighterPlace(tailSpace, `${f.id}-tail`, (diameterPct / 100) * Math.max(frameW, 1), frameW, frameH);
-            const color = SEAT_COLOR[f.owner] ?? "#999";
+            const color = fighterColor(f, SEAT_COLOR);
             const tailAnim = animFor(f.id, "tail", tail, frameW, frameH);
             const headSpace = spaceById.get(f.space)!;
             const mid = bandMidpoint(headSpace, tailSpace);

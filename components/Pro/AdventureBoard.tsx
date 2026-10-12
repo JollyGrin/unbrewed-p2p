@@ -21,6 +21,8 @@ import { useBreakoutMoment } from "@/lib/pro/useBreakoutMoment";
 import { BreakoutMomentOverlay } from "./BreakoutMoment";
 import { objectNounOf, type ObjectNoun } from "@/lib/pro/scenarioObjects";
 import type { FormatOverlayProps } from "./FormatOverlay";
+import { ENEMY_LOOK, type EnemyRole } from "@/lib/pro/enemyLook";
+import { EnemyRoleBadge } from "./EnemyToken";
 import type { EnemyTurnState } from "@/lib/pro/enemyTurn";
 import { TEAM_GUIDANCE, teamChoosingTitle } from "@/lib/pro/adventureCopy";
 import {
@@ -64,7 +66,8 @@ const DRAWER_KEY = "pro:adventure-drawer";
 // md breakpoint (48em); jsdom has no matchMedia.
 const desktopNow = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 48em)").matches;
 const GOLD = "#E0A82E";
-const ENEMY_RED = "#E58B8B";
+/** The look of an initiative entry's enemy: its role from the wire, a minion when unnamed. */
+const entryLook = (e: InitiativeRowEntry) => ENEMY_LOOK[e.fighter?.enemy?.role ?? "MINION"];
 
 /** A card face from the CDN; renders nothing when the id has no uploaded art. Faces are not
  *  63:88, so `contain` — never stretch. */
@@ -131,7 +134,8 @@ export const InitiativeCardFace = ({ e }: { e: InitiativeRowEntry }) => {
       bg="rgba(20,8,24,0.96)"
       color="white"
       border="1px solid"
-      borderColor={e.who === "enemy" ? ENEMY_RED : "rgba(231,204,152,0.4)"}
+      borderColor={e.who === "enemy" ? entryLook(e).ring : "rgba(231,204,152,0.4)"}
+      borderStyle={e.who === "enemy" ? entryLook(e).ringStyle : "solid"}
       borderRadius="md"
     >
       <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.06em" lineHeight="1.05">
@@ -235,16 +239,17 @@ const Portrait = ({ e, src }: { e: InitiativeRowEntry; src: string | null }) => 
       align="center"
       justify="center"
       flexShrink={0}
-      bg={enemy ? "rgba(229,139,139,0.22)" : "whiteAlpha.300"}
-      border="2px solid"
-      borderColor={hot(e) ? GOLD : enemy ? ENEMY_RED : "whiteAlpha.400"}
+      bg={enemy ? entryLook(e).plate : "whiteAlpha.300"}
+      border="2px"
+      borderStyle={enemy ? entryLook(e).ringStyle : "solid"}
+      borderColor={hot(e) ? GOLD : enemy ? entryLook(e).ring : "whiteAlpha.400"}
       boxShadow={hot(e) ? `0 0 8px 1px ${GOLD}` : "none"}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
-        <Text fontFamily="LeagueGothic" fontSize="0.9rem" color={enemy ? ENEMY_RED : "white"}>
+        <Text fontFamily="LeagueGothic" fontSize="0.9rem" color={enemy ? entryLook(e).ink : "white"}>
           {initial}
         </Text>
       )}
@@ -399,7 +404,7 @@ export const InitiativeRow = ({
   );
 };
 
-const Token = ({ name, size = "1.5rem" }: { name: string; size?: string }) => (
+const Token = ({ name, size = "1.5rem", role }: { name: string; size?: string; role?: EnemyRole }) => (
   <Flex
     data-testid="adv-token"
     flex="none"
@@ -407,8 +412,10 @@ const Token = ({ name, size = "1.5rem" }: { name: string; size?: string }) => (
     align="center"
     justify="center"
     borderRadius="50%"
-    border="1px solid rgba(224,168,46,0.55)"
-    bg="radial-gradient(circle at 50% 30%, #3d2249 0%, #140818 80%)"
+    border={role ? `2px ${ENEMY_LOOK[role].ringStyle} ${ENEMY_LOOK[role].ring}` : "1px solid rgba(224,168,46,0.55)"}
+    bg={role ? ENEMY_LOOK[role].plate : "radial-gradient(circle at 50% 30%, #3d2249 0%, #140818 80%)"}
+    color={role ? ENEMY_LOOK[role].ink : undefined}
+    data-enemy-role={role}
     fontSize="0.7rem"
     fontWeight="bold"
   >
@@ -433,10 +440,10 @@ export const VillainHeader = ({
       {...PANEL}
     >
       <Flex gap="0.5rem" align="center">
-        <Token name={villain.name} size="2.2rem" />
+        <Token name={villain.name} size="2.2rem" role={villain.role} />
         <Flex direction="column" minW={0} flex="1">
           <Text {...LBL} data-testid="adv-villain-line">
-            {villain.role} · {villain.size} · MOVE {villain.move}
+            <EnemyRoleBadge role={villain.role} /> · {villain.size} · MOVE {villain.move}
           </Text>
           <Text fontWeight="bold" fontSize="0.95rem" lineHeight="1.1" data-testid="adv-villain-name">
             {villain.name}
@@ -637,10 +644,10 @@ export const EnemyDials = ({
         align="center"
         opacity={e.defeated ? 0.45 : 1}
       >
-        <Token name={e.name} />
+        <Token name={e.name} role={e.role} />
         <Flex direction="column" flex="1" minW={0}>
           <Text fontSize="0.75rem" fontWeight="bold" noOfLines={1}>
-            {e.name}
+            {e.name} <EnemyRoleBadge role={e.role} />
             {e.released === true && (
               <Text
                 as="span"

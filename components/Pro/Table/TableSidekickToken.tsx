@@ -7,6 +7,7 @@
  * are wired yet: sidekicks keep their tokens until a manifest entry and a
  * `fighterMini3d` answer name one.
  */
+import { ENEMY_LOOK, enemyLookOf } from "@/lib/pro/enemyLook";
 import type { FighterId, ViewFighter } from "@/lib/pro/protocol";
 import { flatTokenTopPx, placeStandee, standeeBaseDiameterPx } from "@/lib/pro/tableProjection";
 import type { Mini3d } from "@/lib/pro/minis3d/manifest";
@@ -122,6 +123,8 @@ export const TableSidekickToken = ({
       spaceDiamPx={diamPx}
       spaceId={fighter.space}
       baseAccent={playerColor}
+      baseRingStyle={enemyLookOf(fighter.enemy?.role)?.ringStyle}
+      basePlate={fighter.enemy?.role === "VILLAIN" ? ENEMY_LOOK.VILLAIN.plate : undefined}
       // A flat token is its own base; a 3D mini stands on the anchor's disc.
       base={!!model3d}
       innerRef={innerRef}
@@ -149,6 +152,8 @@ export const TableSidekickToken = ({
           <TableFlatToken
             sizePx={sizePx}
             rim={playerColor ?? "rgba(250, 240, 222, 0.55)"}
+            rimStyle={enemyLookOf(fighter.enemy?.role)?.ringStyle}
+            plate={fighter.enemy?.role === "VILLAIN" ? ENEMY_LOOK.VILLAIN.plate : undefined}
             spaceId={fighter.space}
             name={fighter.name}
             artUrl={artUrl}

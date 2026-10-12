@@ -14,6 +14,7 @@ import { TableStandeeAnchor } from "./TableStandeeAnchor";
 import type { TableSidekickTokenProps } from "./TableSidekickToken";
 import type { ProMapDef, ViewFighter } from "@/lib/pro/protocol";
 import { stackLayout } from "@/lib/pro/tokenStack";
+import { ENEMY_LOOK } from "@/lib/pro/enemyLook";
 
 // Spy on the sidekick's props while still rendering the real component.
 const sidekickProps: TableSidekickTokenProps[] = [];
@@ -245,5 +246,24 @@ describe("TableBoard — relocations start from the slot the piece left (#895)",
     const anim = lastAnim("p1/larry-1")!;
     expect(anim.xs[0]).toBeCloseTo(0.5, 6);
     expect(anim.ys[0]).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe("TableBoard — enemy bases wear the shared enemy look (#1406)", () => {
+  const enemy = (role: "VILLAIN" | "MINION", id: string, space: string) =>
+    fighter({ id, owner: "p4", name: id, space, enemy: { role, move: 1, deckCount: 0, discardTop: null } });
+
+  it("villain: solid ivory ring; minion: dashed salmon ring — the colours the flat board uses", async () => {
+    const { container } = await renderBoard({
+      fighters: [enemy("VILLAIN", "e1/v", "s1"), enemy("MINION", "e1/m", "s3")],
+    });
+    const base = (space: string) => container.querySelector(`[data-fighter-base][data-space-id="${space}"]`) as HTMLElement;
+    expect(base("s1")).not.toBeNull();
+    const v = getComputedStyle(base("s1"));
+    const m = getComputedStyle(base("s3"));
+    expect(v.borderStyle).toBe("solid");
+    expect(m.borderStyle).toBe("dashed");
+    expect(v.borderColor).toBe(ENEMY_LOOK.VILLAIN.ring.toLowerCase());
+    expect(m.borderColor).toBe(ENEMY_LOOK.MINION.ring.toLowerCase());
   });
 });

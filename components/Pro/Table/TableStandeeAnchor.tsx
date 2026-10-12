@@ -122,6 +122,10 @@ export interface TableStandeeAnchorProps {
    *  Defaults to a neutral parchment tone for pieces with no owner color
    *  (board objects, some sidekick contexts). */
   baseAccent?: string;
+  /** #1406: an enemy base's ring shape (dashed minion / solid villain) and plate colour, so the
+   *  role reads without relying on hue. Absent for heroes — the base is unchanged. */
+  baseRingStyle?: "solid" | "dashed";
+  basePlate?: string;
   /** Draw the in-plane base disc (default). Off for a figure that stands
    *  BETWEEN two spaces — each of those spaces carries its own base, drawn by
    *  a separate anchor, so both stay concentric with the space under them. */
@@ -202,6 +206,8 @@ export const TableStandeeAnchor = ({
   spaceDiamPx,
   spaceId,
   baseAccent = "rgba(250, 240, 222, 0.55)",
+  baseRingStyle = "solid",
+  basePlate,
   base = true,
   ground,
   anim = null,
@@ -365,8 +371,8 @@ export const TableStandeeAnchor = ({
           // so the disc stays the rim of the model's own base (#926).
           style={{ transform: `translate(-50%, 50%)${stack?.liftPx ? ` translateZ(${stack.liftPx}px)` : ""} scale(${placement.scale})` }}
           borderRadius="50%"
-          bg="radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"
-          border={`2.5px solid ${baseAccent}`}
+          bg={basePlate ?? "radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.28) 0%, rgba(20,10,24,0.82) 65%, rgba(8,4,10,0.95) 100%)"}
+          border={`2.5px ${baseRingStyle} ${baseAccent}`}
           boxShadow={`0 0 0 1px rgba(0,0,0,0.75), 0 2px 5px rgba(0,0,0,0.7)`}
           // The base is the piece's tap target on its own space (#873) — but
           // only when the piece has something to do with a tap or hover.
