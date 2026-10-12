@@ -45,8 +45,6 @@ const props = (over: Partial<ProDockProps> = {}): ProDockProps => ({
   replayHref: null,
   undoPending: false,
   onUndo: () => {},
-  canForfeit: true,
-  onForfeit: () => {},
   mobile: "portrait",
   ...over,
 });

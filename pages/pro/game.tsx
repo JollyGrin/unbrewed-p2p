@@ -7426,8 +7426,6 @@ const LiveGame = ({
       shareLinkBusy={sharingReplay}
       undoPending={undoPending}
       onUndo={requestUndo}
-      canForfeit={canForfeit}
-      onForfeit={() => setForfeitOpen(true)}
       mobile={mobile ? (hud ? "hud" : rail ? "rail" : "portrait") : false}
       mobileHandOpen={handOpen}
       mobileSheetRef={mobileSheetRef}
@@ -7584,7 +7582,10 @@ const LiveGame = ({
           }}
         />
       ) : (
-        <ProHud {...hudProps} />
+        <ProHud
+          {...hudProps}
+          onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined}
+        />
       )}
 
       <FormatEndScreen
@@ -7621,6 +7622,19 @@ const LiveGame = ({
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
         multiplayer={multiplayerView}
+        adventure={
+          view.scenario
+            ? {
+                // What the engine does on FORFEIT in an adventure (engine
+                // turn.ts applyMultiplayerForfeit): your seat is resigned and
+                // the table plays on while another hero seat still has a
+                // living fighter; the last hero seat out ends it as a defeat.
+                othersInPlay: view.fighters.some(
+                  (f) => !f.enemy && f.owner !== view.you && !f.defeated,
+                ),
+              }
+            : undefined
+        }
         signedIn={accountStatus === "signed-in"}
         onConfirm={() => {
           setIForfeited(true);

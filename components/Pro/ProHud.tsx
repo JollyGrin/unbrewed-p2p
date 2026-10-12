@@ -17,6 +17,10 @@ import {
   ModalContent,
   ModalHeader,
   ModalOverlay,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
   Popover,
   PopoverArrow,
   PopoverBody,
@@ -51,6 +55,8 @@ import {
   TbGauge,
   TbBellRinging,
   TbBellOff,
+  TbDotsVertical,
+  TbFlag,
 } from "react-icons/tb";
 import { GiChessKnight, GiFootprint, GiHearts, GiHighTide, GiLowTide } from "@/components/Icons/gi";
 import { IoMdHand, IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
@@ -1655,6 +1661,10 @@ export interface ProHudProps {
   onToggleTurnReminder?: () => void;
   /** opens the ReportBugDialog (issue #125/#138) — chip hidden when omitted */
   onReportBug?: () => void;
+  /** #1408: Forfeit lives in the top-right Game menu, away from the dock's
+   *  action buttons — opens the page's confirmation dialog. Omit when the
+   *  engine does not offer FORFEIT to this seat (menu hidden). */
+  onForfeit?: () => void;
 }
 
 export const ProHud = ({
@@ -1689,6 +1699,7 @@ export const ProHud = ({
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
+  onForfeit,
 }: ProHudProps) => {
   const heroOf = (player: PlayerId) =>
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
@@ -2092,6 +2103,38 @@ export const ProHud = ({
               </Tag>
             </Flex>
           </Tooltip>
+        )}
+        {onForfeit && (
+          // #1408: the destructive item sits behind a menu in the far corner,
+          // then ForfeitDialog's own confirm (default = Keep playing).
+          <Menu placement="bottom-end" isLazy>
+            <Tooltip label="Game menu" hasArrow>
+              <MenuButton
+                as={Flex}
+                {...chipStyles}
+                cursor="pointer"
+                _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+                color="brand.highlight"
+                aria-label="Game menu"
+              >
+                <TbDotsVertical size="0.85rem" />
+              </MenuButton>
+            </Tooltip>
+            <Portal>
+              <MenuList bg="brand.surfaceDim" borderColor="whiteAlpha.300" minW="10rem" zIndex={170}>
+                <MenuItem
+                  bg="brand.surfaceDim"
+                  color="red.300"
+                  icon={<TbFlag />}
+                  _hover={{ bg: "whiteAlpha.200" }}
+                  _focus={{ bg: "whiteAlpha.200" }}
+                  onClick={onForfeit}
+                >
+                  Forfeit…
+                </MenuItem>
+              </MenuList>
+            </Portal>
+          </Menu>
         )}
         {/* Optional Discord account (#459). Rides the chip cluster so it can
             never sit over the board; renders nothing for guests-with-no-API,

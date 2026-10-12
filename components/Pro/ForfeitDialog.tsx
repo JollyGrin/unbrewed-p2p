@@ -39,6 +39,7 @@ export const ForfeitDialog = ({
   onClose,
   onConfirm,
   multiplayer = false,
+  adventure,
   signedIn = false,
 }: {
   isOpen: boolean;
@@ -46,6 +47,10 @@ export const ForfeitDialog = ({
   onConfirm: () => void;
   /** multiplayer (ffa/team) forfeit resigns a seat rather than ending the game */
   multiplayer?: boolean;
+  /** Set for a scenario game (`view.scenario != null`) — the heroes share one
+   *  side against the engine's enemies, so the copy says what actually follows:
+   *  `othersInPlay` is whether another hero seat still has a living fighter. */
+  adventure?: { othersInPlay: boolean };
   /** signed in, so cosmetic points are on the line and the note applies */
   signedIn?: boolean;
 }) => {
@@ -58,7 +63,11 @@ export const ForfeitDialog = ({
             Forfeit the game?
           </AlertDialogHeader>
           <AlertDialogBody>
-            {multiplayer
+            {adventure
+              ? adventure.othersInPlay
+                ? "You resign your seat and your heroes leave the board. The rest of the table plays on without you and you can keep watching. This cannot be undone."
+                : "You are the last hero in play, so forfeiting ends the adventure as a defeat for the table. This cannot be undone."
+              : multiplayer
               ? "You resign your seat and its fighters are removed. If the match continues without you, you can keep watching. This cannot be undone."
               : "Your opponent wins. This cannot be undone."}
             {signedIn && (
