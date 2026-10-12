@@ -151,29 +151,51 @@ export const HeroesInPlayCard = ({ community, window }: { community: Community; 
   );
 };
 
-const GridToggle = ({ mode, onChange }: { mode: MatchGridMode; onChange: (m: MatchGridMode) => void }) => (
-  <Box display="flex" gap="8px" flexWrap="wrap" role="group" aria-label="Match grid shows">
-    {(["games", "winRate"] as const).map((m) => (
+const PillGroup = <T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) => (
+  <Box display="flex" gap="8px" flexWrap="wrap" role="group" aria-label={label}>
+    {options.map((o) => (
       <Button
-        key={m}
-        onClick={() => onChange(m)}
-        aria-pressed={mode === m}
+        key={o.value}
+        onClick={() => onChange(o.value)}
+        aria-pressed={value === o.value}
         h="44px"
         px="18px"
         borderRadius="22px"
         border={`1px solid ${INK}`}
-        bg={mode === m ? INK : "transparent"}
-        color={mode === m ? "#FAEBD7" : INK}
-        _hover={{ bg: mode === m ? INK_DEEP : "rgba(72,40,79,0.08)" }}
-        _active={{ bg: mode === m ? INK_DEEP : "rgba(72,40,79,0.12)" }}
+        bg={value === o.value ? INK : "transparent"}
+        color={value === o.value ? "#FAEBD7" : INK}
+        _hover={{ bg: value === o.value ? INK_DEEP : "rgba(72,40,79,0.08)" }}
+        _active={{ bg: value === o.value ? INK_DEEP : "rgba(72,40,79,0.12)" }}
         fontSize="14px"
         fontWeight={700}
       >
-        {m === "games" ? "Games played" : "Win rate"}
+        {o.label}
       </Button>
     ))}
   </Box>
 );
+
+type GridScope = "top" | "all";
+
+const MODE_OPTIONS = [
+  { value: "games", label: "Games played" },
+  { value: "winRate", label: "Win rate" },
+] as const;
+
+const SCOPE_OPTIONS = [
+  { value: "top", label: `Top ${GRID_HERO_COUNT}` },
+  { value: "all", label: "All heroes" },
+] as const;
 
 const SidePanel = ({ caption, title, children }: { caption: string; title: string; children?: React.ReactNode }) => (
   <Box p="16px" borderRadius="10px" bg={WASH} display="flex" flexDirection="column" gap="4px">
@@ -189,8 +211,13 @@ const SidePanel = ({ caption, title, children }: { caption: string; title: strin
 
 export const MatchGridCard = ({ community }: { community: Community }) => {
   const [mode, setMode] = useState<MatchGridMode>("games");
+  const [scope, setScope] = useState<GridScope>("top");
   if (!community.heroes || !community.matchups) return null;
-  const heroes = topHeroes(community.heroes, GRID_HERO_COUNT);
+  const everyHero = topHeroes(community.heroes, Infinity);
+  // With no more than the cap in play, "All heroes" would be a no-op: hide the scope toggle.
+  const canExpand = everyHero.length > GRID_HERO_COUNT;
+  const showAll = canExpand && scope === "all";
+  const heroes = showAll ? everyHero : everyHero.slice(0, GRID_HERO_COUNT);
   if (heroes.length < 2) return null;
 
   const ids = heroes.map((h) => h.heroId);
@@ -210,7 +237,14 @@ export const MatchGridCard = ({ community }: { community: Community }) => {
           : "How the row hero fares against the column hero. Green favours the row, red the column."
       }
       gap="20px"
-      action={<GridToggle mode={mode} onChange={setMode} />}
+      action={
+        <Box display="flex" gap="8px 16px" flexWrap="wrap">
+          <PillGroup label="Match grid shows" options={MODE_OPTIONS} value={mode} onChange={setMode} />
+          {canExpand && (
+            <PillGroup label="Match grid heroes" options={SCOPE_OPTIONS} value={scope} onChange={setScope} />
+          )}
+        </Box>
+      }
     >
       <Box display="flex" flexDirection={{ base: "column", lg: "row" }} gap={{ base: "20px", lg: "32px" }} alignItems={{ base: "stretch", lg: "flex-start" }} minW={0}>
         <Box minW={0} maxW="100%">
@@ -219,7 +253,11 @@ export const MatchGridCard = ({ community }: { community: Community }) => {
             cols={gridHeroes}
             lookup={lookup}
             mode={mode}
-            caption={mode === "games" ? "Games between each pair of the most played heroes" : "Row hero win rate against each column hero"}
+            caption={
+              mode === "games"
+                ? `Games between each pair of ${showAll ? "all heroes" : "the most played heroes"}`
+                : "Row hero win rate against each column hero"
+            }
           />
         </Box>
         <Box flexGrow={1} display="flex" flexDirection="column" gap="16px" minW={0}>
