@@ -64,8 +64,6 @@ const props = (over: Partial<ProDockProps> = {}): ProDockProps => ({
   replayHref: null,
   undoPending: false,
   onUndo: () => {},
-  canForfeit: false,
-  onForfeit: () => {},
   ...over,
 });
 

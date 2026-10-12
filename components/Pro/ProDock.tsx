@@ -261,8 +261,6 @@ export interface ProDockProps {
   shareLinkBusy?: boolean;
   undoPending: boolean;
   onUndo: () => void;
-  canForfeit: boolean;
-  onForfeit: () => void;
   /**
    * Render one of the mobile shells instead of the floating desktop dock
    * (issue #708, direction B). Same rows, same panels, same rule that a
@@ -356,8 +354,6 @@ export const ProDock = ({
   shareLinkBusy = false,
   undoPending,
   onUndo,
-  canForfeit,
-  onForfeit,
   mobile = false,
   mobileHandOpen = false,
   mobileSheetRef,
@@ -1286,19 +1282,10 @@ export const ProDock = ({
           </Link>
         </Flex>
       )}
-      {/* Forfeit — rendered whenever the engine offers FORFEIT to this seat
-          (`canForfeit`, issue #140 + unbrewed-engine #117). No seat-count or
-          seat-id gate: duel and multiplayer alike surface it via the same
-          legal-action check, so it appears on your own clock and vanishes
-          once you're eliminated. Destructive, so it's red and confirm-gated;
-          the phase/winner gates stay as belt-and-suspenders. */}
-      {/* Phones reach Forfeit through the ⋮ game menu instead (mobile step 2):
-          next to the turn's actions it was one mistap from a lost game. */}
-      {!mobile && view.phase === "PLAY" && !view.winner && canForfeit && (
-        <Button size="sm" mt="0.4rem" colorScheme="red" variant="outline" onClick={onForfeit}>
-          Forfeit
-        </Button>
-      )}
+      {/* Forfeit is NOT here (#1408): beside the turn's actions it was one
+          misclick from ending the game. Desktop reaches it through the HUD's
+          Game menu (ProHud), phones through the ⋮ menu (ProMobileHud); both
+          open ForfeitDialog. */}
     </Flex>
   );
 
