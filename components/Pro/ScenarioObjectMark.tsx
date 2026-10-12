@@ -23,6 +23,7 @@ export interface ScenarioObjectMarkProps {
 
 const RED = "#E5484D";
 const GOLD = "#E0A82E";
+const BLUE = "#6CB4F5";
 
 export const ScenarioObjectMark = ({ state, number, noun = GENERIC_OBJECT_NOUN.singular, spaceId, stake }: ScenarioObjectMarkProps) => {
   const name = capitalize(noun);
@@ -34,7 +35,7 @@ export const ScenarioObjectMark = ({ state, number, noun = GENERIC_OBJECT_NOUN.s
   const closedStake = state === "closed" ? stake : undefined;
   const rings = [
     closedStake?.adjacent ? `0 0 0 3px ${RED}` : null,
-    closedStake?.next && !closedStake.adjacent ? `0 0 0 3px ${GOLD}` : null,
+    closedStake?.next && !closedStake.adjacent ? `0 0 0 3px ${closedStake.tie ? BLUE : GOLD}` : null,
   ].filter(Boolean);
   const release = state === "destroyed" ? stake?.release : undefined;
   return (
@@ -48,6 +49,7 @@ export const ScenarioObjectMark = ({ state, number, noun = GENERIC_OBJECT_NOUN.s
       data-scenario-object-number={label ?? undefined}
       data-scenario-object-adjacent={closedStake?.adjacent ? "" : undefined}
       data-scenario-object-next={closedStake?.next ? "" : undefined}
+      data-scenario-object-tie={closedStake?.tie ? "" : undefined}
       data-scenario-object-released={release?.name}
       title={title}
       borderRadius="50%"
@@ -59,7 +61,7 @@ export const ScenarioObjectMark = ({ state, number, noun = GENERIC_OBJECT_NOUN.s
       bg={state === "closed" ? "rgba(52, 34, 18, 0.82)" : "transparent"}
       border={state === "closed" ? "2px solid #C98B2B" : "1.5px dashed rgba(244,227,184,0.5)"}
       boxShadow={state === "closed" ? ["0 0 0 1.5px rgba(12,6,12,0.75)", ...rings].join(", ") : undefined}
-      outline={closedStake?.next ? `2px dashed ${GOLD}` : undefined}
+      outline={closedStake?.next ? `${closedStake.tie ? "3px double" : "2px dashed"} ${closedStake.tie ? BLUE : GOLD}` : undefined}
       outlineOffset={closedStake?.next ? "3px" : undefined}
       lineHeight="1"
     >

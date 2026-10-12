@@ -7,7 +7,7 @@
 import { Box } from "@chakra-ui/react";
 import { ScenarioObjectMark } from "@/components/Pro/ScenarioObjectMark";
 import type { ScenarioObjectModel } from "@/lib/pro/scenarioObjects";
-import { ADJACENT_CHIP, CHIP_LINE_PX, placeStakeChips, stakeChipText } from "@/lib/pro/scenarioObjectStakes";
+import { CHIP_LINE_PX, placeStakeChips, STAKE_CHIP_STYLE, stakeChipText, stakeChipToken, stakeChipTooltip } from "@/lib/pro/scenarioObjectStakes";
 import type { ProMapSpace } from "@/lib/pro/protocol";
 
 export const ScenarioObjectLayer = ({
@@ -78,7 +78,11 @@ export const ScenarioObjectLayer = ({
                 data-scenario-object-chip={s.id}
                 pointerEvents="none"
               >
-                {chip.blocks.map((blk, i) => (
+                {chip.blocks.map((blk, i) => {
+                  const token = stakeChipToken(blk.text);
+                  const look = STAKE_CHIP_STYLE[token];
+                  const tip = stakeChipTooltip(blk.text, scenarioObjects.pickOpen);
+                  return (
                   <Box
                     key={blk.text}
                     lineHeight={`${CHIP_LINE_PX}px`}
@@ -89,9 +93,12 @@ export const ScenarioObjectLayer = ({
                     fontWeight="bold"
                     fontFamily="SpaceGrotesk"
                     color="#FFF3E0"
-                    bg={blk.text === ADJACENT_CHIP ? "rgba(166,28,36,0.92)" : "rgba(86,62,12,0.92)"}
+                    bg={look.bg}
                     borderRadius="4px"
-                    border={`1px ${blk.text === ADJACENT_CHIP ? "solid #E5484D" : "dashed #E0A82E"}`}
+                    border={`${token === "tie" ? 3 : 1}px ${look.borderStyle} ${look.borderColor}`}
+                    title={tip}
+                    aria-label={tip}
+                    data-chip-token={token}
                     boxSizing="border-box"
                     data-chip-text={blk.text}
                     data-chip-i={i}
@@ -100,7 +107,8 @@ export const ScenarioObjectLayer = ({
                       <Box key={l}>{l}</Box>
                     ))}
                   </Box>
-                ))}
+                  );
+                })}
               </Box>
             )}
           </Box>

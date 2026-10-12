@@ -11,7 +11,9 @@ import type { PlayerView, SpaceId } from "./protocol";
 
 export const ADJACENT_CHIP = "+1 threat at round end";
 export const NEXT_CHIP = "breaks next if the track fills";
-export const TIE_CHIP = "tie — your team picks";
+export const TIE_CHIP = "tied to break next";
+/** Tooltip / aria text for the tie chip, only while the CHOOSE_SPACE pick is open. */
+export const TIE_PICK_TOOLTIP = "If the threat track fills, your team picks which of these opens.";
 
 export interface ScenarioObjectStake {
   /** The villain touches this closed object: +1 threat at round end. */
@@ -64,6 +66,24 @@ export const stakeChipText = (s: ScenarioObjectStake): string[] => [
   ...(s.adjacent ? [ADJACENT_CHIP] : []),
   ...(s.next ? [s.tie ? TIE_CHIP : NEXT_CHIP] : []),
 ];
+
+export type StakeChipToken = "adjacent" | "next" | "tie";
+
+/** Style token for a chip text; the three never share one (a tie must not read as a contact). */
+export const stakeChipToken = (text: string): StakeChipToken =>
+  text === ADJACENT_CHIP ? "adjacent" : text === TIE_CHIP ? "tie" : "next";
+
+/** Chip look per token. Shape/border carries the meaning too (colour-blind safe): solid = contact,
+ *  dashed = next, double = tie. */
+export const STAKE_CHIP_STYLE: Readonly<Record<StakeChipToken, { bg: string; borderStyle: string; borderColor: string }>> = {
+  adjacent: { bg: "rgba(166,28,36,0.92)", borderStyle: "solid", borderColor: "#E5484D" },
+  next: { bg: "rgba(86,62,12,0.92)", borderStyle: "dashed", borderColor: "#E0A82E" },
+  tie: { bg: "rgba(24,52,92,0.94)", borderStyle: "double", borderColor: "#6CB4F5" },
+};
+
+/** Hover/aria text for a chip: the "your team picks" wording only while the pick is open. */
+export const stakeChipTooltip = (text: string, pickOpen: boolean): string =>
+  text === TIE_CHIP && pickOpen ? TIE_PICK_TOOLTIP : text;
 
 // ---- chip placement -------------------------------------------------------------------------
 

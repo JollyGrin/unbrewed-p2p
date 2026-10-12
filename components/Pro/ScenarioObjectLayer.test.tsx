@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ScenarioObjectLayer } from "@/components/Pro/ScenarioObjectLayer";
 import { scenarioObjectModel } from "@/lib/pro/scenarioObjects";
-import { ADJACENT_CHIP, NEXT_CHIP } from "@/lib/pro/scenarioObjectStakes";
+import { ADJACENT_CHIP, NEXT_CHIP, TIE_CHIP, TIE_PICK_TOOLTIP } from "@/lib/pro/scenarioObjectStakes";
 import type { ProMapDef } from "@/lib/pro/protocol";
 import { theme } from "@/styles/style";
 
@@ -20,11 +20,11 @@ const map = {
 } as unknown as ProMapDef;
 const sc = (over: object) => ({ threat: { position: 0, level: 0, overflows: 0, positions: [] }, objectives: [], ...over }) as never;
 
-const mount = (scenario?: never) =>
+const mount = (scenario?: never, pickOpen = false, blocked = ["a", "b"]) =>
   render(
     <ChakraProvider theme={theme}>
       <ScenarioObjectLayer
-        scenarioObjects={scenarioObjectModel(map, ["a", "b"], scenario, [{ id: "f", name: "Carnotaurus" }])!}
+        scenarioObjects={{ ...scenarioObjectModel(map, blocked, scenario, [{ id: "f", name: "Carnotaurus" }], pickOpen)! }}
         spaces={map.spaces}
         diam={0.05}
         framePx={1000}
@@ -54,5 +54,20 @@ describe("ScenarioObjectLayer stakes", () => {
     expect(container.querySelector("[data-scenario-object-chip=b]")).toHaveTextContent(NEXT_CHIP);
     expect(container.querySelector("[data-scenario-object=c]")).toHaveAttribute("data-scenario-object-released", "Carnotaurus");
     expect(screen.getByTitle(/released Carnotaurus/)).toBeInTheDocument();
+  });
+
+  it("tie chip: distinct token from adjacent, team-picks tooltip only while the pick is open", () => {
+    const sce = sc({ contacts: { adjacent: ["a"], nextToOpen: ["b", "c"] } });
+    const closed = mount(sce, false, ["a", "b", "c"]);
+    const tie = closed.container.querySelector("[data-scenario-object-chip=b] [data-chip-text]")!;
+    const adj = closed.container.querySelector("[data-scenario-object-chip=a] [data-chip-text]")!;
+    expect(tie).toHaveTextContent(TIE_CHIP);
+    expect(tie.getAttribute("data-chip-token")).toBe("tie");
+    expect(adj.getAttribute("data-chip-token")).toBe("adjacent");
+    expect(tie.textContent).not.toBe(adj.textContent);
+    expect(tie.getAttribute("title")).toBe(TIE_CHIP);
+    closed.unmount();
+    const open = mount(sce, true, ["a", "b", "c"]);
+    expect(open.container.querySelector("[data-scenario-object-chip=b] [data-chip-text]")!.getAttribute("aria-label")).toBe(TIE_PICK_TOOLTIP);
   });
 });
