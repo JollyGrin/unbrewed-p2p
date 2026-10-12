@@ -176,6 +176,13 @@
  * client whether that viewer has an eligible last discrete move to undo right now —
  * the frontend gates its Undo button entirely on this flag.
  *
+ * ADVENTURE (engine #864): at an engine-seat table `UNDO_REQUEST` is applied IMMEDIATELY — no
+ * UNDO_REQUESTED, no UNDO_RESPONSE, no teammate/enemy consent. The rewind is the same
+ * truncate-and-replay; the STATE broadcast carries `undid` (the requester). Eligible only while
+ * nothing else has acted since the requester's move, the board is settled (no prompt / combat),
+ * and the move revealed no hidden information and spent no randomness (otherwise
+ * ERROR{UNDO_UNAVAILABLE} and `canUndo: false`). Duel behaviour is unchanged.
+ *
  * ## v12 (2026-07-08): Buster Keaton STUNT event variants
  * The v0.13.0 DSL batch adds three additive GameEvent variants emitted by Buster
  * Keaton primitives: `CARD_PLAYED_FROM_HAND` (nested STUNT play),
@@ -2701,6 +2708,12 @@ export type ServerMsg =
        * that ignores this field is unaffected.
        */
       events?: GameEvent[];
+      /**
+       * v39 RIDES (engine #864, additive, no bump): present ONLY on the STATE broadcast that
+       * follows an adventure self-undo — the seat whose move was just rewound. Clients log
+       * "<name> undid their move". Absent on every other STATE.
+       */
+      undid?: PlayerId;
     }
   // Sent to BOTH seats once the game reaches GAME_OVER (v7). Unredacted +
   // self-contained; the client saves it for the /pro/replays scrubber.

@@ -99,6 +99,23 @@ export function actionFallbackLine(
   };
 }
 
+/**
+ * The line for a STATE that carries `undid` (an adventure self-undo, engine
+ * #864): names the seat whose last move was just rewound. Absent → undefined.
+ */
+export function undidLine(
+  undid: PlayerId | undefined,
+  you: PlayerId,
+  seat: (player: PlayerId) => string
+): ProLogLine | undefined {
+  if (!undid) return undefined;
+  const mine = undid === you;
+  return {
+    text: `${seat(undid)} undid ${mine ? "your" : "their"} last move`,
+    who: mine ? "you" : "opp",
+  };
+}
+
 /** A log line as stored in the page (feed + CSV/bug-report export). */
 export interface ProLogEntry extends ProLogLine {
   key: string;

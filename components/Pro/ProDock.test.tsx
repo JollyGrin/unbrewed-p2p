@@ -5,7 +5,7 @@
  * fact that a collapsed dock still shows the key-info band.
  */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ProDock, ProDockProps } from "./ProDock";
 import { Action, PlayerView } from "@/lib/pro/protocol";
 import { DockRow } from "@/lib/pro/actionDock";
@@ -388,6 +388,20 @@ describe("ProDock Undo (#1407)", () => {
     unmount();
     render(<ProDock {...props({ iAmSpectating: true })} />);
     expect(screen.queryByTestId("pro-undo")).not.toBeInTheDocument();
+  });
+
+  it("is offered in a 4-seat adventure room: enabled, sends the undo, no consent or waiting UI", () => {
+    const onUndo = jest.fn();
+    const four = view({
+      canUndo: true,
+      scenario: { id: "synthetic-pack", display: { title: "Synthetic Pack" } },
+      players: [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }],
+    } as unknown as Partial<PlayerView>);
+    render(<ProDock {...props({ view: four, onUndo })} />);
+    expect(undoState()).toBe("enabled");
+    expect(within(screen.getByTestId("pro-undo")).queryByText(/waiting|requested/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /undo move/i }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
   });
 
   it("renders from a minimal synthetic pack that is not Isla Nublar (no villain, minions or threat track)", () => {
