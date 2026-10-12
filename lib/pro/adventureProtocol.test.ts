@@ -27,7 +27,7 @@ describe("adventure protocol additions", () => {
   });
 
   it("ViewFighter.enemy is optional (absent on every player fighter)", () => {
-    const enemy: NonNullable<ViewFighter["enemy"]> = { role: "VILLAIN", move: 3, deckCount: 4, discardTop: null };
+    const enemy: NonNullable<ViewFighter["enemy"]> = { role: "VILLAIN", move: 3, deckCount: 4, discardTop: null, discard: [] };
     expect(enemy.role).toBe("VILLAIN");
   });
 

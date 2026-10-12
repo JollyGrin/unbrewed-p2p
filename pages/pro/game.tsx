@@ -212,6 +212,7 @@ import {
   useLobbyFormats,
   useFormatStageName,
 } from "@/components/Pro/FormatLobby";
+import { promptSubjectId, promptSubjectLine } from "@/lib/pro/promptSubject";
 import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
 import { FormatEndScreen, hasFormatEndScreen } from "@/components/Pro/FormatEndScreen";
 import { EngineFaultBanner } from "@/components/Pro/EngineFaultBanner";
@@ -374,6 +375,7 @@ const PromptPanel = ({
   previewInstance,
   sourceInstance,
   sourceLabel,
+  subjectLine,
   resolveCard,
   catalog,
 }: {
@@ -414,6 +416,9 @@ const PromptPanel = ({
   sourceInstance: CardInstanceId | null;
   /** Attribution line ("Effect of <card>" / "<hero>'s ability"), or null. */
   sourceLabel: string | null;
+  /** #1409: "<actor> — <step line> …" naming who acts and which fighter it is about, from
+   *  `prompt.subject`. null (today's line, untouched) when the prompt has no subject. */
+  subjectLine: string | null;
   resolveCard: ResolveCard;
   catalog: Record<string, CardMeta>;
 }) => (
@@ -428,10 +433,10 @@ const PromptPanel = ({
         Both shown to chooser and spectator alike. Issue #412: for a CHOOSE_SPACE
         move prompt `budgetLine` (the "Move up to N spaces" budget, or a move-shaped
         fallback) takes the primary line so the step budget is always stated. */}
-    {(budgetLine ?? prompt.description) ? (
+    {(subjectLine ?? budgetLine ?? prompt.description) ? (
       <>
         <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
-          {budgetLine ?? prompt.description}
+          {subjectLine ?? budgetLine ?? prompt.description}
         </Text>
         {sourceLabel && (
           <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
@@ -6574,6 +6579,7 @@ const LiveGame = ({
   // names WHAT opened this prompt and is sent to BOTH players — a resolving card
   // (`{ card }`, face public to both) or a hero ability (`{ hero }`). We show the
   // asking card + an "Effect of …" line to chooser AND spectator alike.
+  const promptSubject = prompt ? promptSubjectId(view) : null;
   const promptSource = prompt?.source ?? null;
   const sourceCardInstance =
     promptSource && "card" in promptSource ? promptSource.card : null;
@@ -7239,8 +7245,14 @@ const LiveGame = ({
     relocateSpaces,
     relocateArmed: relocateMode.armedTarget != null,
     highlightedFighters: [...new Set(highlightedFighters)],
-    focusFighters: mobile && !rail && sheetCombat && !combatSummary ? [sheetCombat.attacker, sheetCombat.target] : undefined,
-    selectedFighter,
+    focusFighters:
+      mobile && !rail && sheetCombat && !combatSummary
+        ? [sheetCombat.attacker, sheetCombat.target]
+        : promptSubject
+          ? [promptSubject]
+          : undefined,
+    // #1409: while a prompt names its subject, ring that fighter (flat and tabletop share the ring).
+    selectedFighter: selectedFighter ?? promptSubject,
     attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : formatArrow,
     defenderStepIn: boardDefenderStepIn,
     friendlyOwners,
@@ -7392,6 +7404,7 @@ const LiveGame = ({
             previewInstance={promptCardInstance}
             sourceInstance={sourceCardInstance}
             sourceLabel={sourceLabel}
+            subjectLine={promptSubjectLine(view, promptBudgetLine ?? prompt.description ?? null)}
             resolveCard={resolveCard}
             catalog={view.catalog}
           />

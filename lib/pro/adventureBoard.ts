@@ -4,6 +4,7 @@
  * fixture-testable without an engine. Enemy hands never reach the client; we only
  * ever read `enemy.deckCount` (a count) and `initiative.deckCount`.
  */
+import { promptSubjectFighter, promptSubjectText } from "./promptSubject";
 import type {
   FighterId,
   PlayerView,
@@ -487,12 +488,14 @@ export const teamDecisionModel = (
       ? (view.catalog?.[playing.split("#")[0]]?.title ?? playing)
       : null,
     chooser: youChoose ? "You" : seatName(p.player),
-    forName: p.forSeat ? seatName(p.forSeat) : null,
+    forName: promptSubjectFighter(view)?.name ?? (p.forSeat ? seatName(p.forSeat) : null),
     youChoose,
     // The engine's placement prompt does not say WHO is placed ("Choose a space to place the
     // fighter"): name them client-side from the seat the decision is for.
     description:
-      p.description && p.forSeat && p.kind === "CHOOSE_SPACE"
+      p.subject && p.description && promptSubjectFighter(view)
+        ? promptSubjectText(view, p.description)
+        : p.description && p.forSeat && p.kind === "CHOOSE_SPACE"
         ? p.description.replace(/\bplace the fighter\b/i, `place ${seatName(p.forSeat)}`)
         : (p.description ?? null),
     options: youChoose ? [] : readableOptions(),

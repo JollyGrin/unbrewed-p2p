@@ -1155,6 +1155,12 @@
  * The server keeps accepting v34–v38 (`ACCEPTED_PROTOCOL_VERSIONS` = {34, 35, 36, 37, 38, 39}: 37 is
  * what the p2p client binds today); every accepted version receives the same frames and ignores the
  * keys it does not know.
+ *
+ * RIDES v39 (engine #862, additive, no bump — both keys optional; every pre-existing view is byte-
+ * identical): `ViewFighter.enemy.discard: string[]` (the enemy fighter's whole face-up discard, newest
+ * first; adventure-only, since only enemy figures carry `enemy`) and `ViewPrompt.subject?: string`
+ * (the fighter a move / place prompt is about, or the enemy whose decision a TEAM prompt is; absent
+ * otherwise). No version bump: a client that ignores either key behaves exactly as before.
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 39`; this
@@ -1667,6 +1673,10 @@ export interface ViewPrompt {
    *  ordinary prompt. Additive: PROTOCOL_VERSION unchanged. */
   onBehalfOf?: "TEAM";
   forSeat?: PlayerId;
+  /** #862 (additive, optional) — the fighter id this prompt is ABOUT: the fighter being moved /
+   *  placed, or (on a TEAM prompt) the enemy whose decision the players are making. Absent when
+   *  the prompt has no fighter subject. Does not duplicate `source` / `description` / `forSeat`. */
+  subject?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1815,12 +1825,15 @@ export interface ViewFighter {
   // "HERO" | "SIDEKICK": the rules kind lives in the engine (engine/fighterKind.ts).
   // Public to every viewer: `deckCount` is a count only; `discardTop` is the card instance
   // id ('<cardDefId>#<n>') on top of the enemy's face-up discard, or null when it is empty.
+  // `discard` (#862, additive, adventure only): the enemy's WHOLE face-up discard, NEWEST FIRST
+  // (`discard[0] === discardTop`), card instance ids resolvable like `discardTop`. Per enemy fighter
+  // (decks are per fighter). Public; never deck, hand or in-play cards. Bounded by the enemy's deck size.
   // `enemyId` (#664, additive): the `EnemyListing.id` this figure is — label + art key.
   // `released` (v36, #735): true on an enemy the scenario released mid-game; absent otherwise.
   // `inPlay` (#748, rides v38): the card instance id(s) the enemy is PLAYING outside a combat
   // (Gallimimus' forced card play) while that card's effect resolves — e.g. behind a parked TEAM
   // prompt; already public (CARD_REVEALED named it). Absent when it is playing nothing.
-  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; released?: true; inPlay?: string[] };
+  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; discard: string[]; released?: true; inPlay?: string[] };
   defeated: boolean;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
