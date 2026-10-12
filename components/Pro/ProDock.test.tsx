@@ -366,7 +366,7 @@ describe("ProDock Undo (#1407)", () => {
   it("is always on screen in a live game: disabled with a reason when nothing can be undone", () => {
     render(<ProDock {...props()} />);
     expect(undoState()).toBe("disabled");
-    expect(screen.getByTestId("pro-undo-reason")).toHaveTextContent("Nothing to undo yet");
+    expect(screen.getByTestId("pro-undo-reason")).toHaveTextContent("Undo isn’t available right now");
     expect(screen.getByRole("button", { name: /undo move/i })).toBeDisabled();
   });
 

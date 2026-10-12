@@ -22,7 +22,7 @@ export const UndoButton = ({
 }) => {
   const disabled = pending || !canUndo;
   const state = pending ? "pending" : canUndo ? "enabled" : "disabled";
-  const reason = "Nothing to undo yet";
+  const reason = "Undo isn’t available right now";
   return (
     <Box data-testid="pro-undo" data-undo-state={state} flexShrink={0}>
       <Button
