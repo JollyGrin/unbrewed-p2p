@@ -1667,6 +1667,10 @@ export interface ViewPrompt {
    *  ordinary prompt. Additive: PROTOCOL_VERSION unchanged. */
   onBehalfOf?: "TEAM";
   forSeat?: PlayerId;
+  /** engine #863 — the fighter this prompt is about: the moved fighter (MOVE / MOVE_MULTI
+   *  destination), the placed fighter (PLACE head + tail), or the deciding enemy (TEAM). Absent
+   *  otherwise. Additive. */
+  subject?: FighterId;
 }
 
 // ---------------------------------------------------------------------------
