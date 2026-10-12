@@ -251,7 +251,7 @@ describe("TableBoard — relocations start from the slot the piece left (#895)",
 
 describe("TableBoard — enemy bases wear the shared enemy look (#1406)", () => {
   const enemy = (role: "VILLAIN" | "MINION", id: string, space: string) =>
-    fighter({ id, owner: "p4", name: id, space, enemy: { role, move: 1, deckCount: 0, discardTop: null } });
+    fighter({ id, owner: "p4", name: id, space, enemy: { role, move: 1, deckCount: 0, discardTop: null, discard: [] } });
 
   it("villain: solid ivory ring; minion: dashed salmon ring — the colours the flat board uses", async () => {
     const { container } = await renderBoard({
