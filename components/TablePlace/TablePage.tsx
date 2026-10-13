@@ -28,6 +28,7 @@ import {
   type LobbyCreated,
   type TablePlaceError,
 } from "@/lib/tableplace/api";
+import { useProDecks } from "@/lib/proDecks";
 import { plainSkipped, previewOf } from "@/lib/tableplace/preview";
 import { DeckGallery } from "./DeckGallery";
 import { DeckPreviewCard } from "./DeckPreviewCard";
@@ -75,6 +76,17 @@ export const TablePage = () => {
     () => decks?.map((deck) => ({ deck, preview: previewOf(deck) })),
     [decks],
   );
+  // The Pro roster (#1421): only decks that ship finished card images, with
+  // `previewOf` as the final gate (a refused deck never appears), and a bag
+  // deck with the same id wins.
+  const proRoster = useProDecks();
+  const proEntries = useMemo(() => {
+    const bagIds = new Set(decks?.map((deck) => deck.id));
+    return proRoster
+      ?.filter((deck) => !bagIds.has(deck.id))
+      .map((deck) => ({ deck, preview: previewOf(deck) }))
+      .filter((entry) => !entry.preview.refused);
+  }, [proRoster, decks]);
   const yours = starredDeck && previewOf(starredDeck);
   const theirs = opponent.deck && previewOf(opponent.deck);
 
@@ -121,7 +133,10 @@ export const TablePage = () => {
     advance(!opponent.deck ? "them" : !map ? "map" : "you");
   };
   const pickTheirs = (id: string) => {
-    opponent.pickBag(id, decks ?? []);
+    opponent.pickBag(id, [
+      ...(decks ?? []),
+      ...(proEntries?.map((entry) => entry.deck) ?? []),
+    ]);
     advance(!map ? "map" : "them");
   };
 
@@ -599,6 +614,7 @@ export const TablePage = () => {
                 seat={tab}
                 // an empty list while the account half loads isn't an empty bag
                 entries={isLoading && !entries?.length ? undefined : entries}
+                proEntries={proEntries}
                 yourId={starredDeck?.id}
                 theirId={opponent.deck?.id}
                 onPick={tab === "you" ? pickYours : pickTheirs}
