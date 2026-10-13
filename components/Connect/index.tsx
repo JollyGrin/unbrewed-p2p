@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { useProDecks } from "@/lib/proDecks";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
 import { SiteNav } from "@/components/SiteNav";
@@ -54,6 +55,7 @@ export const ConnectPage = () => {
     useLoadRouterDeck();
 
   const { starredDeck, decks, setStar, isLoading: bagLoading } = useBagDecks();
+  const proDecks = useProDecks();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
 
   // Map chosen before the lobby exists. Local state only — it rides on the
@@ -200,6 +202,7 @@ export const ConnectPage = () => {
             error={deckImportFailed}
             starredDeck={starredDeck}
             decks={decks}
+            proDecks={proDecks}
             setStar={setStar}
           />
         </VStack>

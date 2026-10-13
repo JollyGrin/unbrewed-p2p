@@ -171,3 +171,39 @@ describe("DeckGallery — what can go on a table (issue #1118)", () => {
     expect(tile(deck.id).textContent).toContain(deck.name.substring(0, 2));
   });
 });
+
+describe("DeckGallery — the Pro section (issue #1421)", () => {
+  const entry = (deck: DeckImportType) => ({
+    deck,
+    preview: previewDeck(deck, fakeFaces),
+  });
+
+  it("shows the Pro decks under an empty bag, for either seat, and picks them", () => {
+    const onPick = jest.fn();
+    render(
+      <DeckGallery
+        seat="you"
+        entries={[]}
+        proEntries={[entry(oak), entry(larry)]}
+        onPick={onPick}
+      />,
+    );
+    expect(screen.getByTestId("bag-empty")).toBeTruthy();
+    const pro = screen.getByTestId("decks-pro");
+    expect(pro.querySelector("h2")?.textContent).toBe("Pro decks");
+    expect(
+      within(pro)
+        .getAllByTestId("deck-tile")
+        .map((t) => t.dataset.deck),
+    ).toEqual([oak.id, larry.id]);
+    fireEvent.click(tile(larry.id));
+    expect(onPick).toHaveBeenCalledWith(larry.id);
+  });
+
+  it("has no Pro section when none are offered", () => {
+    render(
+      <DeckGallery seat="them" entries={[]} proEntries={[]} onPick={jest.fn()} />,
+    );
+    expect(screen.queryByTestId("decks-pro")).toBeNull();
+  });
+});

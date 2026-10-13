@@ -25,6 +25,13 @@ import { toast } from "react-hot-toast";
 import { __resetBagStoresForTests, setStar } from "./bagStore";
 import { useBagDecks, useBagMaps } from "./useBag";
 
+// The Pro snapshots, served as `fetchDeckById` would (axios GET of the file).
+const mockProFetch = jest.fn();
+jest.mock("axios", () => ({
+  __esModule: true,
+  default: { get: (...a: unknown[]) => mockProFetch(...a) },
+}));
+
 const toastPlain = jest.fn();
 jest.mock("react-hot-toast", () => {
   const toast: any = (...args: unknown[]) => toastPlain(...args);
@@ -478,5 +485,36 @@ describe("a blocked-author deck (#790)", () => {
 
     expect(toast.error).not.toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toHaveLength(1);
+  });
+});
+
+describe("a starred Pro deck that is not in the bag (#1421)", () => {
+  const proId = "kdKM";
+
+  it("resolves from the snapshot without ever writing the bag", async () => {
+    install(() => reply(401, { user: null }));
+    mockProFetch.mockResolvedValue({ data: deck(proId, "King Kong") });
+    setStar(proId);
+
+    const { result } = renderHook(() => useBagDecks());
+
+    await waitFor(() => expect(result.current.starredDeck?.id).toBe(proId));
+    expect(mockProFetch).toHaveBeenCalledWith(`/evergreen-decks/${proId}.json`);
+    expect(result.current.decks).toEqual([]);
+    expect(localStorage.getItem(LS_KEY.DECKS)).toBeNull();
+    // game start reads it outside React, from the same fetch
+    expect(readStarredDeck()?.id).toBe(proId);
+  });
+
+  it("lets the bag's own copy win a duplicate id, with no fetch", async () => {
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify([deck(proId, "My Kong")]));
+    install(() => reply(401, { user: null }));
+    mockProFetch.mockClear();
+    setStar(proId);
+
+    const { result } = renderHook(() => useBagDecks());
+
+    await waitFor(() => expect(result.current.starredDeck?.name).toBe("My Kong"));
+    expect(mockProFetch).not.toHaveBeenCalled();
   });
 });
