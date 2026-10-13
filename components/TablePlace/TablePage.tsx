@@ -28,8 +28,10 @@ import {
   type LobbyCreated,
   type TablePlaceError,
 } from "@/lib/tableplace/api";
+import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useProDecks } from "@/lib/proDecks";
-import { plainSkipped, previewOf } from "@/lib/tableplace/preview";
+import { useProFaces } from "@/lib/proFaces";
+import { plainSkipped, previewDeck, previewOf } from "@/lib/tableplace/preview";
 import { DeckGallery } from "./DeckGallery";
 import { DeckPreviewCard } from "./DeckPreviewCard";
 import { focusRing, SHORT_SCREEN, type TableTab } from "./galleryParts";
@@ -76,31 +78,53 @@ export const TablePage = () => {
     () => decks?.map((deck) => ({ deck, preview: previewOf(deck) })),
     [decks],
   );
-  // The Pro roster (#1421): only decks that ship finished card images, with
-  // `previewOf` as the final gate (a refused deck never appears), and a bag
-  // deck with the same id wins.
+  // The Pro roster (#1421): the snapshots' action cards carry finished images
+  // but not the hero/sidekick, whose faces sit beside the art (`useProFaces`).
+  // Only decks that then preview as ready are listed (`previewDeck` is the
+  // final gate), and a bag deck with the same id wins.
   const proRoster = useProDecks();
+  const proFaces = useProFaces(proRoster);
+  const previewFor = (deck: DeckImportType | undefined) => {
+    const faces = deck && proFaces?.get(deck);
+    return deck && (faces ? previewDeck(deck, faces) : previewOf(deck));
+  };
+  // Previews are the costly part and don't depend on the bag: keep them per roster.
+  const proReady = useMemo(
+    () =>
+      proRoster
+        ?.map((deck) => {
+          const faces = proFaces?.get(deck);
+          return {
+            deck,
+            preview: faces ? previewDeck(deck, faces) : previewOf(deck),
+          };
+        })
+        .filter((entry) => !entry.preview.refused),
+    [proRoster, proFaces],
+  );
   const proEntries = useMemo(() => {
     const bagIds = new Set(decks?.map((deck) => deck.id));
-    return proRoster
-      ?.filter((deck) => !bagIds.has(deck.id))
-      .map((deck) => ({ deck, preview: previewOf(deck) }))
-      .filter((entry) => !entry.preview.refused);
-  }, [proRoster, decks]);
-  const yours = starredDeck && previewOf(starredDeck);
-  const theirs = opponent.deck && previewOf(opponent.deck);
+    return proReady?.filter((entry) => !bagIds.has(entry.deck.id));
+  }, [proReady, decks]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const yours = useMemo(() => previewFor(starredDeck), [starredDeck, proFaces]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const theirs = useMemo(() => previewFor(opponent.deck), [opponent.deck, proFaces]);
 
   const composed = useMemo(() => {
     if (!starredDeck || !opponent.deck || !map || !mapSize.size) return;
     if (yours?.refused || theirs?.refused) return;
     return composeTable({
       seats: [starredDeck, opponent.deck],
-      faces: [() => null, () => null],
+      faces: [
+        proFaces?.get(starredDeck) ?? (() => null),
+        proFaces?.get(opponent.deck) ?? (() => null),
+      ],
       map: { imageUrl: map.imgUrl, ...mapSize.size },
       ...(map.layout ? { mapDef: map.layout } : {}),
       ttlSeconds: LOBBY_TTL_SECONDS,
     });
-  }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs]);
+  }, [starredDeck, opponent.deck, map, mapSize.size, yours, theirs, proFaces]);
   // What the layout left off, beyond each deck's own list
   const layoutSkipped = (composed?.skipped ?? [])
     .filter((s) => !/no finished face$/.test(s))

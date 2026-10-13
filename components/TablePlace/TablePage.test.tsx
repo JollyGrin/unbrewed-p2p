@@ -86,6 +86,9 @@ const mockPro: { decks: DeckImportType[] | undefined } = { decks: [] };
 jest.mock("../../lib/proDecks", () => ({
   useProDecks: () => mockPro.decks,
 }));
+jest.mock("../../lib/proFaces", () => ({
+  useProFaces: () => undefined,
+}));
 const mockSize = { width: 1000, height: 800 };
 const mockImageSize = { fresh: false, failed: false };
 jest.mock("./useImageSize", () => ({
