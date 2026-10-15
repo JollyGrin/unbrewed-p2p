@@ -411,28 +411,38 @@ func (r *Room) emitLeft(c *PlayerConn) {
 	}
 }
 
-// heroName pulls pool.hero.name out of an otherwise opaque player blob.
-func (r *Room) heroName(blob json.RawMessage) string {
+// heroSeen is what hero_seen reports about one player blob.
+type heroSeen struct {
+	name, deckSource, deckURL string
+}
+
+// heroOf pulls pool.hero.name, and the deck's source and page when the client
+// stamped them (pool.deckSource / pool.deckUrl), out of an otherwise opaque
+// player blob.
+func (r *Room) heroOf(blob json.RawMessage) heroSeen {
 	if !r.telemetry.Enabled() {
-		return ""
+		return heroSeen{}
 	}
 	var state struct {
 		Pool struct {
 			Hero struct {
 				Name string `json:"name"`
 			} `json:"hero"`
+			DeckSource string `json:"deckSource"`
+			DeckURL    string `json:"deckUrl"`
 		} `json:"pool"`
 	}
 	if json.Unmarshal(blob, &state) != nil {
-		return ""
+		return heroSeen{}
 	}
-	return telemetry.TruncateHeroName(state.Pool.Hero.Name)
+	p := state.Pool
+	return heroSeen{name: telemetry.TruncateHeroName(p.Hero.Name), deckSource: p.DeckSource, deckURL: p.DeckURL}
 }
 
 // noteHero emits hero_seen once per (player, hero), for at most
 // MaxHeroesPerPlayer heroes. Caller holds r.mutex.
-func (r *Room) noteHero(c *PlayerConn, hero string) {
-	if hero == "" || !r.telemetry.Enabled() {
+func (r *Room) noteHero(c *PlayerConn, h heroSeen) {
+	if h.name == "" || !r.telemetry.Enabled() {
 		return
 	}
 	seen := r.heroesSeen[c.hash]
@@ -440,11 +450,11 @@ func (r *Room) noteHero(c *PlayerConn, hero string) {
 		seen = make(map[string]struct{})
 		r.heroesSeen[c.hash] = seen
 	}
-	if _, ok := seen[hero]; ok || len(seen) >= telemetry.MaxHeroesPerPlayer {
+	if _, ok := seen[h.name]; ok || len(seen) >= telemetry.MaxHeroesPerPlayer {
 		return
 	}
-	seen[hero] = struct{}{}
-	r.telemetry.Emit(telemetry.HeroSeen(r.telemetryID, c.hash, hero))
+	seen[h.name] = struct{}{}
+	r.telemetry.Emit(telemetry.HeroSeen(r.telemetryID, c.hash, h.name, h.deckSource, h.deckURL))
 }
 
 func (r *Room) Close() {
@@ -580,7 +590,7 @@ func (r *Room) HandleMessage(c *PlayerConn, mt int, msg []byte) {
 
 	case MsgTypePlayerState:
 		// Update player state
-		hero := r.heroName(gm.Content) // decoded outside the lock
+		hero := r.heroOf(gm.Content) // decoded outside the lock
 		r.mutex.Lock()
 		r.stateUpdates++
 		r.noteHero(c, hero)
