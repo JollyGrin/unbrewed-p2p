@@ -1016,16 +1016,13 @@ describe("Leon S. Kennedy (NQ5XP) deck data", () => {
     expect(rule[0].content).toContain("8 cost: Rocket Launcher");
   });
 
-  it("ships all 15 faces as the author's LOCAL final illustrations, imageUrl only", () => {
+  it("ships all 15 faces as finished full-card renders (cardImage), mirrored locally", () => {
     // Final art (issue #808): the author's own illustrations from their
     // the-unmatched.club deck, mirrored into public/evergreen-decks/art/NQ5XP
-    // per the #446 self-hosting rule. They are illustrations the club template
-    // draws INSIDE the card frame, not finished full-card renders, so they wire
-    // as imageUrl ONLY — cardImage stays unset so the template keeps rendering
-    // title/value/text around the picture (the Jason DOPE deck is the inverse
-    // shape). Riot Gun, template-only under the #784 interim mirror, has a face.
+    // per the #446 self-hosting rule. Re-arted in #1426 with the finished
+    // full-card renders, so every face is full-bleed (cardImage === imageUrl).
     for (const card of cards) {
-      expect(card.cardImage).toBeUndefined();
+      expect(card.cardImage?.url).toBe(card.imageUrl);
       expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/NQ5XP\/[a-z0-9-]+\.webp$/);
       expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
     }
