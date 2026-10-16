@@ -1081,6 +1081,20 @@ describe("enrichLines", () => {
       ).toBe("hero is marked — Meridian");
     });
 
+    it("FIGHTER_MARKED — UNCHAINED narrates under its printed-friendly label, not the raw key", () => {
+      expect(
+        line({
+          type: "FIGHTER_MARKED",
+          fighter: "p2/hero",
+          name: "UNCHAINED",
+          count: 1,
+          total: 1,
+          expiresAtTurn: 4,
+          expiresAt: "END",
+        }).text
+      ).toBe("hero is marked — Unchained until end of turn");
+    });
+
     it("FIGHTER_MARKED — shows the resulting stack count and a turn-scoped expiry", () => {
       expect(
         line({
