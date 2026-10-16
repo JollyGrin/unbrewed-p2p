@@ -53,6 +53,7 @@ export const PUBLIC_ROSTER: readonly RosterHero[] = [
   { heroId: "r2-d2", name: "R2-D2" },
   { heroId: "skull-kid", name: "Skull Kid" },
   { heroId: "specter-knight", name: "Specter Knight" },
+  { heroId: "superman", name: "Superman" },
   { heroId: "the-mandalorian", name: "The Mandalorian" },
   { heroId: "the-narrator", name: "The Narrator" },
   { heroId: "thetis-spice", name: "Thetis" },

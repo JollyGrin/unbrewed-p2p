@@ -333,6 +333,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // the roster once both trains land). Faces are cropped from the author's composed card sheet,
   // self-hosted under public/evergreen-decks/art/frankenstein.
   frankenstein: "xd9Qk",
+  // Superman (SnarkKnight, lab, rights-gated, no art): issue #1430 ↔ engine E1 #870 / E1b #872 /
+  // E2 #874 (PRs #871/#873/#875, feature/superman). Template faces; blanked imageUrl/cardbackUrl.
+  superman: "5zMj",
 };
 
 /**
