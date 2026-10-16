@@ -38,6 +38,16 @@ describe("FIGHTER_STATUS_BADGES registry", () => {
   });
 });
 
+describe("MARKED / UNCHAINED (Superman 5zMj)", () => {
+  it("has a known marker badge, so it never falls to the raw generic one", () => {
+    expect(FIGHTER_MARKER_BADGES.UNCHAINED.label).toBe("Unchained");
+    const [b] = fighterStatusBadgesFor(
+      fighter({ owner: "p2", statuses: [{ kind: "MARKED", name: "UNCHAINED", count: 1 }] })
+    );
+    expect(b).toMatchObject({ key: "MARKED:UNCHAINED", label: "Unchained", icon: "⛓" });
+  });
+});
+
 describe("MARKED / MERIDIAN (issue #596 ↔ engine #360, protocol v29)", () => {
   it("keys the mark by NAME, not kind — 'MARKED' says only 'a durable marker'", () => {
     // The engine emits { kind: 'MARKED', name: 'MERIDIAN', count } (verified against
