@@ -333,8 +333,14 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // the roster once both trains land). Faces are cropped from the author's composed card sheet,
   // self-hosted under public/evergreen-decks/art/frankenstein.
   frankenstein: "xd9Qk",
-  // Superman (SnarkKnight, lab, rights-gated, no art): issue #1430 ↔ engine E1 #870 / E1b #872 /
-  // E2 #874 (PRs #871/#873/#875, feature/superman). Template faces; blanked imageUrl/cardbackUrl.
+  // Superman (SnarkKnight, "Fully Arted - V1.0", lab tier): issue #1430 ↔ engine E1 #870 /
+  // E1b #872 / E2 #874 (PRs #871/#873/#875, feature/superman). Rights confirmed by the
+  // author (SnarkKnight, 2026-10-17). ART (#1432): the 13 faces + the author's cardback are
+  // mirrored from the deck's imgur uploads into public/evergreen-decks/art/superman (15 files:
+  // q80 webp, 1600w max; the hero token is a square crop of Man of Steel's face, no banner)
+  // and the snapshot is repo-relative, remote-free at runtime. The faces are the author's ~1343x1237 art windows with the
+  // value/name banner baked in on the left edge, so they ride `imageUrl` (no `cardImage`: they
+  // are not full cards); the in-game render draws no second banner over them (checked in browser).
   superman: "5zMj",
 };
 

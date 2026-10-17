@@ -935,10 +935,8 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
   },
   {
     // Superman (SnarkKnight, "Fully Arted - V1.0"): issue #1430 ↔ engine E1 #870 / E1b #872 /
-    // E2 #874 (PRs #871/#873/#875, feature/superman). RIGHTS NOT CONFIRMED — client train must
-    // not merge to main until Dean confirms with the author. Lab tier, template faces.
-    // TODO(rights): no cardbackUrl / art until rights are confirmed (author's imgur cardback
-    // deliberately not hot-linked).
+    // E2 #874 (PRs #871/#873/#875, feature/superman). Rights confirmed by the author
+    // (2026-10-17). Lab tier. Repo-relative cardback (Narrator precedent): the author's upload, mirrored.
     id: "5zMj",
     name: "Superman",
     hero: "Superman",
@@ -947,5 +945,6 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     highlightColour: "#437f8f",
     lab: true,
     tier: "lab",
+    cardbackUrl: "/evergreen-decks/art/superman/cardback.webp",
   },
 ];
