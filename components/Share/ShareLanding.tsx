@@ -24,7 +24,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { PageSeo } from "@/components/Helmet/Head";
 import { persistAndStarDeck } from "@/lib/invite";
 import { useBagMaps } from "@/lib/bag/useBag";
@@ -87,7 +87,7 @@ export const ShareLanding = ({
         noindex
       />
       <Box color="brand.secondary">
-        <Navbar />
+        <SiteNav />
       </Box>
 
       <Flex flex="1" align="center" justify="center" p="1rem">

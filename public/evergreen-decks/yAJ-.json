@@ -4,7 +4,7 @@
   "deck_data": {
     "appearance": {
       "borderColour": "#f8a23c",
-      "cardbackUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/cardback.webp",
+      "cardbackUrl": "/evergreen-decks/art/yAJ-/cardback.webp",
       "highlightColour": "#6f7a66",
       "isPNP": false,
       "patternName": ""
@@ -16,12 +16,15 @@
         "boost": 2,
         "characterName": "BABA YAGA",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/iron-teeth.d8fddc34.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/iron-teeth.webp",
         "immediateText": "",
         "quantity": 2,
         "title": " Iron Teeth",
         "type": "attack",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/iron-teeth.webp"
+        }
       },
       {
         "afterText": "Your opponent discards 1 card. If Baba Yaga is inside The Hut, they discard a random card instead.",
@@ -29,12 +32,15 @@
         "boost": 2,
         "characterName": "BABA YAGA",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/boney-leg.e6cfc726.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/boney-leg.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Boney Leg",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/boney-leg.webp"
+        }
       },
       {
         "afterText": "",
@@ -42,12 +48,15 @@
         "boost": 3,
         "characterName": "BABA YAGA",
         "duringText": "If Baba Yaga is inside The Hut, this card's value is 6 instead.",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/the-devil-s-grandmother.2edd6c36.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/the-devils-grandmother.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "The Devil's Grandmother",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/the-devils-grandmother.webp"
+        }
       },
       {
         "afterText": "Deal 1 damage to the opposing fighter. If Baba Yaga is inside The Hut, deal 2 damage instead.",
@@ -55,12 +64,15 @@
         "boost": 1,
         "characterName": "BABA YAGA",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/behave.b3767817.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/behave.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Behave!",
         "type": "defence",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/behave.webp"
+        }
       },
       {
         "afterText": "Move the opposing fighter up to 3 spaces. They can move through opposing fighters. Draw 1 card.",
@@ -68,12 +80,15 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/turn-your-back-to-the-forest.b90afa6d.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/turn-your-back-to-the-forest.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Turn your back to the forest",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/turn-your-back-to-the-forest.webp"
+        }
       },
       {
         "afterText": "Move Baba Yaga up to 3 spaces. She can move through opposing fighters. Draw 1 card.",
@@ -81,12 +96,15 @@
         "boost": 2,
         "characterName": "BABA YAGA",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/pestle-and-mortar.2bf77934.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/pestle-and-mortar.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Pestle and Mortar",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/pestle-and-mortar.webp"
+        }
       },
       {
         "afterText": "",
@@ -94,12 +112,15 @@
         "boost": 1,
         "characterName": "BABA YAGA",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/enhanced-awareness.7094d6e9.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/enhanced-awareness.webp",
         "immediateText": "You may discard this card to play a different defense card from your hand.",
         "quantity": 2,
         "title": "Enhanced Awareness",
         "type": "defence",
-        "value": 1
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/enhanced-awareness.webp"
+        }
       },
       {
         "afterText": "You may place Baba Yaga in any space.",
@@ -107,12 +128,15 @@
         "boost": 2,
         "characterName": "BABA YAGA",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/bewilderment.ff239152.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/bewilderment.webp",
         "immediateText": "Prevent all damage.",
         "quantity": 2,
         "title": "Bewilderment",
         "type": "defence",
-        "value": 0
+        "value": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/bewilderment.webp"
+        }
       },
       {
         "afterText": null,
@@ -120,12 +144,15 @@
         "boost": 1,
         "characterName": "BABA YAGA",
         "duringText": null,
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/magical-compulsion.d694f7ed.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/magical-compulsion.webp",
         "immediateText": null,
         "quantity": 2,
         "title": "Magical Compulsion",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/magical-compulsion.webp"
+        }
       },
       {
         "afterText": "Place the opposing fighter in any space inside The Hut and place Baba Yaga in an adjacent space. If you won the combat, gain 1 action.",
@@ -133,12 +160,15 @@
         "boost": 3,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/abduction.22eec311.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/abduction.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Abduction",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/abduction.webp"
+        }
       },
       {
         "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
@@ -146,12 +176,15 @@
         "boost": 1,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/skirmish.2394e07c.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/skirmish.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Skirmish",
         "type": "versatile",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/skirmish.webp"
+        }
       },
       {
         "afterText": "Move The Hut up to 4 spaces. It may move through opposing fighters. Then, deal 1 damage to each opposing fighter it moved through.",
@@ -159,12 +192,15 @@
         "boost": 3,
         "characterName": "THE HUT",
         "duringText": "",
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/chicken-legs.6fdadfcb.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/chicken-legs.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Chicken Legs",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/chicken-legs.webp"
+        }
       },
       {
         "afterText": null,
@@ -172,12 +208,15 @@
         "boost": 2,
         "characterName": "THE HUT",
         "duringText": null,
-        "imageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/spinning-rampage.18c4a12a.webp",
+        "imageUrl": "/evergreen-decks/art/yAJ-/spinning-rampage.webp",
         "immediateText": null,
         "quantity": 2,
         "title": "Spinning Rampage",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/yAJ-/spinning-rampage.webp"
+        }
       }
     ],
     "extraCharacters": [],
@@ -188,7 +227,7 @@
       "name": "Baba Yaga",
       "quote": "The witch of the deep woods and her chicken-legged Hut — lure victims through its door into a little board all her own, where every card she casts cuts deeper.",
       "specialAbility": "Fighters can move between The Hut's space and the Entry spaces in The Hut board as if they were adjacent. At the end of your turn, deal 1 damage to every opposing fighter inside The Hut, and place them in spaces in The Hut's zone.\n\n",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/token-baba-yaga.webp"
+      "tokenImageUrl": "/evergreen-decks/art/yAJ-/token-baba-yaga.webp"
     },
     "name": "",
     "ruleCards": [
@@ -203,7 +242,7 @@
       "name": "The Hut",
       "quantity": 1,
       "quote": "A hut on hen's legs that walks where it pleases — its door opens for everyone and asks no one.",
-      "tokenImageUrl": "https://unbrewed.xyz/evergreen-decks/art/yAJ-/token-the-hut.webp"
+      "tokenImageUrl": "/evergreen-decks/art/yAJ-/token-the-hut.webp"
     }
   },
   "deck_first_published_on": "Fri, 02 Jun 2023 00:35:31 GMT",

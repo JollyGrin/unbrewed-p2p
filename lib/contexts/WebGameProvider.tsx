@@ -67,6 +67,7 @@ import {
   takeHeld,
 } from "@/lib/sandbox/ownBlob";
 import { toast } from "react-hot-toast";
+import { useConnectToast } from "@/lib/hooks/useConnectToast";
 
 /**
  * What the reset UI needs to render (docs/game-reset-plan.md). `pending` is a
@@ -413,6 +414,24 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
 
     return () => close();
   }, [router.isReady, slug.name, slug.gid, activeServer]);
+
+  // The connect toast reads what is cheaply known at the moment the socket
+  // opens (or fails) — no extra requests.
+  useConnectToast(connectionStatus, () => {
+    const players = (
+      latestGameStateRef.current?.content as GameState | undefined
+    )?.players;
+    let host = activeServer;
+    try {
+      host = new URL(activeServer).hostname;
+    } catch {}
+    return {
+      host,
+      gid: slug.gid?.toString() ?? "",
+      players: players ? Object.keys(players).length : undefined,
+      deckLoaded: !!ownStateRef.current.current?.pool || !!readStarredDeck(),
+    };
+  });
 
   // Exposed player-state setter. Stable identity; always stamps the map, the
   // action feed, the latest roll, and the handoff fields so none is lost on a

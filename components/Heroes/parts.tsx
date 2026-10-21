@@ -8,7 +8,7 @@ import { Box, Heading, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 
 import { PageSeo, SeoProps } from "@/components/Helmet/Head";
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { StatsCaveat } from "@/components/Account/StatsCaveat";
 import { DarkBand, DashCard } from "@/components/Stats";
 import { BAND_INK, captionStyle, GOLD, INK, INK_DEEP, INK_SOFT, PAGE_BG } from "@/components/Stats/tokens";
@@ -16,7 +16,7 @@ import type { StatsWindow } from "@/lib/stats/types";
 
 export const BAND_SOFT = "rgba(250,235,215,0.72)";
 
-/** Navbar, the band, then the parchment content column, caveat last. */
+/** Site nav, the band, then the parchment content column, caveat last. */
 export const HeroesFrame = ({
   seo,
   band,
@@ -29,7 +29,7 @@ export const HeroesFrame = ({
   <Box bg={PAGE_BG} minH="100svh" color={INK} display="flex" flexDirection="column" overflowX="hidden">
     <PageSeo {...seo} />
     <Box color="brand.secondary">
-      <Navbar />
+      <SiteNav />
     </Box>
     <DarkBand variant="profile" gap={{ base: "16px", md: "24px" }}>
       {band}

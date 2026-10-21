@@ -22,7 +22,7 @@ import { SeatHeldNote } from "./SeatHeldNote";
 import { SeedingPanel } from "./SeedingPanel";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("../../lib/tournaments/api", () => ({
   ...jest.requireActual("../../lib/tournaments/api"),
   getGameReplay: jest.fn(() => new Promise(() => undefined)),

@@ -14,7 +14,7 @@ import type { MatchDetail, Tournament } from "@/lib/tournaments/types";
 import { MatchBody, MatchView } from "./MatchView";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div data-testid="replay-open" /> }));
 
 const NOW = Date.parse(FIXTURE_NOW);

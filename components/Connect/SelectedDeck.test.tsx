@@ -110,3 +110,51 @@ describe("SelectedDeckContainer — switch decks in place (issue #469)", () => {
     expect(screen.getByText("Couldn't load that deck")).toBeTruthy();
   });
 });
+
+describe("SelectedDeckContainer — Pro decks without a bag (issue #1421)", () => {
+  const kong = deck("kdKM", "King Kong");
+  const thrall = deck("pk1x", "Thrall");
+
+  it("with an empty bag and no star, offers the Pro roster and stars the pick by id", () => {
+    const setStar = jest.fn();
+    render(
+      <SelectedDeckContainer
+        starredDeck={undefined}
+        decks={[]}
+        proDecks={[kong, thrall]}
+        setStar={setStar}
+      />,
+    );
+    const select = screen.getByLabelText("Choose your deck") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.text)).toEqual([
+      "Pick a deck…",
+      "King Kong",
+      "Thrall",
+    ]);
+    fireEvent.change(select, { target: { value: "pk1x" } });
+    expect(setStar).toHaveBeenCalledWith("pk1x");
+  });
+
+  it("groups the bag and Pro decks, and drops a Pro deck the bag already has", () => {
+    const mine = deck("kdKM", "My Kong");
+    render(
+      <SelectedDeckContainer
+        starredDeck={thrall}
+        decks={[alpha, mine]}
+        proDecks={[kong, thrall]}
+        setStar={jest.fn()}
+      />,
+    );
+    const select = screen.getByLabelText("Choose your deck") as HTMLSelectElement;
+    expect(select.value).toBe("pk1x");
+    expect(
+      [...select.querySelectorAll("optgroup")].map((g) => [
+        g.label,
+        [...g.querySelectorAll("option")].map((o) => o.text),
+      ]),
+    ).toEqual([
+      ["Your bag", ["Alpha Hero", "My Kong"]],
+      ["Pro decks", ["Thrall"]],
+    ]);
+  });
+});

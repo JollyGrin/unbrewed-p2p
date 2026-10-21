@@ -11,6 +11,7 @@ tabletop view). The app shows the same credit in each hero's info
 | `baba-yaga.*.webp` | Witch Minis (Witch 2, file `Witch_2.stl`) | mz4250 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) — these renders are shared under the same licence | https://www.thingiverse.com/thing:6694128 |
 | `hollow-oak.*.webp`, `hollow-oak-spice.*.webp` | Hollow Oak | JollyGrin | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) | https://unbrewed.xyz |
 | `king-taranis.*.webp`, `king-taranis-spice.*.webp` | King Taranis | JollyGrin | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) | https://unbrewed.xyz |
+| `piper-of-the-underroads.*.webp`, `piper-of-the-underroads-spice.*.webp` | Piper of the Underroads | JollyGrin | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) | https://unbrewed.xyz |
 
 Changes from the originals: rendered to 2D images at a fixed camera angle,
 recoloured in a single seat tint, and (Triceratops) turned to stand on the

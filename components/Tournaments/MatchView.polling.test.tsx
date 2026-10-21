@@ -13,7 +13,7 @@ import { FIXTURE_NOW, fixtureMatch } from "@/lib/tournaments/fixtures";
 import { MatchView } from "./MatchView";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("./MatchReplay", () => ({ MatchReplay: () => <div /> }));
 jest.mock("../../lib/pro/useProLiveRoster", () => ({
   useProLiveRosterState: () => ({ heroes: [], offline: false }),

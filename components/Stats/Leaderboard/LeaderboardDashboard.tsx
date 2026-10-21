@@ -22,7 +22,7 @@ import { Box, Heading } from "@chakra-ui/react";
 
 import { StatsCaveat } from "@/components/Account/StatsCaveat";
 import { PageSeo } from "@/components/Helmet/Head";
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { relativeDate } from "@/lib/account/gameHistory";
 import { useAccount } from "@/lib/account/useAccount";
 import { useCommunity } from "@/lib/stats/hooks";
@@ -248,7 +248,7 @@ export const LeaderboardDashboard = () => {
         description="The Unbrewed leaderboard: levels, XP and win counts from finished Pro games."
       />
       <Box bg="brand.highlight" color="brand.secondary">
-        <Navbar />
+        <SiteNav />
       </Box>
       {mounted && router.isReady ? <Dashboard window={window} onWindow={setWindow} /> : null}
     </Box>

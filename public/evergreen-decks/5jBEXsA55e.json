@@ -16,14 +16,14 @@
         "boost": 3,
         "characterName": "NARRATOR",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/narrator/red-herring.webp",
+        "imageUrl": "/evergreen-decks/art/narrator/plot-device-red-herring.webp",
         "immediateText": "Discard your opponent's card. They reveal cards from their deck until they reveal a defense or versatile card they can play. They play that card and randomly put the rest of the revealed cards on the bottom of their deck.",
         "quantity": 2,
         "title": "PLOT DEVICE: Red Herring",
         "type": "attack",
         "value": 4,
         "cardImage": {
-          "url": "/evergreen-decks/art/narrator/red-herring.webp"
+          "url": "/evergreen-decks/art/narrator/plot-device-red-herring.webp"
         }
       },
       {
@@ -48,14 +48,14 @@
         "boost": 1,
         "characterName": "NARRATOR",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/narrator/rising-action-attack.webp",
+        "imageUrl": "/evergreen-decks/art/narrator/rising-action.webp",
         "immediateText": "",
         "quantity": 3,
         "title": "Rising Action",
         "type": "attack",
         "value": 4,
         "cardImage": {
-          "url": "/evergreen-decks/art/narrator/rising-action-attack.webp"
+          "url": "/evergreen-decks/art/narrator/rising-action.webp"
         }
       },
       {
@@ -96,14 +96,14 @@
         "boost": 2,
         "characterName": "ANY",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/narrator/the-plays-the-thing.webp",
+        "imageUrl": "/evergreen-decks/art/narrator/the-storys-the-thing.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "The Story's The Thing",
         "type": "versatile",
         "value": 3,
         "cardImage": {
-          "url": "/evergreen-decks/art/narrator/the-plays-the-thing.webp"
+          "url": "/evergreen-decks/art/narrator/the-storys-the-thing.webp"
         }
       },
       {
@@ -160,14 +160,14 @@
         "boost": 3,
         "characterName": "NARRATOR",
         "duringText": "",
-        "imageUrl": "/evergreen-decks/art/narrator/deus-ex-machina.webp",
+        "imageUrl": "/evergreen-decks/art/narrator/plot-device-deus-ex-machina.webp",
         "immediateText": "",
         "quantity": 2,
         "title": "Plot Device: Deus Ex Machina",
         "type": "defence",
         "value": 4,
         "cardImage": {
-          "url": "/evergreen-decks/art/narrator/deus-ex-machina.webp"
+          "url": "/evergreen-decks/art/narrator/plot-device-deus-ex-machina.webp"
         }
       },
       {
@@ -176,12 +176,15 @@
         "boost": 3,
         "characterName": "NARRATOR",
         "duringText": null,
-        "imageUrl": "/evergreen-decks/art/narrator/foreshadowing.webp",
+        "imageUrl": "/evergreen-decks/art/narrator/plot-device-forshadowing.webp",
         "immediateText": null,
         "quantity": 2,
         "title": "Plot Device: Forshadowing",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/narrator/plot-device-forshadowing.webp"
+        }
       },
       {
         "afterText": null,

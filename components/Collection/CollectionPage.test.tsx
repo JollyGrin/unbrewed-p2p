@@ -39,7 +39,7 @@ jest.mock("next/router", () => ({
 // Relative path, not the `@/` alias: SWC rewrites alias *imports*, but leaves a
 // `jest.mock()` string argument alone. The navbar drags in the whole site
 // chrome (and its own /me probe); this page's content is what's under test.
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("axios");
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;

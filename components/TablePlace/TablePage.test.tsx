@@ -29,7 +29,7 @@ import { TablePage } from "./TablePage";
 jest.mock("next/router", () => ({
   useRouter: () => ({ query: {}, isReady: true }),
 }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 jest.mock("../DeckLink/DeckLinkHold", () => ({
   DeckLinkHold: () => <div data-testid="deck-link-hold" />,
 }));
@@ -70,7 +70,9 @@ jest.mock("../../lib/bag/useBag", () => {
       const [star, setStar] = useState(mockBag.star);
       return {
         decks: mockBag.decks,
-        starredDeck: mockBag.decks.find((d) => d.id === star),
+        starredDeck:
+          mockBag.decks.find((d) => d.id === star) ??
+          mockPro.decks?.find((d) => d.id === star),
         setStar,
         isLoading: mockBag.isLoading,
       };
@@ -78,6 +80,15 @@ jest.mock("../../lib/bag/useBag", () => {
     useBagMaps: () => ({ data: mockMaps }),
   };
 });
+// The Pro roster (#1421): what `useProDecks` hands back. Starring one that is
+// not in the bag still resolves it, as the real hook's cache fallback does.
+const mockPro: { decks: DeckImportType[] | undefined } = { decks: [] };
+jest.mock("../../lib/proDecks", () => ({
+  useProDecks: () => mockPro.decks,
+}));
+jest.mock("../../lib/proFaces", () => ({
+  useProFaces: () => undefined,
+}));
 const mockSize = { width: 1000, height: 800 };
 const mockImageSize = { fresh: false, failed: false };
 jest.mock("./useImageSize", () => ({
@@ -160,6 +171,7 @@ afterEach(() => {
   mockImageSize.fresh = false;
   mockImageSize.failed = false;
   mockBag.isLoading = false;
+  mockPro.decks = [];
   mockLink.held = undefined;
   mockLink.failed = false;
 });
@@ -581,6 +593,69 @@ describe("TablePage — the deck galleries (issue #1118)", () => {
     expect(
       screen.getByText("Add more decks in your bag").getAttribute("href"),
     ).toBe("/bag");
+  });
+});
+
+describe("TablePage — Pro decks, no bag needed (issue #1421)", () => {
+  /** A Pro deck as the snapshot ships it: its own card images, its own id. */
+  const proDeck = (id: string, deck: DeckImportType): DeckImportType => ({
+    ...deck,
+    id,
+    version_id: id,
+  });
+  const proIds = () =>
+    within(screen.getByTestId("decks-pro"))
+      .getAllByTestId("deck-tile")
+      .map((t) => t.dataset.deck);
+
+  it("with an empty bag, offers the card-image Pro decks and leaves template ones out", () => {
+    const ready = proDeck("pro-ready", labsDeck());
+    const template = proDeck("pro-template", oak());
+    mockPro.decks = [ready, template];
+    bag([]);
+    render(<TablePage />);
+    expect(proIds()).toEqual(["pro-ready"]);
+    expect(screen.queryByTestId("decks-needs")).toBeNull();
+    expect(
+      screen.queryAllByTestId("deck-tile").map((t) => t.dataset.deck),
+    ).not.toContain("pro-template");
+  });
+
+  it("lets both seats pick a Pro deck and lay out a table", async () => {
+    mockPro.decks = [
+      proDeck("pro-a", labsDeck()),
+      proDeck("pro-b", elliotDeck()),
+    ];
+    bag([]);
+    mockValidate.mockResolvedValue({ ok: true });
+    render(<TablePage />);
+    fireEvent.click(deckTile("pro-a"));
+    expect(selectedTab()).toBe("tab-them");
+    expect(proIds()).toEqual(["pro-a", "pro-b"]);
+    fireEvent.click(deckTile("pro-b"));
+    pickMap("/m1.webp");
+    await waitFor(() => expect(create().disabled).toBe(false), {
+      timeout: 10_000,
+    });
+    expect(within(slot("you")).getByTestId("slot-name").textContent).toBe(
+      "Marouine",
+    );
+    expect(within(slot("them")).getByTestId("slot-name").textContent).toBe(
+      "Elliot Becker",
+    );
+  });
+
+  it("lists a deck once when the bag holds the same id, as the bag's tile", () => {
+    const mine = labsDeck();
+    mockPro.decks = [proDeck(mine.id, labsDeck()), proDeck("pro-b", elliotDeck())];
+    bag([mine]);
+    render(<TablePage />);
+    expect(proIds()).toEqual(["pro-b"]);
+    expect(
+      within(screen.getByTestId("decks-ready"))
+        .getAllByTestId("deck-tile")
+        .map((t) => t.dataset.deck),
+    ).toEqual([mine.id]);
   });
 });
 

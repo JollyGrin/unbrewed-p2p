@@ -11,7 +11,7 @@ import { API_URL } from "@/lib/account/apiUrl";
 import { fixtureBracket, fixtureComplete4, fixtureRunning16, fixtureRunning8, fixtureSignup8 } from "@/lib/tournaments/fixtures";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn() }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 const page = (p: ReturnType<typeof fixtureRunning8>) =>
   render(

@@ -158,11 +158,20 @@ Per [llmstxt.org](https://llmstxt.org): H1 + one-paragraph summary + links.
 - [GitHub](https://github.com/JollyGrin/unbrewed-p2p): MIT-licensed source, issue tracker
 ```
 
-### 2.4 Freshness + trust signals
-- Add a visible "Last updated" (build-time injected, e.g. `NEXT_PUBLIC_BUILD_DATE`) in the footer.
-- Footer links: GitHub, Discord, unmatched.cards credit — already present in content; make sure they're plain `<a>` links in the static HTML.
+### 2.4 Freshness + trust signals — ✅ done (unbrewed-p2p-1353)
+- [x] Visible "Last updated" in the footer. It reads the newest changelog entry's date (build-time data, no env var needed).
+- [x] Footer links: every surface (four tables, Bag, Tournaments, Leaderboard, Heroes, Stats, Collection, Changelog), plus GitHub, Discord, unmatched.cards, Unmatched Labs and the-unmatched.club — plain `<a>` links in the static HTML.
 
 **Acceptance criteria (Phase 2):** all three JSON-LD blocks pass Google's Rich Results Test; FAQ visible and matching schema 1:1; llms.txt returns 200.
+
+### Landing redesign "Four tables" (unbrewed-p2p-1353, 2026-10-10)
+The landing page now explains all four ways to play (Sandbox 2D, Pro, 3D table, IRL) instead of only the sandbox. SEO changes in that PR:
+- `/`: one visible `<h1>`; every section has an `id` and a real `<h2>`; the four table cards are plain links to `/connect`, `/pro`, `/table`, `/irl`.
+- JSON-LD on `/`: `WebSite` + `Organization` + `WebApplication` (with a `featureList` of the four tables) + `FAQPage` built from the same `FAQS` array as the visible accordions. The `HowTo` block went with the old "Getting started" steps.
+- `public/sitemap.xml`: added `/pro`, `/table`, `/irl`, `/tournaments`, `/leaderboard`, `/heroes`, `/stats`, `/changelog`, `/collection`. `/irl`, the `/tournaments` browse page and `/collection` dropped `noindex` so the sitemap doesn't list noindexed URLs (tournament event/match/create views stay `noindex`).
+- `public/llms.txt` rewritten for the four tables, bots, tournaments, accounts and cosmetics.
+- `/pro`: own canonical, description (bot tier and board counts come from `TIER_ORDER` and `MAP_CATALOG`) and OG image (`public/og-pro.png`). `/table` and `/irl` got real descriptions.
+- New `public/og.png` showing the four tables; the site default description now names them too.
 
 ---
 

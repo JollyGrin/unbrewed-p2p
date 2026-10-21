@@ -21,7 +21,10 @@
         "quantity": 1,
         "title": "shop - rocket Launcher",
         "type": "attack",
-        "value": 6
+        "value": 6,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/shop-rocket-launcher.webp"
+        }
       },
       {
         "afterText": null,
@@ -34,7 +37,10 @@
         "quantity": 1,
         "title": "Shop - Tactical vest",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/shop-tactical-vest.webp"
+        }
       },
       {
         "afterText": null,
@@ -47,7 +53,10 @@
         "quantity": 1,
         "title": "Shop - BlackTail Handgun",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/shop-blacktail-handgun.webp"
+        }
       },
       {
         "afterText": null,
@@ -60,7 +69,10 @@
         "quantity": 1,
         "title": "Shop - Attache case",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/shop-attache-case.webp"
+        }
       },
       {
         "afterText": "",
@@ -73,7 +85,10 @@
         "quantity": 3,
         "title": "Parry",
         "type": "defence",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/parry.webp"
+        }
       },
       {
         "afterText": "If your fighter is adjacent to the opposing fighter, draw 1 card.",
@@ -86,7 +101,10 @@
         "quantity": 3,
         "title": "Snark",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/snark.webp"
+        }
       },
       {
         "afterText": "Move your fighter 1 space. ",
@@ -99,7 +117,10 @@
         "quantity": 2,
         "title": "Pointless Backflip",
         "type": "defence",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/pointless-backflip.webp"
+        }
       },
       {
         "afterText": null,
@@ -112,7 +133,10 @@
         "quantity": 3,
         "title": "Treasure Hunting",
         "type": "scheme",
-        "value": null
+        "value": null,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/treasure-hunting.webp"
+        }
       },
       {
         "afterText": "Draw 2 cards.",
@@ -125,7 +149,10 @@
         "quantity": 3,
         "title": "Piercing Shot",
         "type": "attack",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/piercing-shot.webp"
+        }
       },
       {
         "afterText": "",
@@ -138,7 +165,10 @@
         "quantity": 2,
         "title": "Suplex",
         "type": "attack",
-        "value": 4
+        "value": 4,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/suplex.webp"
+        }
       },
       {
         "afterText": "If you're adjacent to any opposing fighters, move them all up to 2 spaces away.",
@@ -151,7 +181,10 @@
         "quantity": 3,
         "title": "Roundhouse Kick",
         "type": "versatile",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/roundhouse-kick.webp"
+        }
       },
       {
         "afterText": "If you're adjacent to the opposing fighter, deal 1 damage to them. ",
@@ -164,7 +197,10 @@
         "quantity": 2,
         "title": "Takedown",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/takedown.webp"
+        }
       },
       {
         "afterText": "Move the opposing fighter back 2 spaces. ",
@@ -177,7 +213,10 @@
         "quantity": 3,
         "title": "Riot Gun",
         "type": "versatile",
-        "value": 3
+        "value": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/riot-gun.webp"
+        }
       },
       {
         "afterText": "UNLOAD! Make a second attack of value 2 against the opposing fighter (it can be defended). This card can only ever add 1 Treasure.",
@@ -190,7 +229,10 @@
         "quantity": 2,
         "title": "LE5 - submachine Gun",
         "type": "attack",
-        "value": 2
+        "value": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/le5-submachine-gun.webp"
+        }
       },
       {
         "afterText": "Gain 1 free action to attack if you moved adjacent to the opposing fighter this combat.  ",
@@ -203,7 +245,10 @@
         "quantity": 4,
         "title": "Staggering shot",
         "type": "attack",
-        "value": 1
+        "value": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/NQ5XP/staggering-shot.webp"
+        }
       }
     ],
     "extraCharacters": [],
@@ -237,7 +282,7 @@
   "liked": false,
   "likes": 0,
   "name": "Leon S. Kennedy",
-  "note": "Art is FINAL, self-hosted: all 15 card illustrations, the cardback and the hero token (a square crop of that cardback) are the final illustrations by the author (Grovelsey), hosted from the author's the-unmatched.club deck (hero 14131, export 2026-09-13) and mirrored into public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule — wired as plain illustrations (imageUrl only, never cardImage) that the generated template draws inside the card frame. Titles frozen by the author after the lab playtest (2026-09-13): HandCannon became LE5 - submachine Gun (2/1, UNLOAD! second attack) and Shop - Red 9 Handgun became Shop - BlackTail Handgun. Verbatim titles (shop - rocket Launcher, Shop - Tactical vest, Shop - BlackTail Handgun, Shop - Attache case, Staggering shot, LE5 - submachine Gun) are the print the engine carries — do not fix.",
+  "note": "Art is FINAL, self-hosted: all 15 card illustrations, the cardback and the hero token (a square crop of that cardback) are the final illustrations by the author (Grovelsey), hosted from the author's the-unmatched.club deck (hero 14131, export 2026-09-13) and mirrored into public/evergreen-decks/art/NQ5XP per the #446 self-hosting rule — re-arted in #1426 as finished full-card renders, wired full-bleed (cardImage). The hero token is unchanged. Titles frozen by the author after the lab playtest (2026-09-13): HandCannon became LE5 - submachine Gun (2/1, UNLOAD! second attack) and Shop - Red 9 Handgun became Shop - BlackTail Handgun. Verbatim titles (shop - rocket Launcher, Shop - Tactical vest, Shop - BlackTail Handgun, Shop - Attache case, Staggering shot, LE5 - submachine Gun) are the print the engine carries — do not fix.",
   "published": true,
   "published_on": "Mon, 31 Aug 2026 09:43:31 GMT",
   "tags": [

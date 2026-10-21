@@ -18,7 +18,7 @@ import { setUpdateDialogOpen } from "@/lib/changelog/updateDialogOpen";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-const shortDate = (isoDate: string, withYear: boolean): string => {
+export const shortDate = (isoDate: string, withYear: boolean): string => {
   const [year, month, day] = isoDate.split("-").map(Number);
   return `${day} ${MONTHS[month - 1]}${withYear ? ` ${year}` : ""}`;
 };

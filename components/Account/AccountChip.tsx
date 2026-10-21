@@ -227,6 +227,28 @@ const hudChipStyles = {
 } as const;
 
 /**
+ * The in-game "Sign in with Discord" link opens Discord in a NEW tab so the game
+ * keeps running here; this hook's click handler arms a one-shot focus listener
+ * that re-asks `/me` the moment the player comes back, so the chip (and the
+ * post-game panel's guest line, p2p #1397) flips to signed-in without a reload.
+ */
+export const useSignInReturn = (): (() => void) => {
+  const [awaitingSignIn, setAwaitingSignIn] = useState(false);
+
+  useEffect(() => {
+    if (!awaitingSignIn) return;
+    const onFocus = () => {
+      setAwaitingSignIn(false);
+      refreshAccount();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [awaitingSignIn]);
+
+  return () => setAwaitingSignIn(true);
+};
+
+/**
  * The in-game variant, for the /pro/game lobby and the HUD chip cluster. Same
  * probe, same store, zero extra requests — but two deliberate differences from
  * the page chip, both because a live game and its websocket are at stake:
@@ -257,17 +279,7 @@ export const InGameAccountChip = ({
   withMenu?: boolean;
 } = {}) => {
   const { status, account } = useAccount();
-  const [awaitingSignIn, setAwaitingSignIn] = useState(false);
-
-  useEffect(() => {
-    if (!awaitingSignIn) return;
-    const onFocus = () => {
-      setAwaitingSignIn(false);
-      refreshAccount();
-    };
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [awaitingSignIn]);
+  const onSignInClick = useSignInReturn();
 
   if (status === "loading" || status === "offline") return null;
 
@@ -283,7 +295,7 @@ export const InGameAccountChip = ({
           aria-label="Sign in with Discord"
           cursor="pointer"
           _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
-          onClick={() => setAwaitingSignIn(true)}
+          onClick={onSignInClick}
         >
           <FaDiscord size="0.85rem" />
           <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">

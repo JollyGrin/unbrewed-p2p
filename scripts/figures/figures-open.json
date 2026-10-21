@@ -60,6 +60,26 @@
       "modelName": "King Taranis",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
+    },
+    {
+      "heroId": "piper-of-the-underroads",
+      "model": "piper-of-the-underroads-meshy.glb",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Piper of the Underroads",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    {
+      "heroId": "piper-of-the-underroads-spice",
+      "model": "piper-of-the-underroads-meshy.glb",
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Piper of the Underroads",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   ]
 }

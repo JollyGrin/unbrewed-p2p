@@ -8,10 +8,11 @@ import type { PlayerView } from "./protocol";
  * at GAME_OVER legal actions are always empty and no seat is on turn, so those
  * elements would go stale ("P2'S TURN · 1 actions left" above a VICTORY!). Holds
  * for duel and multiplayer alike — `winner` is set the same way regardless of
- * seat count. The panel shows the outcome (VICTORY!/DEFEAT) instead.
+ * seat count — and for a GAME_OVER with no winner (p2p #1397), which is an
+ * outcome too. The post-game panel shows the outcome instead.
  */
 export function showLiveTurnChrome(view: PlayerView): boolean {
-  return !view.winner;
+  return !view.winner && view.phase !== "GAME_OVER";
 }
 
 /**
