@@ -28,7 +28,7 @@ jest.mock("next/router", () => ({
 //
 // The navbar drags in the whole site chrome (and its own account chip, which
 // would double the /me probe); this page's own content is what's under test.
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 let savedReplays: ReplayIndexEntry[] = [];
 jest.mock("../../lib/pro/replayStore", () => ({

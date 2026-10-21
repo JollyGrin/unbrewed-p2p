@@ -26,6 +26,7 @@
  * must leave the site behaving exactly as it does today.
  */
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { cachedProDeck } from "@/lib/proDecks";
 import {
   BagKind,
   CloudFailure,
@@ -537,7 +538,10 @@ export const readStarredDeckFromBag = (): DeckImportType | undefined => {
   const fromCloud = deckStore.cloud.find((entry) => entry.id === id);
   if (fromCloud) return fromCloud.data;
   loadLocal(deckStore);
-  return deckStore.local.find((deck) => deck?.id === id);
+  const fromDevice = deckStore.local.find((deck) => deck?.id === id);
+  // A starred Pro deck that was never in the bag (#1421), once its snapshot
+  // has been fetched by the page that picked it.
+  return fromDevice ?? cachedProDeck(id);
 };
 
 /** Re-exported for callers that only want to name a failure. */

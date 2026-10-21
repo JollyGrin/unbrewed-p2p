@@ -8,7 +8,7 @@ import {
   TabPanel,
 } from "@chakra-ui/react";
 
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { BagDecks } from "@/components/Bag/Deck";
 import { BagMap } from "@/components/Bag/Map";
 import { BagBulkContainer } from "@/components/Bag/Bulk";
@@ -27,7 +27,7 @@ const BagPage = () => {
         description="Load Unmatched decks from unmatched.cards, the-unmatched.club, Tabletop Simulator exports, JSON, or image URLs. Manage your fan decks and custom maps in one place."
       />
       <Box color="brand.secondary">
-        <Navbar />
+        <SiteNav />
       </Box>
       <Tabs
         flex="1"

@@ -4,21 +4,24 @@ import {
   Circle,
   Flex,
   HStack,
+  Image,
   IconButton,
   Input,
   Spinner,
   Tag,
   TagLabel,
   Text,
+  useDisclosure,
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { useProDecks } from "@/lib/proDecks";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { SelectedDeckContainer } from "./SelectedDeck";
 import { InviteLink } from "./InviteLink";
 import { useCreateLobby } from "./useCreateLobby";
@@ -30,6 +33,10 @@ import { toast } from "react-hot-toast";
 import Link from "next/link";
 import { DiscordPresence } from "@/components/Discord";
 import { useAccount } from "@/lib/account/useAccount";
+import { MapPickerModal } from "@/components/Game/Header/map.modal";
+import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
+import { useBagMaps } from "@/lib/bag/useBag";
+import { MapData } from "@/lib/hooks";
 
 export const ConnectPage = () => {
   const router = useRouter();
@@ -48,12 +55,37 @@ export const ConnectPage = () => {
     useLoadRouterDeck();
 
   const { starredDeck, decks, setStar, isLoading: bagLoading } = useBagDecks();
+  const proDecks = useProDecks();
   const { activeServer, setActiveServer, serverList } = useLocalServerStorage();
+
+  // Map chosen before the lobby exists. Local state only — it rides on the
+  // /game push as `mapUrl`; an invite link's ?mapUrl= pre-selects it.
+  const [mapUrl, setMapUrl] = useState<string | undefined>(() => {
+    const q = router.query.mapUrl;
+    return typeof q === "string" && q ? q : undefined;
+  });
+  const mapDisclosure = useDisclosure();
+  const { data: localMaps } = useBagMaps();
+  const chosenMap = mapUrl
+    ? [...localMaps, ...(DEFAULT_MAPS as MapData[])].find(
+        (m) => m.imgUrl === mapUrl,
+      )
+    : undefined;
+
+  // The router query settles after hydration on a statically optimised page,
+  // so adopt an invite link's mapUrl once, if nothing was chosen yet.
+  const queryMapUrl = router.query.mapUrl;
+  useEffect(() => {
+    if (typeof queryMapUrl === "string" && queryMapUrl) {
+      setMapUrl((prev) => prev ?? queryMapUrl);
+    }
+  }, [queryMapUrl]);
 
   // create the lobby and connect to it
   const { refetch, loading, setLoading, disclosure } = useCreateLobby({
     gidRef,
     nameRef,
+    mapUrl,
   });
 
   useEffect(() => {
@@ -122,8 +154,18 @@ export const ConnectPage = () => {
         onClose={disclosure.onClose}
         serverStorage={{ activeServer, setActiveServer, serverList }}
       />
-      <Box position="absolute" top="0" w="100%" color="brand.primary">
-        <Navbar />
+      <MapPickerModal
+        isOpen={mapDisclosure.isOpen}
+        onClose={mapDisclosure.onClose}
+        selectedUrl={mapUrl}
+        onConfirm={setMapUrl}
+        onReset={() => setMapUrl(undefined)}
+        title="Select a Map"
+        confirmLabel="Select Map"
+        footerNote="Applies to the lobby you connect to. You can still change the map in-game."
+      />
+      <Box w="100%" color="brand.primary">
+        <SiteNav />
       </Box>
       <ConnectContainer>
         <VStack spacing={1} textAlign="center">
@@ -137,7 +179,7 @@ export const ConnectPage = () => {
             Connect to a Lobby
           </Text>
           <Text color="brand.secondary" opacity={0.7} fontSize="0.95rem">
-            Set up your table in three quick steps
+            Set up your table in a few quick steps
           </Text>
         </VStack>
 
@@ -160,6 +202,7 @@ export const ConnectPage = () => {
             error={deckImportFailed}
             starredDeck={starredDeck}
             decks={decks}
+            proDecks={proDecks}
             setStar={setStar}
           />
         </VStack>
@@ -223,6 +266,46 @@ export const ConnectPage = () => {
               >
                 Join someone else&apos;s game
               </Text>
+            </Text>
+          </Box>
+
+          <Box w="100%">
+            <StepLabel number="4" label="Select map" />
+            <HStack mt={2} spacing={3}>
+              {mapUrl && (
+                <Image
+                  alt=""
+                  src={chosenMap?.thumbUrl ?? mapUrl}
+                  w="3.5rem"
+                  h="2.5rem"
+                  objectFit="cover"
+                  borderRadius="0.35rem"
+                  flexShrink={0}
+                />
+              )}
+              <Text
+                flex="1"
+                minW={0}
+                noOfLines={1}
+                fontWeight={600}
+                color="brand.secondary"
+                data-testid="connect-map-title"
+              >
+                {mapUrl ? (chosenMap?.meta?.title ?? "Custom map") : "Default"}
+              </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                color="brand.secondary"
+                borderColor="brand.secondary"
+                _hover={{ bg: "brand.secondary", color: "brand.primary" }}
+                onClick={mapDisclosure.onOpen}
+              >
+                Select map
+              </Button>
+            </HStack>
+            <Text mt={1} fontSize="0.8rem" color="brand.secondary" opacity={0.65}>
+              You can also change the map in-game.
             </Text>
           </Box>
 
@@ -364,10 +447,13 @@ const StepLabel = (props: { number: string; label: string }) => (
 // Flat purple backdrop (issue #1192) — the AI-art photo background is gone,
 // so /connect and /join share the same theme-token surface.
 const Wrapper = styled(Flex)`
-  height: 100svh;
+  /* The nav sits in flow; the card centres in the rest via auto margins and
+     the page scrolls (rather than clipping under the bar) when it is taller. */
+  min-height: 100svh;
+  flex-direction: column;
   background-color: var(--chakra-colors-brand-surface);
-  justify-content: center;
   align-items: center;
+  padding-bottom: 1rem;
 `;
 
 const ConnectContainer = styled(Flex)`
@@ -378,6 +464,7 @@ const ConnectContainer = styled(Flex)`
   border-radius: 1rem;
   padding: 1.5rem 2rem;
   gap: 1.25rem;
+  margin: auto 0;
   justify-content: flex-start;
   align-items: center;
   box-shadow: 0 12px 40px rgba(44, 24, 49, 0.45);

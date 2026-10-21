@@ -1,4 +1,4 @@
-import { Navbar } from "@/components/Navbar";
+import { SiteNav } from "@/components/SiteNav";
 import { PageSeo } from "@/components/Helmet/Head";
 import { clearDeviceCopy, stores } from "@/lib/bag/bagStore";
 import { Box, Button, HStack, Text, VStack } from "@chakra-ui/react";
@@ -20,7 +20,7 @@ export default function DebugPage() {
   return (
     <Box h="100vh" bg="brand.secondary" color="brand.primary">
       <PageSeo path="/debug" title="Debug — Unbrewed" noindex />
-      <Navbar />
+      <SiteNav />
       <VStack pt="3rem">
         <Text fontSize="2rem" fontWeight={700}>
           Debug Screen

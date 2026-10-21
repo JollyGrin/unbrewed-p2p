@@ -8,7 +8,7 @@ import { Page } from "./ui";
 jest.mock("next/head", () => ({ __esModule: true, default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 jest.mock("next/script", () => ({ __esModule: true, default: () => null }));
 jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: true, push: jest.fn(), asPath: "/" }) }));
-jest.mock("../Navbar", () => ({ Navbar: () => <nav /> }));
+jest.mock("../SiteNav", () => ({ SiteNav: () => <nav /> }));
 
 it("describes brackets AND round robins", () => {
   const { container } = render(

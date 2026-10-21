@@ -4,8 +4,8 @@ import { ChakraProvider } from "@chakra-ui/react";
 
 import type { ChangelogEntry } from "@/lib/changelog/types";
 
-jest.mock("../Navbar", () => ({
-  Navbar: () => <nav data-testid="navbar" />,
+jest.mock("../SiteNav", () => ({
+  SiteNav: () => <nav data-testid="navbar" />,
 }));
 
 jest.mock("../../lib/changelog/media", () => ({

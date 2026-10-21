@@ -1,6 +1,6 @@
 /**
  * "Seen" state for the changelog (unbrewed-p2p-982) — modelled on the
- * per-browser localStorage flags in `components/Navbar/ProNavButton.tsx`
+ * per-browser localStorage flags in `components/SiteNav/ProNavButton.tsx`
  * (namespaced key, try-guarded) and the shared module store in `lib/flags.ts`
  * (`useSyncExternalStore`, so `markAllSeen()` in one place clears the pill
  * everywhere on the page).

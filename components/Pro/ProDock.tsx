@@ -11,7 +11,7 @@
  * hide a decision the engine is waiting on. See `needsInput` below.
  */
 import { Fragment, ReactNode, RefObject, useEffect, useRef, useState } from "react";
-import { Box, Button, Flex, Kbd, Link, Tag, Text, Tooltip } from "@chakra-ui/react";
+import { Box, Button, Flex, Kbd, Tag, Text, Tooltip } from "@chakra-ui/react";
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import {
   TbArrowNarrowRight,
@@ -19,11 +19,7 @@ import {
   TbChevronDown,
   TbChevronLeft,
   TbChevronUp,
-  TbExternalLink,
   TbGripHorizontal,
-  TbLink,
-  TbPlus,
-  TbRepeat,
   TbSwords,
   TbWalk,
 } from "react-icons/tb";
@@ -32,7 +28,7 @@ import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
 import { touchCopy } from "@/lib/pro/touchCopy";
 import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
 import { seatOwesDecision, showLiveTurnChrome } from "@/lib/pro/turnChrome";
-import { isViewerOnWinningTeam } from "@/lib/pro/teams";
+import { isGameOver } from "@/lib/pro/postGame";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
 import { ItemGlyph } from "@/components/Pro/ItemBadge";
 import { tokenInitials } from "./FighterTokenPortrait";
@@ -44,7 +40,8 @@ import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 import { DOCK_RIGHT, DOCK_TOP, DOCK_WIDTH } from "./dockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
-import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
+import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
+import { ProPostGame, ProPostGameContext, PANEL_SURFACE } from "@/components/Pro/ProPostGame";
 
 /**
  * How long a one-tap target ignores a repeat tap with no new view in between
@@ -52,6 +49,14 @@ import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchO
  * deliberate retry after the server rejected the first send.
  */
 export const TAP_LATCH_MS = 700;
+
+/** The post-game panel with nothing but the view to go on. */
+const NO_POST_GAME_CONTEXT: ProPostGameContext = {
+  endReason: null,
+  bots: null,
+  accountStatus: "loading",
+  username: null,
+};
 
 const BTN = {
   size: "sm" as const,
@@ -259,6 +264,13 @@ export interface ProDockProps {
    *  nothing to upload or nobody to upload as (signed out, bundle not held). */
   onCopyShareLink?: () => void;
   shareLinkBusy?: boolean;
+  /**
+   * What the post-game panel (p2p #1397) knows beyond the view: the captured
+   * end reason, the room's bot seats, the account state and a hero-name
+   * lookup. Omitted = a panel that shows the result and matchup from the view
+   * alone (a reload into a finished room).
+   */
+  postGame?: ProPostGameContext;
   undoPending: boolean;
   onUndo: () => void;
   /**
@@ -352,6 +364,7 @@ export const ProDock = ({
   endNote = null,
   onCopyShareLink,
   shareLinkBusy = false,
+  postGame = NO_POST_GAME_CONTEXT,
   undoPending,
   onUndo,
   mobile = false,
@@ -403,8 +416,11 @@ export const ProDock = ({
   // offers a seat actions outside its own clock (sidekick placement on turn 0
   // is the live case), and board-rendered actions like MOVE_FIGHTER never reach
   // `rows` — both would slip through a turn-scoped check.
-  // The end panel, unless a format end screen owns the end of this game.
-  const endPanel = !!view.winner && !formatEndScreen;
+  // The endgame counts whether or not anybody won: a no-winner GAME_OVER is a
+  // result too (p2p #1397), and the post-game panel is what shows it — unless
+  // a format end screen owns the end of this game (adventure, #1303).
+  const gameOver = isGameOver(view);
+  const endPanel = gameOver && !formatEndScreen;
   const needsInput = hasPrompt || !!combatPanel || endPanel || legalActionCount > 0;
   const collapsed = layout.collapsed && !needsInput;
 
@@ -586,7 +602,7 @@ export const ProDock = ({
   // bar instead of the tall sheet — the sheet would cover the very spaces it asks
   // for. "Options" expands the full sheet (skip/decline buttons live there).
   const boardPicks = highlightedCount > 0 || attackTargetCount > 0;
-  const boardPickPrompt = hasPrompt && boardPicks && !combatOpen && !view.winner && !stepping && !mobileHandOpen;
+  const boardPickPrompt = hasPrompt && boardPicks && !combatOpen && !gameOver && !stepping && !mobileHandOpen;
   // Expansion belongs to ONE prompt: the next board-pick prompt starts slim again,
   // even when the server replaces prompt A with prompt B in a single update.
   const promptKey = view.prompt?.promptId ?? "prompt";
@@ -597,7 +613,6 @@ export const ProDock = ({
   // The narrow shells — the rail and the HUD's side sheet — size cards and
   // tiles for a 230px column.
   const narrow = mobile === "rail" || mobile === "hud";
-  const rematchLine = !!rematchNegotiation && (rematchNegotiation.state.phase !== "idle" || !!rematchNegotiation.state.notice);
   const boardPickCompact = sheetShell && boardPickPrompt && expandedPrompt !== promptKey;
   // A forced sheet can be put out of the way (player feedback: an after-combat
   // question left the board unreachable with no way to close the sheet). It
@@ -933,6 +948,28 @@ export const ProDock = ({
     </Flex>
   );
 
+  // The post-game panel (p2p #1397) — the result, the end reason, the matchup
+  // with final HP, who you played, and the SAME endgame actions under the
+  // same conditions as the winner block it replaced: the tournament's
+  // `endAction` first, else the rematch offer panel vs humans, else the
+  // one-tap `rematchHref` vs bots; the local replay link and Copy share link
+  // only when their caller wired them.
+  const postGamePanel = (layout: "panel" | "sheet") => (
+    <ProPostGame
+      view={view}
+      layout={layout}
+      compact={narrow}
+      {...postGame}
+      endNote={endNote}
+      endAction={endAction}
+      rematchHref={rematchHref}
+      rematchNegotiation={rematchNegotiation}
+      replayHref={replayHref}
+      onCopyShareLink={onCopyShareLink}
+      shareLinkBusy={shareLinkBusy}
+    />
+  );
+
   const body = (
     <Flex
       direction="column"
@@ -1174,114 +1211,9 @@ export const ProDock = ({
           </Text>
         )}
       </Flex>
-      {endPanel && (
-        <Flex direction="column" align="center" gap="0.15rem">
-          <Text
-            fontFamily="LeagueGothic"
-            // The landscape rail's dock is a short box: when the rematch panel
-            // adds a line ("… wants a rematch", "Waiting for …", a notice), the
-            // title gives up the room so Accept / Decline stay on screen (#880).
-            fontSize={narrow && rematchLine ? "1.9rem" : "3rem"}
-            color="brand.accent"
-            textShadow="0 2px 12px rgba(224,168,46,0.5)"
-            lineHeight="1"
-          >
-            {isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT"}
-          </Text>
-          {endNote && (
-            <Text fontSize="0.85rem" color="brand.parchment" opacity={0.85} textAlign="center" maxW="22rem" data-testid="game-end-note">
-              {endNote}
-            </Text>
-          )}
-          {/* One-tap rematch (#TBD): the PRIMARY endgame action — a big, gold,
-              thumb-reachable button, because the whole point is cutting a
-              phone rematch down from "walk back through the lobby, pick
-              heroes, share a new link" to this one tap. It fires an ordinary
-              CREATE_ROOM (via the /pro/game?rematch=1 link's own page load —
-              see lib/pro/rematch.ts), so from here it behaves exactly like
-              starting any other room: the presser lands on the new room's
-              waiting screen with the invite link ready to hand off. */}
-          {endAction ? (
-            endAction
-          ) : rematchNegotiation ? (
-            <RematchOfferPanel negotiation={rematchNegotiation} compact={narrow} />
-          ) : rematchHref && (
-            <Button
-              as={Link}
-              href={rematchHref}
-              minH={TAP_TARGET}
-              px="1.4rem"
-              mt="0.3rem"
-              mb="0.15rem"
-              bg="brand.accent"
-              color="brand.surfaceDim"
-              fontWeight={700}
-              leftIcon={<TbRepeat size="1.1rem" />}
-              _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
-              _active={{ bg: "brand.accentDeep" }}
-            >
-              Rematch — same setup
-            </Button>
-          )}
-          {/* Deep-link straight into this match's saved God-view replay
-              (issue #240). /pro/replays?open=<id> auto-opens it, and the link
-              only renders once the bundle is held, so it always resolves —
-              for US. It reads localStorage, so it resolves for nobody else,
-              which is why it says "your" and why the share link sits beside it
-              rather than behind a page the player has to go find (#698). */}
-          {replayHref && (
-            <Tooltip label="Saved in this browser — this link only opens for you" hasArrow placement="top">
-              <Link
-                href={replayHref}
-                color="brand.parchment"
-                opacity={0.85}
-                fontSize="0.9rem"
-                display="inline-flex"
-                alignItems="center"
-                gap="0.3rem"
-                _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
-              >
-                View your replay <TbExternalLink size="0.85rem" />
-              </Link>
-            </Tooltip>
-          )}
-          {/* Upload-then-copy in one action. Only wired when the player is
-              signed in and a bundle exists — otherwise there is nothing to
-              upload it to, and the local link above is the honest option. */}
-          {onCopyShareLink && (
-            <Tooltip label="Uploads a copy, then anyone with the link can watch" hasArrow placement="bottom">
-              <Button
-                variant="link"
-                color="brand.parchment"
-                opacity={0.85}
-                fontWeight="normal"
-                fontSize="0.9rem"
-                gap="0.3rem"
-                isLoading={shareLinkBusy}
-                onClick={onCopyShareLink}
-                _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
-              >
-                <TbLink size="0.85rem" /> Copy share link
-              </Button>
-            </Tooltip>
-          )}
-          {/* Straight back into matchmaking so players can start another game
-              without hand-navigating (issue #374). Bare href = full navigation,
-              same as the sibling replay link above. */}
-          <Link
-            href="/pro/game"
-            color="brand.parchment"
-            opacity={0.85}
-            fontSize="0.9rem"
-            display="inline-flex"
-            alignItems="center"
-            gap="0.3rem"
-            _hover={{ opacity: 1, color: "brand.accent", textDecoration: "none" }}
-          >
-            <TbPlus size="0.85rem" /> New game
-          </Link>
-        </Flex>
-      )}
+      {/* The endgame, stacked for the sheet shells (p2p #1397): the desktop
+          dock swaps itself for the wide centred panel below instead. */}
+      {endPanel && mobile && postGamePanel("sheet")}
       {/* Forfeit is NOT here (#1408): beside the turn's actions it was one
           misclick from ending the game. Desktop reaches it through the HUD's
           Game menu (ProHud), phones through the ⋮ menu (ProMobileHud); both
@@ -1610,6 +1542,34 @@ export const ProDock = ({
       </>
     );
   }
+
+  // ----- desktop, game over: the centred panel over the dimmed board --------
+  // The floating dock has nothing left to say once the game ends (no turn
+  // chrome, no actions), so it hands the screen to the panel. The scrim only
+  // dims — it takes no pointer events, so whatever it covers stays reachable.
+  // Layered just above the HUD (150): the result must not sit under a seat
+  // plate; the top chip row (room, connection, report bug) stays clear above
+  // the panel's top edge.
+  if (endPanel)
+    return (
+      <Box position="fixed" inset={0} zIndex={155} pointerEvents="none" data-testid="pro-post-game-overlay">
+        <Box position="absolute" inset={0} bg="rgba(20, 8, 24, 0.62)" />
+        <Flex position="absolute" inset={0} justify="center" align="flex-start" pt="3.5rem" px="1rem" pb="1rem">
+          <Box
+            pointerEvents="auto"
+            w="100%"
+            maxW="1000px"
+            maxH="calc(100vh - 4.5rem)"
+            overflowY="auto"
+            p="1.75rem 2.25rem 1.5rem"
+            boxShadow="0 30px 80px rgba(0, 0, 0, 0.55)"
+            {...PANEL_SURFACE}
+          >
+            {postGamePanel("panel")}
+          </Box>
+        </Flex>
+      </Box>
+    );
 
   return (
     <motion.div

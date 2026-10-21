@@ -168,6 +168,62 @@
       "modelName": "King Taranis",
       "creator": "JollyGrin",
       "sourceUrl": "https://unbrewed.xyz"
+    },
+    "piper-of-the-underroads": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7173658096303235
+      },
+      "imageWidthMm": 1.2530644130706787,
+      "footprintMm": 1.2052180767059326,
+      "aspect": 1.5,
+      "elevDeg": 50,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0378,
+        "right": 0.9817,
+        "bottom": 0.9622
+      },
+      "seats": {
+        "p1": "piper-of-the-underroads.p1.webp",
+        "p2": "piper-of-the-underroads.p2.webp",
+        "p3": "piper-of-the-underroads.p3.webp",
+        "p4": "piper-of-the-underroads.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Piper of the Underroads",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
+    },
+    "piper-of-the-underroads-spice": {
+      "anchor": {
+        "x": 0.5,
+        "y": 0.7173658096303235
+      },
+      "imageWidthMm": 1.2530644130706787,
+      "footprintMm": 1.2052180767059326,
+      "aspect": 1.5,
+      "elevDeg": 50,
+      "bounds": {
+        "left": 0.0183,
+        "top": 0.0378,
+        "right": 0.9817,
+        "bottom": 0.9622
+      },
+      "seats": {
+        "p1": "piper-of-the-underroads.p1.webp",
+        "p2": "piper-of-the-underroads.p2.webp",
+        "p3": "piper-of-the-underroads.p3.webp",
+        "p4": "piper-of-the-underroads.p4.webp"
+      },
+      "license": "CC0-1.0",
+      "redistributable": true,
+      "officialHero": false,
+      "modelName": "Piper of the Underroads",
+      "creator": "JollyGrin",
+      "sourceUrl": "https://unbrewed.xyz"
     }
   }
 }

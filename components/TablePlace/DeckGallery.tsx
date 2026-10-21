@@ -125,6 +125,7 @@ const DeckTile = ({
 export const DeckGallery = ({
   seat,
   entries,
+  proEntries,
   yourId,
   theirId,
   onPick,
@@ -133,6 +134,11 @@ export const DeckGallery = ({
   seat: "you" | "them";
   /** The classified bag; undefined while it is still loading. */
   entries: DeckEntry[] | undefined;
+  /**
+   * The repo-hosted Pro decks that are table-ready (#1421): always offered,
+   * whatever the bag holds. Already deduped against the bag by the caller.
+   */
+  proEntries?: DeckEntry[];
   yourId?: string;
   theirId?: string;
   onPick: (id: string) => void;
@@ -160,6 +166,17 @@ export const DeckGallery = ({
         />
       ))}
     </SimpleGrid>
+  );
+
+  const proSection = !!proEntries?.length && filter !== "needs" && (
+    <Flex flexDir="column" gap="10px" data-testid="decks-pro">
+      <SectionHead
+        title="Pro decks"
+        count={proEntries.length}
+        sub="Ready to play, no bag needed."
+      />
+      {grid(proEntries)}
+    </Flex>
   );
 
   return (
@@ -265,6 +282,7 @@ export const DeckGallery = ({
           )}
         </>
       )}
+      {proSection}
     </Flex>
   );
 };

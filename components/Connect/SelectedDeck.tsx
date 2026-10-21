@@ -13,6 +13,12 @@ type Props = {
    */
   starredDeck?: DeckImportType;
   decks?: DeckImportType[];
+  /**
+   * The repo-hosted Pro roster (#1421), offered beside the bag so an empty-bag
+   * visitor can still pick a deck. Picking one stars its id; it is never
+   * written into the bag. A bag deck with the same id wins.
+   */
+  proDecks?: DeckImportType[];
   setStar: (id: string) => void;
   /**
    * Whether the tile and footer link out to /bag. Off in the in-game deck
@@ -24,6 +30,36 @@ type Props = {
 
 export const SelectedDeckContainer = (props: Props) => {
   const { isLoading, error, starredDeck, decks, setStar } = props;
+  const bagIds = new Set(decks?.map((deck) => deck.id));
+  const pro = props.proDecks?.filter((deck) => !bagIds.has(deck.id)) ?? [];
+  const options = (
+    <>
+      {!!decks?.length && !!pro.length ? (
+        <optgroup label="Your bag">
+          {decks.map((deck) => (
+            <option key={deck.id} value={deck.id}>
+              {deck.name}
+            </option>
+          ))}
+        </optgroup>
+      ) : (
+        decks?.map((deck) => (
+          <option key={deck.id} value={deck.id}>
+            {deck.name}
+          </option>
+        ))
+      )}
+      {!!pro.length && (
+        <optgroup label="Pro decks">
+          {pro.map((deck) => (
+            <option key={deck.id} value={deck.id}>
+              {deck.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
   const linkToBag = props.linkToBag ?? true;
   const bagLink = linkToBag ? { as: Link, href: "/bag", cursor: "pointer" } : {};
   return (
@@ -144,7 +180,7 @@ export const SelectedDeckContainer = (props: Props) => {
           </Text>
           {/* Decks but no star — e.g. the starred one was deleted in /bag.
               Let them pick here rather than sending them back. */}
-          {!!decks?.length && (
+          {(!!decks?.length || !!pro.length) && (
             <Select
               aria-label="Choose your deck"
               w="100%"
@@ -157,11 +193,7 @@ export const SelectedDeckContainer = (props: Props) => {
               <option value="" disabled>
                 Pick a deck…
               </option>
-              {decks.map((deck) => (
-                <option key={deck.id} value={deck.id}>
-                  {deck.name}
-                </option>
-              ))}
+              {options}
             </Select>
           )}
         </>
@@ -220,11 +252,7 @@ export const SelectedDeckContainer = (props: Props) => {
             value={starredDeck.id}
             onChange={(e) => setStar(e.target.value)}
           >
-            {decks?.map((deck) => (
-              <option key={deck.id} value={deck.id}>
-                {deck.name}
-              </option>
-            ))}
+            {options}
           </Select>
           {linkToBag && (
             <Text

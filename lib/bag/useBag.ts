@@ -22,6 +22,7 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useAccount } from "@/lib/account/useAccount";
 import { blockedAuthorMessage, isImportBlocked } from "@/lib/decks/blockedAuthors";
 import { MapData } from "@/lib/hooks/useLocalStorage";
+import { useProDeck } from "@/lib/proDecks";
 import {
   BagSource,
   KindStore,
@@ -163,11 +164,17 @@ export const useBagDecks = (): BagDeckView => {
     [store],
   );
 
+  // A starred Pro deck that isn't in the bag (#1421): the star points at the
+  // repo-hosted snapshot, so a bag-less visitor can still play it. The bag's
+  // own copy wins a duplicate id, and nothing is ever written to the bag.
+  const bagStarred = decks?.find((deck) => deck.id === star);
+  const pro = useProDeck(decks && !bagStarred ? star : "");
+
   return {
     decks,
-    isLoading,
+    isLoading: isLoading || pro.loading,
     star,
-    starredDeck: decks?.find((deck) => deck.id === star),
+    starredDeck: bagStarred ?? pro.deck,
     sourceOf: (id) => sourceOf(store, id),
     cloudIdOf: (id) => cloudIdOf(store, id),
     setStar,

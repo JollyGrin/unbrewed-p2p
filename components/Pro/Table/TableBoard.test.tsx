@@ -104,15 +104,15 @@ describe("TableBoard clicks", () => {
   });
 });
 
-describe("TableBoard zones", () => {
+describe("TableBoard zones (discs ON — off by default, #1395)", () => {
   it("draws one pie wedge per zone for a multi-zone space", () => {
-    const { container } = renderBoard();
+    const { container } = renderBoard({ zoneDiscs: true });
     const s2 = container.querySelector('[data-space-id="s2"]')!;
     expect(s2.querySelectorAll("svg path")).toHaveLength(2);
   });
 
   it("draws no wedge SVG for a single-zone space — a plain filled disc instead", () => {
-    const { container } = renderBoard();
+    const { container } = renderBoard({ zoneDiscs: true });
     const s1 = container.querySelector('[data-space-id="s1"]')!;
     expect(s1.querySelectorAll("svg path")).toHaveLength(0);
   });

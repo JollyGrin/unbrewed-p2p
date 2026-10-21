@@ -44,6 +44,8 @@ import {
   TbWandOff,
   TbBellRinging,
   TbBellOff,
+  TbCircleFilled,
+  TbCircleDashed,
 } from "react-icons/tb";
 import { IoMdVolumeHigh, IoMdVolumeOff } from "react-icons/io";
 import toast from "react-hot-toast";
@@ -58,6 +60,7 @@ import { paceOption } from "@/lib/pro/pace";
 import { BOARD_VIEW_LABEL } from "@/lib/pro/boardView";
 import { MENU_FIT_MODIFIERS, MENU_MAX_H_VAR } from "@/lib/pro/menuFit";
 import { FIGURE_STYLE_LABEL, type FigureStyle } from "@/lib/pro/figures";
+import { ZONE_DISCS_LABEL, zoneDiscsStateLabel } from "@/lib/pro/zoneDiscs";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
@@ -247,6 +250,8 @@ export const ProMobileMenu = ({
   figureStyle,
   figureStyles,
   onChooseFigureStyle,
+  zoneDiscs,
+  onToggleZoneDiscs,
   turnReminderOn,
   onToggleTurnReminder,
   onReportBug,
@@ -272,6 +277,8 @@ export const ProMobileMenu = ({
   | "figureStyle"
   | "figureStyles"
   | "onChooseFigureStyle"
+  | "zoneDiscs"
+  | "onToggleZoneDiscs"
   | "turnReminderOn"
   | "onToggleTurnReminder"
   | "onReportBug"
@@ -416,6 +423,18 @@ export const ProMobileMenu = ({
                 </MenuItemOption>
               ))}
             </MenuOptionGroup>
+          )}
+          {onToggleZoneDiscs && zoneDiscs !== undefined && (
+            // Under the tabletop's look controls it belongs with (#1395):
+            // one tap flips the discs, same gesture as the turn reminder item.
+            <MenuItem
+              {...item}
+              icon={zoneDiscs ? <TbCircleFilled /> : <TbCircleDashed />}
+              onClick={onToggleZoneDiscs}
+              closeOnSelect={false}
+            >
+              {ZONE_DISCS_LABEL} — {zoneDiscsStateLabel(zoneDiscs)}
+            </MenuItem>
           )}
           {onForfeit && (
             <>

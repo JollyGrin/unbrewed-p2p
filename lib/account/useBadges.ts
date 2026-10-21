@@ -101,6 +101,26 @@ export const ensureBadgeProbe = (): Promise<void> => {
   return probe;
 };
 
+/**
+ * Ask `/me/badges` again, keeping the case on screen meanwhile (p2p #1399).
+ *
+ * The post-game card diffs `unlocked` before vs after a game, and the one
+ * probe per page load above can't answer that. This is the one way to re-ask:
+ * it swaps in a new probe so later `ensureBadgeProbe` callers share it, and
+ * resolves with the refreshed catalog — or null when the api wouldn't answer,
+ * in which case NOTHING is patched: a failed refresh must not blank a badge
+ * case the player can already see.
+ */
+export const reprobeBadges = (): Promise<Badge[] | null> => {
+  const next = fetchBadgeCase().then((result) => {
+    if (!result.ok) return null;
+    patch({ status: "ready", badges: result.value.badges, selected: result.value.selected });
+    return result.value.badges;
+  });
+  probe = next.then(() => undefined);
+  return next;
+};
+
 /** Drop everything and allow a fresh probe — used when the account changes. */
 const reset = (next: BadgeCaseState) => {
   probe = null;
