@@ -108,6 +108,8 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
+import { advanceRevealedHand, RevealedHand } from "@/lib/pro/revealedHand";
+import { RevealedHandPanel } from "@/components/Pro/RevealedHandPanel";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
@@ -5072,6 +5074,8 @@ const LiveGame = ({
   // advances from; the state copy is what the combat panel renders.
   const chainRef = useRef<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
   const [chain, setChain] = useState<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
+  // Last Keen Hearing reveal, kept for its panel (U3); see lib/pro/revealedHand.ts.
+  const [revealedHand, setRevealedHand] = useState<RevealedHand | null>(null);
   const logSeqRef = useRef(0);
   // One monotonic id per appended STATE batch (issue #298) — every line of a
   // batch shares it, so the log panel groups a single player action together.
@@ -5079,6 +5083,7 @@ const LiveGame = ({
   useEffect(() => {
     if (!snapshot) return;
     const next = snapshot.view;
+    setRevealedHand((cur) => advanceRevealedHand(cur, snapshot.events, next.turnNumber));
     const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
     // Sub-attack CHAIN bookkeeping (issue #596 ↔ engine #359). Runs here because
     // this is the one effect that already sees BOTH views of a batch, and the
@@ -7646,6 +7651,18 @@ const LiveGame = ({
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}
       />
+
+      {revealedHand && (
+        <RevealedHandPanel
+          revealed={revealedHand}
+          heroName={
+            view.fighters.find((f) => f.owner === revealedHand.owner && f.kind === "HERO")?.name ??
+            seatLabel(view, revealedHand.owner)
+          }
+          resolveCard={resolveCard}
+          labelFor={(c) => cardLabel(view.catalog, c)}
+        />
+      )}
 
       <ProLog
         entries={logEntries}

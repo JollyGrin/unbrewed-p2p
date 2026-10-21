@@ -785,6 +785,17 @@ export function enrichLines(
         break;
       }
 
+      // A played scheme lands in its owner's discard, which the snapshot diff
+      // narrates as "You → discard: Keen Hearing (scheme)" — reads like a discard
+      // choice, not a play. Reword it to the "played" form face-up commits use.
+      case "SCHEME_PLAYED": {
+        const target = out.find(
+          (l) => l.cards?.includes(e.card) && l.text === `${ctx.seat(e.player)} → discard: ${ctx.label(e.card)}`
+        );
+        if (target) target.text = `${ctx.seat(e.player)} played ${ctx.label(e.card)}`;
+        break;
+      }
+
       // --- Mode 2: new lines, allowlist only -------------------------------
       case "VALUE_MODIFIED": {
         const label = e.role === "ATTACK" ? "Attack" : "Defense";
