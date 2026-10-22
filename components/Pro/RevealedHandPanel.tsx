@@ -28,7 +28,7 @@ export const RevealedHandPanel = ({
     <Box
       data-testid="revealed-hand-panel"
       position="fixed"
-      top={{ base: "4.5rem", md: "9.5rem" }}
+      top={{ base: "5.75rem", md: "9.5rem" }}
       left="0.75rem"
       zIndex={20}
       maxW="min(22rem, calc(100vw - 1.5rem))"
