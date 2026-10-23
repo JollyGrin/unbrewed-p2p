@@ -2631,3 +2631,82 @@ describe("useProSocket — the ticket fallback never eats a resume blob (p2p #12
     expect(frames(ws).at(-1)).toMatchObject({ type: "JOIN_ROOM", roomId: "DQJ6", ticket: "tkt" });
   });
 });
+
+describe("useProSocket — Keen Hearing panel folds every STATE batch (p2p #1449)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const KH = "superman/keen-hearing#1";
+  const batch = (turnNumber: number, events: unknown[]) => ({
+    type: "STATE",
+    view: { you: "p2", prompt: null, activePlayer: "p1", winner: null, turnNumber },
+    legalActions: [],
+    events,
+  });
+  const reveal = batch(2, [
+    { type: "SCHEME_PLAYED", player: "p1", card: KH },
+    { type: "CARD_REVEALED", player: "p2", card: "a/x#1" },
+  ]);
+  const turnStart = (player: string) => batch(3, [{ type: "TURN_STARTED", player, turn: 3 }]);
+
+  /** Both STATEs delivered inside ONE act(): React renders once, with the last. */
+  const boot = () => {
+    const hook = renderHook(() => useProSocket("ws://test", false, false));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "R1", token: "tok", you: "p2" }));
+    act(() => ws.emit(batch(1, [])));
+    return { hook, ws };
+  };
+
+  it("a reveal in the first batch survives an unrelated second batch in the same tick", () => {
+    const { hook, ws } = boot();
+    act(() => {
+      ws.emit(reveal);
+      ws.emit(batch(2, [{ type: "ACTION_SPENT", player: "p1", action: "MANEUVER" }]));
+    });
+    expect(hook.result.current.revealState.panel).toMatchObject({ revealer: "p1", owner: "p2", cards: ["a/x#1"] });
+  });
+
+  it("the revealer's TURN_STARTED in the first batch clears a held panel even when a second batch lands in its tick", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit(reveal));
+    expect(hook.result.current.revealState.panel).not.toBeNull();
+    act(() => {
+      ws.emit(turnStart("p1"));
+      ws.emit(batch(3, [{ type: "ACTION_SPENT", player: "p1", action: "MANEUVER" }]));
+    });
+    expect(hook.result.current.revealState.panel).toBeNull();
+  });
+
+  it("reveal then the revealer's TURN_STARTED in one tick leaves no panel", () => {
+    const { hook, ws } = boot();
+    act(() => {
+      ws.emit(reveal);
+      ws.emit(turnStart("p1"));
+    });
+    expect(hook.result.current.revealState.panel).toBeNull();
+  });
+
+  it("the reverse split: the reveal sits in the SECOND batch, after a clearing TURN_STARTED in the first", () => {
+    const { hook, ws } = boot();
+    act(() => ws.emit(reveal));
+    expect(hook.result.current.revealState.panel).not.toBeNull();
+    act(() => {
+      ws.emit(turnStart("p1"));
+      ws.emit(batch(4, [
+        { type: "SCHEME_PLAYED", player: "p1", card: KH },
+        { type: "CARD_REVEALED", player: "p2", card: "a/y#2" },
+      ]));
+    });
+    expect(hook.result.current.revealState.panel).toMatchObject({ cards: ["a/y#2"], turn: 4 });
+  });
+});
