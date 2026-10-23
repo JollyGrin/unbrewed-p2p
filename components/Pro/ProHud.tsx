@@ -90,6 +90,7 @@ import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCard
 import {
   FlagHudChip,
   flagChipsFor,
+  offBoardChipsFor,
   counterChipsFor,
   pileDisplayName,
   pileCardIds,
@@ -924,6 +925,7 @@ export const SeatPlate = ({
   // BOTH seats' plates and either player can read either pile.
   const flagTags = [
     ...flagChipsFor(heroId, flags),
+    ...offBoardChipsFor(heroFighter, flags),
     ...counterChipsFor(heroId, counters, piles),
   ].map(({ chip, on }) => (
     <FlagChip

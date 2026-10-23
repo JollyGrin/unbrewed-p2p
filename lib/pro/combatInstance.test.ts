@@ -1,5 +1,5 @@
 import { isNewCombat } from "./combatInstance";
-import type { ViewCombat } from "./protocol";
+import type { GameEvent, ViewCombat } from "./protocol";
 
 const c = (over: Partial<ViewCombat> = {}): ViewCombat =>
   ({
@@ -41,5 +41,29 @@ describe("isNewCombat", () => {
     expect(isNewCombat(c(), c({ attacker: "p1/sk1" }))).toBe(true);
     expect(isNewCombat(c(), c({ target: "p2/sk1" }))).toBe(true);
     expect(isNewCombat(c(), c({ attackerPlayer: "p2", defenderPlayer: "p1" }))).toBe(true);
+  });
+
+  // Appa's Hallucinations / the Xenomorph's Marked Blip: the ATTACKER moves inside
+  // the same combat. The batch's COMBAT_ATTACKER_CHANGED is what tells it apart.
+  describe("attacker takeover (COMBAT_ATTACKER_CHANGED)", () => {
+    const takeover: GameEvent = { type: "COMBAT_ATTACKER_CHANGED", from: "p1/hero", to: "p1/sidekick-1" };
+
+    it("is NOT a new combat when the batch explains the attacker change", () => {
+      expect(isNewCombat(c(), c({ attacker: "p1/sidekick-1", stage: "IMMEDIATELY" }), [takeover])).toBe(false);
+    });
+
+    it("is still new without the event, or when the event names other fighters", () => {
+      const next = c({ attacker: "p1/sidekick-1" });
+      expect(isNewCombat(c(), next)).toBe(true);
+      expect(isNewCombat(c(), next, [])).toBe(true);
+      expect(isNewCombat(c(), next, [{ ...takeover, from: "p1/sidekick-2" } as GameEvent])).toBe(true);
+    });
+
+    it("a takeover does not excuse a changed target or a restarted stage", () => {
+      expect(isNewCombat(c(), c({ attacker: "p1/sidekick-1", target: "p2/sk1" }), [takeover])).toBe(true);
+      expect(
+        isNewCombat(c({ stage: "AFTER" }), c({ attacker: "p1/sidekick-1", stage: "COMMIT_DEFENSE" }), [takeover])
+      ).toBe(true);
+    });
   });
 });

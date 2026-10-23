@@ -25,7 +25,7 @@
  *    `isDefault` entry when none is (an older snapshot may omit the form flag;
  *    Night Elf is the useful default so the surfaces still answer "what form?").
  */
-import { CardInstanceId, PileEntry, PlayerId } from "./protocol";
+import { CardInstanceId, PileEntry, PlayerId, ViewFighter } from "./protocol";
 
 /** Board-token corner badge presentation (icon + label + colors). */
 export interface FlagTokenBadge {
@@ -840,6 +840,42 @@ export const flagChipsFor = (
   chips.push(...denyChipsFor(flags));
   return chips;
 };
+
+// ---------------------------------------------------------------------------
+// "Off the board" — derived from the POSE, not an engine flag (xenomorph train N6)
+// ---------------------------------------------------------------------------
+
+/** Engine flags whose registry pill already says the hero is off the board
+ *  (SLAVE I, JASON_RETURN) — a second "off the board" pill beside them is noise. */
+const OFF_BOARD_COVERED_BY_FLAG = ["SLAVE_I", "JASON_RETURN"];
+
+/** A hero that is ALIVE but has no space on the board: a card removed it (Boba,
+ *  Jason, Gerry's benign removal) or the deck starts it there (the Xenomorph). HP
+ *  alone renders fine and reads as "on the board"; nothing else says otherwise.
+ *  A defeated hero is also space-less but is dead, not off the board — never. */
+export const isHeroOffBoard = (
+  hero: Pick<ViewFighter, "space" | "defeated"> | null | undefined
+): boolean => !!hero && !hero.defeated && !hero.space;
+
+/** Sibling of `flagChipsFor` for the pose-keyed pill: [] unless the hero is off
+ *  the board and no flag pill already says so. Same `{chip,on}` shape. */
+export const offBoardChipsFor = (
+  hero: Pick<ViewFighter, "space" | "defeated"> | null | undefined,
+  flags: Record<string, boolean> | undefined
+): { chip: FlagHudChip; on: boolean }[] =>
+  isHeroOffBoard(hero) && !OFF_BOARD_COVERED_BY_FLAG.some((f) => flags?.[f])
+    ? [
+        {
+          on: true,
+          chip: {
+            flag: "OFF_BOARD",
+            onLabel: "OFF THE BOARD",
+            offLabel: "",
+            title: "This hero is not on the board right now",
+          },
+        },
+      ]
+    : [];
 
 // ---------------------------------------------------------------------------
 // Action-denial flags — the `DENY:` reserved namespace (protocol v0.51.0, engine

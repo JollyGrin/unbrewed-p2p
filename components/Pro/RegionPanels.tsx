@@ -350,6 +350,8 @@ export interface RegionPanelsProps {
   selectedFighter?: FighterId | null;
   attack?: { attacker: FighterId; target: FighterId } | null;
   defenderStepIn?: { fighterId: FighterId; chip: string; blurb: string } | null;
+  /** v36 attacker takeover — drawn like `defenderStepIn`. */
+  attackerStepIn?: { fighterId: FighterId; chip: string; blurb: string } | null;
   friendlyOwners?: PlayerId[];
   fighterBadges?: Partial<Record<FighterId, number>>;
   extendedReachTargets?: FighterId[];
@@ -430,6 +432,7 @@ export const useRegionPanels = ({
   selectedFighter = null,
   attack = null,
   defenderStepIn = null,
+  attackerStepIn = null,
   friendlyOwners = [],
   fighterBadges = {},
   extendedReachTargets = [],
@@ -698,7 +701,15 @@ export const useRegionPanels = ({
     // Head segment only, like every other badge, and
     // deliberately NOT gated on `isTarget` — the new defender is usually the
     // viewer's OWN fighter, which the server never offers as a target.
-    const stepsInAsDefender = segment === "head" && defenderStepIn?.fighterId === f.id;
+    const stepIn =
+      segment !== "head"
+        ? null
+        : defenderStepIn?.fighterId === f.id
+          ? defenderStepIn
+          : attackerStepIn?.fighterId === f.id
+            ? attackerStepIn
+            : null;
+    const stepsInAsDefender = !!stepIn;
     const isFriendly = friendlySet.has(f.owner);
     // A CHOOSE_SPACE prompt highlights the space *under* the token, and the
     // token (zIndex 4) sits above the space hit-circle (zIndex 3) — a click
@@ -999,7 +1010,7 @@ export const useRegionPanels = ({
             {boughtRange.chip}
           </Flex>
         )}
-        {stepsInAsDefender && defenderStepIn && (
+        {stepsInAsDefender && stepIn && (
           <Flex
             position="absolute"
             // Below the token rather than above it: the "reach 2" / price chips
@@ -1020,7 +1031,7 @@ export const useRegionPanels = ({
             pointerEvents="none"
             boxShadow="0 1px 3px rgba(0,0,0,0.7)"
           >
-            {defenderStepIn.chip}
+            {stepIn.chip}
           </Flex>
         )}
       </>
@@ -1192,8 +1203,8 @@ export const useRegionPanels = ({
         justifyContent="center"
         zIndex={4}
         title={
-          stepsInAsDefender && defenderStepIn
-            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${defenderStepIn.blurb}`
+          stepsInAsDefender && stepIn
+            ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${stepIn.blurb}`
             : boughtRange
             ? `${f.name} — ${f.hp}/${f.maxHp} HP · ${boughtRange.blurb}`
             : isExtendedReachTarget

@@ -11,6 +11,8 @@ import {
   HERO_STATE_FLAGS,
   HERO_STATE_COUNTERS,
   flagChipsFor,
+  offBoardChipsFor,
+  isHeroOffBoard,
   counterChipsFor,
   fighterTokenBadgeFor,
   fighterTokenCounterBadgeFor,
@@ -1296,5 +1298,26 @@ describe("fighterTokenStateByOwner — Leon", () => {
     expect(state.p1!.badge).toMatchObject({ icon: "💰", label: "2" });
     expect(state.p2!.badge).toMatchObject({ icon: "🛒", label: "1" });
     expect(state.p3).toBeUndefined();
+  });
+});
+
+describe("off-the-board pill (pose-derived, xenomorph N6)", () => {
+  it("shows for a living hero with no space", () => {
+    const chips = offBoardChipsFor({ space: null, defeated: false }, {});
+    expect(chips).toHaveLength(1);
+    expect(chips[0].on).toBe(true);
+    expect(chips[0].chip.onLabel).toBe("OFF THE BOARD");
+  });
+
+  it("is absent for a hero on the board, a defeated hero, or no hero", () => {
+    expect(offBoardChipsFor({ space: "s1", defeated: false }, {})).toEqual([]);
+    expect(offBoardChipsFor({ space: null, defeated: true }, {})).toEqual([]);
+    expect(offBoardChipsFor(undefined, {})).toEqual([]);
+    expect(isHeroOffBoard({ space: null, defeated: true })).toBe(false);
+  });
+
+  it("does not double up beside a flag pill that already says it (Jason, Boba)", () => {
+    expect(offBoardChipsFor({ space: null, defeated: false }, { JASON_RETURN: true })).toEqual([]);
+    expect(offBoardChipsFor({ space: null, defeated: false }, { SLAVE_I: true })).toEqual([]);
   });
 });

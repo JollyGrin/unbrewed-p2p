@@ -53,6 +53,7 @@ import { InGameAccountChip } from "@/components/Account/AccountChip";
 import { useHudPlates, DEFAULT_PLATE_LAYOUT } from "@/lib/pro/useHudPlates";
 import { deriveTeams } from "@/lib/pro/teams";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
+import { isHeroOffBoard } from "@/lib/pro/heroStateFlags";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { defenseCueDue, turnStripFor, yourTurnCueDue } from "@/lib/pro/turnStrip";
 import { RAIL_WIDTH_CSS, TAP_TARGET, chipSeatName } from "@/lib/pro/mobileLayout";
@@ -112,6 +113,7 @@ const HpChip = ({
   seat,
   label,
   heroHp,
+  offBoard,
   sidekickHps,
   active,
   local,
@@ -121,6 +123,8 @@ const HpChip = ({
   seat: PlayerId;
   label: string;
   heroHp: number | null;
+  /** the hero is alive but off the board (pose-derived, `isHeroOffBoard`) */
+  offBoard: boolean;
   sidekickHps: { id: string; hp: number; defeated: boolean }[];
   active: boolean;
   local: boolean;
@@ -182,6 +186,20 @@ const HpChip = ({
     >
       ♥{heroHp ?? "–"}
     </Text>
+    {offBoard && (
+      <Text
+        data-testid={`seat-chip-offboard-${seat}`}
+        fontFamily="SpaceGrotesk"
+        fontWeight={700}
+        fontSize="0.6rem"
+        lineHeight={1}
+        flexShrink={0}
+        letterSpacing="0.04em"
+        title="This hero is not on the board right now"
+      >
+        OFF BOARD
+      </Text>
+    )}
     {/* A glance, not a roster: two sidekick hearts fit a corner chip, and a
         deck that fields more gets a count. Every one of them is spelled out in
         the seat sheet a tap away. */}
@@ -541,6 +559,7 @@ export const ProMobileHud = ({
         seat={seat.id}
         name={hero?.name ?? seatLabel(seat)}
         heroHp={hero ? hero.hp : null}
+        offBoard={isHeroOffBoard(hero)}
         sidekickHps={sidekicksOf(seat.id).map((s) => ({ id: s.id, hp: s.hp, defeated: s.defeated }))}
         portraitUrl={portraitFor?.(seat.id) ?? null}
         seatColor={SEAT_COLOR[seat.id] ?? "#999"}
@@ -619,6 +638,7 @@ export const ProMobileHud = ({
                 seat={seat.id}
                 label={chipSeatName(hero?.name, seatLabel(seat))}
                 heroHp={hero ? hero.hp : null}
+                offBoard={isHeroOffBoard(hero)}
                 sidekickHps={sidekicksOf(seat.id).map((s) => ({
                   id: s.id,
                   hp: s.hp,

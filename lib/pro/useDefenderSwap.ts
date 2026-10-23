@@ -23,10 +23,15 @@
 import { useEffect, useRef, useState } from "react";
 import { GameEvent, PlayerView } from "./protocol";
 import {
+  AttackerChange,
+  AttackerSwap,
   CombatTargeting,
+  DefenderChange,
   DefenderSwap,
   EMPTY_COMBAT_TARGETING,
   advanceCombatTargeting,
+  attackerSwapStillLive,
+  latestAttackerChange,
   defenderSwapStillLive,
   latestDefenderChange,
 } from "./combatDefender";
@@ -38,7 +43,23 @@ export const DEFENDER_SWAP_LINGER_MS = 2300;
 export function useDefenderSwap(
   snapshot: { view: PlayerView; events: GameEvent[] } | null
 ): DefenderSwap | null {
-  const [swap, setSwap] = useState<DefenderSwap | null>(null);
+  return useCombatSwap<DefenderChange>(snapshot, latestDefenderChange, defenderSwapStillLive);
+}
+
+/** The attacker-side sibling (protocol v36 ↔ engine #752): same standing-chip
+ *  rule, retired the moment `combat.attacker` no longer agrees. */
+export function useAttackerSwap(
+  snapshot: { view: PlayerView; events: GameEvent[] } | null
+): AttackerSwap | null {
+  return useCombatSwap<AttackerChange>(snapshot, latestAttackerChange, attackerSwapStillLive);
+}
+
+function useCombatSwap<C extends { from: string; to: string }>(
+  snapshot: { view: PlayerView; events: GameEvent[] } | null,
+  latest: (events: GameEvent[]) => C | null,
+  stillLive: (swap: C, view: PlayerView) => boolean
+): (C & { key: number }) | null {
+  const [swap, setSwap] = useState<(C & { key: number }) | null>(null);
   const seqRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** key of a swap whose combat is already over and which is riding out its
@@ -49,14 +70,15 @@ export function useDefenderSwap(
 
   useEffect(() => {
     if (!snapshot) return;
-    const fresh = latestDefenderChange(snapshot.events);
+    const fresh = latest(snapshot.events);
     if (fresh) {
       const key = seqRef.current++;
       setSwap({ ...fresh, key });
       if (timerRef.current) clearTimeout(timerRef.current);
-      // Still the live combat's defender ⇒ the view will retire it. Already over
-      // ⇒ nothing will, so retire it here.
-      if (defenderSwapStillLive(fresh, snapshot.view)) {
+      // Still the live combat's fighter ⇒ the view will retire it. Already over
+      // (or, for a post-damage defender takeover, the combat ended) ⇒ nothing
+      // will, so retire it here.
+      if (stillLive(fresh, snapshot.view)) {
         timerRef.current = null;
         lingeringKeyRef.current = null;
       } else {
@@ -69,13 +91,12 @@ export function useDefenderSwap(
       return;
     }
     // No substitution in this batch: keep the standing one only while the view
-    // still says its fighter is defending — or while it is lingering, where the
+    // still says its fighter is in the slot — or while it is lingering, where the
     // timer is the only thing that can retire it.
     setSwap((cur) =>
-      cur && (cur.key === lingeringKeyRef.current || defenderSwapStillLive(cur, snapshot.view))
-        ? cur
-        : null
+      cur && (cur.key === lingeringKeyRef.current || stillLive(cur, snapshot.view)) ? cur : null
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot]);
 
   return swap;

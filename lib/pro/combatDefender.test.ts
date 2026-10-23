@@ -7,6 +7,11 @@
 import {
   EMPTY_COMBAT_TARGETING,
   advanceCombatTargeting,
+  attackerChanges,
+  attackerSwapStillLive,
+  attackerSwapText,
+  defenderChangeKind,
+  latestAttackerChange,
   combatSidesLine,
   defenderChanges,
   defenderRedirect,
@@ -272,5 +277,89 @@ describe("defenderSwapText — REDIRECTED", () => {
     expect(defenderSwapText("Ellen Ripley", "Newt")).toEqual(
       defenderSwapText("Ellen Ripley", "Newt", "SUBSTITUTED")
     );
+  });
+});
+
+describe("post-damage defender takeover", () => {
+  const DAMAGE: GameEvent = { type: "COMBAT_DAMAGE", amount: 1 };
+
+  it("flags a substitution that arrives after COMBAT_DAMAGE, and only that one", () => {
+    expect(defenderChanges([CHANGE, DAMAGE, BACK])).toEqual([
+      { from: "p1/hero", to: "p1/sidekick-1" },
+      { from: "p1/sidekick-1", to: "p1/hero", afterDamage: true },
+    ]);
+    expect(latestDefenderChange([DAMAGE, CHANGE])).toEqual({
+      from: "p1/hero",
+      to: "p1/sidekick-1",
+      afterDamage: true,
+    });
+  });
+
+  it("uses neutral wording that never claims the damage lands on the new defender", () => {
+    const [change] = defenderChanges([DAMAGE, CHANGE]);
+    const copy = defenderSwapText("Blip 2", "Xenomorph", defenderChangeKind(change));
+    expect(copy.full).toBe("Xenomorph takes over the defense from Blip 2");
+    expect(copy.tag).toBe("XENOMORPH TAKES OVER THE DEFENSE");
+    for (const text of [copy.chip, copy.tag, copy.full]) {
+      expect(text.toLowerCase()).not.toContain("instead");
+      expect(text.toLowerCase()).not.toContain("lands");
+    }
+  });
+
+  it("keeps the pre-damage wording when the change is not after damage", () => {
+    expect(defenderChangeKind({})).toBe("SUBSTITUTED");
+  });
+
+  it("tolerates a combat that is gone or past the damage step — no crash, no stale chip", () => {
+    const [swap] = defenderChanges([DAMAGE, CHANGE]);
+    expect(defenderSwapStillLive(swap, view())).toBe(false);
+    expect(
+      defenderSwapStillLive(swap, view({ combat: combat({ target: "p1/sidekick-1", stage: "AFTER" }) }))
+    ).toBe(true);
+    expect(
+      defenderSwapStillLive(swap, view({ combat: combat({ target: "p1/hero", stage: "AFTER" }) }))
+    ).toBe(false);
+  });
+});
+
+describe("attacker substitution (protocol v36)", () => {
+  const TAKE: GameEvent = { type: "COMBAT_ATTACKER_CHANGED", from: "p2/hero", to: "p2/sidekick-1" };
+
+  it("parses every attacker change in order and ignores defender events", () => {
+    const back: GameEvent = { type: "COMBAT_ATTACKER_CHANGED", from: "p2/sidekick-1", to: "p2/hero" };
+    expect(attackerChanges([CHANGE, TAKE, back])).toEqual([
+      { from: "p2/hero", to: "p2/sidekick-1" },
+      { from: "p2/sidekick-1", to: "p2/hero" },
+    ]);
+    expect(latestAttackerChange([TAKE, back])).toEqual({ from: "p2/sidekick-1", to: "p2/hero" });
+    expect(latestAttackerChange([CHANGE])).toBeNull();
+  });
+
+  it("words the chip, tag and log line once", () => {
+    const copy = attackerSwapText("Xenomorph", "Blip 2");
+    expect(copy.chip).toBe("attacks instead");
+    expect(copy.tag).toBe("BLIP 2 ATTACKS INSTEAD");
+    expect(copy.full).toBe("Blip 2 takes over from Xenomorph as the attacker");
+  });
+
+  it("retires the standing chip once combat.attacker no longer agrees", () => {
+    const swap = { from: "p2/hero", to: "p2/sidekick-1" };
+    expect(attackerSwapStillLive(swap, view({ combat: combat({ attacker: "p2/sidekick-1" }) }))).toBe(true);
+    expect(attackerSwapStillLive(swap, view({ combat: combat({ attacker: "p2/hero" }) }))).toBe(false);
+    expect(attackerSwapStillLive(swap, view())).toBe(false);
+  });
+
+  it("keeps the declared target across a takeover so the redirect fact survives", () => {
+    const declared = advanceCombatTargeting(EMPTY_COMBAT_TARGETING, [
+      { type: "ATTACK_DECLARED", attacker: "p2/hero", target: "p1/hero" } as GameEvent,
+    ]);
+    const after = advanceCombatTargeting(declared, [TAKE]);
+    expect(after).toEqual({ declared: "p1/hero", attacker: "p2/sidekick-1" });
+    // the takeover is not a redirect; a genuinely different target still is
+    expect(defenderRedirect(after, combat({ attacker: "p2/sidekick-1", target: "p1/hero" }))).toBeNull();
+    expect(defenderRedirect(after, combat({ attacker: "p2/sidekick-1", target: "p1/sidekick-1" }))).toEqual({
+      from: "p1/hero",
+      to: "p1/sidekick-1",
+    });
   });
 });

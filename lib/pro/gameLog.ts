@@ -12,6 +12,7 @@ import {
   PlayerId,
   PlayerView,
   ValueBreakdown,
+  ViewFighter,
   ViewPlayer,
 } from "./protocol";
 import { boardObjectOriginFighter, boardObjectVisualFor } from "./boardObjects";
@@ -19,7 +20,7 @@ import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
-import { defenderSwapText } from "./combatDefender";
+import { attackerSwapText, defenderChangeKind, defenderChanges, defenderSwapText } from "./combatDefender";
 import { combatOutcomeLogText } from "./combatOutcome";
 import { isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { MITIGATION_COUNTER } from "./clockTower";
@@ -354,7 +355,10 @@ export function diffViews(
   prev: PlayerView | null,
   next: PlayerView,
   label: (instance: CardInstanceId) => string,
-  events: GameEvent[] = []
+  events: GameEvent[] = [],
+  /** Display name for a fighter id (squad-badged by the page); defaults to the
+   *  view's own name. Only the arrival line below uses it today. */
+  fighterName: (f: ViewFighter) => string = (f) => f.name
 ): ProLogLine[] {
   const lines: ProLogLine[] = [];
   const whoOf = (p: string): "you" | "opp" => (p === next.you ? "you" : "opp");
@@ -474,6 +478,16 @@ export function diffViews(
     // snapshot rather than the event so it also narrates on an older/quieter server.
     if (!f.space && was.space && !f.defeated && !was.defeated) {
       lines.push({ text: `${f.name} was removed from the battlefield`, who: whoOf(f.owner) });
+    }
+    // The converse: a LIVING fighter gaining a space it did not have — Jason
+    // Voorhees returning, Grievous's / the Clone Troopers' summons, a revive, and
+    // (soon) a hero that starts the game off the board. No event narrates it
+    // (`HERO_PLACED` / `FIGHTER_REVIVED` have no case), so derive it from the poses.
+    if (!was.space && f.space && !f.defeated) {
+      lines.push({
+        text: `${fighterName(f)} appears at ${spaceLabel(f.space)}`,
+        who: whoOf(f.owner),
+      });
     }
   }
 
@@ -757,6 +771,7 @@ export function enrichLines(
   // Position of the next SUB_ATTACK_INITIATED within this batch — a drained
   // followup queue can dispatch more than one before a player has to act again.
   let subAttackOrdinal = 0;
+  let defenderOrdinal = 0;
   // An opening-hand mulligan puts the whole hand back one CARD_SHUFFLED_INTO_DECK
   // at a time (protocol v30). MULLIGAN_TAKEN already narrates that in one line, so
   // the per-card returns must not spam the feed (issue #741).
@@ -976,8 +991,26 @@ export function enrichLines(
       // overlaps nothing the diff prints, and it is the record the replay log needs
       // to explain a hit that landed on somebody else.
       case "COMBAT_DEFENDER_CHANGED": {
+        // A takeover AFTER the damage step is worded neutrally (the damage already
+        // landed): `defenderChanges` flags it by batch order, in event order.
+        const change = defenderChanges(events)[defenderOrdinal++];
         added.push({
-          text: defenderSwapText(ctx.fighter(e.from), ctx.fighter(e.to)).full,
+          text: defenderSwapText(
+            ctx.fighter(e.from),
+            ctx.fighter(e.to),
+            change ? defenderChangeKind(change) : "SUBSTITUTED"
+          ).full,
+          who: "game",
+        });
+        break;
+      }
+
+      // v36 attacker substitution (engine #752 — Appa's *Hallucinations*): the
+      // mirror of the defender case above, same reasoning — the diff cannot see
+      // which FIGHTER is swinging, so the event owns the line.
+      case "COMBAT_ATTACKER_CHANGED": {
+        added.push({
+          text: attackerSwapText(ctx.fighter(e.from), ctx.fighter(e.to)).full,
           who: "game",
         });
         break;

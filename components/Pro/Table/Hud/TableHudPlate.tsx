@@ -22,6 +22,8 @@ export interface TableHudPlateProps {
   seat: string;
   name: string;
   heroHp: number | null;
+  /** the hero is alive but off the board (pose-derived) */
+  offBoard?: boolean;
   sidekickHps: { id: string; hp: number; defeated: boolean }[];
   portraitUrl: string | null;
   seatColor: string;
@@ -42,6 +44,7 @@ export const TableHudPlate = ({
   seat,
   name,
   heroHp,
+  offBoard = false,
   sidekickHps,
   portraitUrl,
   seatColor,
@@ -138,6 +141,20 @@ export const TableHudPlate = ({
             {heroHp ?? "–"}
           </Text>
         </Flex>
+        {offBoard && (
+          <Text
+            data-testid={`table-hud-offboard-${seat}`}
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            fontSize="0.6rem"
+            lineHeight={1}
+            flexShrink={0}
+            letterSpacing="0.04em"
+            title="This hero is not on the board right now"
+          >
+            OFF BOARD
+          </Text>
+        )}
         {sidekickHps.slice(0, SIDEKICKS_ON_PLATE).map((s) => (
           <Text
             key={s.id}
