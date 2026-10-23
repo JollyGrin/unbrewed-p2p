@@ -54,6 +54,14 @@ describe("buildFinishedGameSetup", () => {
     expect(rematchQuery(setup!).joinHero).toBeUndefined();
   });
 
+  it("human in p2: the rematch link seats the bot in p1 with its tier and hero", () => {
+    const bots = botsFromCreateRoom({ difficulty: "medium" }, undefined, "p2");
+    const setup = buildFinishedGameSetup(buildInput({ bots, you: "p2" as never }));
+    expect(setup?.otherSeats).toEqual([{ player: "p1", heroId: "GINGERBREAD", bot: "medium" }]);
+    expect(rematchQuery(setup!)).toMatchObject({ bots: "p1:medium:GINGERBREAD", hero: "COUNT" });
+    expect(rematchQuery(setup!).joinHero).toBeUndefined();
+  });
+
   it("works from any seat, ordering the others by seat id", () => {
     const setup = buildFinishedGameSetup(
       buildInput({
@@ -77,8 +85,12 @@ describe("buildFinishedGameSetup", () => {
 });
 
 describe("botsFromCreateRoom", () => {
-  it("duel's single bot always sits in p2", () => {
+  it("duel's single bot sits in p2 until our own seat is known", () => {
     expect(botsFromCreateRoom({ difficulty: "hard" }, undefined)).toEqual({ p2: "hard" });
+    expect(botsFromCreateRoom({ difficulty: "hard" }, undefined, "p1")).toEqual({ p2: "hard" });
+  });
+  it("duel's bot takes p1 when the engine seated the human in p2", () => {
+    expect(botsFromCreateRoom({ difficulty: "hard" }, undefined, "p2")).toEqual({ p1: "hard" });
   });
   it("botSeats name their own seats", () => {
     expect(
