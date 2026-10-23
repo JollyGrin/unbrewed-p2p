@@ -542,7 +542,7 @@ export function useProSocket(
   const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
   // The bot seats of the CREATE_ROOM in flight, until its ROOM_CREATED names
   // the room to record them against (#876).
-  const pendingCreateBotsRef = useRef<RoomBots | null>(null);
+  const pendingCreateBotsRef = useRef<{ bot: { difficulty: BotDifficulty } | undefined; botSeats: BotSeatFill[] | undefined } | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   // --- Slow mode (issue #703) ------------------------------------------------
   // The pacing decision itself lives in `slowModeQueue` (pure, unit-tested); this
@@ -861,7 +861,10 @@ export function useProSocket(
           // The bot seats our own CREATE_ROOM asked for — recorded against the
           // room it made, so a reload mid-game still knows who the AI is.
           if (msg.type === "ROOM_CREATED" && pendingCreateBotsRef.current) {
-            setRoomBots(msg.roomId, pendingCreateBotsRef.current);
+            setRoomBots(
+              msg.roomId,
+              botsFromCreateRoom(pendingCreateBotsRef.current.bot, pendingCreateBotsRef.current.botSeats, msg.you),
+            );
             pendingCreateBotsRef.current = null;
           }
           {
@@ -1416,7 +1419,7 @@ export function useProSocket(
       gameOverRef.current = false;
       lastViewRef.current = null;
       clearResumeDeadline();
-      pendingCreateBotsRef.current = botsFromCreateRoom(bot, botSeats);
+      pendingCreateBotsRef.current = { bot, botSeats };
       rematchOfferRef.current = REMATCH_IDLE; // a new room has no rematch in flight
       rematchFrameOutRef.current = false;
       setRematchOffer(REMATCH_IDLE);
