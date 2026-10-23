@@ -7667,8 +7667,8 @@ const LiveGame = ({
       />
 
       {/* hand — docked fan over the bottom edge, sandbox style */}
-      {!mobile && (
-        <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
+      {!mobile && !isGameOver(view) && (
+        <Flex data-testid="pro-hand-dock" position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
           <Box pointerEvents="auto">
             <ProHand
               hand={view.self.hand}
