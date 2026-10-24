@@ -2,7 +2,10 @@
  * Adventure end screen (unbrewed-p2p#1159): the verdict and WHY.
  *
  * Pure view-model over `PlayerView.scenario.result` / `.releases` / `.threat.bySource`
- * (engine #735, protocol v36) plus the fighters. ADVENTURE ONLY: `adventureVerdictModel`
+ * (engine #735, protocol v36) plus the fighters. A released enemy's "defeated R<k>" comes from the
+ * engine's `releases[].defeatedRound` stamp (#749 / p2p #1458), so it survives a reload; the rounds
+ * the heroes and the villain fell are not on the wire and are still tracked from FIGHTER_DEFEATED
+ * events as they arrive (`trackDefeatRounds`), which also backs the tile on an older engine. ADVENTURE ONLY: `adventureVerdictModel`
  * returns null for any view without a scenario, so every other format keeps today's
  * VICTORY!/DEFEAT panel byte for byte. This file is also the adventure end-screen copy
  * module — scenario-flavoured strings (headlines, the setting) come from
@@ -28,7 +31,7 @@ export interface VerdictReleaseTile {
   /** final tile only: "fourth" (the overflow slot that cost the game), null when the wire has none */
   ordinal: string | null;
   enemyName: string;
-  /** the round the released enemy fell, when we watched it happen */
+  /** the round the released enemy fell: the engine's `defeatedRound` stamp, else the round we watched it happen */
   defeatedRound: number | null;
   /** the slot that ended the game — carries no enemy */
   final: boolean;
@@ -80,6 +83,16 @@ export const trackDefeatRounds = (
   return next ?? prev;
 };
 
+/**
+ * The round a released enemy fell (#1458): the engine's `defeatedRound` stamp (#749) when present —
+ * it is on the view, so a reload / reconnect into a finished room still has it — else the round we
+ * watched its FIGHTER_DEFEATED arrive (an older engine; absent after a reload). The stamp is written
+ * before `startNextRound` increments, so it can read one round LOWER than the watched value when the
+ * killing STATE batch also minted the next round: the stamp is the correct one and wins.
+ */
+const releaseDefeatRound = (r: ScenarioRelease, defeatRounds: Readonly<Record<FighterId, number>>): number | null =>
+  r.defeatedRound ?? defeatRounds[r.fighter] ?? null;
+
 const releaseTiles = (
   view: PlayerView,
   releases: readonly ScenarioRelease[],
@@ -90,7 +103,7 @@ const releaseTiles = (
     objectLabel: r.spaceLabel ?? String(i + 1),
     ordinal: null,
     enemyName: view.fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId,
-    defeatedRound: defeatRounds[r.fighter] ?? null,
+    defeatedRound: releaseDefeatRound(r, defeatRounds),
     final: false,
   }));
 
@@ -144,8 +157,8 @@ export const adventureVerdictModel = (
   if (result.verdict === "VICTORY") {
     const villainRound = villain ? defeatRounds[villain.id] : undefined;
     const lastLoose = [...(scenario.releases ?? [])]
-      .map((r) => ({ r, round: defeatRounds[r.fighter] }))
-      .filter((x) => x.round != null)
+      .map((r) => ({ r, round: releaseDefeatRound(r, defeatRounds) }))
+      .filter((x): x is { r: ScenarioRelease; round: number } => x.round != null)
       .sort((a, b) => b.round - a.round)[0];
     lines.push(villainRound != null ? `${villainName} fell in round ${villainRound}.` : `${villainName} fell.`);
     if (lastLoose) {
