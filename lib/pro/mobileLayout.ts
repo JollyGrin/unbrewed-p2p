@@ -11,15 +11,26 @@
  * re-fit the map underneath it.
  *
  * `boardFitInsetFor` is the one piece of geometry both arrangements share, so
- * it lives here as a pure function: the desktop branch returns the exact
- * constants the page has always used (120/136/16, plus the dock's column), and
- * the mobile branches return the measured persistent chrome.
+ * it lives here as a pure function: the desktop branch returns fixed constants
+ * (120 / the hand fan's height / 16, plus the dock's column), and the mobile
+ * branches return the measured persistent chrome.
  */
 import type { ProLayoutMode } from "./useProLayout";
 import type { ZoomPanInset } from "./useZoomPan";
 
-/** Desktop insets — the fixed HUD band, hand fan and dock column. Unchanged. */
-export const DESKTOP_INSET = { top: 120, bottom: 136, side: 16, dockColumn: 320 } as const;
+/** The desktop fan's card width (rem) — `HAND_CARD_W_FAN`, as a number for the fit below. */
+const HAND_CARD_W_FAN_REM = 8.5;
+
+/**
+ * px the desktop hand fan stands over the bottom of the stage at rest: a card (63:88, so about
+ * 190px tall), the fan row's 0.5rem bottom padding (ProHand), less the 0.75rem the dock hangs
+ * below the viewport (pages/pro/game.tsx). The fit reserved 136 here — the card's WIDTH — which
+ * left the bottom row of printed spaces under a 4+ card fan, unclickable (p2p #1479).
+ */
+export const DESKTOP_HAND_FAN_H = Math.ceil(((HAND_CARD_W_FAN_REM * 88) / 63 + 0.5 - 0.75) * 16);
+
+/** Desktop insets — the fixed HUD band, hand fan and dock column. */
+export const DESKTOP_INSET = { top: 120, bottom: DESKTOP_HAND_FAN_H, side: 16, dockColumn: 320 } as const;
 
 /**
  * Extra right inset (px) on desktop when a format mounts the Adventure overlay column
@@ -54,7 +65,7 @@ export const RAIL_WIDTH_CSS = "230px";
 
 /** Hand-card widths. The fan keeps its desktop size; the mobile surfaces are
  *  sized so a card reads at a glance and a tap target is never a sliver. */
-export const HAND_CARD_W_FAN = "8.5rem";
+export const HAND_CARD_W_FAN = `${HAND_CARD_W_FAN_REM}rem`;
 /** the landscape rail's compact strip */
 export const HAND_CARD_W_RAIL = "4rem";
 /** the fan-peek's three stacked card backs */
