@@ -4,17 +4,18 @@ import {
   ADVENTURE_BOARD_WIDTH,
   ADVENTURE_BAND_TOP,
   ADVENTURE_BAND_TOP_PHONE,
-  ADVENTURE_COLUMN_MAX_HEIGHT_PHONE,
-  ADVENTURE_COLUMN_TOP_PHONE,
+  ADVENTURE_DRAWER_TOGGLE_H,
   DOCK_RIGHT,
   DOCK_WIDTH,
+  adventureColumnPhone,
 } from "./dockLayout";
 import { Box, Button, Flex, Popover, PopoverContent, PopoverTrigger, Portal, Text } from "@chakra-ui/react";
 import { TbHourglass } from "react-icons/tb";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 import { AdventureBriefingModal, RulebookButton, RulesButton } from "./AdventureBriefing";
 import { EngineFaultBanner } from "./EngineFaultBanner";
 import type { ViewFighter } from "@/lib/pro/protocol";
+import { useElementBottom } from "@/lib/pro/useProLayout";
 import { ProDiscardsSheet } from "./ProDiscardsSheet";
 import { RevealedHandPanel } from "./RevealedHandPanel";
 import { formatFaceCard } from "@/lib/pro/useProCardArt";
@@ -578,6 +579,9 @@ export const ThreatTrack = ({ threat }: { threat: ThreatModel }) => (
         data-marker={threat.terminal.marker ? "true" : undefined}
         flex="none"
         minW="3.6rem"
+        // Phone: a long label ("ENCLOSURE DESTROYED!") wraps onto two lines, so the cell ends
+        // inside a 390px band instead of clipping at its edge (p2p #1477).
+        maxW={{ base: "4.5rem", md: "none" }}
         h="1.5rem"
         px="0.25rem"
         align="center"
@@ -1071,6 +1075,18 @@ export const AdventureBoard = ({
       window.localStorage.setItem(DRAWER_KEY, current ? "closed" : "open");
     } catch {}
   };
+  // The band is measured here too: on a phone the column hangs from its bottom (p2p #1477).
+  const [bandEl, setBandEl] = useState<HTMLDivElement | null>(null);
+  const bandBottom = useElementBottom(bandEl);
+  const phoneColumn = adventureColumnPhone(bandBottom);
+  const bandRefs = useCallback(
+    (el: HTMLDivElement | null) => {
+      setBandEl(el);
+      if (typeof bandRef === "function") bandRef(el);
+      else if (bandRef) (bandRef as MutableRefObject<HTMLDivElement | null>).current = el;
+    },
+    [bandRef],
+  );
   const breakout = useBreakoutMoment(view, events);
   const walk = useEndOfRoundWalk(view, events);
   const model = adventureBoardModel(view);
@@ -1102,7 +1118,7 @@ export const AdventureBoard = ({
     <>
     <Flex
       data-testid="adventure-band"
-      ref={bandRef}
+      ref={bandRefs}
       position="fixed"
       // Above the map, below the HUD band; clear of the column (and dock) on desktop (#1405).
       top={{ base: ADVENTURE_BAND_TOP_PHONE, md: ADVENTURE_BAND_TOP }}
@@ -1126,11 +1142,11 @@ export const AdventureBoard = ({
       sx={{
         "& > *": { pointerEvents: "auto", maxW: "100%" },
         // The panel's 22rem cap, and on a phone the wrapped panel also stops short of the
-        // ADVENTURE drawer toggle, pinned at the band's right edge below the strip
-        // (ADVENTURE_COLUMN_TOP_PHONE) and drawn over the band's second row. The 6.5rem lane
-        // is that toggle's width plus a gutter: Button size="xs", px 0.6rem, "ADVENTURE ▾" in
-        // LBL caps ≈ 85–95px (92px measured at 390px) + ~12px gap = 6.5rem (104px). It drifts
-        // if the toggle's label, font or padding changes — re-measure the toggle then.
+        // ADVENTURE drawer toggle's slot (the spacer below), which the toggle lands on at the
+        // band's bottom-right (p2p #1477). The 6.5rem lane is that toggle's width plus the
+        // band's 0.75rem gap: Button size="xs", px 0.6rem, "ADVENTURE ▾" in LBL caps ≈ 85–96px
+        // (92–96px measured at 390px) + 12px = 6.5rem (104px). It drifts if the toggle's label,
+        // font or padding changes — re-measure the toggle then.
         "& > [data-inline]": { maxW: { base: "min(22rem, calc(100% - 6.5rem))", md: "22rem" } },
       }}
     >
@@ -1148,6 +1164,22 @@ export const AdventureBoard = ({
           {...revealedHand}
         />
       )}
+      {/* Phone: the drawer toggle's slot (p2p #1477), so the band — and the board fitted under
+          it — makes room for the toggle: its own row under the strip + track, or beside a
+          wrapped panel. The column below hangs the toggle on the band's bottom edge. */}
+      <Box
+        data-testid="adventure-toggle-slot"
+        aria-hidden
+        display={{ base: "block", md: "none" }}
+        // the 6.5rem lane less the band's gap, so it fits beside a wrapped panel
+        w="5.75rem"
+        h={ADVENTURE_DRAWER_TOGGLE_H}
+        ml="auto"
+        alignSelf="flex-end"
+        flexShrink={0}
+        // inline: the band's `& > *` rule turns pointer events back on for its children
+        style={{ pointerEvents: "none" }}
+      />
     </Flex>
     <ProDiscardsSheet
       isOpen={pile != null}
@@ -1163,8 +1195,9 @@ export const AdventureBoard = ({
       // seat plates flow left-to-right from the top-left and, with an enemy seat
       // among them, reach the middle of the screen at ~1500px. They stop 8.5rem
       // short of the right edge, and five 15rem plates end well before this column.
-      // Phone: below the HUD's SETUP/phase bar, which spans the width under the plates.
-      top={{ base: ADVENTURE_COLUMN_TOP_PHONE, md: ADVENTURE_BOARD_TOP }}
+      // Phone: below the band (itself under the HUD's phase bar), hung from its measured
+      // bottom so the toggle lands on the band's toggle slot (p2p #1477).
+      top={{ base: phoneColumn.top, md: ADVENTURE_BOARD_TOP }}
       // ...and to the LEFT of the fixed Actions dock (z 140, right 0.75rem, 18.5rem
       // wide, from 7.5rem down) which otherwise fully covers the dials (#1128).
       // On a phone there is no dock slot to clear (#1310): hug the screen edge instead.
@@ -1172,7 +1205,7 @@ export const AdventureBoard = ({
       maxW={{ base: `min(${ADVENTURE_BOARD_WIDTH}, calc(100vw - 1rem))`, md: ADVENTURE_BOARD_WIDTH }}
       // Capped to end above the hand fan (#1178) so nothing is tucked under it; the
       // static panels scroll inside, the live decision/narrator panels stay pinned.
-      maxH={{ base: ADVENTURE_COLUMN_MAX_HEIGHT_PHONE, md: ADVENTURE_BOARD_MAX_HEIGHT }}
+      maxH={{ base: phoneColumn.maxH, md: ADVENTURE_BOARD_MAX_HEIGHT }}
       direction="column"
       align="flex-end"
       gap="0.4rem"
@@ -1189,7 +1222,7 @@ export const AdventureBoard = ({
         pointerEvents="auto"
         alignSelf="flex-end"
         px="0.6rem"
-        h="1.6rem"
+        h={ADVENTURE_DRAWER_TOGGLE_H}
         bg="rgba(20,8,24,0.72)"
         color="white"
         border="1px solid rgba(231,204,152,0.14)"
