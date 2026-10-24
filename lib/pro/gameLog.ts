@@ -728,6 +728,17 @@ function valueBreakdownText(
 const markerLabel = (name: string): string =>
   FIGHTER_MARKER_BADGES[name]?.label ?? name;
 
+/**
+ * Feed wording for a v38 secret mark, by mark NAME (the engine's own string). The
+ * Xenomorph's `MARK` is the only consumer today; an unknown name still logs, with a
+ * neutral noun and no reveal clause.
+ */
+const SECRET_MARK_WORDS: Record<string, { noun: string; reveal?: string }> = {
+  MARK: { noun: "Marked Blip", reveal: "the Xenomorph emerges" },
+};
+const secretMarkWords = (name: string): { noun: string; reveal?: string } =>
+  SECRET_MARK_WORDS[name] ?? { noun: "secret mark" };
+
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
 export interface EnrichContext {
@@ -781,7 +792,7 @@ export function enrichLines(
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
     isCardSource(source) ? [source] : undefined;
 
-  for (const e of events) {
+  for (const [i, e] of events.entries()) {
     switch (e.type) {
       // --- Mode 1: annotate an existing diff line ---------------------------
       case "CARD_DISCARDED": {
@@ -1012,6 +1023,35 @@ export function enrichLines(
         added.push({
           text: attackerSwapText(ctx.fighter(e.from), ctx.fighter(e.to)).full,
           who: "game",
+        });
+        break;
+      }
+
+      // v38 secret fighter marks (issue #1453 ↔ engine #918 — the Xenomorph's
+      // Marked Blip). ASSIGNED is bearer-less on the wire, so its line never names a
+      // fighter, on any seat; REVEALED is the public reveal moment. An `open`
+      // assignment (ESCAPE) emits the pair back to back — that is one fact, "this
+      // Blip is the Marked one", so it prints one line, and it is NOT an emergence.
+      // The Xenomorph's own arrival is the diff's "appears at" line, not this one.
+      case "SECRET_MARK_ASSIGNED": {
+        const next = events[i + 1];
+        if (next?.type === "SECRET_MARK_REVEALED" && next.player === e.player && next.name === e.name) break;
+        const words = secretMarkWords(e.name);
+        added.push({
+          text: `${ctx.seat(e.player)} chose ${e.player === ctx.you ? "your" : "their"} ${words.noun}`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+      case "SECRET_MARK_REVEALED": {
+        const words = secretMarkWords(e.name);
+        const prev = events[i - 1];
+        const open = prev?.type === "SECRET_MARK_ASSIGNED" && prev.player === e.player && prev.name === e.name;
+        added.push({
+          text: open
+            ? `${ctx.fighter(e.fighter)} is the ${words.noun} — revealed to every seat`
+            : `${ctx.fighter(e.fighter)} was the ${words.noun}${words.reveal ? ` — ${words.reveal}` : ""}`,
+          who: whoOf(e.player),
         });
         break;
       }

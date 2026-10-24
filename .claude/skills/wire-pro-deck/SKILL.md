@@ -85,12 +85,16 @@ so it lights up automatically — just check it in Verification.
 
 ## New-mechanic UX (conditional — only if the report's scan had a YES)
 
-- `lib/pro/protocol.ts` is the byte-identical copy of the engine's protocol —
-  sync procedure at `protocol.ts:9`. If the engine PR bumped
-  `PROTOCOL_VERSION` (now `34`, `protocol.ts:867` — v34 added
-  `COMBAT_DEFENDER_CHANGED`, the defender-substitution event), copy the file
-  VERBATIM and note the paired merge in both commit bodies ("PAIRED with …" —
-  an old client against a new server is hard-rejected, neither lands alone).
+- `lib/pro/protocol.ts` mirrors the engine's `protocol/protocol.ts` — sync
+  procedure at `protocol.ts:9`. If the engine PR bumped `PROTOCOL_VERSION`
+  (now `38` — v38 added the secret fighter mark, Xenomorph #1453), MERGE the
+  engine's new hunks in; do NOT copy the file verbatim: the client copy keeps
+  deliberate client-only blocks (`REMATCH_PROTOCOL_VERSION`, the
+  `ReplayVerification` named type, the narrower `BotDifficulty` + jevx3 note)
+  that a verbatim copy clobbers — `diff` the two and bring over only the
+  engine's new hunks. Note the paired merge in both commit bodies ("PAIRED
+  with …"). The engine accepts a two-version window (`{37, 38}` today), so
+  deployed tabs survive one bump; still, neither PR lands alone.
 - Flag-driven public state (e.g. Thetis tide) = ONE entry in the
   `HERO_STATE_FLAGS` / `HERO_STATE_COUNTERS` registries in
   `lib/pro/heroStateFlags.ts:101` / `:358` (plus `BOUNTY_PILES` at `:347` for

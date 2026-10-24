@@ -151,6 +151,7 @@ import {
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumbers";
+import { visibleSecretMarks, withSecretMarkStatuses } from "@/lib/pro/fighterStatuses";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
@@ -4648,6 +4649,13 @@ const LiveGame = ({
     () => fighterTokenStateByOwner(snapshot?.view.players ?? []),
     [snapshot]
   );
+  // v38 secret marks (issue #1453): the board's fighters with THIS viewer's visible
+  // marks folded onto their bearers, so the Marked badge rides the status pipeline on
+  // the flat board and the table alike. The same array when no seat has a mark.
+  const boardFighters = useMemo(
+    () => (snapshot ? withSecretMarkStatuses(snapshot.view.fighters, visibleSecretMarks(snapshot.view)) : []),
+    [snapshot]
+  );
 
   // Registry of fighter-token DOM elements, populated by ProBoard's tokens, read at
   // arc-launch time to measure the defender's viewport rect (#382). A Map ref rather
@@ -7252,7 +7260,7 @@ const LiveGame = ({
   // both without hunting down two call sites.
   const boardProps: ProBoardProps = {
     map: view.map,
-    fighters: view.fighters,
+    fighters: boardFighters,
     tokens: view.tokens,
     highlightedSpaces: [...new Set(highlightedSpaces)],
     relocateSpaces,

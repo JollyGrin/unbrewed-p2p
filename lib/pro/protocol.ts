@@ -938,7 +938,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -963,7 +963,26 @@
  * - Reconnect (`RECONNECT` / `RESUME_ROOM`) is unchanged: a seat's token, not its ticket,
  *   brings it back.
  */
-export const PROTOCOL_VERSION = 37;
+/**
+ * v38 (engine #918 — the SECRET FIGHTER MARK, DSL 0.89.0; first consumer the Xenomorph's
+ * Marked Blip). ADDITIVE: two `GameEvent` variants and one optional view field.
+ *
+ * - `SECRET_MARK_ASSIGNED { player, name }` — a seat (re)assigned its mark `name` to one of
+ *   its OWN fighters. BEARER-LESS on purpose: every seat receives it. Log line only.
+ * - `SECRET_MARK_REVEALED { player, name, fighter }` — the mark turned face-up; `fighter` is
+ *   its bearer. Public (the reveal moment). An `open` assignment emits both, in that order.
+ * - `ViewSelf.marks?` / `ViewPlayer.marks?: ViewSecretMark[]` — the seat's marks AS THIS VIEWER
+ *   MAY SEE THEM: every entry on your own seat (and a teammate's when the format shares
+ *   hands), only `open` entries on anyone else's. Absent when there is nothing to show, so
+ *   no existing view grows a key. `ViewFighter` is unchanged — the fighters stay public.
+ * - Nothing else moves: the assignment's pick is an ordinary CHOOSE_TARGET whose options
+ *   reach the chooser alone (as every prompt's do) and whose PROMPT_RESOLVED `optionId` other
+ *   viewers already get masked. No action, prompt kind or `LegalOption` shape changes.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): an owner-only badge on the bearer from `marks`, a flip on
+ * SECRET_MARK_REVEALED. A v37 client drops both events and the field and plays on.
+ */
+export const PROTOCOL_VERSION = 38;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1153,6 +1172,11 @@ export type GameEvent =
   // the attacking seat). Same combat, same attacking player, same revealed cards: the attack
   // now comes from `to`. A client showing the combat must re-point its attacker slot at `to`.
   | { type: "COMBAT_ATTACKER_CHANGED"; from: FighterId; to: FighterId }
+  // v38 (#918): a seat (re)assigned its secret fighter mark `name`. BEARER-LESS on purpose —
+  // which fighter bears it is that seat's secret (see `ViewSecretMark`).
+  | { type: "SECRET_MARK_ASSIGNED"; player: PlayerId; name: string }
+  // v38 (#918): the mark `name` turned face-up — `fighter` bears it. Public: the reveal moment.
+  | { type: "SECRET_MARK_REVEALED"; player: PlayerId; name: string; fighter: FighterId }
   | { type: "COMBAT_DAMAGE"; amount: number }
   | { type: "COMBAT_RESOLVED"; outcome: CombatOutcome }
   | { type: "COMBAT_ENDED" }
@@ -1613,6 +1637,17 @@ export interface LargeMoveGraph {
 // the two final spaces sorted ascending and joined with "|" (e.g. "a4|a5") — the id
 // the prompt already offers today.
 
+/**
+ * v38 (#918) — one SECRET FIGHTER MARK as the receiving viewer may see it: on your own seat
+ * every mark (`open: false` = only you know `fighter` bears it); on another seat only the
+ * `open` ones. Never names a hidden bearer to anyone but its owner.
+ */
+export interface ViewSecretMark {
+  name: string;
+  fighter: FighterId;
+  open: boolean;
+}
+
 export interface ViewSelf {
   id: PlayerId;
   heroId: string;
@@ -1665,6 +1700,7 @@ export interface ViewSelf {
   firstAttackThisTurn: boolean; // has NOT yet resolved an attack this turn (next attack is the first)
   playedACardThisTurn: boolean; // played (revealed/schemed) >=1 card this turn
   tookDamageThisTurn: boolean; // an owned fighter took >=1 damage this turn
+  marks?: ViewSecretMark[]; // v38 (#918): this seat's secret fighter marks, every entry (sorted by name); absent when none
 }
 
 export interface ViewOpponent {
@@ -1742,6 +1778,7 @@ export interface ViewPlayer {
   firstAttackThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
   playedACardThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
   tookDamageThisTurn: boolean; // v0.22.0, public, turn-scoped (see ViewSelf)
+  marks?: ViewSecretMark[]; // v38 (#918): the seat's secret fighter marks — every entry for your own seat (and a hands-visible teammate's), only `open` ones otherwise; absent when none visible
 }
 
 export interface ViewCombatCard {

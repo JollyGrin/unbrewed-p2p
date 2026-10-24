@@ -65,6 +65,7 @@ import { ZONE_DISCS_LABEL, zoneDiscsStateLabel } from "@/lib/pro/zoneDiscs";
 import type { PlayerId, ViewPlayer } from "@/lib/pro/protocol";
 import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
+import { secretMarkedFighterIds } from "@/lib/pro/fighterStatuses";
 import { TableHudPlate } from "@/components/Pro/Table/Hud/TableHudPlate";
 import { SEAT_COLOR } from "@/lib/pro/seatColors";
 
@@ -746,6 +747,7 @@ export const ProMobileHud = ({
               figureCredit={figureCreditFor?.(sheetSeat.id) ?? null}
               heroFighter={heroOf(sheetSeat.id)}
               sidekicks={sidekicksOf(sheetSeat.id)}
+              markedFighters={secretMarkedFighterIds(view)}
               flags={sheetSeat.flags}
               counters={sheetSeat.counters}
               piles={sheetSeat.piles}
