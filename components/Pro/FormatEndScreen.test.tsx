@@ -4,12 +4,12 @@
  * format keeps the dock's VICTORY / DEFEAT panel.
  */
 import "@testing-library/jest-dom";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { theme } from "@/styles/style";
 import { FormatEndScreen, hasFormatEndScreen } from "./FormatEndScreen";
 import type { FormatEndScreenProps } from "./FormatEndScreen";
-import type { GameEvent, PlayerView } from "@/lib/pro/protocol";
+import type { PlayerView } from "@/lib/pro/protocol";
 
 const fighter = (id: string, name: string, extra: object = {}) => ({
   id,
@@ -48,6 +48,14 @@ const defeat = (v: PlayerView): PlayerView =>
     winner: "e1",
     phase: "GAME_OVER",
     scenario: { ...v.scenario, result: { verdict: "DEFEAT", cause: { kind: "OBJECTIVE", objectiveId: "x" }, round: 9, finalSlot: 4 } },
+  }) as unknown as PlayerView;
+
+const victory = (v: PlayerView): PlayerView =>
+  ({
+    ...v,
+    winner: "p1",
+    phase: "GAME_OVER",
+    scenario: { ...v.scenario, result: { verdict: "VICTORY", cause: { kind: "VICTORY_CONDITION" }, round: 8 } },
   }) as unknown as PlayerView;
 
 const ui = (props: Partial<FormatEndScreenProps> & { formatId?: string; view: PlayerView }) => (
@@ -99,15 +107,27 @@ describe("FormatEndScreen", () => {
     expect(screen.getByTestId("adventure-end-screen")).toBeInTheDocument();
   });
 
-  it("records the round a released enemy fell while mounted through the game", () => {
+  it("reads ViewFighter.defeatedRound: a reload into a finished room still says when the heroes and the villain fell (#1472)", () => {
     const live = adventureView();
-    const { rerender } = render(ui({ formatId: "adventure", view: live, events: [] }));
-    const fell = [{ type: "FIGHTER_DEFEATED", fighter: "e1/trex" }] as unknown as GameEvent[];
-    act(() => {
-      rerender(ui({ formatId: "adventure", view: { ...live } as PlayerView, events: fell }));
-    });
-    rerender(ui({ formatId: "adventure", view: defeat(live), events: [] }));
-    expect(screen.getByText(/defeated R6/)).toBeInTheDocument();
+    const reloaded = victory({
+      ...live,
+      fighters: [
+        { ...live.fighters[0], defeated: true, defeatedRound: 6 },
+        { ...live.fighters[1], defeated: true, defeatedRound: 7 },
+        live.fighters[2],
+      ],
+    } as PlayerView);
+    render(ui({ formatId: "adventure", view: reloaded, events: [] }));
+    expect(screen.getByText("Heroes down: Kong (R6).")).toBeInTheDocument();
+    expect(screen.getByText("Indominus Rex fell in round 7.")).toBeInTheDocument();
+  });
+
+  it("ViewFighter.defeatedRound absent: the heroes and the villain print no round, no crash", () => {
+    const live = adventureView();
+    const bare = victory({ ...live, fighters: [{ ...live.fighters[0], defeated: true }, { ...live.fighters[1], defeated: true }, live.fighters[2]] } as PlayerView);
+    render(ui({ formatId: "adventure", view: bare, events: [] }));
+    expect(screen.getByText("Heroes down: Kong.")).toBeInTheDocument();
+    expect(screen.getByText("Indominus Rex fell.")).toBeInTheDocument();
   });
 
   it("reads releases[].defeatedRound: a reload into a finished room (no FIGHTER_DEFEATED seen) still says the round (#1458)", () => {
@@ -120,7 +140,7 @@ describe("FormatEndScreen", () => {
     expect(screen.getByText(/T\. Rex released/)).toHaveTextContent("T. Rex released — defeated R6");
   });
 
-  it("field absent and no FIGHTER_DEFEATED seen: the tile has no round, as today", () => {
+  it("releases[].defeatedRound absent: the tile has no round, as today", () => {
     render(ui({ formatId: "adventure", view: defeat(adventureView()), events: [] }));
     expect(screen.getByText(/T\. Rex released/)).toHaveTextContent(/^T\. Rex released$/);
     expect(screen.queryByText(/defeated R/)).toBeNull();

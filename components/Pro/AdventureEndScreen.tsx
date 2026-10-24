@@ -1,21 +1,18 @@
 /**
  * Adventure end screen (#1159, full-screen per the approved mockup in #1182): the verdict
  * and WHY over the whole table, not inside the Actions dock. "View the board" puts it away
- * to inspect the final position; a chip brings it back. Mounted by `FormatEndScreen` for the
- * whole game, so it can record the round each hero and the villain fell (not on the wire); a
- * released enemy's "defeated R6" reads the engine's `releases[].defeatedRound` (#1458), so it
- * survives a reload.
+ * to inspect the final position; a chip brings it back. Every round it prints is on the view
+ * (`ViewFighter.defeatedRound`, #1472; `releases[].defeatedRound`, #1458), so it survives a reload.
  *
  * No "try again": the rematch ruling refuses a rematch at co-op tables today, so the button
  * would dangle above a refusal. Re-add it here if the ruling changes.
  */
 import { Box, Button, Flex, Grid, Link, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { TbExternalLink, TbLink, TbMap, TbPlus, TbTrophy } from "react-icons/tb";
-import { adventureVerdictModel, trackDefeatRounds } from "@/lib/pro/adventureVerdict";
+import { adventureVerdictModel } from "@/lib/pro/adventureVerdict";
 import type { AdventureVerdictModel } from "@/lib/pro/adventureVerdict";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
-import type { FighterId, GameEvent, PlayerView } from "@/lib/pro/protocol";
 import type { FormatEndScreenProps } from "./FormatEndScreen";
 
 /** Above the dock, HUD and board overlays; below Chakra's modals (1400) and the breakout (1480). */
@@ -23,15 +20,6 @@ export const ADVENTURE_END_Z = 1300;
 
 const LBL = { fontFamily: "SpaceGrotesk", fontSize: "0.68rem", letterSpacing: "0.2em", fontWeight: 700 } as const;
 const ROSE = "#E58B8B";
-
-/** The round each fighter fell, across STATE batches (heroes + villain; releases carry their own `defeatedRound`). */
-export const useDefeatRounds = (view: PlayerView, events: readonly GameEvent[] | undefined): Readonly<Record<FighterId, number>> => {
-  const [rounds, setRounds] = useState<Readonly<Record<FighterId, number>>>({});
-  useEffect(() => {
-    if (view.scenario && events) setRounds((cur) => trackDefeatRounds(cur, events, view.initiative?.round));
-  }, [view, events]);
-  return rounds;
-};
 
 const ReleaseTiles = ({ model }: { model: AdventureVerdictModel }) => (
   <Box>
@@ -81,10 +69,9 @@ const LINK_BTN = {
   _hover: { bg: "rgba(20,8,24,0.9)", color: "brand.accent", textDecoration: "none" },
 } as const;
 
-export const AdventureEndScreen = ({ view, events, replayHref, onCopyShareLink, shareLinkBusy }: FormatEndScreenProps) => {
-  const defeatRounds = useDefeatRounds(view, events);
+export const AdventureEndScreen = ({ view, replayHref, onCopyShareLink, shareLinkBusy }: FormatEndScreenProps) => {
   const [hidden, setHidden] = useState(false);
-  const model = adventureVerdictModel(view, defeatRounds);
+  const model = adventureVerdictModel(view);
   if (!model) return null;
   const headline = model.explained ? model.headline : isViewerOnWinningTeam(view) ? "VICTORY!" : "DEFEAT";
   if (hidden)

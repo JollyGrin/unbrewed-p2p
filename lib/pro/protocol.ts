@@ -1192,6 +1192,12 @@
  * The verdict's "defeated R<k>" tile no longer depends on having watched the FIGHTER_DEFEATED arrive:
  * a reload / reconnect into a finished room reads it from the view. Every pre-existing view is
  * byte-identical (the key appears only on a defeated release).
+ *
+ * RIDES v39 (engine #940, additive, no bump): `ViewFighter.defeatedRound?: number` — the round ANY
+ * fighter of a scenario game was defeated in (heroes and sidekicks included, the villain, every minion),
+ * from the engine's `scenario.defeats` ledger; ABSENT while it lives (a REVIVE clears it) and absent for
+ * every fighter of a game without a scenario. `ScenarioRelease.defeatedRound` (#749) stays as is — the
+ * released enemies now carry both. Every pre-existing view is byte-identical.
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 39`; this
@@ -1866,6 +1872,12 @@ export interface ViewFighter {
   // prompt; already public (CARD_REVEALED named it). Absent when it is playing nothing.
   enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; discard: string[]; released?: true; inPlay?: string[] };
   defeated: boolean;
+  // #940 (rides v39, additive): the round this fighter was DEFEATED in, for EVERY fighter of a scenario
+  // (adventure) game — heroes, sidekicks, the villain, every minion. ABSENT while the fighter lives
+  // (a REVIVE removes it) and absent for every fighter of a game without a scenario, so a duel / ffa /
+  // 2v2 view is byte-identical. The end screen's "Heroes down: Kong (R6)" / "Indominus Rex fell in
+  // round 7" read it, so a reload into a finished room keeps them (a reconnect STATE carries no events).
+  defeatedRound?: number;
   // Additive field (2026-07-16, no version bump): per-fighter status effects
   // (issue #204) — the fighter-scoped parallel to ViewSelf/ViewOpponent.flags
   // (v16, per-player). `kind` is a mechanical, engine-stable tag (e.g.
