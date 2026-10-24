@@ -1,0 +1,252 @@
+{
+  "bgg_link": null,
+  "created_on": "Fri, 11 Jul 2025 11:30:03 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#437f8f",
+      "cardbackUrl": "/evergreen-decks/art/superman/cardback.webp",
+      "highlightColour": "#45a5d9",
+      "isPNP": false,
+      "patternName": "None"
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/super-breath.webp",
+        "immediateText": "Cancel all effects on your opponent's card. The opposing fighter can't leave their space this turn.",
+        "quantity": 3,
+        "title": "Super Breath",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Look at the top 3 cards of any deck. Put them back in any order.\nDraw 1 card.\n",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/x-ray-vision.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "X-Ray Vision",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "SUPERMAN",
+        "duringText": "If Superman started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "/evergreen-decks/art/superman/momentous-shift.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Deal 1 damage to each adjacent opposing fighter. Then, move each fighter you damaged up to 1 space.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/unchained.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Unchained",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Draw 1 card. If this is the first action this turn, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 1,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/right-on-time.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Right On Time",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "You may place Superman in any space.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/able-to-leap-tall-buildings-in-a-single-bound.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Able To Leap Tall Buildings In A Single Bound",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "Deal 2 damage to the opposing fighter and 1 damage to each opposing fighter adjacent to them.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/heat-vision.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Heat Vision",
+        "type": "attack",
+        "value": 0
+      },
+      {
+        "afterText": "Draw 1 card.\nMove Superman and an adjacent fighter up to 4 spaces, along the same path.",
+        "basicText": "",
+        "boost": 2,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/heroic-interception.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Heroic Interception",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, draw 1 card and recover 2 health.",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/last-son-of-krypton.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Last Son of Krypton",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 4,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/more-powerful-than-a-locomotive.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "More Powerful Than A Locomotive",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "characterName": "SUPERMAN",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/superman/man-of-steel.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Man of Steel",
+        "type": "defence",
+        "value": 5
+      },
+      {
+        "afterText": null,
+        "basicText": "Move Superman up to 5 spaces. \nDraw 1 card. Gain 1 action.",
+        "boost": 1,
+        "characterName": "SUPERMAN",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/superman/faster-than-a-speeding-bullet.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Faster Than A Speeding Bullet",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose an opponent to discard 1 random card. Then, look at their hand.\n\n\n",
+        "boost": 2,
+        "characterName": "SUPERMAN",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/superman/keen-hearing.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Keen Hearing",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 18,
+      "isRanged": false,
+      "move": 2,
+      "name": "SUPERMAN",
+      "specialAbility": "UP, UP AND AWAY\nAt the start of your turn, move Superman a number of spaces up to the amount of zones he's in.\n",
+      "tokenImageUrl": "/evergreen-decks/art/superman/token-superman.webp"
+    },
+    "name": "",
+    "ruleCards": [],
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0,
+      "quote": "\n"
+    }
+  },
+  "deck_first_published_on": "Fri, 11 Jul 2025 21:04:20 GMT",
+  "deck_published": true,
+  "family_id": "5zMj",
+  "id": "5zMj",
+  "liked": false,
+  "likes": 10,
+  "name": "Superman",
+  "note": "TTS JSON, Print Assets and Credits:    https://drive.google.com/drive/folders/1uPY-UZGqdRdNs8fPrBnjp5c-WmdUQXhV?usp=drive_link",
+  "published": true,
+  "published_on": "Fri, 11 Jul 2025 21:04:20 GMT",
+  "tags": [
+    {
+      "name": "Solo Fighter",
+      "slug": "solo-fighter"
+    },
+    {
+      "name": "Melee Hero",
+      "slug": "melee-hero"
+    },
+    {
+      "name": "DC Comics",
+      "slug": "dc-comics"
+    },
+    {
+      "name": "Comic",
+      "slug": "comic"
+    },
+    {
+      "name": "Tested",
+      "slug": "tested"
+    },
+    {
+      "name": "Superhero",
+      "slug": "superhero"
+    }
+  ],
+  "updated_on": "Sat, 02 Aug 2025 23:18:01 GMT",
+  "user": "thesnarkknight1939",
+  "version_id": "rnjBSdk3v",
+  "version_name": "Fully Arted - V1.0",
+  "versions": [
+    {
+      "created_on": "Fri, 11 Jul 2025 11:30:03 GMT",
+      "id": "rnjBSdk3v",
+      "name": "Superman",
+      "published": true,
+      "updated_on": "Sat, 02 Aug 2025 23:18:01 GMT",
+      "version_name": "Fully Arted - V1.0"
+    }
+  ]
+}

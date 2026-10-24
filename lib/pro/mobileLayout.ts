@@ -31,8 +31,8 @@ export const DESKTOP_INSET = { top: 120, bottom: 136, side: 16, dockColumn: 320 
 export const ADVENTURE_OVERLAY_INSET = 17.75 * 16;
 
 /**
- * px the Adventure board-side band (initiative strip + threat track, #1405) takes ABOVE the
- * map, so the initial fit starts under it. Desktop: it sits below the HUD band; phone: below
+ * px the Adventure board-side band (initiative strip + threat track, #1405; the Keen Hearing
+ * revealed-hand panel beside them, #1456) takes ABOVE the map, so the initial fit starts under it. Desktop: it sits below the HUD band; phone: below
  * the chip row. Applied whenever a format overlay is mounted (`formatOverlayRight > 0`).
  */
 export const ADVENTURE_BAND_FIT = { desktop: 144, mobile: 124 } as const;

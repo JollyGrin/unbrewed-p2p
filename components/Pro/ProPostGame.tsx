@@ -159,7 +159,7 @@ const seatIdentity = (
   ctx: Pick<ProPostGameContext, "bots" | "username" | "accountStatus">,
 ): SeatIdentity => {
   const { player } = seat;
-  const tier = ctx.bots?.[player.id];
+  const tier = seat.you ? undefined : ctx.bots?.[player.id];
   if (tier) {
     const meta = knownBotTierMeta(tier);
     const label = meta?.label ?? "Bot";

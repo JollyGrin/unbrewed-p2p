@@ -109,6 +109,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
+import { RevealedHandPanel } from "@/components/Pro/RevealedHandPanel";
 import { dockTurnLabel } from "@/lib/pro/turnChrome";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel, undidLine } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
@@ -118,7 +119,7 @@ import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
 import { useFigureManifests } from "@/lib/pro/useFigureManifest";
 import { useFigureStyle } from "@/lib/pro/useFigureStyle";
 import { useZoneDiscs } from "@/lib/pro/useZoneDiscs";
-import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
+import { useElementBottom, useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
 import { matchBoardOnScreen, usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
@@ -227,7 +228,7 @@ import {
   useFormatStageName,
 } from "@/components/Pro/FormatLobby";
 import { promptSubjectId, promptSubjectLine } from "@/lib/pro/promptSubject";
-import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
+import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatOwnsRevealedHand, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
 import { FormatEndScreen, hasFormatEndScreen } from "@/components/Pro/FormatEndScreen";
 import { EngineFaultBanner } from "@/components/Pro/EngineFaultBanner";
 import { deriveTeams } from "@/lib/pro/teams";
@@ -292,6 +293,8 @@ import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/Badg
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
+/** Breathing room between the HUD and the Keen Hearing panel hanging below it. */
+const REVEALED_PANEL_GAP_PX = 8;
 
 const BTN = {
   size: "sm" as const,
@@ -4396,7 +4399,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, engineFault, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } = socket;
+  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, engineFault, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -4994,6 +4997,10 @@ const LiveGame = ({
   const mobileSheetRef = useRef<HTMLDivElement>(null);
   const [mobileSheetShown, setMobileSheetShown] = useState(false);
   const mobileChipsH = useElementHeight(mobileChipsRef, mobile);
+  // The desktop HUD's measured bottom: the Keen Hearing panel sits below it, however
+  // many sidekick rows have grown the plates.
+  const [hudOverlayEl, setHudOverlayEl] = useState<HTMLDivElement | null>(null);
+  const hudBottom = useElementBottom(mobile ? null : hudOverlayEl);
   const mobileControlsH = useElementHeight(mobileControlsRef, mobile && !rail);
   // The decision sheet IS counted (unlike the hand drawer and the log): it is
   // force-open for whole stretches of a game, and a board centred behind it
@@ -5150,6 +5157,9 @@ const LiveGame = ({
   // advances from; the state copy is what the combat panel renders.
   const chainRef = useRef<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
   const [chain, setChain] = useState<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
+  // Last Keen Hearing reveal, kept for its panel (U3); folded per STATE batch in
+  // useProSocket (lib/pro/revealedHand.ts), not from `snapshot`.
+  const revealedHand = revealState.panel;
   const logSeqRef = useRef(0);
   // One monotonic id per appended STATE batch (issue #298) — every line of a
   // batch shares it, so the log panel groups a single player action together.
@@ -7577,6 +7587,19 @@ const LiveGame = ({
     />
   );
 
+  // The Keen Hearing panel's inputs, shared by the page's fixed panel and a format overlay
+  // that owns the panel instead (`formatOwnsRevealedHand`; Adventure shows it in its band).
+  const revealedHandSlot = revealedHand
+    ? {
+        revealed: revealedHand,
+        heroName:
+          view.fighters.find((f) => f.owner === revealedHand.owner && f.kind === "HERO")?.name ??
+          seatLabel(view, revealedHand.owner),
+        resolveCard,
+        labelFor: (c: string) => cardLabel(view.catalog, c),
+      }
+    : undefined;
+
   return (
     <ProErrorBoundary
       roomId={roomId}
@@ -7662,6 +7685,7 @@ const LiveGame = ({
         engineFault={engineFault}
         fighterTokenArt={fighterTokenArt}
         onBoardArrow={setFormatArrow}
+        revealedHand={revealedHandSlot}
       />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
@@ -7723,6 +7747,7 @@ const LiveGame = ({
       ) : (
         <ProHud
           {...hudProps}
+          overlayRef={setHudOverlayEl}
           onForfeit={canForfeit && view.phase === "PLAY" && !view.winner ? () => setForfeitOpen(true) : undefined}
         />
       )}
@@ -7838,6 +7863,15 @@ const LiveGame = ({
         labelFor={(c) => cardLabel(view.catalog, c)}
       />
 
+      {revealedHandSlot && !formatOwnsRevealedHand(roomInfo?.formatId) && (
+        <RevealedHandPanel
+          // a newer reveal starts expanded, whatever the last one was collapsed to
+          key={`${revealedHandSlot.revealed.owner}:${revealedHandSlot.revealed.turn}:${revealedHandSlot.revealed.cards.join(",")}`}
+          top={!mobile && hudBottom > 0 ? hudBottom + REVEALED_PANEL_GAP_PX : undefined}
+          {...revealedHandSlot}
+        />
+      )}
+
       <ProLog
         entries={logEntries}
         resolveCard={resolveCard}
@@ -7858,8 +7892,8 @@ const LiveGame = ({
       />
 
       {/* hand — docked fan over the bottom edge, sandbox style */}
-      {!mobile && (
-        <Flex position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
+      {!mobile && !isGameOver(view) && (
+        <Flex data-testid="pro-hand-dock" position="fixed" bottom="-0.75rem" left="0" right="0" justifyContent="center" zIndex={160} pointerEvents="none">
           <Box pointerEvents="auto">
             <ProHand
               hand={view.self.hand}

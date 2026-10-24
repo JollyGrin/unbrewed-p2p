@@ -4,6 +4,8 @@ import type { FighterId, GameEvent, PlayerView, SpaceId, ViewFighter } from "@/l
 import { teamDecisionModel } from "@/lib/pro/adventureBoard";
 import { adventureCardArt } from "@/lib/pro/adventureCardArt";
 import { ADVENTURE_OVERLAY_INSET } from "@/lib/pro/mobileLayout";
+import type { RevealedHand } from "@/lib/pro/revealedHand";
+import type { ResolveCard } from "@/lib/pro/useProCardArt";
 
 /** An attacker → target pair for the board's attack arrow. */
 export type BoardArrow = { attacker: FighterId; target: FighterId };
@@ -18,6 +20,17 @@ export interface FormatOverlayProps {
   /** The overlay's own attack arrow for the board (the enemy turn's mover → target), or null.
    *  The board draws a live combat's arrow over it. Pass a stable callback. */
   onBoardArrow?: (arrow: BoardArrow | null) => void;
+  /** The last Keen Hearing reveal, for a format that OWNS its panel (`formatOwnsRevealedHand`):
+   *  the page renders no fixed panel of its own, the overlay places it in its own chrome. */
+  revealedHand?: RevealedHandSlot;
+}
+
+/** What `RevealedHandPanel` needs, as the page hands it to a format overlay. */
+export interface RevealedHandSlot {
+  revealed: RevealedHand;
+  heroName: string;
+  resolveCard: ResolveCard;
+  labelFor: (card: string) => string;
 }
 
 /**
@@ -33,6 +46,15 @@ const OVERLAY_INSETS: Record<string, number> = {
   adventure: ADVENTURE_OVERLAY_INSET,
 };
 export const formatOverlayInset = (formatId?: string | null): number => (formatId && OVERLAY_INSETS[formatId]) || 0;
+
+/**
+ * Formats whose overlay renders the Keen Hearing revealed-hand panel itself (p2p #1456).
+ * The page's own panel floats top-left under the HUD, which on an Adventure board is where
+ * the initiative strip and threat track sit, over spaces the board was fitted clear of; the
+ * Adventure band shows it inline instead. Other formats keep the page's panel, unchanged.
+ */
+const REVEALED_HAND_OWNERS = new Set(["adventure"]);
+export const formatOwnsRevealedHand = (formatId?: string | null): boolean => !!formatId && REVEALED_HAND_OWNERS.has(formatId);
 
 /** Whether the board pans/zooms (full-screen layout). A format overlay is laid out for the
  *  full-screen board, so it forces this on over a stored "Full-screen board" opt-out (#1347). */

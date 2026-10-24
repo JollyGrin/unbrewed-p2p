@@ -455,6 +455,18 @@
         "file": "data/heroes/frankenstein.rules.ts",
         "commit": "c1936b9d379062997c16f59992e3c1642c321c49"
       }
+    },
+    {
+      "heroId": "superman",
+      "deckId": "5zMj",
+      "version_id": "rnjBSdk3v",
+      "frozenAt": "2026-10-16",
+      "digest": "sha256:6b0bc19fa11c8e254f22268929de1ff2704230ea1f139f18ac94d5f404562477",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/superman.rules.ts",
+        "commit": "59b64796244a717ffbd2e9df0faadd652b73cded"
+      }
     }
   ]
 }
