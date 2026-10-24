@@ -174,7 +174,7 @@ describe("fighterStatusBadgesFor", () => {
  * badges exactly the bearer.
  */
 describe("secret fighter marks (protocol v38)", () => {
-  const blip = (n: number, owner = "p1") =>
+  const blip = (n: number, owner: PlayerId = "p1") =>
     fighter({ id: `${owner}/sidekick-${n}`, owner, kind: "SIDEKICK", name: "Blip", hp: 1, maxHp: 1 });
   const fighters = [blip(1), blip(2), blip(3), fighter({ id: "p1/hero", owner: "p1", name: "Xenomorph", space: null })];
   const seatView = (selfMarks?: ViewSecretMark[], playerMarks?: ViewSecretMark[]) =>
