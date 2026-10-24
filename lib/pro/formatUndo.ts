@@ -26,3 +26,17 @@ export const formatSupportsUndo = (
   if (formatId && formatId in UNDO_FORMATS) return UNDO_FORMATS[formatId]!;
   return (view.players?.length ?? 0) === 2 || !!view.scenario;
 };
+
+/**
+ * Whether an undo request waits on another seat's verdict (p2p #1474, delta review M4) — the
+ * page holds its "waiting for opponent" toast only then. A duel undo is by consent; an adventure
+ * undo needs none (engine #864: the solo rule, nobody to ask). Formats that never offer undo
+ * (`formatSupportsUndo`) never reach this; an unknown or missing id keeps the duel's consent.
+ */
+const UNDO_CONSENT: Record<string, boolean> = {
+  duel: true,
+  adventure: false,
+};
+
+export const formatUndoNeedsConsent = (formatId: string | null | undefined): boolean =>
+  !(formatId && formatId in UNDO_CONSENT) || UNDO_CONSENT[formatId]!;

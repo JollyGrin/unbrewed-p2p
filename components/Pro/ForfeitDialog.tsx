@@ -4,12 +4,12 @@
  * the `FORFEIT` action behind an explicit confirm. On confirm the caller sends
  * `{ type: "FORFEIT", player }` and the server broadcasts the resulting STATE.
  *
- * The stakes differ by format (unbrewed-engine #117), so the body copy adapts:
- * in a duel it hands the opponent the win; in multiplayer it resigns YOUR seat
- * (your fighters are swept) and the match MAY play on without you. Whether it
- * actually continues is the server's human-stake call (a solo human forfeiting
- * ends it at once) — knowledge the client doesn't have — so the copy stays
- * conditional ("if the match continues…") rather than promising a spectate view.
+ * The stakes differ by format (unbrewed-engine #117), so the body copy is the
+ * format registry's (`formatForfeitCopy`, p2p #1474): in a duel it hands the
+ * opponent the win; in multiplayer it resigns YOUR seat (your fighters are swept)
+ * and the match MAY play on without you. Whether it actually continues is the
+ * server's call — knowledge the client doesn't have — so the copy stays
+ * conditional rather than promising a spectate view.
  *
  * A signed-in player also sees what conceding costs them (#636, telemetry #66):
  * a forfeited game pays the forfeiter NOTHING toward cosmetic points, where a
@@ -38,19 +38,14 @@ export const ForfeitDialog = ({
   isOpen,
   onClose,
   onConfirm,
-  multiplayer = false,
-  adventure,
+  stakes,
   signedIn = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  /** multiplayer (ffa/team) forfeit resigns a seat rather than ending the game */
-  multiplayer?: boolean;
-  /** Set for a scenario game (`view.scenario != null`) — the heroes share one
-   *  side against the engine's enemies, so the copy says what actually follows:
-   *  `othersInPlay` is whether another hero seat still has a living fighter. */
-  adventure?: { othersInPlay: boolean };
+  /** what forfeiting does in this format — `formatForfeitCopy(formatId, view)` */
+  stakes: string;
   /** signed in, so cosmetic points are on the line and the note applies */
   signedIn?: boolean;
 }) => {
@@ -63,13 +58,7 @@ export const ForfeitDialog = ({
             Forfeit the game?
           </AlertDialogHeader>
           <AlertDialogBody>
-            {adventure
-              ? adventure.othersInPlay
-                ? "You resign your seat and your heroes leave the board. The rest of the table plays on without you and you can keep watching. This cannot be undone."
-                : "You are the last hero in play, so forfeiting ends the adventure as a defeat for the table. This cannot be undone."
-              : multiplayer
-              ? "You resign your seat and its fighters are removed. If the match continues without you, you can keep watching. This cannot be undone."
-              : "Your opponent wins. This cannot be undone."}
+            {stakes}
             {signedIn && (
               <Text fontSize="0.8rem" opacity={0.75} mt="0.6rem" data-testid="forfeit-points-note">
                 {FORFEIT_POINTS_NOTE}

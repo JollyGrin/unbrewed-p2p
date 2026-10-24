@@ -1,7 +1,8 @@
 /**
  * The desktop hand dock (zIndex 160) must not draw over the post-game panel
  * (zIndex 155) once the match is over (p2p #1445). Harness as postGameHowItWent.
- * Also the page-level home of the Keen Hearing panel per format (p2p #1462, below).
+ * Also the page-level home of the Keen Hearing panel per format (p2p #1462, below)
+ * and of the undo "waiting for opponent" toast per format (p2p #1474, below).
  */
 import "@testing-library/jest-dom";
 import { act, cleanup, render, screen } from "@testing-library/react";
@@ -10,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { toast } from "react-hot-toast";
 import { theme } from "@/styles/style";
 import ProGamePage from "@/pages/pro/game";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
@@ -161,5 +163,47 @@ describe("Keen Hearing panel ownership per format (p2p #1462)", () => {
     expect(band).toContainElement(panels[0]);
     expect(getComputedStyle(panels[0]).position).toBe("relative");
     expect(screen.getByText("Revealed: Beta's hand")).toBeInTheDocument();
+  });
+});
+
+// p2p #1474 (delta review M4): the page holds its "waiting for opponent" toast only where an
+// undo waits on a verdict (`formatUndoNeedsConsent`) — a duel, not an adventure (engine #864).
+describe("undo-pending toast per format (p2p #1474)", () => {
+  const WAITING = "Undo requested — waiting for opponent…";
+  const MID: PlayerView = { ...BASE_VIEW, you: "p1", activePlayer: "p1", phase: "PLAY", winner: null, prompt: null, turnNumber: 3, canUndo: true };
+  const ADVENTURE_MID = {
+    ...MID,
+    scenario: {
+      id: "isla-nublar", label: "Isla Nublar",
+      threat: { position: 1, level: 1, overflows: 0, positions: [0, 1, 1, 2, 2, 3, 3, 4, 5] },
+      objectives: [],
+    },
+  } as unknown as PlayerView;
+  let loading: jest.SpyInstance;
+  beforeEach(() => {
+    loading = jest.spyOn(toast, "loading");
+  });
+  afterEach(() => loading.mockRestore());
+
+  const requestUndo = async () => {
+    const button = await screen.findByTestId("pro-undo");
+    expect(button).toHaveAttribute("data-undo-state", "enabled");
+    await act(async () => {
+      (button.querySelector("button") ?? button).click();
+    });
+  };
+
+  it("a duel waits on the opponent's verdict", async () => {
+    await seat("duel");
+    await deliver({ type: "STATE", view: MID, legalActions: [], events: [] });
+    await requestUndo();
+    expect(loading).toHaveBeenCalledWith(WAITING, { id: "pro-undo-pending" });
+  });
+
+  it("an adventure has nobody to wait for — no toast", async () => {
+    await seat("adventure");
+    await deliver({ type: "STATE", view: ADVENTURE_MID, legalActions: [], events: [] });
+    await requestUndo();
+    expect(loading).not.toHaveBeenCalledWith(WAITING, expect.anything());
   });
 });
