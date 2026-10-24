@@ -22,7 +22,7 @@ import {
 } from "@/components/Pro/dockLayout";
 import { ProHud } from "@/components/Pro/ProHud";
 import { theme } from "@/styles/style";
-import { FormatOverlay } from "@/components/Pro/FormatOverlay";
+import { FormatOverlay, formatOwnsRevealedHand } from "@/components/Pro/FormatOverlay";
 import { ADVENTURE_BOARD_RIGHT, ENGINE_FAULT_FIXTURE, InitiativeRow } from "@/components/Pro/AdventureBoard";
 import {
   adventureBoardModel,
@@ -735,6 +735,52 @@ describe("initiative strip and threat track live in the board-side band (#1405)"
       expect(col).not.toContainElement(screen.getByTestId("adv-initiative"));
       expect(col).not.toContainElement(screen.getByTestId("adv-threat"));
     });
+  });
+});
+
+// p2p #1456: the Keen Hearing revealed-hand panel (main #1443/#1450) floats top-left under
+// the HUD — on an Adventure board that is the band, over spaces the board was fitted clear
+// of. Adventure owns the panel and shows it inline in the band instead.
+describe("Keen Hearing panel lives in the board-side band (p2p #1456)", () => {
+  const slot = {
+    revealed: { revealer: "p1" as const, owner: "p2" as const, cards: ["a/x#1", "a/y#2"], turn: 3 },
+    heroName: "King Kong",
+    resolveCard: () => null,
+    labelFor: (c: string) => `label ${c}`,
+  };
+
+  it("adventure owns the panel; other formats keep the page's", () => {
+    expect(formatOwnsRevealedHand("adventure")).toBe(true);
+    expect(formatOwnsRevealedHand("ffa-3")).toBe(false);
+    expect(formatOwnsRevealedHand(undefined)).toBe(false);
+  });
+
+  it("band holds the inline panel beside the strip + track, never the column", async () => {
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={VIEW as unknown as PlayerView} revealedHand={slot} />
+      </ChakraProvider>,
+    );
+    const band = await screen.findByTestId("adventure-band");
+    const panel = screen.getByTestId("revealed-hand-panel");
+    expect(band).toContainElement(panel);
+    expect(panel).toHaveAttribute("data-inline", "true");
+    expect(getComputedStyle(panel).position).toBe("relative");
+    expect(band).toContainElement(screen.getByTestId("adv-initiative"));
+    expect(band).toContainElement(screen.getByTestId("adv-threat"));
+    expect(screen.getByTestId("adventure-board-scroll")).not.toContainElement(panel);
+    expect(screen.getByText("Revealed: King Kong's hand")).toBeInTheDocument();
+    expect(screen.getAllByText(/^label /)).toHaveLength(2);
+  });
+
+  it("no reveal, no panel", async () => {
+    render(
+      <ChakraProvider theme={theme}>
+        <FormatOverlay formatId="adventure" view={VIEW as unknown as PlayerView} />
+      </ChakraProvider>,
+    );
+    await screen.findByTestId("adventure-band");
+    expect(screen.queryByTestId("revealed-hand-panel")).toBeNull();
   });
 });
 

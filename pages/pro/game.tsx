@@ -228,7 +228,7 @@ import {
   useFormatStageName,
 } from "@/components/Pro/FormatLobby";
 import { promptSubjectId, promptSubjectLine } from "@/lib/pro/promptSubject";
-import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
+import { BoardArrow, FormatOverlay, boardZoomable, formatCardFace, formatOverlayInset, formatOwnsRevealedHand, formatWatchSpaces } from "@/components/Pro/FormatOverlay";
 import { FormatEndScreen, hasFormatEndScreen } from "@/components/Pro/FormatEndScreen";
 import { EngineFaultBanner } from "@/components/Pro/EngineFaultBanner";
 import { deriveTeams } from "@/lib/pro/teams";
@@ -7587,6 +7587,19 @@ const LiveGame = ({
     />
   );
 
+  // The Keen Hearing panel's inputs, shared by the page's fixed panel and a format overlay
+  // that owns the panel instead (`formatOwnsRevealedHand`; Adventure shows it in its band).
+  const revealedHandSlot = revealedHand
+    ? {
+        revealed: revealedHand,
+        heroName:
+          view.fighters.find((f) => f.owner === revealedHand.owner && f.kind === "HERO")?.name ??
+          seatLabel(view, revealedHand.owner),
+        resolveCard,
+        labelFor: (c: string) => cardLabel(view.catalog, c),
+      }
+    : undefined;
+
   return (
     <ProErrorBoundary
       roomId={roomId}
@@ -7672,6 +7685,7 @@ const LiveGame = ({
         engineFault={engineFault}
         fighterTokenArt={fighterTokenArt}
         onBoardArrow={setFormatArrow}
+        revealedHand={revealedHandSlot}
       />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}
@@ -7849,18 +7863,12 @@ const LiveGame = ({
         labelFor={(c) => cardLabel(view.catalog, c)}
       />
 
-      {revealedHand && (
+      {revealedHandSlot && !formatOwnsRevealedHand(roomInfo?.formatId) && (
         <RevealedHandPanel
           // a newer reveal starts expanded, whatever the last one was collapsed to
-          key={`${revealedHand.owner}:${revealedHand.turn}:${revealedHand.cards.join(",")}`}
-          revealed={revealedHand}
+          key={`${revealedHandSlot.revealed.owner}:${revealedHandSlot.revealed.turn}:${revealedHandSlot.revealed.cards.join(",")}`}
           top={!mobile && hudBottom > 0 ? hudBottom + REVEALED_PANEL_GAP_PX : undefined}
-          heroName={
-            view.fighters.find((f) => f.owner === revealedHand.owner && f.kind === "HERO")?.name ??
-            seatLabel(view, revealedHand.owner)
-          }
-          resolveCard={resolveCard}
-          labelFor={(c) => cardLabel(view.catalog, c)}
+          {...revealedHandSlot}
         />
       )}
 

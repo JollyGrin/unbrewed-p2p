@@ -16,6 +16,7 @@ import { AdventureBriefingModal, RulebookButton, RulesButton } from "./Adventure
 import { EngineFaultBanner } from "./EngineFaultBanner";
 import type { ViewFighter } from "@/lib/pro/protocol";
 import { ProDiscardsSheet } from "./ProDiscardsSheet";
+import { RevealedHandPanel } from "./RevealedHandPanel";
 import { formatFaceCard } from "@/lib/pro/useProCardArt";
 import { cardLabel } from "@/lib/pro/actionDock";
 import { useAdventureAnalytics } from "@/lib/pro/useAdventureAnalytics";
@@ -1019,6 +1020,7 @@ export const AdventureBoard = ({
   engineFault,
   fighterTokenArt,
   onBoardArrow,
+  revealedHand,
 }: FormatOverlayProps) => {
   useAdventureAnalytics(view, events);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -1080,17 +1082,31 @@ export const AdventureBoard = ({
       top={{ base: ADVENTURE_BAND_TOP_PHONE, md: ADVENTURE_BAND_TOP }}
       left={{ base: "0.5rem", md: "0.75rem" }}
       right={{ base: "0.5rem", md: `calc(${ADVENTURE_BOARD_RIGHT} + ${ADVENTURE_BOARD_WIDTH} + 0.75rem)` }}
-      direction="column"
+      // A row: the strip + track column first, then (p2p #1456) the Keen Hearing panel beside
+      // it, inside the same strip the board was fitted under (ADVENTURE_BAND_FIT) — never over
+      // a space or the dock. A phone wraps the panel below instead of squeezing the track.
+      direction="row"
       align="flex-start"
-      gap="0.3rem"
+      wrap={{ base: "wrap", md: "nowrap" }}
+      gap="0.75rem"
       zIndex={5}
       pointerEvents="none"
       sx={{ "& > *": { pointerEvents: "auto", maxW: "100%" } }}
     >
-      {(strip.row.length > 0 || strip.round != null) && (
-        <InitiativeRow model={strip} fighterTokenArt={fighterTokenArt} />
+      <Flex direction="column" align="flex-start" gap="0.3rem" flexShrink={0} sx={{ "& > *": { maxW: "100%" } }}>
+        {(strip.row.length > 0 || strip.round != null) && (
+          <InitiativeRow model={strip} fighterTokenArt={fighterTokenArt} />
+        )}
+        {model.threat && <ThreatTrack threat={model.threat} />}
+      </Flex>
+      {revealedHand && (
+        <RevealedHandPanel
+          // a newer reveal starts expanded, whatever the last one was collapsed to
+          key={`${revealedHand.revealed.owner}:${revealedHand.revealed.turn}:${revealedHand.revealed.cards.join(",")}`}
+          inline
+          {...revealedHand}
+        />
       )}
-      {model.threat && <ThreatTrack threat={model.threat} />}
     </Flex>
     <ProDiscardsSheet
       isOpen={pile != null}
