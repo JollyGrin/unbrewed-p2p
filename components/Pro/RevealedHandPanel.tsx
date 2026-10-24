@@ -6,7 +6,9 @@
  *
  * Fixed at the top-left under the HUD by default. A format that reserves its own chrome
  * strip above the board (Adventure's band, `formatOwnsRevealedHand`) renders it `inline`
- * inside that strip instead, so it can never cover a printed board space or the dock.
+ * inside that strip instead — the board's initial fit and "reset view" start under the
+ * measured strip, so neither ever covers a printed board space or the dock (a view the player
+ * has already panned or zoomed keeps its transform and re-fits on reset).
  */
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { ChevronDownIcon, ChevronRightIcon } from "@chakra-ui/icons";
@@ -40,10 +42,14 @@ export const RevealedHandPanel = ({
   const placement = inline
     ? {
         position: "relative" as const,
-        // Adventure's band strip is 9rem (ADVENTURE_BAND_FIT); never grow past it, and
-        // shrink on a narrow window rather than pushing the strip's own panels out.
-        flex: "0 1 22rem",
+        // Beside the strip it takes what is left of the band's row, 9rem to 22rem; with less
+        // than 9rem left it wraps under the strip (the band wraps, p2p #1462) — never squeezed
+        // thinner, never run under the Adventure column. The band is measured and the board
+        // fitted under it, so the height cap is for the BOARD's sake: a big hand scrolls inside
+        // 9rem (ADVENTURE_BAND_FIT.desktop) rather than pushing the map down a screen.
+        flex: "1 1 9rem",
         minW: "9rem",
+        maxW: "22rem",
         maxH: "9rem",
         overflowY: "auto" as const,
       }
@@ -88,7 +94,8 @@ export const RevealedHandPanel = ({
       {open && (
         <Flex gap="0.35rem" wrap="wrap" mt="0.4rem">
           {revealed.cards.map((c, i) => (
-            <Box key={`${c}-${i}`} w={inline ? "4rem" : "4.5rem"} sx={{ aspectRatio: "63 / 88" }}>
+            // inline on a phone: four cards still fit one row beside the drawer toggle's lane
+            <Box key={`${c}-${i}`} w={inline ? { base: "3.5rem", md: "4rem" } : "4.5rem"} sx={{ aspectRatio: "63 / 88" }}>
               <CardFace card={resolveCard(c)} fallback={labelFor(c)} />
             </Box>
           ))}

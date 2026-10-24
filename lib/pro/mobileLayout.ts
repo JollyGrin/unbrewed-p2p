@@ -32,8 +32,11 @@ export const ADVENTURE_OVERLAY_INSET = 17.75 * 16;
 
 /**
  * px the Adventure board-side band (initiative strip + threat track, #1405; the Keen Hearing
- * revealed-hand panel beside them, #1456) takes ABOVE the map, so the initial fit starts under it. Desktop: it sits below the HUD band; phone: below
- * the chip row. Applied whenever a format overlay is mounted (`formatOverlayRight > 0`).
+ * revealed-hand panel beside them, #1456) takes ABOVE the map, so the initial fit starts under it.
+ * Desktop: it sits below the HUD band; phone: below the chip row. Applied whenever a format
+ * overlay is mounted (`formatOverlayRight > 0`). A FLOOR: the band is also measured
+ * (`formatBandBottom`, p2p #1462) and a taller band — the revealed-hand panel wrapped under the
+ * strip on a phone or a narrow desktop — pushes the fit down past these.
  */
 export const ADVENTURE_BAND_FIT = { desktop: 144, mobile: 124 } as const;
 
@@ -129,6 +132,14 @@ export interface BoardInsetArgs {
   railW?: number;
   /** desktop only: px a format overlay column (e.g. Adventure's, `ADVENTURE_OVERLAY_INSET`) takes left of the dock */
   formatOverlayRight?: number;
+  /**
+   * Measured viewport-y bottom (px) of the format's band above the map (Adventure's strip +
+   * track + revealed-hand panel), 0 until measured. Only read while a format overlay is mounted.
+   * The band is fixed chrome the board must start UNDER, like the chip row: when it grows past
+   * `ADVENTURE_BAND_FIT` (a Keen Hearing reveal wrapped onto a second row, p2p #1462) the fit
+   * follows it; a shorter band changes nothing, so a game without a reveal fits as before.
+   */
+  formatBandBottom?: number;
 }
 
 /**
@@ -143,17 +154,21 @@ export const boardFitInsetFor = ({
   sheetH = 0,
   railW = 0,
   formatOverlayRight = 0,
+  formatBandBottom = 0,
 }: BoardInsetArgs): Required<ZoomPanInset> => {
   const band = formatOverlayRight > 0 ? ADVENTURE_BAND_FIT : null;
+  // The band's measured bottom edge, where the constants undershoot it. No gutter: the floors
+  // already put the map's edge exactly at the band's bottom on a phone and at 992px.
+  const bandBottom = band ? formatBandBottom : 0;
   if (mode === "desktop")
     return {
-      top: DESKTOP_INSET.top + (band?.desktop ?? 0),
+      top: Math.max(DESKTOP_INSET.top + (band?.desktop ?? 0), bandBottom),
       bottom: DESKTOP_INSET.bottom,
       left: DESKTOP_INSET.side,
       right: DESKTOP_INSET.dockColumn + formatOverlayRight,
     };
 
-  const top = (chipsH || MOBILE_CHIPS_H) + MOBILE_GUTTER + (band?.mobile ?? 0);
+  const top = Math.max((chipsH || MOBILE_CHIPS_H) + MOBILE_GUTTER + (band?.mobile ?? 0), bandBottom);
   if (mode === "rail")
     return {
       top,
