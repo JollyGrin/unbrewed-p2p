@@ -21,9 +21,12 @@ export type DeckImportType = {
   published: boolean;
   published_on: DateString;
   /**
-   * External attribution page for this deck when it lives somewhere other than
-   * unmatched.cards (e.g. the-unmatched.club). Optional and additive: mirrors the
-   * `sourceUrl` on PopularDeckMeta so the committed snapshot is self-describing.
+   * The deck's page on the site it was imported from: unmatched.cards (stamped
+   * by fetchDeckById), Unmatched Labs (the share link), or an external
+   * attribution page such as the-unmatched.club. Optional and additive: mirrors
+   * the `sourceUrl` on PopularDeckMeta so the committed snapshot is
+   * self-describing. Sandbox telemetry reads it (lib/deckSource.ts); decks with
+   * none report no source.
    */
   sourceUrl?: string;
   /**
