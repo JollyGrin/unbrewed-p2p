@@ -128,7 +128,7 @@ describe("LeaderboardDashboard", () => {
     expect(tiles).toHaveLength(12);
     expect(tiles[0]).toHaveAttribute("href", "/heroes?h=the-mandalorian");
     expect(within(tiles[9]).getByText("Unclaimed")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "All 35 heroes" })).toHaveAttribute("href", "/heroes");
+    expect(screen.getByRole("link", { name: "All 36 heroes" })).toHaveAttribute("href", "/heroes");
 
     expect(screen.getByTestId("match-grid")).toBeInTheDocument();
     expect(screen.getByText("The Mandalorian vs Boba Fett")).toBeInTheDocument();

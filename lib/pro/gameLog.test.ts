@@ -165,6 +165,9 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "POSITIONS_SWAPPED", a: "p1/hero", b: "p2/hero", aTo: ["s2"], bTo: ["s1"] },
   // v34 defender substitution (protocol v34 ↔ engine #494) — an allowlisted new-line event.
   { type: "COMBAT_DEFENDER_CHANGED", from: "p1/hero", to: "p1/sidekick-1" },
+  // v38 secret fighter marks (issue #1453 ↔ engine #918) — allowlisted new-line events.
+  { type: "SECRET_MARK_ASSIGNED", player: "p1", name: "MARK" },
+  { type: "SECRET_MARK_REVEALED", player: "p1", name: "MARK", fighter: "p1/sidekick-2" },
 ];
 
 // The allowlist — event types enrichLines is permitted to turn into new lines.
@@ -197,6 +200,8 @@ const ALLOWLIST = new Set([
   "FIGHTER_MARKS_CLEARED",
   "POSITIONS_SWAPPED",
   "COMBAT_DEFENDER_CHANGED",
+  "SECRET_MARK_ASSIGNED",
+  "SECRET_MARK_REVEALED",
 ]);
 
 describe("enrichLines", () => {
@@ -758,7 +763,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED", "SECRET_MARK_ASSIGNED", "SECRET_MARK_REVEALED"]).toContain(t);
     });
   });
 
@@ -904,6 +909,42 @@ describe("enrichLines", () => {
   // consequence is that the damage lands on a DIFFERENT FIGHTER — so the event
   // has to own a line, or the log shows a hit on somebody who was never attacked
   // with nothing in between to explain it. This line is also the replay's record.
+  // v38 secret fighter marks (issue #1453 ↔ engine #918 — the Xenomorph's Marked
+  // Blip). ASSIGNED carries no bearer, so its line never names a fighter on any
+  // seat; the hidden pick itself (PROMPT_RESOLVED, optionId masked for every other
+  // viewer) prints nothing at all.
+  describe("SECRET_MARK_* (protocol v38)", () => {
+    const named: EnrichContext = { ...ctx(), fighter: (id) => (id === "p1/sidekick-2" ? "Blip 2" : id) };
+    const assigned: GameEvent = { type: "SECRET_MARK_ASSIGNED", player: "p1", name: "MARK" };
+    const revealed: GameEvent = { type: "SECRET_MARK_REVEALED", player: "p1", name: "MARK", fighter: "p1/sidekick-2" };
+
+    it("narrates a hidden pick without naming the bearer, for both seats", () => {
+      expect(enrichLines([], [assigned], named)).toEqual([{ text: "You chose your Marked Blip", who: "you" }]);
+      expect(enrichLines([], [assigned], { ...named, you: "p2", seat: (p) => (p === "p2" ? "You" : "Opponent") })).toEqual([
+        { text: "Opponent chose their Marked Blip", who: "opp" },
+      ]);
+      expect(JSON.stringify(enrichLines([], [assigned], named))).not.toContain("Blip 2");
+    });
+
+    it("names the bearer on the reveal, and says the Xenomorph emerges", () => {
+      expect(enrichLines([], [revealed], named)).toEqual([
+        { text: "Blip 2 was the Marked Blip — the Xenomorph emerges", who: "you" },
+      ]);
+    });
+
+    it("prints an open assignment (ESCAPE) as one line, not as an emergence", () => {
+      expect(enrichLines([], [assigned, revealed], named)).toEqual([
+        { text: "Blip 2 is the Marked Blip — revealed to every seat", who: "you" },
+      ]);
+    });
+
+    it("never prints the masked answer of the private pick", () => {
+      const hidden: GameEvent = { type: "PROMPT_RESOLVED", player: "p2", promptId: "p9", optionId: "(hidden)" };
+      expect(enrichLines([], [hidden], named)).toEqual([]);
+      expect(enrichLines([], [{ type: "PROMPT_OPENED", player: "p2", kind: "CHOOSE_TARGET", promptId: "p9" }, hidden], named)).toEqual([]);
+    });
+  });
+
   describe("COMBAT_ATTACKER_CHANGED (protocol v36)", () => {
     const swap: GameEvent = { type: "COMBAT_ATTACKER_CHANGED", from: "p2/hero", to: "p2/sidekick-1" };
 

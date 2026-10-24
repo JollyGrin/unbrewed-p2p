@@ -8,8 +8,11 @@ import {
   FIGHTER_MARKER_BADGES,
   FIGHTER_STATUS_BADGES,
   fighterStatusBadgesFor,
+  secretMarkedFighterIds,
+  visibleSecretMarks,
+  withSecretMarkStatuses,
 } from "./fighterStatuses";
-import type { ViewFighter } from "./protocol";
+import type { PlayerView, ViewFighter, ViewSecretMark } from "./protocol";
 
 const fighter = (over: Partial<ViewFighter> = {}): ViewFighter => ({
   id: "p2/hero",
@@ -158,5 +161,46 @@ describe("fighterStatusBadgesFor", () => {
       fighter({ statuses: [{ kind: "PINNED" }, { kind: "FUTURE_UNKNOWN_EFFECT" }] })
     );
     expect(badges.map((b) => b.kind)).toEqual(["PINNED"]);
+  });
+});
+
+/**
+ * v38 secret fighter marks (issue #1453 ↔ engine #918, the Xenomorph's Marked Blip).
+ * The engine redacts `marks` per viewer; the client only folds what a view carries,
+ * so privacy is pinned here as: a view WITHOUT `marks` badges nothing, one WITH it
+ * badges exactly the bearer.
+ */
+describe("secret fighter marks (protocol v38)", () => {
+  const blip = (n: number, owner = "p1") =>
+    fighter({ id: `${owner}/sidekick-${n}`, owner, kind: "SIDEKICK", name: "Blip", hp: 1, maxHp: 1 });
+  const fighters = [blip(1), blip(2), blip(3), fighter({ id: "p1/hero", owner: "p1", name: "Xenomorph", space: null })];
+  const seatView = (selfMarks?: ViewSecretMark[], playerMarks?: ViewSecretMark[]) =>
+    ({
+      self: selfMarks ? { marks: selfMarks } : {},
+      players: [{ id: "p1", ...(playerMarks ? { marks: playerMarks } : {}) }, { id: "p2" }],
+    }) as unknown as Pick<PlayerView, "self" | "players">;
+  const badgesOn = (view: Pick<PlayerView, "self" | "players">) =>
+    withSecretMarkStatuses(fighters, visibleSecretMarks(view)).map((f) => fighterStatusBadgesFor(f).map((b) => b.label));
+
+  it("an opponent's view (no `marks`) renders no badge at all", () => {
+    expect(badgesOn(seatView())).toEqual([[], [], [], []]);
+    // and leaves the array itself untouched — every other deck pays nothing
+    expect(withSecretMarkStatuses(fighters, visibleSecretMarks(seatView()))).toBe(fighters);
+    expect(secretMarkedFighterIds(seatView()).size).toBe(0);
+  });
+
+  it("the owner's view badges exactly the hidden bearer", () => {
+    const own = [{ name: "MARK", fighter: "p1/sidekick-2", open: false }];
+    expect(badgesOn(seatView(own, own))).toEqual([[], ["Marked"], [], []]);
+    const [badge] = fighterStatusBadgesFor(withSecretMarkStatuses(fighters, own)[1]);
+    expect(badge.title).toMatch(/only you/);
+    expect([...secretMarkedFighterIds(seatView(own, own))]).toEqual(["p1/sidekick-2"]);
+  });
+
+  it("an open mark (ESCAPE) reaches other seats through players[] and reads as revealed", () => {
+    const open = [{ name: "MARK", fighter: "p1/sidekick-3", open: true }];
+    expect(badgesOn(seatView(undefined, open))).toEqual([[], [], ["Marked"], []]);
+    const [badge] = fighterStatusBadgesFor(withSecretMarkStatuses(fighters, open)[2]);
+    expect(badge.title).toMatch(/every seat/);
   });
 });

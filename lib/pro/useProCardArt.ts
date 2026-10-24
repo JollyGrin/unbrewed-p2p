@@ -342,6 +342,24 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // value/name banner baked in on the left edge, so they ride `imageUrl` (no `cardImage`: they
   // are not full cards); the in-game render draws no second banner over them (checked in browser).
   superman: "5zMj",
+  // Xenomorph (the-unmatched.club 13536 "XenomorphRulesCard" by MrBrownieDL, lab tier):
+  // issue #1453 ↔ engine E1 #918/PR #921 (the v38 secret fighter mark), E2 #919/PR #922
+  // (setCombatFighter), E3 #920/PR #927 (data/heroes/xenomorph.rules.ts) on
+  // feature/xenomorph — PAIRED (engine train PR #917 ↔ client train PR #1451). Club-only,
+  // so the id is unbrewed-minted and the snapshot is hand-authored (Ripley precedent).
+  // ONE sidekick entry, Blip ×3: the mark is a per-seat secret (`marks` on the seat
+  // views, see fighterStatuses.ts), so the three Blips share one name and one token —
+  // per-instance art would leak it. Public state: counter XENO_REVEALS and flags
+  // XENO_STARTED_OFF / XENO_OWN_TURN are COSMETIC — deliberately no HERO_STATE_* row
+  // (the off-board pill is pose-derived).
+  //
+  // ART: 14 files self-hosted under public/evergreen-decks/art/xenomorph/ (q80 webp,
+  // 1600w max), all the author's own imgur uploads from the club export: the 11 faces
+  // are FULL-CARD renders (frame, banner, title and text baked in), drawn full-bleed via
+  // cardImage (Ripley shape); the cardback; token-blip is the Blips group avatar; the hero
+  // has no avatar in the export, so token-xenomorph is a square crop of the Marked
+  // Blip's underside art (a picture of the Xenomorph — never shown on a Blip).
+  xenomorph: "xenomorph",
 };
 
 /**
