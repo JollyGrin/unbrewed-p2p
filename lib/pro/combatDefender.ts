@@ -20,8 +20,13 @@
  *   - the board rings the NEW defender and chips it "defends instead",
  *   - `gameLog.ts` prints one line, which is also the replay's log entry.
  *
- * The event always arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for
- * its combat, so a beat derived here is on screen before the numbers land.
+ * The event USUALLY arrives BEFORE `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for
+ * its combat, so a beat derived here is on screen before the numbers land. It does
+ * NOT always: a takeover AFTER the damage step (the Xenomorph's Marked Blip taking
+ * over the defense once the hit has landed) arrives behind a `COMBAT_DAMAGE` in the
+ * same batch. `defenderChanges` flags that (`afterDamage`) and `defenderSwapText`
+ * has a neutral wording for it, because "defends instead" / "the damage lands on X"
+ * would be false — the damage already landed on somebody else.
  *
  * ISSUE #694 WIDENED THE QUESTION. "Who is actually defending?" is not only asked
  * by a mid-combat substitution — Grievous's Multi-Arm Barrage opens Combat 2
@@ -40,6 +45,9 @@ import { FighterId, GameEvent, PlayerView, ViewCombat } from "./protocol";
 export interface DefenderChange {
   from: FighterId;
   to: FighterId;
+  /** The substitution arrived AFTER `COMBAT_DAMAGE` in its batch: the hit already
+   *  landed, so the copy must not say the damage "lands" on `to`. Absent = before. */
+  afterDamage?: boolean;
 }
 
 /**
@@ -49,8 +57,12 @@ export interface DefenderChange {
  */
 export function defenderChanges(events: GameEvent[]): DefenderChange[] {
   const out: DefenderChange[] = [];
+  let damaged = false;
   for (const e of events) {
-    if (e.type === "COMBAT_DEFENDER_CHANGED") out.push({ from: e.from, to: e.to });
+    if (e.type === "COMBAT_DAMAGE") damaged = true;
+    else if (e.type === "COMBAT_DEFENDER_CHANGED") {
+      out.push(damaged ? { from: e.from, to: e.to, afterDamage: true } : { from: e.from, to: e.to });
+    }
   }
   return out;
 }
@@ -128,7 +140,12 @@ export function combatSidesLine(attackerName: string, defenderName: string): str
  * name that already ends in s, and the Clone Troopers hero is literally named
  * "Clone Troopers" — the live pair run printed "takes Clone Troopers's place".
  */
-export type DefenderChangeKind = "SUBSTITUTED" | "REDIRECTED";
+export type DefenderChangeKind = "SUBSTITUTED" | "REDIRECTED" | "AFTER_DAMAGE";
+
+/** The wording kind for a change: a post-damage takeover is neutral, anything else
+ *  is a plain substitution. */
+export const defenderChangeKind = (c: Pick<DefenderChange, "afterDamage">): DefenderChangeKind =>
+  c.afterDamage ? "AFTER_DAMAGE" : "SUBSTITUTED";
 
 /** Board/panel copy for a substitution, given the two fighters' display names.
  *  One function so the tag, the chip and the log line can never disagree. */
@@ -137,6 +154,13 @@ export function defenderSwapText(
   toName: string,
   kind: DefenderChangeKind = "SUBSTITUTED"
 ) {
+  if (kind === "AFTER_DAMAGE") {
+    return {
+      chip: "takes over",
+      tag: `${toName.toUpperCase()} TAKES OVER THE DEFENSE`,
+      full: `${toName} takes over the defense from ${fromName}`,
+    };
+  }
   if (kind === "REDIRECTED") {
     return {
       /** compact chip on the board token */
@@ -219,6 +243,12 @@ export function advanceCombatTargeting(prev: CombatTargeting, events: GameEvent[
       case "BONUS_ATTACK_STARTED":
         if (cur.attacker !== e.attacker) cur = { declared: e.target, attacker: e.attacker };
         break;
+      case "COMBAT_ATTACKER_CHANGED":
+        // The same attack action, a different fighter swinging: keep the
+        // declaration and follow the attacker, or `defenderRedirect` (which keys on
+        // the attacker) would drop it for the rest of the combat.
+        if (cur.attacker === e.from) cur = { declared: cur.declared, attacker: e.to };
+        break;
       case "TURN_ENDED":
         cur = EMPTY_COMBAT_TARGETING;
         break;
@@ -248,4 +278,54 @@ export function defenderRedirect(
   if (targeting.attacker !== combat.attacker) return null;
   if (targeting.declared === combat.target) return null;
   return { from: targeting.declared, to: combat.target };
+}
+
+// ---------------------------------------------------------------------------
+// Attacker substitution (protocol v36 ↔ engine #752) — the mirror image.
+// ---------------------------------------------------------------------------
+
+/**
+ * `COMBAT_ATTACKER_CHANGED { from, to }`: the ATTACKING FIGHTER of the live combat
+ * changed — same combat, same attacking player, same revealed cards (Appa's
+ * *Hallucinations*; the Xenomorph's Marked Blip taking over a combat before the
+ * damage). The view's `combat.attacker` moves with it, so, like the defender
+ * event, ignoring it is not wrong but SILENT; and unlike it, ignoring it was also
+ * WRONG for `isNewCombat`, which reads an attacker change as a brand-new combat.
+ */
+export interface AttackerChange {
+  from: FighterId;
+  to: FighterId;
+}
+
+/** Every attacker substitution in this batch, in order. `[]` when there is none. */
+export function attackerChanges(events: GameEvent[]): AttackerChange[] {
+  const out: AttackerChange[] = [];
+  for (const e of events) {
+    if (e.type === "COMBAT_ATTACKER_CHANGED") out.push({ from: e.from, to: e.to });
+  }
+  return out;
+}
+
+/** The substitution still in force after this batch (a chain leaves the last). */
+export function latestAttackerChange(events: GameEvent[]): AttackerChange | null {
+  const all = attackerChanges(events);
+  return all.length ? all[all.length - 1] : null;
+}
+
+export interface AttackerSwap extends AttackerChange {
+  key: number;
+}
+
+/** The standing chip retires the moment `combat.attacker` is somebody else. */
+export function attackerSwapStillLive(swap: AttackerChange, view: PlayerView): boolean {
+  return !!view.combat && view.combat.attacker === swap.to;
+}
+
+/** Board/panel/log copy for an attacker substitution. Seat-neutral like its sibling. */
+export function attackerSwapText(fromName: string, toName: string) {
+  return {
+    chip: "attacks instead",
+    tag: `${toName.toUpperCase()} ATTACKS INSTEAD`,
+    full: `${toName} takes over from ${fromName} as the attacker`,
+  };
 }

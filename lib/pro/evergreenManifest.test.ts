@@ -1322,3 +1322,139 @@ describe("Frankestein (xd9Qk) deck data", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Xenomorph (issue #1453 ↔ engine E1 #918 / E2 #919 / E3 #920, PR #927 on
+// feature/xenomorph; PAIRED train PRs #917 ↔ #1451). the-unmatched.club deck 13536
+// by MrBrownieDL — club-only, so the snapshot is hand-authored (Ripley shape) and
+// every image is the author's own upload, mirrored locally.
+// ---------------------------------------------------------------------------
+
+describe("Xenomorph (xenomorph) deck data", () => {
+  const deck = readDeck("xenomorph");
+  type Card = {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    characterName: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  };
+  const cards = deck.deck_data.cards as Card[];
+  const SOURCE = "https://www.the-unmatched.club/c/heroes/xenomorph.13536";
+
+  it("is wired: HERO_DECK_IDS, a lab-tier club tile, a manifest lock", () => {
+    expect(HERO_DECK_IDS.xenomorph).toBe("xenomorph");
+    expect(EVERGREEN_MANIFEST.find((e) => e.deckId === "xenomorph")?.heroId).toBe("xenomorph");
+    expect(POPULAR_DECKS.find((d) => d.id === "xenomorph")).toMatchObject({
+      author: "MrBrownieDL",
+      lab: true,
+      tier: "lab",
+      original: true,
+      sourceUrl: SOURCE,
+      cardbackUrl: "/evergreen-decks/art/xenomorph/cardback.webp",
+    });
+  });
+
+  it("keeps the export's verbatim titles — a curly apostrophe on AIR SHAFTS only", () => {
+    const titles = cards.map((c) => c.title);
+    expect(titles).toContain("IT’S USING THE AIR SHAFTS");
+    expect(titles).toContain("IT'S JUST A SHADOW");
+    expect(titles).not.toContain("IT'S USING THE AIR SHAFTS");
+  });
+
+  it("fields ONE sidekick entry, three identical Blips — the mark is a seat secret", () => {
+    expect(deck.deck_data.sidekick).toMatchObject({ name: "Blip", hp: 1, quantity: 3, isRanged: false });
+    expect(JSON.stringify(deck.deck_data)).not.toMatch(/"name":\s*"(Un)?[Mm]arked Blip"/);
+  });
+
+  it("carries the EXTRA RULES paragraph as its one rule card", () => {
+    const rules = (deck.deck_data.ruleCards ?? []) as { title: string; content: string }[];
+    expect(rules).toHaveLength(1);
+    expect(rules[0].content).toContain('this is known as the "Marked Blip."');
+    expect(rules[0].content).toContain("deal an equal amount of damage to the Xenomorph");
+    expect(deck.deck_data.hero.specialAbility).toMatch(/^PERFECT ORGANISM\n/);
+  });
+
+  it("ships the 11 faces as LOCAL full-card renders, drawn full-bleed", () => {
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/xenomorph\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(11);
+  });
+
+  it("mirrors the cardback and BOTH board tokens locally", () => {
+    for (const url of [
+      deck.deck_data.appearance.cardbackUrl as string,
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(url).toMatch(/^\/evergreen-decks\/art\/xenomorph\/(cardback|token-xenomorph|token-blip)\.webp$/);
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("leaves NO remote URL in the shipped data but the attribution link", () => {
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) =>
+      u.replace(/\\/g, "")
+    );
+    expect([...new Set(urls)]).toEqual([SOURCE]);
+    expect(deck.sourceUrl).toBe(SOURCE);
+    expect(deck.user).toBe("MrBrownieDL");
+  });
+});
+
+/**
+ * The snapshot vs the ENGINE (`data/heroes/xenomorph.rules.ts`, E3 PR #927). The
+ * engine repo is private, so the table is transcribed from that file. `usableBy` →
+ * the club banner: SIDEKICK → "BLIP", HERO → "Xenomorph", ANY → "Any". Schemes have
+ * `value: null` engine-side; the snapshot's null reads as 0 here as for Ripley.
+ */
+describe("Xenomorph snapshot agrees with xenomorph.rules.ts (E3, PR #927)", () => {
+  const deck = readDeck("xenomorph");
+  // [title, type, value, boost, quantity, characterName]
+  const ENGINE: [string, string, number, number, number, string][] = [
+    ["OUT OF THE SHADOWS", "attack", 2, 2, 3, "BLIP"],
+    ["SECOND MOUTH", "attack", 3, 2, 3, "BLIP"],
+    ["IT’S USING THE AIR SHAFTS", "attack", 4, 2, 3, "Xenomorph"],
+    ["TAIL SPEAR", "attack", 6, 3, 2, "Xenomorph"],
+    ["IT'S JUST A SHADOW", "versatile", 1, 2, 3, "Any"],
+    ["INTO THE DARKNESS", "versatile", 2, 1, 2, "Any"],
+    ["ESCAPE", "versatile", 2, 2, 3, "Any"],
+    ["HARDENED EXOSKELETON", "defense", 3, 3, 3, "Any"],
+    ["ACID FOR BLOOD", "defense", 3, 3, 3, "Xenomorph"],
+    ["STIRRING IN THE DARK", "scheme", 0, 2, 2, "Any"],
+    ["SIGNAL LOST", "scheme", 0, 3, 3, "Xenomorph"],
+  ];
+
+  it("matches the engine card for card, in the engine's own order", () => {
+    const cards = deck.deck_data.cards as {
+      title: string;
+      type: string;
+      value: number | null;
+      boost: number;
+      quantity: number;
+      characterName: string;
+    }[];
+    expect(cards).toHaveLength(ENGINE.length);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+    cards.forEach((card, i) => {
+      const [title, type, value, boost, quantity, characterName] = ENGINE[i];
+      expect(card.title).toBe(title);
+      expect(normalizeType(card.type)).toBe(normalizeType(type));
+      expect(card.value ?? 0).toBe(value);
+      expect(card.boost).toBe(boost);
+      expect(card.quantity).toBe(quantity);
+      expect(card.characterName).toBe(characterName);
+    });
+  });
+
+  it("matches the hero and sidekick stat lines", () => {
+    expect(deck.deck_data.hero).toMatchObject({ name: "Xenomorph", hp: 16, move: 3, isRanged: false });
+    expect(deck.deck_data.sidekick).toMatchObject({ name: "Blip", hp: 1, quantity: 3, isRanged: false });
+  });
+});

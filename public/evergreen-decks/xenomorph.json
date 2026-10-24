@@ -1,0 +1,230 @@
+{
+  "bgg_link": null,
+  "created_on": "2026-08-22T11:43:40+00:00",
+  "deck_first_published_on": "2026-08-22T11:43:40+00:00",
+  "deck_published": true,
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#0b3210",
+      "cardbackUrl": "/evergreen-decks/art/xenomorph/cardback.webp",
+      "highlightColour": "#0b3210",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "cards": [
+      {
+        "afterText": "If you lost the combat, draw a card.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/out-of-the-shadows.webp"
+        },
+        "characterName": "BLIP",
+        "duringText": "Defeat your fighter, if this reveals the Xenomorph, this card's value is 5 instead.",
+        "imageUrl": "/evergreen-decks/art/xenomorph/out-of-the-shadows.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "OUT OF THE SHADOWS",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/second-mouth.webp"
+        },
+        "characterName": "BLIP",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/second-mouth.webp",
+        "immediateText": "Defeat your fighter.",
+        "quantity": 3,
+        "title": "SECOND MOUTH",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "If you won the combat, summon all Blips into empty spaces in the Xenomorph's zone. Remove the Xenomorph from the board.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/its-using-the-air-shafts.webp"
+        },
+        "characterName": "Xenomorph",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/its-using-the-air-shafts.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "IT’S USING THE AIR SHAFTS",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/tail-spear.webp"
+        },
+        "characterName": "Xenomorph",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/tail-spear.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "TAIL SPEAR",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": "Your fighter may swap spaces with another friendly fighter.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/its-just-a-shadow.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/its-just-a-shadow.webp",
+        "immediateText": "Cancel all effects on your opponent's card and ignore it's value.",
+        "quantity": 3,
+        "title": "IT'S JUST A SHADOW",
+        "type": "versatile",
+        "value": 1
+      },
+      {
+        "afterText": "Draw 1 card, two of your fighters may swap spaces.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/into-the-darkness.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/into-the-darkness.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "INTO THE DARKNESS",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Place each fighter in the combat in any space in their zone, you may summon the marked Blip in the Xenomorph's space. If you do, remove the Xenomorph from the board.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/escape.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/escape.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "ESCAPE",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card, if the Xenomorph started this turn off the board, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/hardened-exoskeleton.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/hardened-exoskeleton.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "HARDENED EXOSKELETON",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "Deal damage to the opposing fighter equal to the amount of combat damage your fighter took.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/acid-for-blood.webp"
+        },
+        "characterName": "Xenomorph",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/acid-for-blood.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "ACID FOR BLOOD",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "Move each of your fighters up to 3 spaces. Gain 1 action.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/stirring-in-the-dark.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/stirring-in-the-dark.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "STIRRING IN THE DARK",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Remove the Xenomorph from the board, then summon each of your Blips in any space. The Xenomorph recovers 1 health.",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/xenomorph/signal-lost.webp"
+        },
+        "characterName": "Xenomorph",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/xenomorph/signal-lost.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "SIGNAL LOST",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "hero": {
+      "hp": 16,
+      "isRanged": false,
+      "move": 3,
+      "name": "Xenomorph",
+      "specialAbility": "PERFECT ORGANISM\nXenomorph does not start in play, place the Blips in his starting zone instead. Blips may move through opposing fighters, and opposing fighters may move through Blips.\nAt the start of your turn, you may defeat a Blip.",
+      "tokenImageUrl": "/evergreen-decks/art/xenomorph/token-xenomorph.webp"
+    },
+    "name": "Xenomorph",
+    "ruleCards": [
+      {
+        "title": "Extra Rules",
+        "content": "One of the Blip tokens has a picture of the Xenomorph on one side, this is known as the \"Marked Blip.\" Whenever a Blip is defeated or otherwise removed from the board, reveal it's underside. If it is the Marked Blip, place the Xenomorph in the space the Marked Blip was removed from. If this occurs during combat, the Xenomorph is now the active fighter. Anytime the Marked Blip takes damage, deal an equal amount of damage to the Xenomorph.\nEXAMPLE: If the Marked Blip takes 3 damage, immediately remove it from the board, reveal it's underside, place the Xenomorph in the space it was removed from, and deal 3 damage to the Xenomorph."
+      }
+    ],
+    "sidekick": {
+      "hp": 1,
+      "isRanged": false,
+      "name": "Blip",
+      "quantity": 3,
+      "quote": "",
+      "tokenImageUrl": "/evergreen-decks/art/xenomorph/token-blip.webp"
+    }
+  },
+  "family_id": "xenomorph",
+  "id": "xenomorph",
+  "liked": false,
+  "likes": 0,
+  "name": "Xenomorph",
+  "note": "Rules-enforced Pro deck (server hero xenomorph), mirrored from the-unmatched.club deck 13536 \"XenomorphRulesCard\" by MrBrownieDL (https://www.the-unmatched.club/c/heroes/xenomorph.13536), published 2026-08-22. There is no unmatched.cards mirror of this deck, so the id `xenomorph` is unbrewed-minted (Ellen Ripley precedent, same author). Card titles, types, values, boosts, quantities and banners are the author's, read off the club's /export/__data.json (research/xenomorph-2026-10-23/cards-xenomorph.md), and are VERIFIED field by field against the engine's data/heroes/xenomorph.rules.ts (engine E3, PR #927 on feature/xenomorph) by a test. Titles are the export's UPPERCASE verbatim: IT’S USING THE AIR SHAFTS carries a curly apostrophe (U+2019), IT'S JUST A SHADOW a straight one, and the author's \"ignore it's value\" is kept — art matches on the title. DIVERGENCES from the club record, all presentation: (1) the export lists the sidekicks twice — a \"Blips\" x3 group AND a Marked Blip x1 / Unmarked Blip x2 split. This snapshot carries ONE sidekick entry, Blip x3, because the engine fields three identical Blip figures and the mark is a per-seat secret (protocol v38 `marks`); distinct names or per-instance art would print the mark on every seat's board. (2) The export's EXTRA RULES paragraph is carried as a rule card so the preview modal and the HUD sheet show it. (3) The hero has no avatar in the export: its board token is the author's Marked Blip underside art (the Blip with \"a picture of the Xenomorph\"), which is never shown on a Blip. (4) appearance.actionCardBorder #f6e8dd is near-white; the border and tile colour use the cardback's dominant dark green (#0b3210) instead. The two defence cards are type \"defence\" here and \"defense\" in the engine — the community-deck convention; the rules-lock digest normalizes it. EVERGREEN IN THE STRICT SENSE: every image — the 11 card faces, the cardback and both board tokens — is the AUTHOR'S OWN artwork (requester = author, rights clear), mirrored under public/evergreen-decks/art/xenomorph/ off his own imgur uploads with every URL rewritten to those local paths. The faces are full-card renders drawn FULL-BLEED via cardImage; this deck must never fall back to the generated template and must never be routed to the art-generation pipeline. Engine serves the hero at tier `lab`.",
+  "published": true,
+  "published_on": "2026-08-22T11:43:40+00:00",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/xenomorph.13536",
+  "tags": [],
+  "updated_on": "2026-08-22T11:43:40+00:00",
+  "user": "MrBrownieDL",
+  "version_id": "evergreen-1",
+  "version_name": "XenomorphRulesCard"
+}

@@ -8,8 +8,14 @@ import {
   FIGHTER_MARKER_BADGES,
   FIGHTER_STATUS_BADGES,
   fighterStatusBadgesFor,
+  secretMarkedFighterIds,
+  visibleSecretMarks,
+  withSecretMarkStatuses,
+  secretMarkLabel,
+  secretMarkPromptDescription,
+  emergenceCaption,
 } from "./fighterStatuses";
-import type { ViewFighter } from "./protocol";
+import type { GameEvent, PlayerId, PlayerView, ViewFighter, ViewSecretMark } from "./protocol";
 
 const fighter = (over: Partial<ViewFighter> = {}): ViewFighter => ({
   id: "p2/hero",
@@ -158,5 +164,85 @@ describe("fighterStatusBadgesFor", () => {
       fighter({ statuses: [{ kind: "PINNED" }, { kind: "FUTURE_UNKNOWN_EFFECT" }] })
     );
     expect(badges.map((b) => b.kind)).toEqual(["PINNED"]);
+  });
+});
+
+/**
+ * v38 secret fighter marks (issue #1453 ↔ engine #918, the Xenomorph's Marked Blip).
+ * The engine redacts `marks` per viewer; the client only folds what a view carries,
+ * so privacy is pinned here as: a view WITHOUT `marks` badges nothing, one WITH it
+ * badges exactly the bearer.
+ */
+describe("secret fighter marks (protocol v38)", () => {
+  const blip = (n: number, owner: PlayerId = "p1") =>
+    fighter({ id: `${owner}/sidekick-${n}`, owner, kind: "SIDEKICK", name: "Blip", hp: 1, maxHp: 1 });
+  const fighters = [blip(1), blip(2), blip(3), fighter({ id: "p1/hero", owner: "p1", name: "Xenomorph", space: null })];
+  const seatView = (selfMarks?: ViewSecretMark[], playerMarks?: ViewSecretMark[]) =>
+    ({
+      self: selfMarks ? { marks: selfMarks } : {},
+      players: [{ id: "p1", ...(playerMarks ? { marks: playerMarks } : {}) }, { id: "p2" }],
+    }) as unknown as Pick<PlayerView, "self" | "players">;
+  const badgesOn = (view: Pick<PlayerView, "self" | "players">) =>
+    withSecretMarkStatuses(fighters, visibleSecretMarks(view)).map((f) => fighterStatusBadgesFor(f).map((b) => b.label));
+
+  it("an opponent's view (no `marks`) renders no badge at all", () => {
+    expect(badgesOn(seatView())).toEqual([[], [], [], []]);
+    // and leaves the array itself untouched — every other deck pays nothing
+    expect(withSecretMarkStatuses(fighters, visibleSecretMarks(seatView()))).toBe(fighters);
+    expect(secretMarkedFighterIds(seatView()).size).toBe(0);
+  });
+
+  it("the owner's view badges exactly the hidden bearer", () => {
+    const own = [{ name: "MARK", fighter: "p1/sidekick-2", open: false }];
+    expect(badgesOn(seatView(own, own))).toEqual([[], ["Marked"], [], []]);
+    const [badge] = fighterStatusBadgesFor(withSecretMarkStatuses(fighters, own)[1]);
+    expect(badge.title).toMatch(/only you/);
+    expect([...secretMarkedFighterIds(seatView(own, own))]).toEqual(["p1/sidekick-2"]);
+  });
+
+  it("an open mark (ESCAPE) reaches other seats through players[] and reads as revealed", () => {
+    const open = [{ name: "MARK", fighter: "p1/sidekick-3", open: true }];
+    expect(badgesOn(seatView(undefined, open))).toEqual([[], [], ["Marked"], []]);
+    const [badge] = fighterStatusBadgesFor(withSecretMarkStatuses(fighters, open)[2]);
+    expect(badge.title).toMatch(/every seat/);
+  });
+});
+
+describe("secret mark wording (issue #1468)", () => {
+  const blips = [
+    fighter({ id: "p1/sidekick-1", owner: "p1", kind: "SIDEKICK" }),
+    fighter({ id: "p3/sidekick-1", owner: "p3", kind: "SIDEKICK" }),
+  ];
+  const titleOn = (i: number, marks: ViewSecretMark[], you: PlayerId) =>
+    fighterStatusBadgesFor(withSecretMarkStatuses(blips, marks, you)[i])[0].title;
+
+  it("tooltip depends on whose fighter it is", () => {
+    const hidden = (f: string) => [{ name: "MARK", fighter: f, open: false }];
+    expect(titleOn(0, hidden("p1/sidekick-1"), "p1")).toMatch(/only you can see which of your fighters/);
+    expect(titleOn(1, hidden("p3/sidekick-1"), "p1")).toBe(
+      "Marked — your teammate's Marked Blip — only your team can see it"
+    );
+    expect(titleOn(1, [{ name: "MARK", fighter: "p3/sidekick-1", open: true }], "p1")).toMatch(/every seat/);
+  });
+
+  it("maps mark names to labels, falling back to Title Case", () => {
+    expect(secretMarkLabel("MARK")).toBe("the Marked Blip");
+    expect(secretMarkLabel("SHADOW_TAG")).toBe("Shadow Tag");
+    expect(secretMarkPromptDescription("Secretly choose the fighter that bears MARK")).toBe(
+      "Secretly choose the fighter that bears the Marked Blip"
+    );
+    expect(secretMarkPromptDescription("Choose a fighter to take 2 damage")).toBe("Choose a fighter to take 2 damage");
+    expect(secretMarkPromptDescription(undefined)).toBeUndefined();
+  });
+
+  it("captions the emergence placement only after SECRET_MARK_REVEALED for the prompted player", () => {
+    const prompt = { kind: "CHOOSE_SPACE", player: "p1" } as const;
+    const revealed = (player: string) =>
+      [{ type: "SECRET_MARK_REVEALED", player, name: "MARK", fighter: "p1/sidekick-1" }] as GameEvent[];
+    expect(emergenceCaption(prompt, revealed("p1"))).toBe("The Xenomorph emerges — choose its space");
+    expect(emergenceCaption(prompt, revealed("p2"))).toBeNull();
+    expect(emergenceCaption(prompt, [])).toBeNull();
+    expect(emergenceCaption({ kind: "CHOOSE_TARGET", player: "p1" }, revealed("p1"))).toBeNull();
+    expect(emergenceCaption(prompt, undefined)).toBeNull();
   });
 });

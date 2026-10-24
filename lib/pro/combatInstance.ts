@@ -11,7 +11,7 @@
  * - an attack card already on the table is replaced — a combat's attack slot
  *   only ever goes null -> card (the reveal), never card -> another / null.
  */
-import type { ViewCombat } from "./protocol";
+import type { GameEvent, ViewCombat } from "./protocol";
 
 const STAGE_ORDER: ViewCombat["stage"][] = [
   "COMMIT_ATTACK",
@@ -24,11 +24,27 @@ const STAGE_ORDER: ViewCombat["stage"][] = [
   "CLEANUP",
 ];
 
-export const isNewCombat = (prev: ViewCombat | null, next: ViewCombat | null): boolean => {
+/**
+ * `events` is the batch that produced `next`. A `COMBAT_ATTACKER_CHANGED` in it
+ * that explains the attacker moving (`from` = prev's, `to` = next's) makes that a
+ * TAKEOVER inside the same combat — same attacking player, same cards — not a new
+ * one. Without it a takeover re-fires every combat-open beat.
+ */
+export const isNewCombat = (
+  prev: ViewCombat | null,
+  next: ViewCombat | null,
+  events: GameEvent[] = []
+): boolean => {
   if (!next) return false;
   if (!prev) return true;
+  const takeover =
+    prev.attacker !== next.attacker &&
+    events.some(
+      (e) =>
+        e.type === "COMBAT_ATTACKER_CHANGED" && e.from === prev.attacker && e.to === next.attacker
+    );
   if (
-    prev.attacker !== next.attacker ||
+    (prev.attacker !== next.attacker && !takeover) ||
     prev.target !== next.target ||
     prev.attackerPlayer !== next.attackerPlayer ||
     prev.defenderPlayer !== next.defenderPlayer

@@ -12,6 +12,7 @@ import {
   PlayerId,
   PlayerView,
   ValueBreakdown,
+  ViewFighter,
   ViewPlayer,
 } from "./protocol";
 import { boardObjectOriginFighter, boardObjectVisualFor } from "./boardObjects";
@@ -19,7 +20,7 @@ import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
 import { swappedFighters } from "./positionSwap";
-import { defenderSwapText } from "./combatDefender";
+import { attackerSwapText, defenderChangeKind, defenderChanges, defenderSwapText } from "./combatDefender";
 import { combatOutcomeLogText } from "./combatOutcome";
 import { isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { MITIGATION_COUNTER } from "./clockTower";
@@ -354,7 +355,10 @@ export function diffViews(
   prev: PlayerView | null,
   next: PlayerView,
   label: (instance: CardInstanceId) => string,
-  events: GameEvent[] = []
+  events: GameEvent[] = [],
+  /** Display name for a fighter id (squad-badged by the page); defaults to the
+   *  view's own name. Only the arrival line below uses it today. */
+  fighterName: (f: ViewFighter) => string = (f) => f.name
 ): ProLogLine[] {
   const lines: ProLogLine[] = [];
   const whoOf = (p: string): "you" | "opp" => (p === next.you ? "you" : "opp");
@@ -474,6 +478,16 @@ export function diffViews(
     // snapshot rather than the event so it also narrates on an older/quieter server.
     if (!f.space && was.space && !f.defeated && !was.defeated) {
       lines.push({ text: `${f.name} was removed from the battlefield`, who: whoOf(f.owner) });
+    }
+    // The converse: a LIVING fighter gaining a space it did not have — Jason
+    // Voorhees returning, Grievous's / the Clone Troopers' summons, a revive, and
+    // (soon) a hero that starts the game off the board. No event narrates it
+    // (`HERO_PLACED` / `FIGHTER_REVIVED` have no case), so derive it from the poses.
+    if (!was.space && f.space && !f.defeated) {
+      lines.push({
+        text: `${fighterName(f)} appears at ${spaceLabel(f.space)}`,
+        who: whoOf(f.owner),
+      });
     }
   }
 
@@ -714,6 +728,17 @@ function valueBreakdownText(
 const markerLabel = (name: string): string =>
   FIGHTER_MARKER_BADGES[name]?.label ?? name;
 
+/**
+ * Feed wording for a v38 secret mark, by mark NAME (the engine's own string). The
+ * Xenomorph's `MARK` is the only consumer today; an unknown name still logs, with a
+ * neutral noun and no reveal clause.
+ */
+const SECRET_MARK_WORDS: Record<string, { noun: string; reveal?: string }> = {
+  MARK: { noun: "Marked Blip", reveal: "the Xenomorph emerges" },
+};
+const secretMarkWords = (name: string): { noun: string; reveal?: string } =>
+  SECRET_MARK_WORDS[name] ?? { noun: "secret mark" };
+
 /** Context the page supplies so enrichment can resolve labels and seats
  *  without any data fetching of its own. */
 export interface EnrichContext {
@@ -757,6 +782,7 @@ export function enrichLines(
   // Position of the next SUB_ATTACK_INITIATED within this batch — a drained
   // followup queue can dispatch more than one before a player has to act again.
   let subAttackOrdinal = 0;
+  let defenderOrdinal = 0;
   // An opening-hand mulligan puts the whole hand back one CARD_SHUFFLED_INTO_DECK
   // at a time (protocol v30). MULLIGAN_TAKEN already narrates that in one line, so
   // the per-card returns must not spam the feed (issue #741).
@@ -766,7 +792,7 @@ export function enrichLines(
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
     isCardSource(source) ? [source] : undefined;
 
-  for (const e of events) {
+  for (const [i, e] of events.entries()) {
     switch (e.type) {
       // --- Mode 1: annotate an existing diff line ---------------------------
       case "CARD_DISCARDED": {
@@ -976,9 +1002,56 @@ export function enrichLines(
       // overlaps nothing the diff prints, and it is the record the replay log needs
       // to explain a hit that landed on somebody else.
       case "COMBAT_DEFENDER_CHANGED": {
+        // A takeover AFTER the damage step is worded neutrally (the damage already
+        // landed): `defenderChanges` flags it by batch order, in event order.
+        const change = defenderChanges(events)[defenderOrdinal++];
         added.push({
-          text: defenderSwapText(ctx.fighter(e.from), ctx.fighter(e.to)).full,
+          text: defenderSwapText(
+            ctx.fighter(e.from),
+            ctx.fighter(e.to),
+            change ? defenderChangeKind(change) : "SUBSTITUTED"
+          ).full,
           who: "game",
+        });
+        break;
+      }
+
+      // v36 attacker substitution (engine #752 — Appa's *Hallucinations*): the
+      // mirror of the defender case above, same reasoning — the diff cannot see
+      // which FIGHTER is swinging, so the event owns the line.
+      case "COMBAT_ATTACKER_CHANGED": {
+        added.push({
+          text: attackerSwapText(ctx.fighter(e.from), ctx.fighter(e.to)).full,
+          who: "game",
+        });
+        break;
+      }
+
+      // v38 secret fighter marks (issue #1453 ↔ engine #918 — the Xenomorph's
+      // Marked Blip). ASSIGNED is bearer-less on the wire, so its line never names a
+      // fighter, on any seat; REVEALED is the public reveal moment. An `open`
+      // assignment (ESCAPE) emits the pair back to back — that is one fact, "this
+      // Blip is the Marked one", so it prints one line, and it is NOT an emergence.
+      // The Xenomorph's own arrival is the diff's "appears at" line, not this one.
+      case "SECRET_MARK_ASSIGNED": {
+        const next = events[i + 1];
+        if (next?.type === "SECRET_MARK_REVEALED" && next.player === e.player && next.name === e.name) break;
+        const words = secretMarkWords(e.name);
+        added.push({
+          text: `${ctx.seat(e.player)} chose ${e.player === ctx.you ? "your" : "their"} ${words.noun}`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+      case "SECRET_MARK_REVEALED": {
+        const words = secretMarkWords(e.name);
+        const prev = events[i - 1];
+        const open = prev?.type === "SECRET_MARK_ASSIGNED" && prev.player === e.player && prev.name === e.name;
+        added.push({
+          text: open
+            ? `${ctx.fighter(e.fighter)} is the ${words.noun} — revealed to every seat`
+            : `${ctx.fighter(e.fighter)} was the ${words.noun}${words.reveal ? ` — ${words.reveal}` : ""}`,
+          who: whoOf(e.player),
         });
         break;
       }
