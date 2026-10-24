@@ -22,6 +22,7 @@ import {
   setToken,
 } from "./recentRooms";
 import { botsFromCreateRoom, RoomBots } from "./rematch";
+import { advanceRevealedHand, EMPTY_REVEAL_STATE, RevealState } from "./revealedHand";
 import {
   Action,
   BotDifficulty,
@@ -368,6 +369,11 @@ export interface UseProSocketReturn {
   advanceSlowMode: () => void;
   /** "Skip all": apply every queued batch now, in arrival order, and stop holding */
   skipSlowMode: () => void;
+  /**
+   * The last Keen Hearing reveal for its panel, folded from EVERY applied STATE
+   * batch (not from `snapshot`, which collapses two batches landing in one tick).
+   */
+  revealState: RevealState;
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -542,7 +548,7 @@ export function useProSocket(
   const [roomInfo, setRoomInfo] = useState<ProRoomInfo | null>(null);
   // The bot seats of the CREATE_ROOM in flight, until its ROOM_CREATED names
   // the room to record them against (#876).
-  const pendingCreateBotsRef = useRef<RoomBots | null>(null);
+  const pendingCreateBotsRef = useRef<{ bot: { difficulty: BotDifficulty } | undefined; botSeats: BotSeatFill[] | undefined } | null>(null);
   const [snapshot, setSnapshot] = useState<ProGameSnapshot | null>(null);
   // --- Slow mode (issue #703) ------------------------------------------------
   // The pacing decision itself lives in `slowModeQueue` (pure, unit-tested); this
@@ -574,10 +580,20 @@ export function useProSocket(
   // spotlight, even in a batch whose events name no actor.
   const ownActionRef = useRef(false);
 
+  // Keen Hearing's revealed-hand panel (lib/pro/revealedHand.ts): folded per
+  // applied batch (see drainApplyQueue), the ref holding the running value.
+  const revealRef = useRef<RevealState>(EMPTY_REVEAL_STATE);
+  const [revealState, setRevealState] = useState<RevealState>(EMPTY_REVEAL_STATE);
+
   const drainApplyQueue = useCallback(function drain() {
     drainTimerRef.current = null;
     const next = applyQueueRef.current.shift();
     if (!next) return;
+    // Every batch passes through here exactly once, in order, so the Keen Hearing
+    // panel folds ALL of them — `setSnapshot(a); setSnapshot(b)` in one tick would
+    // render only `b`, and an effect keyed on `snapshot` would never see `a`'s events.
+    revealRef.current = advanceRevealedHand(revealRef.current, next.events, next.view.turnNumber);
+    setRevealState(revealRef.current);
     setSnapshot(next);
     if (applyQueueRef.current.length > 0) drainTimerRef.current = setTimeout(drain, 0);
   }, []);
@@ -861,7 +877,10 @@ export function useProSocket(
           // The bot seats our own CREATE_ROOM asked for — recorded against the
           // room it made, so a reload mid-game still knows who the AI is.
           if (msg.type === "ROOM_CREATED" && pendingCreateBotsRef.current) {
-            setRoomBots(msg.roomId, pendingCreateBotsRef.current);
+            setRoomBots(
+              msg.roomId,
+              botsFromCreateRoom(pendingCreateBotsRef.current.bot, pendingCreateBotsRef.current.botSeats, msg.you),
+            );
             pendingCreateBotsRef.current = null;
           }
           {
@@ -1416,7 +1435,7 @@ export function useProSocket(
       gameOverRef.current = false;
       lastViewRef.current = null;
       clearResumeDeadline();
-      pendingCreateBotsRef.current = botsFromCreateRoom(bot, botSeats);
+      pendingCreateBotsRef.current = { bot, botSeats };
       rematchOfferRef.current = REMATCH_IDLE; // a new room has no rematch in flight
       rematchFrameOutRef.current = false;
       setRematchOffer(REMATCH_IDLE);
@@ -1719,5 +1738,6 @@ export function useProSocket(
     slowModePending,
     advanceSlowMode,
     skipSlowMode,
+    revealState,
   };
 }

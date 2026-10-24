@@ -62,6 +62,32 @@ const props = (over: Partial<ProPostGameProps> = {}): ProPostGameProps => ({
   ...over,
 });
 
+describe("human in p2, bot in p1", () => {
+  const p2View = () =>
+    view({
+      you: "p2",
+      winner: "p2",
+      players: [player({ id: "p1", heroId: "kenshiro" }), player({ id: "p2", heroId: "hollow-oak", you: true })],
+    });
+
+  it("labels the bot seat as the bot and the viewer as You, even with a stale p2 bot record", () => {
+    for (const bots of [{ p1: "medium" as const }, { p2: "medium" as const, p1: "medium" as const }]) {
+      const { unmount } = render(
+        <ProPostGame {...props({ view: p2View(), stats: { ...STATS, firstPlayer: "p1" }, firstPlayer: "p1", bots })} />,
+      );
+      expect(screen.getByTestId("post-game-first-player")).toHaveTextContent("Bot moved first");
+      expect(screen.getAllByText(/You · deanlol/).length).toBeGreaterThan(0);
+      expect(screen.queryByText("Guest")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("names the viewer 'You moved first' and first blood by bot/you", () => {
+    render(<ProPostGame {...props({ view: p2View(), stats: { ...STATS, firstPlayer: "p2" }, firstPlayer: "p2", bots: { p1: "medium" } })} />);
+    expect(screen.getByTestId("post-game-first-player")).toHaveTextContent("You moved first");
+  });
+});
+
 describe("result + end reason", () => {
   it("VICTORY in gold with the knockout line", () => {
     render(<ProPostGame {...props()} />);
