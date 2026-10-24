@@ -7,6 +7,8 @@ import { ChakraProvider } from "@chakra-ui/react";
 import {
   ADVENTURE_BOARD_MAX_HEIGHT,
   ADVENTURE_COLUMN_MAX_HEIGHT_PHONE,
+  ADVENTURE_COLUMN_TOP_PHONE,
+  ADVENTURE_DRAWER_TOGGLE_H,
   ADVENTURE_BOARD_TOP,
   ADVENTURE_BOARD_WIDTH,
   ADVENTURE_PLATE_DROP,
@@ -19,6 +21,7 @@ import {
   DOCK_TOP,
   DOCK_WIDTH,
   HUD_OVERLAY_INSET,
+  adventureColumnPhone,
 } from "@/components/Pro/dockLayout";
 import { ProHud } from "@/components/Pro/ProHud";
 import { theme } from "@/styles/style";
@@ -735,6 +738,42 @@ describe("initiative strip and threat track live in the board-side band (#1405)"
       expect(col).not.toContainElement(screen.getByTestId("adv-initiative"));
       expect(col).not.toContainElement(screen.getByTestId("adv-threat"));
     });
+  });
+});
+
+// p2p #1477: at 390x844 the phone column hung at a fixed 14.2rem — over printed space s2 in
+// SETUP (no strip), and over the threat track's terminal cell once the strip grew in PLAY.
+describe("phone drawer toggle sits on the band's own slot (p2p #1477)", () => {
+  it("before the band is measured, the column keeps the constants", () => {
+    expect(adventureColumnPhone(0)).toEqual({ top: ADVENTURE_COLUMN_TOP_PHONE, maxH: ADVENTURE_COLUMN_MAX_HEIGHT_PHONE });
+  });
+
+  it("the band holds a phone-only toggle slot; the column hangs the toggle on the band's measured bottom", () => {
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    const spy = jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("data-testid") !== "adventure-band") return original.call(this);
+      return { x: 8, y: 93, left: 8, top: 93, right: 382, bottom: 288, width: 374, height: 195, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      mount("adventure");
+      const band = screen.getByTestId("adventure-band");
+      const slot = screen.getByTestId("adventure-toggle-slot");
+      expect(band).toContainElement(slot);
+      // base (phone) value in jsdom; hidden in the md media rule
+      expect(slot).toHaveStyle({ display: "block", height: ADVENTURE_DRAWER_TOGGLE_H });
+      const col = screen.getByTestId("adventure-board");
+      expect(col).toHaveStyle({ top: `calc(288px - ${ADVENTURE_DRAWER_TOGGLE_H})` });
+      expect(col).toHaveStyle({ "max-height": `calc(100vh - 288px + ${ADVENTURE_DRAWER_TOGGLE_H} - 15rem)` });
+      expect(col).toContainElement(screen.getByTestId("adventure-drawer-toggle"));
+      expect(screen.getByTestId("adventure-drawer-toggle")).toHaveStyle({ height: ADVENTURE_DRAWER_TOGGLE_H });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("the terminal cell's label wraps on a phone instead of running past the band", () => {
+    mount("adventure");
+    expect(screen.getByTestId("adv-threat-terminal")).toHaveStyle({ "max-width": "4.5rem" });
   });
 });
 

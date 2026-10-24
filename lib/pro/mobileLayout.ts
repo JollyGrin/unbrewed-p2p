@@ -36,7 +36,8 @@ export const ADVENTURE_OVERLAY_INSET = 17.75 * 16;
  * Desktop: it sits below the HUD band; phone: below the chip row. Applied whenever a format
  * overlay is mounted (`formatOverlayRight > 0`). A FLOOR: the band is also measured
  * (`formatBandBottom`, p2p #1462) and a taller band — the revealed-hand panel wrapped under the
- * strip on a phone or a narrow desktop — pushes the fit down past these.
+ * strip on a phone or a narrow desktop, a tall initiative strip, the phone drawer toggle's slot
+ * (p2p #1477) — pushes the fit down past these.
  */
 export const ADVENTURE_BAND_FIT = { desktop: 144, mobile: 124 } as const;
 

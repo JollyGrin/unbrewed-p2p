@@ -58,13 +58,30 @@ export const ADVENTURE_BOARD_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_BOARD_
 /**
  * #1405: the board-side band (initiative strip + threat track; the Keen Hearing panel beside or,
  * wrapped, under them, p2p #1456/#1462) floats above the map: desktop under the HUD band
- * (DOCK_TOP), left of the Adventure column; phone full width under the chip row. The phone
- * column starts at ADVENTURE_COLUMN_TOP_PHONE, which clears the strip + track (~116px) but NOT
- * a wrapped panel: with one the band reaches ~245px (up to ~272px) and the drawer toggle
- * deliberately sits over its second row, in the 6.5rem lane the panel leaves free.
+ * (DOCK_TOP), left of the Adventure column; phone full width under the chip row.
+ *
+ * p2p #1477: on a phone the band also holds the drawer toggle's slot (a phone-only spacer,
+ * ADVENTURE_DRAWER_TOGGLE_H tall, at the band's bottom-right: its own row under the strip +
+ * track, or beside a wrapped Keen Hearing panel in the 6.5rem lane it leaves free), and the
+ * column hangs from the band's MEASURED bottom so the toggle lands exactly on that slot. The
+ * page fits the board under the measured band, so the toggle never covers a printed space or
+ * a threat-track cell however tall the strip, track or panel grow.
  */
 export const ADVENTURE_BAND_TOP = DOCK_TOP;
 export const ADVENTURE_BAND_TOP_PHONE = ADVENTURE_BOARD_TOP_PHONE;
-/** 5.8rem (ADVENTURE_BOARD_TOP_PHONE) + 8rem for the strip + track + 0.4rem gap, one literal so the cap stays a flat calc. */
+/** The ADVENTURE drawer toggle's height (it heads the column). */
+export const ADVENTURE_DRAWER_TOGGLE_H = "1.6rem";
+/** Until the band is measured: 5.8rem (ADVENTURE_BOARD_TOP_PHONE) + 8rem for the strip + track + 0.4rem gap, one literal so the cap stays a flat calc. */
 export const ADVENTURE_COLUMN_TOP_PHONE = "14.2rem";
 export const ADVENTURE_COLUMN_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_COLUMN_TOP_PHONE} - ${HAND_FAN_RESERVE_REM}rem)`;
+/**
+ * Phone column top + height cap from the band's measured viewport bottom (px; 0 = not yet
+ * measured, the constants above): the toggle's bottom sits on the band's bottom (p2p #1477).
+ */
+export const adventureColumnPhone = (bandBottom: number): { top: string; maxH: string } =>
+  bandBottom > 0
+    ? {
+        top: `calc(${bandBottom}px - ${ADVENTURE_DRAWER_TOGGLE_H})`,
+        maxH: `calc(100vh - ${bandBottom}px + ${ADVENTURE_DRAWER_TOGGLE_H} - ${HAND_FAN_RESERVE_REM}rem)`,
+      }
+    : { top: ADVENTURE_COLUMN_TOP_PHONE, maxH: ADVENTURE_COLUMN_MAX_HEIGHT_PHONE };
