@@ -8,7 +8,9 @@ import {
   ADVENTURE_PLATE_GAP_NARROW_BELOW_PX,
   ADVENTURE_PLATE_PAD_RIGHT,
   COMPACT_PLATE_MAX_HEIGHT_REM,
-  COMPACT_PLATE_WIDTH_REM,
+  COMPACT_PLATE_WIDTH,
+  COMPACT_PLATE_WIDTH_VAR,
+  fullTablePlateWidth,
 } from "@/components/Pro/dockLayout";
 
 /**
@@ -21,7 +23,7 @@ export const StatContainer = styled(Box, {
 })<{ isLocal?: boolean; compact?: boolean }>`
   user-select: none;
   position: relative;
-  width: ${({ compact }) => (compact ? `${COMPACT_PLATE_WIDTH_REM}rem` : "15rem")};
+  width: ${({ compact }) => (compact ? COMPACT_PLATE_WIDTH : "15rem")};
   border-radius: 0.85rem;
   overflow: hidden;
   background: linear-gradient(
@@ -57,7 +59,7 @@ export const StatContainer = styled(Box, {
       isLocal ? "0 0 12px rgba(224, 168, 46, 0.7)" : "none"};
   }
 
-  ${({ compact }) => (compact ? `& p { max-width: 5rem; } max-height: ${COMPACT_PLATE_MAX_HEIGHT_REM}rem;` : "")}
+  ${({ compact }) => (compact ? `& p { max-width: calc(${COMPACT_PLATE_WIDTH} - 5rem); } max-height: ${COMPACT_PLATE_MAX_HEIGHT_REM}rem;` : "")}
 
   &:hover {
     transform: translateY(-3px);
@@ -232,6 +234,23 @@ export const HudOverlay = styled(Flex)`
   @media (min-width: 48em) and (max-width: ${ADVENTURE_PLATE_GAP_NARROW_BELOW_PX}px) {
     &[data-adventure] {
       gap: ${ADVENTURE_PLATE_GAP_NARROW};
+    }
+  }
+
+  /* p2p #1484: a full table (4 heroes + the enemy, 5 plates) shares the row out instead of
+     wrapping the 5th plate over the initiative strip below ~1450px. */
+  @media (min-width: 48em) {
+    &[data-adventure]:has(> :nth-child(5)) {
+      ${COMPACT_PLATE_WIDTH_VAR}: ${fullTablePlateWidth("0.6rem")};
+    }
+    /* caps the plate wrapper's inline 10rem (ProHud) */
+    &[data-adventure]:has(> :nth-child(5)) > * {
+      max-width: ${COMPACT_PLATE_WIDTH};
+    }
+  }
+  @media (min-width: 48em) and (max-width: ${ADVENTURE_PLATE_GAP_NARROW_BELOW_PX}px) {
+    &[data-adventure]:has(> :nth-child(5)) {
+      ${COMPACT_PLATE_WIDTH_VAR}: ${fullTablePlateWidth(ADVENTURE_PLATE_GAP_NARROW)};
     }
   }
 `;

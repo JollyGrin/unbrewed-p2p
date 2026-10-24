@@ -59,6 +59,21 @@ export const ADVENTURE_PLATE_GAP_NARROW_BELOW_PX = 1400;
 export const ADVENTURE_PLATE_GAP_NARROW = "0.3rem";
 
 /**
+ * p2p #1484: a full table (4 heroes + the enemy seat) is 5 compact plates: 5 x 10rem + 4 gaps =
+ * 52.4rem, which the row only gets from ~1452px. Below that the 5th plate wrapped over the
+ * initiative strip. With 5 plates on a desktop the HudOverlay sets COMPACT_PLATE_WIDTH_VAR to
+ * fullTablePlateWidth(gap) and caps each plate at it: an equal share of the row (5 plates + 4
+ * gaps, less 1px of rounding slack), never wider than 10rem and never narrower than
+ * FULL_TABLE_PLATE_MIN_REM (fits from ~1273px; narrower windows still wrap). The plate's name
+ * cap shrinks with it (plate - 5rem), so the HP cluster keeps the room it has at 10rem.
+ */
+export const COMPACT_PLATE_WIDTH_VAR = "--compact-plate-w";
+export const COMPACT_PLATE_WIDTH = `var(${COMPACT_PLATE_WIDTH_VAR}, ${COMPACT_PLATE_WIDTH_REM}rem)`;
+export const FULL_TABLE_PLATE_MIN_REM = 8;
+export const fullTablePlateWidth = (gap: string) =>
+  `clamp(${FULL_TABLE_PLATE_MIN_REM}rem, calc((100vw - 2 * ${HUD_OVERLAY_INSET} - ${ADVENTURE_PLATE_PAD_RIGHT} - 4 * ${gap}) / 5 - 1px), ${COMPACT_PLATE_WIDTH_REM}rem)`;
+
+/**
  * #1310: phone (< md) overlay column. It hugs the screen edge (no dock slot), and starts
  * below the HUD phase bar that spans the width under the seat plates.
  */
