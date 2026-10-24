@@ -151,7 +151,12 @@ import {
 import { useFlag } from "@/lib/flags";
 import { maneuverBoostHint } from "@/lib/pro/maneuverHint";
 import { badgedFighterName, fighterName, squadBadges } from "@/lib/pro/squadNumbers";
-import { visibleSecretMarks, withSecretMarkStatuses } from "@/lib/pro/fighterStatuses";
+import {
+  emergenceCaption,
+  secretMarkPromptDescription,
+  visibleSecretMarks,
+  withSecretMarkStatuses,
+} from "@/lib/pro/fighterStatuses";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
@@ -429,10 +434,10 @@ const PromptPanel = ({
         Both shown to chooser and spectator alike. Issue #412: for a CHOOSE_SPACE
         move prompt `budgetLine` (the "Move up to N spaces" budget, or a move-shaped
         fallback) takes the primary line so the step budget is always stated. */}
-    {(budgetLine ?? prompt.description) ? (
+    {(budgetLine ?? secretMarkPromptDescription(prompt.description)) ? (
       <>
         <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
-          {budgetLine ?? prompt.description}
+          {budgetLine ?? secretMarkPromptDescription(prompt.description)}
         </Text>
         {sourceLabel && (
           <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
@@ -4653,7 +4658,7 @@ const LiveGame = ({
   // marks folded onto their bearers, so the Marked badge rides the status pipeline on
   // the flat board and the table alike. The same array when no seat has a mark.
   const boardFighters = useMemo(
-    () => (snapshot ? withSecretMarkStatuses(snapshot.view.fighters, visibleSecretMarks(snapshot.view)) : []),
+    () => (snapshot ? withSecretMarkStatuses(snapshot.view.fighters, visibleSecretMarks(snapshot.view), snapshot.view.you) : []),
     [snapshot]
   );
 
@@ -6629,9 +6634,10 @@ const LiveGame = ({
     promptSource && "card" in promptSource ? promptSource.card : null;
   const sourceLabel: string | null = !promptSource
     ? null
-    : "card" in promptSource
-      ? `Effect of ${cardTitle(view.catalog, promptSource.card)}`
-      : `${heroNameOf(heroes, viewHeroIdOf(view, promptSource.hero)) ?? "Hero"}'s ability`;
+    : emergenceCaption(prompt, snapshot?.events) ??
+      ("card" in promptSource
+        ? `Effect of ${cardTitle(view.catalog, promptSource.card)}`
+        : `${heroNameOf(heroes, viewHeroIdOf(view, promptSource.hero)) ?? "Hero"}'s ability`);
 
   // Legacy best-effort card behind the prompt (issue #72 fix #2), used ONLY when
   // the server sent no `source` (system prompts, or an older server): trust an
