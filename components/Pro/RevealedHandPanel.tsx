@@ -17,21 +17,29 @@ export const RevealedHandPanel = ({
   heroName,
   resolveCard,
   labelFor,
+  top,
 }: {
   revealed: RevealedHand;
   heroName: string;
   resolveCard: ResolveCard;
   labelFor: (card: string) => string;
+  /** Viewport y (px) to start at — the page passes the measured bottom of the
+   *  desktop HUD (+ a gap), which grows a row per sidekick. Omitted: the fixed
+   *  offsets below (phone, or before the HUD has been measured). */
+  top?: number;
 }) => {
   const [open, setOpen] = useState(true);
   return (
     <Box
       data-testid="revealed-hand-panel"
       position="fixed"
-      top={{ base: "5.75rem", md: "9.5rem" }}
+      top={top !== undefined ? `${top}px` : { base: "5.75rem", md: "9.5rem" }}
       left="0.75rem"
       zIndex={20}
       maxW="min(22rem, calc(100vw - 1.5rem))"
+      // Below a measured HUD, stop short of the bottom-left activity log and the
+      // hand: a big revealed hand scrolls inside the panel instead of running over them.
+      {...(top !== undefined ? { maxH: `max(6rem, calc(100dvh - ${top}px - 17rem))`, overflowY: "auto" as const } : {})}
       bg="brand.surfaceDim"
       border={`1px solid ${colors.brand.primary}`}
       borderRadius="0.5rem"

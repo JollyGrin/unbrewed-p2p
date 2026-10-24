@@ -62,14 +62,17 @@ export interface FinishedGameSetup {
 export type RoomBots = Partial<Record<PlayerId, BotDifficulty>>;
 
 /** The bot seats a CREATE_ROOM asks for, as a `RoomBots` record: duel's single
- *  `bot` always fills p2 (protocol v3), every other format names its seats in
- *  `botSeats[]`. What the socket hook remembers per room at create time. */
+ *  `bot` takes the seat the human did NOT get (the engine randomizes the host's
+ *  duel seat, so it is p1 about half the time; p2 when `you` isn't known yet),
+ *  every other format names its seats in `botSeats[]`. What the socket hook
+ *  remembers per room at create time. */
 export function botsFromCreateRoom(
   bot: { difficulty: BotDifficulty } | undefined,
   botSeats: BotSeatFill[] | undefined,
+  you?: PlayerId,
 ): RoomBots {
   const bots: RoomBots = {};
-  if (bot) bots.p2 = bot.difficulty;
+  if (bot) bots[you === "p2" ? "p1" : "p2"] = bot.difficulty;
   for (const s of botSeats ?? []) bots[s.player] = s.difficulty;
   return bots;
 }

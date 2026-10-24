@@ -4,10 +4,10 @@ import { RevealedHandPanel } from "./RevealedHandPanel";
 
 const revealed = { revealer: "p1" as const, owner: "p2" as const, cards: ["a/x#1", "a/y#2"], turn: 3 };
 
-const mount = () =>
+const mount = (top?: number) =>
   render(
     <ChakraProvider>
-      <RevealedHandPanel revealed={revealed} heroName="King Kong" resolveCard={() => null} labelFor={(c) => `label ${c}`} />
+      <RevealedHandPanel revealed={revealed} heroName="King Kong" resolveCard={() => null} labelFor={(c) => `label ${c}`} top={top} />
     </ChakraProvider>
   );
 
@@ -24,5 +24,10 @@ describe("RevealedHandPanel", () => {
     fireEvent.click(screen.getByRole("button"));
     expect(screen.queryAllByText(/^label /)).toHaveLength(0);
     expect(screen.getByText("Revealed: King Kong's hand")).toBeTruthy();
+  });
+
+  it("starts at the measured HUD bottom when the page passes one", () => {
+    mount(267);
+    expect(getComputedStyle(screen.getByTestId("revealed-hand-panel")).top).toBe("267px");
   });
 });

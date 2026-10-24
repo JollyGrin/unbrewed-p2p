@@ -4,7 +4,7 @@
  * modes feel like one app. Read-only by design: every number comes from the
  * server view; there are no adjust buttons because the referee owns the state.
  */
-import { useEffect, useRef, useState } from "react";
+import { Ref, useEffect, useRef, useState } from "react";
 import { animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import { keyframes } from "@emotion/react";
 import {
@@ -1530,6 +1530,9 @@ export const hudSeats = (view: PlayerView): ViewPlayer[] =>
       ];
 
 export interface ProHudProps {
+  /** The plate overlay's element, so the page can place chrome below the HUD's
+   *  MEASURED bottom (it grows a row per sidekick). Desktop HUD only. */
+  overlayRef?: Ref<HTMLDivElement>;
   view: PlayerView;
   status: ProConnectionStatus;
   roomId: string | null;
@@ -1617,6 +1620,7 @@ export interface ProHudProps {
 }
 
 export const ProHud = ({
+  overlayRef,
   view,
   status,
   roomId,
@@ -1703,7 +1707,7 @@ export const ProHud = ({
 
   return (
     <>
-      <HudOverlay>
+      <HudOverlay ref={overlayRef}>
         {seats.map((seat) => (
           <SeatPlate
             key={seat.id}
