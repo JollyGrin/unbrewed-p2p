@@ -7,6 +7,8 @@
  * screen rather than a guess.
  */
 import {
+  ADVENTURE_BAND_FIT,
+  ADVENTURE_OVERLAY_INSET,
   CHIP_NAME_MAX,
   DESKTOP_INSET,
   MOBILE_CHIPS_H,
@@ -174,5 +176,36 @@ describe("handDecisionKeyFor", () => {
     expect(handDecisionKeyFor({ ...discard, shell: "portrait", mulligan: true })).toBeNull();
     expect(handDecisionKeyFor({ ...discard, shell: "portrait", optionInstances: ["c9"] })).toBeNull();
     expect(handDecisionKeyFor({ ...discard, shell: "portrait", promptId: null })).toBeNull();
+  });
+});
+
+// p2p #1462: the Adventure band is measured. ADVENTURE_BAND_FIT is a floor the fit starts under;
+// a band that outgrows it (the revealed-hand panel wrapped onto a second row on a phone or a
+// narrow desktop) pushes the fit's top down to its measured bottom edge, and a shorter band
+// changes nothing. Without a format overlay the measurement is ignored.
+describe("boardFitInsetFor follows a measured format band", () => {
+  const col = ADVENTURE_OVERLAY_INSET;
+  it("desktop: the floor until the band's bottom passes it", () => {
+    const floor = DESKTOP_INSET.top + ADVENTURE_BAND_FIT.desktop;
+    expect(boardFitInsetFor({ mode: "desktop", formatOverlayRight: col }).top).toBe(floor);
+    expect(boardFitInsetFor({ mode: "desktop", formatOverlayRight: col, formatBandBottom: floor - 30 }).top).toBe(floor);
+    expect(boardFitInsetFor({ mode: "desktop", formatOverlayRight: col, formatBandBottom: floor + 141 }).top).toBe(floor + 141);
+    const { top: _t, ...rest } = boardFitInsetFor({ mode: "desktop", formatOverlayRight: col, formatBandBottom: 999 });
+    const { top: _b, ...base } = boardFitInsetFor({ mode: "desktop", formatOverlayRight: col });
+    expect(rest).toEqual(base);
+  });
+  it("phone: the chip row + floor until the band's bottom passes it", () => {
+    const floor = 85 + MOBILE_GUTTER + ADVENTURE_BAND_FIT.mobile;
+    expect(boardFitInsetFor({ mode: "portrait", chipsH: 85, controlsH: 76, formatOverlayRight: col }).top).toBe(floor);
+    expect(boardFitInsetFor({ mode: "portrait", chipsH: 85, controlsH: 76, formatOverlayRight: col, formatBandBottom: 209 }).top).toBe(floor);
+    expect(boardFitInsetFor({ mode: "portrait", chipsH: 85, controlsH: 76, formatOverlayRight: col, formatBandBottom: 338 }).top).toBe(338);
+    expect(boardFitInsetFor({ mode: "rail", chipsH: 44, formatOverlayRight: col, formatBandBottom: 338 }).top).toBe(338);
+  });
+  it("no format overlay: the measurement is ignored on every layout", () => {
+    for (const mode of ["desktop", "portrait", "rail"] as const) {
+      expect(boardFitInsetFor({ mode, chipsH: 52, controlsH: 84, formatBandBottom: 999 })).toEqual(
+        boardFitInsetFor({ mode, chipsH: 52, controlsH: 84 })
+      );
+    }
   });
 });

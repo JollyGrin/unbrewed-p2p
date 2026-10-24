@@ -5001,6 +5001,11 @@ const LiveGame = ({
   // many sidekick rows have grown the plates.
   const [hudOverlayEl, setHudOverlayEl] = useState<HTMLDivElement | null>(null);
   const hudBottom = useElementBottom(mobile ? null : hudOverlayEl);
+  // A format overlay's band above the map (Adventure's strip + track + revealed-hand panel);
+  // null for every other format. Its measured bottom keeps the board fitted under it when the
+  // band outgrows ADVENTURE_BAND_FIT (p2p #1462).
+  const [formatBandEl, setFormatBandEl] = useState<HTMLDivElement | null>(null);
+  const formatBandBottom = useElementBottom(formatBandEl);
   const mobileControlsH = useElementHeight(mobileControlsRef, mobile && !rail);
   // The decision sheet IS counted (unlike the hand drawer and the log): it is
   // force-open for whole stretches of a game, and a board centred behind it
@@ -5019,8 +5024,9 @@ const LiveGame = ({
             controlsH: mobileControlsH,
             sheetH: mobileSheetH,
             formatOverlayRight: formatOverlayInset(roomInfo?.formatId),
+            formatBandBottom,
           }),
-    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea, roomInfo?.formatId]
+    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea, roomInfo?.formatId, formatBandBottom]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —
@@ -7686,6 +7692,7 @@ const LiveGame = ({
         fighterTokenArt={fighterTokenArt}
         onBoardArrow={setFormatArrow}
         revealedHand={revealedHandSlot}
+        bandRef={setFormatBandEl}
       />
 
       {/* red vignette flash when your hero takes damage (useGameFx) */}

@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
+import type { ComponentType, Ref } from "react";
 import type { FighterId, GameEvent, PlayerView, SpaceId, ViewFighter } from "@/lib/pro/protocol";
 import { teamDecisionModel } from "@/lib/pro/adventureBoard";
 import { adventureCardArt } from "@/lib/pro/adventureCardArt";
@@ -23,6 +23,10 @@ export interface FormatOverlayProps {
   /** The last Keen Hearing reveal, for a format that OWNS its panel (`formatOwnsRevealedHand`):
    *  the page renders no fixed panel of its own, the overlay places it in its own chrome. */
   revealedHand?: RevealedHandSlot;
+  /** Ref to the overlay's band above the map (Adventure's strip + track + revealed-hand panel).
+   *  The page measures its bottom edge and fits the board under it (`formatBandBottom`), so a
+   *  band that outgrows `ADVENTURE_BAND_FIT` never covers a printed space (p2p #1462). */
+  bandRef?: Ref<HTMLDivElement>;
 }
 
 /** What `RevealedHandPanel` needs, as the page hands it to a format overlay. */

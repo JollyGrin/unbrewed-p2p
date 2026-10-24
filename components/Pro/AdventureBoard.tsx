@@ -1021,6 +1021,7 @@ export const AdventureBoard = ({
   fighterTokenArt,
   onBoardArrow,
   revealedHand,
+  bandRef,
 }: FormatOverlayProps) => {
   useAdventureAnalytics(view, events);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -1077,21 +1078,31 @@ export const AdventureBoard = ({
     <>
     <Flex
       data-testid="adventure-band"
+      ref={bandRef}
       position="fixed"
       // Above the map, below the HUD band; clear of the column (and dock) on desktop (#1405).
       top={{ base: ADVENTURE_BAND_TOP_PHONE, md: ADVENTURE_BAND_TOP }}
       left={{ base: "0.5rem", md: "0.75rem" }}
       right={{ base: "0.5rem", md: `calc(${ADVENTURE_BOARD_RIGHT} + ${ADVENTURE_BOARD_WIDTH} + 0.75rem)` }}
       // A row: the strip + track column first, then (p2p #1456) the Keen Hearing panel beside
-      // it, inside the same strip the board was fitted under (ADVENTURE_BAND_FIT) — never over
-      // a space or the dock. A phone wraps the panel below instead of squeezing the track.
+      // it — never over a space or the dock. Where the band is too narrow for both (a phone;
+      // a desktop under ~1060px, where the band is ~376px and the track alone ~300px, p2p
+      // #1462) the panel wraps onto a second row instead of squeezing the track or running
+      // under the Adventure column; the page measures the band (`bandRef`) and fits the board
+      // under whatever height it ends up with, so the wrapped row never covers a space.
       direction="row"
       align="flex-start"
-      wrap={{ base: "wrap", md: "nowrap" }}
+      wrap="wrap"
       gap="0.75rem"
       zIndex={5}
       pointerEvents="none"
-      sx={{ "& > *": { pointerEvents: "auto", maxW: "100%" } }}
+      sx={{
+        "& > *": { pointerEvents: "auto", maxW: "100%" },
+        // The panel's 22rem cap, and on a phone the wrapped panel also stops short of the
+        // ADVENTURE drawer toggle, pinned at the band's right edge below the strip
+        // (ADVENTURE_COLUMN_TOP_PHONE) and drawn over it.
+        "& > [data-inline]": { maxW: { base: "min(22rem, calc(100% - 6.5rem))", md: "22rem" } },
+      }}
     >
       <Flex direction="column" align="flex-start" gap="0.3rem" flexShrink={0} sx={{ "& > *": { maxW: "100%" } }}>
         {(strip.row.length > 0 || strip.round != null) && (
