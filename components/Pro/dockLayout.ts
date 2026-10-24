@@ -49,6 +49,16 @@ export const ADVENTURE_PLATE_DROP = "2.2rem";
 export const CHIP_CLUSTER_WIDTH_REM = 48;
 
 /**
+ * p2p #1478: 4 compact plates (3 heroes + the enemy seat) need 4 x 10rem + 3 gaps = 41.8rem at
+ * the HudOverlay's 0.6rem gap, and the row only gets that from ~1283px. At 1280 the 4th plate
+ * wrapped onto a second row, over the initiative strip. Below this width (desktop only) the
+ * Adventure row tightens its gap to ADVENTURE_PLATE_GAP_NARROW (4 plates = 40.9rem), which fits
+ * from ~1268px. Wider windows keep the 0.6rem gap.
+ */
+export const ADVENTURE_PLATE_GAP_NARROW_BELOW_PX = 1400;
+export const ADVENTURE_PLATE_GAP_NARROW = "0.3rem";
+
+/**
  * #1310: phone (< md) overlay column. It hugs the screen edge (no dock slot), and starts
  * below the HUD phase bar that spans the width under the seat plates.
  */

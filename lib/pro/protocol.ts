@@ -1163,11 +1163,18 @@
  * what the p2p client binds today); every accepted version receives the same frames and ignores the
  * keys it does not know.
  *
- * RIDES v39 (engine #862, additive, no bump — both keys optional; every pre-existing view is byte-
- * identical): `ViewFighter.enemy.discard: string[]` (the enemy fighter's whole face-up discard, newest
- * first; adventure-only, since only enemy figures carry `enemy`) and `ViewPrompt.subject?: string`
- * (the fighter a move / place prompt is about, or the enemy whose decision a TEAM prompt is; absent
- * otherwise). No version bump: a client that ignores either key behaves exactly as before.
+ * RIDES v39 (engine #862, additive, no bump — both keys optional): `ViewFighter.enemy.discard?: string[]`
+ * (the enemy fighter's whole face-up discard, newest first; adventure-only, since only enemy figures
+ * carry `enemy`; #942: ABSENT when the pile is empty — fall back on `discardTop`) and
+ * `ViewPrompt.subject?: string` (the fighter a move / place prompt is about, or the enemy whose decision
+ * a TEAM prompt is; absent otherwise). NOT byte-identical for every format: `subject` is projected for
+ * EVERY format, so a duel / ffa / 2v2 / boss MOVE or PLACE prompt now carries it too — intended, the
+ * client's prompt subject line is shared with regular games. No version bump: a client that ignores
+ * either key behaves exactly as before.
+ *
+ * RIDES v39 (engine #864, additive, no bump): `STATE.undid?: PlayerId` — present ONLY on the STATE
+ * broadcast that follows an adventure self-undo (the seat whose move was rewound); absent on every
+ * other STATE. Documented with the undo messages.
  *
  * RIDES v39 (engine #734, additive, no bump — one optional key, absent when empty; every non-adventure
  * view is byte-identical): `PlayerView.scenario.enemyIntents?: EnemyIntent[]` — a PREDICTIVE preview,
@@ -1198,6 +1205,15 @@
  * from the engine's `scenario.defeats` ledger; ABSENT while it lives (a REVIVE clears it) and absent for
  * every fighter of a game without a scenario. `ScenarioRelease.defeatedRound` (#749) stays as is — the
  * released enemies now carry both. Every pre-existing view is byte-identical.
+ *
+ * RIDES v39 (engine #955, additive, no bump): `CARD_TUCKED.from?: "HAND" | "DECK_TOP"` — present only
+ * when the tucked card was taken out of a hand or off a deck top (the theft pile `tuckPlayedCard
+ * {from}`, an exile from hand, a discard replaced by a pile), so the event is the moment that card went
+ * face-up. Today only adventure enemy content (Oviraptor's theft pile) emits it; every tuck out of a
+ * discard, a pile or combat — every tuck a duel deck makes — carries no `from` key. No view changes.
+ * The server reads it for the adventure self-undo (a deck top, or another seat's hand card, withholds
+ * the undo). CLIENT SURFACE: an activity-log line may say where the card came from; a client that
+ * ignores `from` loses nothing.
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 39`; this
@@ -1518,7 +1534,9 @@ export type GameEvent =
   // card under the hero card of any opponent"). `player` is unchanged and still names the
   // pile's HOST — where the card now sits, which is what a client renders; `controller`
   // says whose card it still is. Purely additive: absent on every same-seat tuck.
-  | { type: "CARD_TUCKED"; player: PlayerId; card: CardInstanceId; pile: string; controller?: PlayerId }
+  // RIDES v39 (engine #955): `from` is present ONLY when the card was taken out of a HAND or off a
+  // DECK TOP — it was hidden until this event; absent for a tuck out of a discard, a pile or combat.
+  | { type: "CARD_TUCKED"; player: PlayerId; card: CardInstanceId; pile: string; controller?: PlayerId; from?: "HAND" | "DECK_TOP" }
   | { type: "CARD_RETURNED_FROM_PILE"; player: PlayerId; card: CardInstanceId; pile: string; host?: PlayerId } // v0.57.0: `player` is the CONTROLLER (whose hand it lands in); OPTIONAL `host` names WHERE the pile was, and is absent unless that is somebody else
   | { type: "CARD_PLAYED_FROM_HAND"; player: PlayerId; card: CardInstanceId }
   | { type: "ADDITIONAL_DEFENSE_PLAYED"; player: PlayerId; card: CardInstanceId }
@@ -1865,12 +1883,13 @@ export interface ViewFighter {
   // `discard` (#862, additive, adventure only): the enemy's WHOLE face-up discard, NEWEST FIRST
   // (`discard[0] === discardTop`), card instance ids resolvable like `discardTop`. Per enemy fighter
   // (decks are per fighter). Public; never deck, hand or in-play cards. Bounded by the enemy's deck size.
+  // ABSENT when the discard is empty (#942) — read it as `discard ?? []`.
   // `enemyId` (#664, additive): the `EnemyListing.id` this figure is — label + art key.
   // `released` (v36, #735): true on an enemy the scenario released mid-game; absent otherwise.
   // `inPlay` (#748, rides v38): the card instance id(s) the enemy is PLAYING outside a combat
   // (Gallimimus' forced card play) while that card's effect resolves — e.g. behind a parked TEAM
   // prompt; already public (CARD_REVEALED named it). Absent when it is playing nothing.
-  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; discard: string[]; released?: true; inPlay?: string[] };
+  enemy?: { role: "VILLAIN" | "MINION"; enemyId?: string; move: number; deckCount: number; discardTop: string | null; discard?: string[]; released?: true; inPlay?: string[] };
   defeated: boolean;
   // #940 (rides v39, additive): the round this fighter was DEFEATED in, for EVERY fighter of a scenario
   // (adventure) game — heroes, sidekicks, the villain, every minion. ABSENT while the fighter lives
