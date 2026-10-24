@@ -6,6 +6,7 @@
  */
 import { promptSubjectFighter, promptSubjectText } from "./promptSubject";
 import type {
+  EnemyIntent,
   FighterId,
   PlayerView,
   ViewCombat,
@@ -94,7 +95,39 @@ export interface EnemyDial {
   lastPlayedRef: string | null;
   /** engine #735 part 4 `enemy.released`; null against a server that omits it */
   released: boolean | null;
+  /** the intent badge (p2p #1148): what this enemy's NEXT activation plans to do, phrased for the
+   *  dial; null outside PLAY, for a defeated enemy, when the server sends no preview, or when the
+   *  outcome is one this client does not know */
+  intent: string | null;
 }
+
+/**
+ * The enemy intent badge's one line (p2p #1148 / engine #734): the §2.5 prediction the paper game
+ * asks players to make, phrased as a PLAN, not a promise — a RIGHT NOW override stamped at the next
+ * reveal (Stygimoloch's MOMENTUM) can re-decide the move after this preview was taken.
+ * `NO_TARGET` names only the cause: the consequence (usually threat +1, but Apatosaurus /
+ * Gallimimus / Parasaurolophus ship an empty no-target box) is not on the wire, so it is never
+ * asserted here. An outcome this client does not know renders nothing (null) — never a throw.
+ * Names resolve through the fighter roster the dials read (by fighter id, then enemy id) with the
+ * raw id as the fallback: during a placement prompt the preview may name a fighter not on the
+ * board yet, and a hero's seat name is not what the dials print.
+ */
+export const enemyIntentLine = (view: PlayerView, intent: EnemyIntent): string | null => {
+  const nameOf = (id: FighterId) =>
+    view.fighters.find((f) => f.id === id || f.enemy?.enemyId === id)?.name ?? id;
+  switch (intent.outcome) {
+    case "ATTACK":
+      return intent.target ? `plans to attack ${nameOf(intent.target)}` : "plans to attack each in range";
+    case "MOVE_THEN_ATTACK":
+      return intent.target ? `plans to move toward ${nameOf(intent.target)}` : "plans to move, then attack";
+    case "NO_TARGET":
+      return "no target";
+    case "PLAYERS_CHOOSE":
+      return "players choose";
+    default:
+      return null;
+  }
+};
 
 export interface ObjectiveSlot {
   id: string;
@@ -325,6 +358,14 @@ export const adventureBoardModel = (
   opts: { resolvingId?: string | null } = {},
 ): AdventureBoardModel | null => {
   const { initiative, scenario } = view;
+  // The preview is a PLAY-phase thing (engine #734 fills it only then; SETUP has no activation to
+  // predict); a defeated enemy keeps no badge even if a stale row names it.
+  const intents = view.phase === "PLAY" ? (scenario?.enemyIntents ?? []) : [];
+  const intentFor = (f: ViewFighter): string | null => {
+    if (f.defeated) return null;
+    const row = intents.find((i) => i.fighter === f.id);
+    return row ? enemyIntentLine(view, row) : null;
+  };
   const enemies: EnemyDial[] = view.fighters
     .filter((f) => f.enemy)
     .map((f) => ({
@@ -346,6 +387,7 @@ export const adventureBoardModel = (
       discard: f.enemy!.discard ?? (f.enemy!.discardTop ? [f.enemy!.discardTop] : []),
       lastPlayedRef: f.enemy!.discardTop ?? null,
       released: (f.enemy as { released?: boolean }).released ?? null,
+      intent: intentFor(f),
     }));
   if (!initiative && !scenario && enemies.length === 0) return null;
   const villain = enemies.find((e) => e.role === "VILLAIN") ?? null;
