@@ -4,6 +4,8 @@ import styled from "@emotion/styled";
 import {
   ADVENTURE_PLATE_DROP,
   ADVENTURE_PLATE_DROP_BELOW_PX,
+  ADVENTURE_PLATE_GAP_NARROW,
+  ADVENTURE_PLATE_GAP_NARROW_BELOW_PX,
   ADVENTURE_PLATE_PAD_RIGHT,
   COMPACT_PLATE_MAX_HEIGHT_REM,
   COMPACT_PLATE_WIDTH_REM,
@@ -222,6 +224,14 @@ export const HudOverlay = styled(Flex)`
   @media (max-width: ${ADVENTURE_PLATE_DROP_BELOW_PX}px) {
     &[data-adventure] {
       padding-top: ${ADVENTURE_PLATE_DROP};
+    }
+  }
+
+  /* p2p #1478: narrow desktop (1280): a tighter gap keeps 3 heroes + the enemy plate on one
+     row instead of wrapping the 4th over the initiative strip. */
+  @media (min-width: 48em) and (max-width: ${ADVENTURE_PLATE_GAP_NARROW_BELOW_PX}px) {
+    &[data-adventure] {
+      gap: ${ADVENTURE_PLATE_GAP_NARROW};
     }
   }
 `;
