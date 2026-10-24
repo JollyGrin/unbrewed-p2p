@@ -1168,6 +1168,30 @@
  * first; adventure-only, since only enemy figures carry `enemy`) and `ViewPrompt.subject?: string`
  * (the fighter a move / place prompt is about, or the enemy whose decision a TEAM prompt is; absent
  * otherwise). No version bump: a client that ignores either key behaves exactly as before.
+ *
+ * RIDES v39 (engine #734, additive, no bump — one optional key, absent when empty; every non-adventure
+ * view is byte-identical): `PlayerView.scenario.enemyIntents?: EnemyIntent[]` — a PREDICTIVE preview,
+ * one row per living, on-board enemy fighter, of what its NEXT activation would do on the board as it
+ * stands (the paper game telegraphs its deterministic mover; so does this). Computed at view
+ * projection by DRY-RUNNING the mover's own planning half (`planActivationFor` in engine/enemyMover.ts,
+ * the code the activation will run), so it cannot diverge from the activation except by the board
+ * changing in between; a pure read — no event, no state, replays and hashes untouched. Re-aimed on
+ * every STATE (placement, defeats, threat changes). `ATTACK` / `MOVE_THEN_ATTACK` name `target` when
+ * it is settled; `PLAYERS_CHOOSE` is a tie the mover routes to the table (on the target — no
+ * `target` — or on the route to a settled `target`); `NO_TARGET` is the printed step 3 (the enemy's
+ * no-target box runs, if any — several enemies ship none). `move` is the spaces it would walk (absent
+ * when it stays put). The p2p intent badge (its sibling ticket) is the consumer. Only a scenario game
+ * carries `scenario`, so duel / ffa / 2v2 / boss views never see it. A row can be ABSENT for a living
+ * enemy whose dry run throws (cosmetic: logged server-side, never a room fault). CAVEAT a client should
+ * not paper over: a FIGHTER card whose RIGHT NOW re-stamps an unexpiring activation override at reveal
+ * (Stygimoloch's MOMENTUM speed) is previewed from the LAST reveal's stamp until the next reveal
+ * re-decides it — the row corrects itself on that STATE.
+ *
+ * RIDES v39 (engine #749, additive, no bump): `ScenarioRelease.defeatedRound?: number` — the round a
+ * released enemy was defeated in, stamped by the engine on the ledger entry and ABSENT while it lives.
+ * The verdict's "defeated R<k>" tile no longer depends on having watched the FIGHTER_DEFEATED arrive:
+ * a reload / reconnect into a finished room reads it from the view. Every pre-existing view is
+ * byte-identical (the key appears only on a defeated release).
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 39`; this
@@ -2264,6 +2288,8 @@ export interface PlayerView {
     objectives: { id: string; label: string; fired: number; repeat?: number }[];
     releases?: ScenarioRelease[];
     contacts?: ScenarioContacts;
+    /** #734 (rides v39): a PREVIEW — one row per living enemy fighter, what its next activation would do now. Absent when none. */
+    enemyIntents?: EnemyIntent[];
     result?: ScenarioResult;
     briefing?: ScenarioBriefing;
     /** #794 (rides v38): overflows counted against `display.lossLimit` — the breakouts so far. */
@@ -2529,6 +2555,7 @@ export interface ScenarioRelease {
   spaceLabel?: string;
   fighter: FighterId;
   enemyId: string;
+  defeatedRound?: number; // #749 (rides v39): the round this released enemy was defeated in; ABSENT while it lives
 }
 
 // v36 (#735): a PREVIEW (nothing happens): the still-blocked scenario spaces the villain touches now
@@ -2536,6 +2563,20 @@ export interface ScenarioRelease {
 export interface ScenarioContacts {
   adjacent: SpaceId[];
   nextToOpen: SpaceId[];
+}
+
+// #734 (rides v39): a PREDICTIVE preview of ONE enemy fighter's next activation (the printed §2.5 mover,
+// dry-run on the live board): `ATTACK` where it stands (`target` absent only when an attack-each
+// enemy has several in range — it attacks them all, the players order them); `MOVE_THEN_ATTACK` —
+// walks `move` spaces, attacks `target`; `PLAYERS_CHOOSE` — a tie the players settle (the target when
+// `target` is absent, else the route to that target, `move` spaces either way); `NO_TARGET` — stays
+// put, and the enemy's no-target box runs, if any (the scenario's default is usually a threat gain, but
+// Apatosaurus / Gallimimus / Parasaurolophus ship an empty box).
+export interface EnemyIntent {
+  fighter: FighterId;
+  outcome: "ATTACK" | "MOVE_THEN_ATTACK" | "NO_TARGET" | "PLAYERS_CHOOSE";
+  target?: FighterId;
+  move?: number;
 }
 
 // v36 (#735): why a scenario game ended. `DEFEAT_CONDITION` = a scenario loss that is neither a
