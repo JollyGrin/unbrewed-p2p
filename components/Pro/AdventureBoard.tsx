@@ -466,6 +466,30 @@ const Token = ({ name, size = "1.5rem", role }: { name: string; size?: string; r
   </Flex>
 );
 
+/**
+ * The enemy intent badge (p2p #1148 / engine #734): one line under the dial, the enemy's NEXT
+ * activation as the mover plans it now (the paper game's §2.5 prediction). Hedged copy — see
+ * `enemyIntentLine`. Nothing when the model has no line (SETUP, defeated, no preview, unknown
+ * outcome), so every other game's dials are byte-identical. Sits in the dial's text column so
+ * the column never grows wider than the panel (#1145): long lines wrap, never overflow.
+ */
+const IntentBadge = ({ id, intent }: { id: string; intent: string | null }) =>
+  intent ? (
+    <Text
+      data-testid={`adv-enemy-intent-${id}`}
+      fontSize="0.68rem"
+      lineHeight="1.2"
+      color={GOLD}
+      opacity={0.95}
+      mt="0.1rem"
+    >
+      <Text as="span" {...LBL} color={GOLD} opacity={0.8}>
+        NEXT
+      </Text>{" "}
+      {intent}
+    </Text>
+  ) : null;
+
 export const VillainHeader = ({
   villain,
   objective,
@@ -505,6 +529,7 @@ export const VillainHeader = ({
           </Text>
         </Text>
       </Flex>
+      <IntentBadge id={villain.id} intent={villain.intent} />
       {objective && (
         <Text fontSize="0.7rem" opacity={0.85} data-testid="adv-villain-objective">
           Objective: {objective}
@@ -707,9 +732,8 @@ export const EnemyDials = ({
           <Text {...LBL} data-testid={`adv-enemy-meta-${e.id}`}>
             {e.size !== "NORMAL" ? `${e.size} · ` : ""}MOVE {e.move}
           </Text>
+          <IntentBadge id={e.id} intent={e.intent} />
         </Flex>
-        {/* slot for the intent badge (p2p #1148) */}
-        <Box data-testid={`adv-enemy-intent-slot-${e.id}`} flex="none" />
         <Text
           data-testid={`adv-enemy-hp-${e.id}`}
           fontWeight="bold"

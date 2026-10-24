@@ -1203,3 +1203,70 @@ describe("board-side decks and discard piles (#1405)", () => {
     expect(sheet.textContent).toMatch(/Bite.*Hide.*Bite/);
   });
 });
+
+// Enemy intent badge (p2p #1148 / engine #734): the next-activation preview on each dial.
+describe("AdventureBoard enemy intent badge", () => {
+  const minion = fighter("e2/dilo", "Dilophosaurus", {
+    kind: "SIDEKICK",
+    owner: "e",
+    hp: 4,
+    maxHp: 6,
+    enemy: { role: "MINION", enemyId: "dilophosaurus", move: 3, deckCount: 3, discardTop: null },
+  });
+  const withIntents = (phase: string, enemyIntents: object[]) =>
+    ({
+      ...VIEW,
+      phase,
+      fighters: [...VIEW.fighters, minion],
+      scenario: { ...VIEW.scenario, enemyIntents },
+    }) as unknown as PlayerView;
+
+  it("renders one hedged line per living enemy in PLAY — on the villain header and the minion dials", () => {
+    mount(
+      "adventure",
+      withIntents("PLAY", [
+        { fighter: "e1/rex", outcome: "MOVE_THEN_ATTACK", target: "p1/hero", move: 2 },
+        { fighter: "e2/dilo", outcome: "NO_TARGET" },
+      ]),
+    );
+    expect(screen.getByTestId("adv-villain")).toContainElement(screen.getByTestId("adv-enemy-intent-e1/rex"));
+    expect(screen.getByTestId("adv-enemy-intent-e1/rex")).toHaveTextContent("NEXT plans to move toward Hero");
+    expect(screen.getByTestId("adv-enemy-e2/dilo")).toContainElement(screen.getByTestId("adv-enemy-intent-e2/dilo"));
+    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).toHaveTextContent("NEXT no target");
+    // the consequence is not on the wire: never asserted
+    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).not.toHaveTextContent(/threat/i);
+    // the post-hoc activation line (what the CURRENT activation did) is unchanged beside it
+    expect(screen.getByTestId("adv-enemy-turn-result")).toHaveTextContent("moves toward Hero");
+  });
+
+  it("renders ATTACK and PLAYERS_CHOOSE; an unknown outcome renders nothing without crashing", () => {
+    mount(
+      "adventure",
+      withIntents("PLAY", [
+        { fighter: "e1/rex", outcome: "ATTACK", target: "p1/hero" },
+        { fighter: "e2/dilo", outcome: "PLAYERS_CHOOSE", move: 1 },
+      ]),
+    );
+    expect(screen.getByTestId("adv-enemy-intent-e1/rex")).toHaveTextContent("plans to attack Hero");
+    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).toHaveTextContent("players choose");
+    cleanup();
+    mount("adventure", withIntents("PLAY", [{ fighter: "e2/dilo", outcome: "FLEE" }]));
+    expect(screen.getByTestId("adv-enemy-e2/dilo")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^adv-enemy-intent-/)).toBeNull();
+  });
+
+  it("names a not-yet-placed target by its raw id rather than throwing (placement prompt)", () => {
+    mount("adventure", withIntents("PLAY", [{ fighter: "e2/dilo", outcome: "MOVE_THEN_ATTACK", target: "e9/spawn", move: 2 }]));
+    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).toHaveTextContent("plans to move toward e9/spawn");
+  });
+
+  it("is hidden in SETUP and when the view carries no preview (byte-identical dials)", () => {
+    mount("adventure", withIntents("SETUP", [{ fighter: "e2/dilo", outcome: "NO_TARGET" }]));
+    expect(screen.getByTestId("adv-enemy-e2/dilo")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^adv-enemy-intent-/)).toBeNull();
+    cleanup();
+    mount("adventure", { ...VIEW, phase: "PLAY", fighters: [...VIEW.fighters, minion] } as unknown as PlayerView);
+    expect(screen.getByTestId("adv-enemy-e2/dilo")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^adv-enemy-intent-/)).toBeNull();
+  });
+});
