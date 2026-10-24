@@ -106,6 +106,8 @@ import { useSafeAreaInsets } from "@/lib/pro/useSafeAreaInsets";
 import { ProLog, ProLogEntry } from "@/components/Pro/ProLog";
 import { ReportBugDialog } from "@/components/Pro/ReportBugDialog";
 import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
+import { formatForfeitCopy } from "@/lib/pro/formatForfeit";
+import { formatUndoNeedsConsent } from "@/lib/pro/formatUndo";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
@@ -5527,14 +5529,14 @@ const LiveGame = ({
   // a persistent "waiting" toast; it clears when the request resolves (accept
   // rewinds the board — undoPending flips false on the next STATE; reject latches
   // undoRejected below). Mirrors the reconnecting-toast pattern above.
-  const adventureRoom = !!snapshot?.view.scenario;
+  // Only a format whose undo waits on a verdict holds it (`formatUndoNeedsConsent`).
+  const undoNeedsConsent = formatUndoNeedsConsent(roomInfo?.formatId, snapshot?.view);
   useEffect(() => {
     const id = "pro-undo-pending";
-    // An adventure undo needs no consent (engine #864): nobody to wait for.
-    if (undoPending && !adventureRoom) toast.loading("Undo requested — waiting for opponent…", { id });
+    if (undoPending && undoNeedsConsent) toast.loading("Undo requested — waiting for opponent…", { id });
     else toast.dismiss(id);
     return () => toast.dismiss(id);
-  }, [undoPending, adventureRoom]);
+  }, [undoPending, undoNeedsConsent]);
 
   // A declined undo is a one-shot notice: show it, then acknowledge so it can't
   // re-fire on the next render.
@@ -7793,20 +7795,7 @@ const LiveGame = ({
       <ForfeitDialog
         isOpen={forfeitOpen}
         onClose={() => setForfeitOpen(false)}
-        multiplayer={multiplayerView}
-        adventure={
-          view.scenario
-            ? {
-                // What the engine does on FORFEIT in an adventure (engine
-                // turn.ts applyMultiplayerForfeit): your seat is resigned and
-                // the table plays on while another hero seat still has a
-                // living fighter; the last hero seat out ends it as a defeat.
-                othersInPlay: view.fighters.some(
-                  (f) => !f.enemy && f.owner !== view.you && !f.defeated,
-                ),
-              }
-            : undefined
-        }
+        stakes={formatForfeitCopy(roomInfo?.formatId, view)}
         signedIn={accountStatus === "signed-in"}
         onConfirm={() => {
           setIForfeited(true);

@@ -1,5 +1,5 @@
 /** The Undo format registry (#1473): which tables ever get an Undo control. */
-import { formatSupportsUndo } from "./formatUndo";
+import { formatSupportsUndo, formatUndoNeedsConsent } from "./formatUndo";
 import type { PlayerView } from "./protocol";
 
 const seats = (n: number, scenario = false) =>
@@ -23,5 +23,23 @@ describe("formatSupportsUndo", () => {
     expect(formatSupportsUndo(null, seats(4, true))).toBe(true);
     expect(formatSupportsUndo(undefined, seats(3))).toBe(false);
     expect(formatSupportsUndo("boss", seats(4))).toBe(false);
+  });
+});
+
+describe("formatUndoNeedsConsent (p2p #1474)", () => {
+  it("duel waits on the opponent's verdict; adventure needs none (engine #864)", () => {
+    expect(formatUndoNeedsConsent("duel", seats(2))).toBe(true);
+    expect(formatUndoNeedsConsent("adventure", seats(4, true))).toBe(false);
+  });
+  it("the registry decides over the view's shape", () => {
+    expect(formatUndoNeedsConsent("duel", seats(2, true))).toBe(true);
+    expect(formatUndoNeedsConsent("adventure", seats(2))).toBe(false);
+  });
+  it("no / unknown format id: a scenario game needs no consent, anything else does", () => {
+    expect(formatUndoNeedsConsent(undefined, seats(2, true))).toBe(false);
+    expect(formatUndoNeedsConsent(null, seats(1, true))).toBe(false);
+    expect(formatUndoNeedsConsent(undefined, seats(2))).toBe(true);
+    expect(formatUndoNeedsConsent("boss", seats(2))).toBe(true);
+    expect(formatUndoNeedsConsent(undefined, undefined)).toBe(true);
   });
 });
