@@ -904,6 +904,30 @@ describe("enrichLines", () => {
   // consequence is that the damage lands on a DIFFERENT FIGHTER — so the event
   // has to own a line, or the log shows a hit on somebody who was never attacked
   // with nothing in between to explain it. This line is also the replay's record.
+  describe("COMBAT_ATTACKER_CHANGED (protocol v36)", () => {
+    const swap: GameEvent = { type: "COMBAT_ATTACKER_CHANGED", from: "p2/hero", to: "p2/sidekick-1" };
+
+    it("names the new attacker and who it took over from, neutral to both seats", () => {
+      const named: EnrichContext = {
+        ...ctx(),
+        fighter: (id) => (id === "p2/hero" ? "Xenomorph" : "Blip 2"),
+      };
+      expect(enrichLines([], [swap], named)).toEqual([
+        { text: "Blip 2 takes over from Xenomorph as the attacker", who: "game" },
+      ]);
+    });
+  });
+
+  describe("COMBAT_DEFENDER_CHANGED after the damage step", () => {
+    it("words a post-damage takeover neutrally, and a pre-damage one as before", () => {
+      const swap: GameEvent = { type: "COMBAT_DEFENDER_CHANGED", from: "p1/hero", to: "p1/sidekick-1" };
+      const damage: GameEvent = { type: "COMBAT_DAMAGE", amount: 1 };
+      const texts = enrichLines([], [swap, damage, swap], ctx()).map((l) => l.text);
+      expect(texts).toContain("sidekick-1 takes over from hero as the defender — the damage lands on sidekick-1");
+      expect(texts).toContain("sidekick-1 takes over the defense from hero");
+    });
+  });
+
   describe("COMBAT_DEFENDER_CHANGED (protocol v34)", () => {
     const swap: GameEvent = { type: "COMBAT_DEFENDER_CHANGED", from: "p1/hero", to: "p1/sidekick-1" };
 
@@ -1743,6 +1767,39 @@ describe("diffViews — v26 board objects and v27 benign removal (Gerry the Isop
     expect(lines).toContainEqual({ text: "Larry was removed from the battlefield", who: "you" });
     // …and it must NOT read as a death.
     expect(lines.some((l) => l.text.includes("defeated"))).toBe(false);
+  });
+
+  it("narrates a living fighter ARRIVING on the board (Jason's return)", () => {
+    const jason = fighter({ id: "p1/hero", name: "Jason Voorhees", space: null });
+    const lines = diffViews(withFighters([jason]), withFighters([{ ...jason, space: "s3" }]), label);
+    expect(lines).toContainEqual({ text: "Jason Voorhees appears at S3", who: "you" });
+  });
+
+  it("badges a summoned squad member via the fighterName hook (Clone Trooper)", () => {
+    const trooper = fighter({ id: "p1/sidekick-3", kind: "SIDEKICK", name: "Clone Trooper", space: null });
+    const lines = diffViews(
+      withFighters([trooper]),
+      withFighters([{ ...trooper, space: "s2" }]),
+      label,
+      [],
+      (f) => `${f.name} 3`
+    );
+    expect(lines).toContainEqual({ text: "Clone Trooper 3 appears at S2", who: "you" });
+  });
+
+  it("an arrival is not a move, a removal or a defeat — and a defeated fighter never 'appears'", () => {
+    const lines = diffViews(
+      withFighters([larry]),
+      withFighters([{ ...larry, space: "s4" }]),
+      label
+    );
+    expect(lines.some((l) => l.text.includes("appears"))).toBe(false);
+    const dead = diffViews(
+      withFighters([{ ...larry, space: null, defeated: true }]),
+      withFighters([{ ...larry, space: "s4", defeated: true }]),
+      label
+    );
+    expect(dead.some((l) => l.text.includes("appears"))).toBe(false);
   });
 
   it("does not double-report a DEFEAT as a benign removal", () => {

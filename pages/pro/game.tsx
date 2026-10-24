@@ -177,8 +177,8 @@ import {
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
 import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
-import { defenderRedirect, defenderSwapText } from "@/lib/pro/combatDefender";
-import { useCombatTargeting, useDefenderSwap } from "@/lib/pro/useDefenderSwap";
+import { attackerSwapText, defenderChangeKind, defenderRedirect, defenderSwapText } from "@/lib/pro/combatDefender";
+import { useAttackerSwap, useCombatTargeting, useDefenderSwap } from "@/lib/pro/useDefenderSwap";
 import {
   useCombatStrike,
   CombatStrike,
@@ -1577,6 +1577,7 @@ const CombatPanel = ({
   chain,
   effectAttack,
   defenderCallout,
+  attackerCallout,
   compact = false,
   fighterName,
   factor = 1,
@@ -1613,6 +1614,8 @@ const CombatPanel = ({
    *  are unchanged — which is precisely why the panel has to say it in words. The
    *  caller picks the wording; this just draws it. Null for an ordinary combat. */
   defenderCallout?: { tag: string; full: string } | null;
+  /** v36 attacker takeover tag ("<name> attacks instead"). */
+  attackerCallout?: { tag: string; full: string } | null;
   /** phone sheet (mobile step 3): smaller slots until the reveal, so the card
    *  picker under the panel still fits, plus a "who attacks whom" line. */
   compact?: boolean;
@@ -1702,6 +1705,19 @@ const CombatPanel = ({
             stays where it was — so without this tag the only sign that a
             different figure is about to eat the damage is the board arrow
             quietly re-pointing between two frames. */}
+        {attackerCallout && (
+          <Tag
+            size="sm"
+            bg="#3B1D63"
+            color="#F2EAD3"
+            letterSpacing="0.03em"
+            cursor="help"
+            title={attackerCallout.full}
+            aria-label={attackerCallout.full}
+          >
+            {attackerCallout.tag}
+          </Tag>
+        )}
         {defenderCallout && (
           <Tag
             size="sm"
@@ -4572,6 +4588,7 @@ const LiveGame = ({
   // nobody attacked and the damage lands on the wrong-looking figure. Held for
   // as long as the view agrees the substitution stands, not on a timer.
   const defenderSwap = useDefenderSwap(snapshot);
+  const attackerSwap = useAttackerSwap(snapshot);
   // The DECLARED target of the live attack action (issue #694). The hook above only
   // sees substitutions INSIDE a combat; this one is what catches an attack that
   // opened somewhere else entirely — Grievous's Multi-Arm Barrage picks Combat 2's
@@ -5085,7 +5102,18 @@ const LiveGame = ({
     if (!snapshot) return;
     const next = snapshot.view;
     setRevealState((cur) => advanceRevealedHand(cur, snapshot.events, next.turnNumber));
-    const diff = diffViews(prevViewRef.current, next, (c) => cardLabel(next.catalog, c), snapshot.events);
+    // Same stable squad numbers the board badges carry (issue #560), so a feed
+    // line about one of six identical clones names the exact token ("Clone
+    // Trooper 3 takes 2 damage"). Off-board scope: the clone this batch just
+    // defeated still has to be nameable in its own death line.
+    const logBadges = squadBadges(next.fighters, { includeOffBoard: true });
+    const diff = diffViews(
+      prevViewRef.current,
+      next,
+      (c) => cardLabel(next.catalog, c),
+      snapshot.events,
+      (f) => badgedFighterName(next.fighters, logBadges, f.id)
+    );
     // Sub-attack CHAIN bookkeeping (issue #596 ↔ engine #359). Runs here because
     // this is the one effect that already sees BOTH views of a batch, and the
     // parent card of a chain is only readable in the pre-batch one. `before` is the
@@ -5096,11 +5124,6 @@ const LiveGame = ({
     chainRef.current = after;
     setChain(after);
     const chainTitle = parentCardTitle(next.catalog, after.parent);
-    // Same stable squad numbers the board badges carry (issue #560), so a feed
-    // line about one of six identical clones names the exact token ("Clone
-    // Trooper 3 takes 2 damage"). Off-board scope: the clone this batch just
-    // defeated still has to be nameable in its own death line.
-    const logBadges = squadBadges(next.fighters, { includeOffBoard: true });
     // Decoratively enrich with the engine's structured events for THIS batch —
     // tags discards with their reason and logs scheduled/delayed effects, value
     // changes, and gained actions. No events → same as diffViews. See enrichLines.
@@ -6247,8 +6270,21 @@ const LiveGame = ({
   // is asked of the combat each surface actually draws: the panel keeps a frozen
   // combat through the strike beat, the board follows the live view.
   const defenderSwapCopy = defenderSwap
-    ? defenderSwapText(badgedName(defenderSwap.from), badgedName(defenderSwap.to))
+    ? defenderSwapText(
+        badgedName(defenderSwap.from),
+        badgedName(defenderSwap.to),
+        defenderChangeKind(defenderSwap)
+      )
     : null;
+  // The attacker-side takeover (protocol v36), same three channels: dock tag,
+  // board ring + chip, log line. Retired by the hook when `combat.attacker` moves on.
+  const attackerSwapCopy = attackerSwap
+    ? attackerSwapText(badgedName(attackerSwap.from), badgedName(attackerSwap.to))
+    : null;
+  const boardAttackerStepIn =
+    attackerSwap && attackerSwapCopy
+      ? { fighterId: attackerSwap.to, chip: attackerSwapCopy.chip, blurb: attackerSwapCopy.full }
+      : null;
   const redirectCopy = (combat: ViewCombat | null) => {
     if (defenderSwapCopy) return null;
     const r = defenderRedirect(combatTargeting, combat);
@@ -7222,6 +7258,7 @@ const LiveGame = ({
     selectedFighter,
     attack: view.combat ? { attacker: view.combat.attacker, target: view.combat.target } : null,
     defenderStepIn: boardDefenderStepIn,
+    attackerStepIn: boardAttackerStepIn,
     friendlyOwners,
     fighterBadges: attackerBadge,
     extendedReachTargets: [...extendedReachTargets],
@@ -7263,6 +7300,7 @@ const LiveGame = ({
   const dockEl = (
     <ProDock
       view={view}
+      batchEvents={snapshot?.events}
       myTurn={myTurn}
       activeTurnLabel={activeTurnLabel}
       disconnectedLabel={disconnectedLabel}
@@ -7346,6 +7384,7 @@ const LiveGame = ({
             chain={combatChain}
             effectAttack={combatEffectAttack}
             defenderCallout={combatDefenderTag}
+            attackerCallout={attackerSwapCopy}
             compact={mobile && !rail}
             fighterName={nameOf}
             factor={paceScale}

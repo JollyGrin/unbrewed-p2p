@@ -483,7 +483,9 @@ const ScrubberBody = ({
                 substitution (*GET BEHIND ME*) has no beat to play here — the only
                 way it can be read while scrubbing is that the named DEFENDER
                 changes from one step to the next. Naming both sides is what makes
-                that visible; the cards alone never move. */}
+                that visible; the cards alone never move. The same holds for the
+                ATTACKER side (v36 `COMBAT_ATTACKER_CHANGED`): `combat.attacker`
+                moves with the takeover, so the left name changes between steps. */}
             <Text fontSize="0.8rem" mb="0.5rem" textAlign="center" color="brand.parchment" opacity={0.85}>
               {combatSidesLine(fighterName(step.combat.attacker), fighterName(step.combat.target))}
             </Text>

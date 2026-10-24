@@ -78,6 +78,8 @@ export interface ProBoardProps {
    *  (lib/pro/combatDefender.ts + useDefenderSwap.ts) and the board just draws it,
    *  chip text and all. Absent/null = nothing extra, exactly today's board. */
   defenderStepIn?: { fighterId: FighterId; chip: string; blurb: string } | null;
+  /** The v36 attacker takeover, drawn the same way (ring + "attacks instead" chip). */
+  attackerStepIn?: { fighterId: FighterId; chip: string; blurb: string } | null;
   /** Owner ids on the VIEWER's team, including the viewer (issue #195). Fighters
    *  owned by any of these get a subtle shared teal ring so allies read at a
    *  glance without touching per-seat identity colors. Empty/omitted in
@@ -211,6 +213,7 @@ export const ProBoard = ({
   selectedFighter = null,
   attack = null,
   defenderStepIn = null,
+  attackerStepIn = null,
   friendlyOwners = [],
   fighterBadges = {},
   extendedReachTargets = [],
@@ -385,6 +388,7 @@ export const ProBoard = ({
     selectedFighter,
     attack,
     defenderStepIn,
+    attackerStepIn,
     friendlyOwners,
     fighterBadges,
     extendedReachTargets,
