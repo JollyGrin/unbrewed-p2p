@@ -5,6 +5,7 @@
  * ever read `enemy.deckCount` (a count) and `initiative.deckCount`.
  */
 import { promptSubjectFighter, promptSubjectText } from "./promptSubject";
+import { fighterLabel, seatLabelOf } from "./seatLabel";
 import type {
   EnemyIntent,
   FighterId,
@@ -108,18 +109,25 @@ export interface EnemyDial {
  * `NO_TARGET` names only the cause: the consequence (usually threat +1, but Apatosaurus /
  * Gallimimus / Parasaurolophus ship an empty no-target box) is not on the wire, so it is never
  * asserted here. An outcome this client does not know renders nothing (null) — never a throw.
- * Names resolve through the fighter roster the dials read (by fighter id, then enemy id) with the
- * raw id as the fallback: during a placement prompt the preview may name a fighter not on the
- * board yet, and a hero's seat name is not what the dials print.
+ * Names resolve through the fighter roster the dials read (by fighter id, then enemy id); a second
+ * copy of the same hero at the table gets its seat appended (`fighterLabel`). A target the roster
+ * does not hold (during a placement prompt the preview may name a fighter not on the board yet)
+ * reads as its seat, else "a hero" — never the raw id (#1473, the #1169 class).
  */
 export const enemyIntentLine = (view: PlayerView, intent: EnemyIntent): string | null => {
-  const nameOf = (id: FighterId) =>
-    view.fighters.find((f) => f.id === id || f.enemy?.enemyId === id)?.name ?? id;
+  const nameOf = (id: FighterId) => {
+    const f = view.fighters.find((x) => x.id === id || x.enemy?.enemyId === id);
+    if (f) return fighterLabel(view, f);
+    const owner = id.split("/")[0];
+    if (!view.players?.some((p) => p.id === owner)) return "a hero";
+    const seat = seatLabelOf(view, owner);
+    return seat === "You" ? "you" : seat;
+  };
   switch (intent.outcome) {
     case "ATTACK":
       return intent.target ? `plans to attack ${nameOf(intent.target)}` : "plans to attack each in range";
     case "MOVE_THEN_ATTACK":
-      return intent.target ? `plans to move toward ${nameOf(intent.target)}` : "plans to move, then attack";
+      return intent.target ? `plans to move to ${nameOf(intent.target)} and attack` : "plans to move, then attack";
     case "NO_TARGET":
       return "no target";
     case "PLAYERS_CHOOSE":
