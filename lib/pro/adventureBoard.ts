@@ -123,7 +123,8 @@ export const enemyIntentLine = (view: PlayerView, intent: EnemyIntent): string |
     case "NO_TARGET":
       return "no target";
     case "PLAYERS_CHOOSE":
-      return "players choose";
+      // a settled target = the tie is on the ROUTE to it (engine/enemyMover.ts); none = on the target
+      return intent.target ? `plans to move toward ${nameOf(intent.target)} (players choose the route)` : "players choose";
     default:
       return null;
   }

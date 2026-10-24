@@ -67,6 +67,12 @@ describe("enemyIntentLine", () => {
     // a fighter the placement prompt has not put on the board yet
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "MOVE_THEN_ATTACK", target: "e9/spawn" })).toBe("plans to move toward e9/spawn");
   });
+  it("PLAYERS_CHOOSE keeps a settled target: the tie is on the route to it, not on the target", () => {
+    expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "PLAYERS_CHOOSE", target: "p1/hero", move: 2 })).toBe(
+      "plans to move toward Dr. Sattler (players choose the route)",
+    );
+    expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "PLAYERS_CHOOSE", move: 2 })).toBe("players choose");
+  });
   it("renders nothing for an outcome this client does not know", () => {
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "FLEE" } as unknown as EnemyIntent)).toBeNull();
   });

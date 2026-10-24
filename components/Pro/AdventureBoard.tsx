@@ -483,7 +483,7 @@ const IntentBadge = ({ id, intent }: { id: string; intent: string | null }) =>
       opacity={0.95}
       mt="0.1rem"
     >
-      <Text as="span" {...LBL} color={GOLD} opacity={0.8} mr="0.2rem">
+      <Text as="span" {...LBL} color={GOLD} opacity={0.8}>
         NEXT
       </Text>{" "}
       {intent}
