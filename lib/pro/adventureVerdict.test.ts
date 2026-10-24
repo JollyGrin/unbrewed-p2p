@@ -57,6 +57,19 @@ describe("adventureVerdictModel", () => {
     expect(noSlot).toMatchObject({ objectLabel: null, ordinal: null });
   });
 
+  it("reads the engine's releases[].defeatedRound, so a reload still says when the enemy fell (#1458)", () => {
+    // no watched rounds at all (a reconnect into the finished room): the stamp carries the tile + the victory line
+    const stamped = { scenario: { releases: [{ round: 3, fighter: "e1/trex", enemyId: "trex", spaceLabel: "2", defeatedRound: 6 }] } };
+    expect(adventureVerdictModel(view(objective, stamped))!.releases.map((t) => t.defeatedRound)).toEqual([6, null]);
+    const win = adventureVerdictModel(view({ verdict: "VICTORY", cause: { kind: "VICTORY_CONDITION" }, round: 8 }, stamped))!;
+    expect(win.lines).toEqual(["Indominus Rex fell.", "The last loose enemy, T. Rex, fell in round 6."]);
+    // both present: the stamp wins — it is written before startNextRound increments, so it can read one lower than the watched round
+    expect(adventureVerdictModel(view(objective, stamped), { "e1/trex": 7 })!.releases[0].defeatedRound).toBe(6);
+    // stamp absent (older engine): the watched round, as before
+    expect(adventureVerdictModel(view(objective), { "e1/trex": 7 })!.releases[0].defeatedRound).toBe(7);
+    expect(adventureVerdictModel(view(objective))!.releases[0].defeatedRound).toBeNull();
+  });
+
   it("YOUR TEAM names the heroes who fell, with the round when it was watched (#1182)", () => {
     expect(adventureVerdictModel(view(objective))!.facts[1]).toEqual({ label: "Your team", text: "Heroes down: none." });
     const down = view(objective);

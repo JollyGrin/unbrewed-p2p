@@ -110,6 +110,22 @@ describe("FormatEndScreen", () => {
     expect(screen.getByText(/defeated R6/)).toBeInTheDocument();
   });
 
+  it("reads releases[].defeatedRound: a reload into a finished room (no FIGHTER_DEFEATED seen) still says the round (#1458)", () => {
+    const live = adventureView();
+    const reloaded = defeat({
+      ...live,
+      scenario: { ...live.scenario, releases: [{ round: 3, fighter: "e1/trex", enemyId: "trex", spaceLabel: "2", defeatedRound: 6 }] },
+    } as PlayerView);
+    render(ui({ formatId: "adventure", view: reloaded, events: [] }));
+    expect(screen.getByText(/T\. Rex released/)).toHaveTextContent("T. Rex released — defeated R6");
+  });
+
+  it("field absent and no FIGHTER_DEFEATED seen: the tile has no round, as today", () => {
+    render(ui({ formatId: "adventure", view: defeat(adventureView()), events: [] }));
+    expect(screen.getByText(/T\. Rex released/)).toHaveTextContent(/^T\. Rex released$/);
+    expect(screen.queryByText(/defeated R/)).toBeNull();
+  });
+
   it("an unexplained end (no result on the wire) keeps the plain headline", () => {
     render(ui({ formatId: "adventure", view: { ...adventureView(), winner: "p1" } as PlayerView }));
     expect(screen.getByTestId("adventure-end-headline")).toHaveTextContent("VICTORY!");

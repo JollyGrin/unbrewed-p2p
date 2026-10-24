@@ -2,7 +2,9 @@
  * Adventure end screen (#1159, full-screen per the approved mockup in #1182): the verdict
  * and WHY over the whole table, not inside the Actions dock. "View the board" puts it away
  * to inspect the final position; a chip brings it back. Mounted by `FormatEndScreen` for the
- * whole game, so it can record the round each fighter fell ("defeated R6").
+ * whole game, so it can record the round each hero and the villain fell (not on the wire); a
+ * released enemy's "defeated R6" reads the engine's `releases[].defeatedRound` (#1458), so it
+ * survives a reload.
  *
  * No "try again": the rematch ruling refuses a rematch at co-op tables today, so the button
  * would dangle above a refusal. Re-add it here if the ruling changes.
@@ -22,7 +24,7 @@ export const ADVENTURE_END_Z = 1300;
 const LBL = { fontFamily: "SpaceGrotesk", fontSize: "0.68rem", letterSpacing: "0.2em", fontWeight: 700 } as const;
 const ROSE = "#E58B8B";
 
-/** The round each fighter fell, across STATE batches. */
+/** The round each fighter fell, across STATE batches (heroes + villain; releases carry their own `defeatedRound`). */
 export const useDefeatRounds = (view: PlayerView, events: readonly GameEvent[] | undefined): Readonly<Record<FighterId, number>> => {
   const [rounds, setRounds] = useState<Readonly<Record<FighterId, number>>>({});
   useEffect(() => {
