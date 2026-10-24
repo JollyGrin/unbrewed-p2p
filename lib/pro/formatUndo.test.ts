@@ -28,12 +28,18 @@ describe("formatSupportsUndo", () => {
 
 describe("formatUndoNeedsConsent (p2p #1474)", () => {
   it("duel waits on the opponent's verdict; adventure needs none (engine #864)", () => {
-    expect(formatUndoNeedsConsent("duel")).toBe(true);
-    expect(formatUndoNeedsConsent("adventure")).toBe(false);
+    expect(formatUndoNeedsConsent("duel", seats(2))).toBe(true);
+    expect(formatUndoNeedsConsent("adventure", seats(4, true))).toBe(false);
   });
-  it("no / unknown format id keeps the duel's consent", () => {
-    expect(formatUndoNeedsConsent(undefined)).toBe(true);
-    expect(formatUndoNeedsConsent(null)).toBe(true);
-    expect(formatUndoNeedsConsent("boss")).toBe(true);
+  it("the registry decides over the view's shape", () => {
+    expect(formatUndoNeedsConsent("duel", seats(2, true))).toBe(true);
+    expect(formatUndoNeedsConsent("adventure", seats(2))).toBe(false);
+  });
+  it("no / unknown format id: a scenario game needs no consent, anything else does", () => {
+    expect(formatUndoNeedsConsent(undefined, seats(2, true))).toBe(false);
+    expect(formatUndoNeedsConsent(null, seats(1, true))).toBe(false);
+    expect(formatUndoNeedsConsent(undefined, seats(2))).toBe(true);
+    expect(formatUndoNeedsConsent("boss", seats(2))).toBe(true);
+    expect(formatUndoNeedsConsent(undefined, undefined)).toBe(true);
   });
 });

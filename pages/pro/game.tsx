@@ -5530,7 +5530,7 @@ const LiveGame = ({
   // rewinds the board — undoPending flips false on the next STATE; reject latches
   // undoRejected below). Mirrors the reconnecting-toast pattern above.
   // Only a format whose undo waits on a verdict holds it (`formatUndoNeedsConsent`).
-  const undoNeedsConsent = formatUndoNeedsConsent(roomInfo?.formatId);
+  const undoNeedsConsent = formatUndoNeedsConsent(roomInfo?.formatId, snapshot?.view);
   useEffect(() => {
     const id = "pro-undo-pending";
     if (undoPending && undoNeedsConsent) toast.loading("Undo requested — waiting for opponent…", { id });
