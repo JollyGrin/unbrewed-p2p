@@ -22,6 +22,7 @@ import {
   setToken,
 } from "./recentRooms";
 import { botsFromCreateRoom, RoomBots } from "./rematch";
+import { advanceRevealedHand, EMPTY_REVEAL_STATE, RevealState } from "./revealedHand";
 import {
   Action,
   BotDifficulty,
@@ -368,6 +369,11 @@ export interface UseProSocketReturn {
   advanceSlowMode: () => void;
   /** "Skip all": apply every queued batch now, in arrival order, and stop holding */
   skipSlowMode: () => void;
+  /**
+   * The last Keen Hearing reveal for its panel, folded from EVERY applied STATE
+   * batch (not from `snapshot`, which collapses two batches landing in one tick).
+   */
+  revealState: RevealState;
 }
 
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -574,10 +580,20 @@ export function useProSocket(
   // spotlight, even in a batch whose events name no actor.
   const ownActionRef = useRef(false);
 
+  // Keen Hearing's revealed-hand panel (lib/pro/revealedHand.ts): folded per
+  // applied batch (see drainApplyQueue), the ref holding the running value.
+  const revealRef = useRef<RevealState>(EMPTY_REVEAL_STATE);
+  const [revealState, setRevealState] = useState<RevealState>(EMPTY_REVEAL_STATE);
+
   const drainApplyQueue = useCallback(function drain() {
     drainTimerRef.current = null;
     const next = applyQueueRef.current.shift();
     if (!next) return;
+    // Every batch passes through here exactly once, in order, so the Keen Hearing
+    // panel folds ALL of them — `setSnapshot(a); setSnapshot(b)` in one tick would
+    // render only `b`, and an effect keyed on `snapshot` would never see `a`'s events.
+    revealRef.current = advanceRevealedHand(revealRef.current, next.events, next.view.turnNumber);
+    setRevealState(revealRef.current);
     setSnapshot(next);
     if (applyQueueRef.current.length > 0) drainTimerRef.current = setTimeout(drain, 0);
   }, []);
@@ -1722,5 +1738,6 @@ export function useProSocket(
     slowModePending,
     advanceSlowMode,
     skipSlowMode,
+    revealState,
   };
 }

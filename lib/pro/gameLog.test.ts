@@ -236,6 +236,16 @@ describe("enrichLines", () => {
       expect(out[0].who).toBe("you");
     });
 
+    it("rewrites a played scheme's discard line to 'played', leaving other discards alone", () => {
+      const lines: ProLogLine[] = [
+        { text: `You → discard: ${label("a/hex#1")}`, who: "you", cards: ["a/hex#1"] },
+        { text: `Opponent → discard: ${label("a/x#2")}`, who: "opp", cards: ["a/x#2"] },
+      ];
+      const out = enrichLines(lines, [{ type: "SCHEME_PLAYED", player: "p1", card: "a/hex#1" }], ctx());
+      expect(out.map((l) => l.text)).toEqual([`You played ${label("a/hex#1")}`, `Opponent → discard: ${label("a/x#2")}`]);
+      expect(out[0].cards).toEqual(["a/hex#1"]);
+    });
+
     it("matches strictly by instance id — a different card's discard is untouched", () => {
       const lines: ProLogLine[] = [
         { text: "You → discard: fireball", who: "you", cards: ["a/fireball#1"] },
@@ -1079,6 +1089,20 @@ describe("enrichLines", () => {
           expiresAt: null,
         }).text
       ).toBe("hero is marked — Meridian");
+    });
+
+    it("FIGHTER_MARKED — UNCHAINED narrates under its printed-friendly label, not the raw key", () => {
+      expect(
+        line({
+          type: "FIGHTER_MARKED",
+          fighter: "p2/hero",
+          name: "UNCHAINED",
+          count: 1,
+          total: 1,
+          expiresAtTurn: 4,
+          expiresAt: "END",
+        }).text
+      ).toBe("hero is marked — Unchained until end of turn");
     });
 
     it("FIGHTER_MARKED — shows the resulting stack count and a turn-scoped expiry", () => {

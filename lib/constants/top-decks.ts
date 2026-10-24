@@ -933,4 +933,18 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     // Repo-relative (Narrator precedent): the author's cardback upload, mirrored.
     cardbackUrl: "/evergreen-decks/art/frankenstein/cardback.webp",
   },
+  {
+    // Superman (SnarkKnight, "Fully Arted - V1.0"): issue #1430 ↔ engine E1 #870 / E1b #872 /
+    // E2 #874 (PRs #871/#873/#875, feature/superman). Rights confirmed by the author
+    // (2026-10-17). Lab tier. Repo-relative cardback (Narrator precedent): the author's upload, mirrored.
+    id: "5zMj",
+    name: "Superman",
+    hero: "Superman",
+    author: "SnarkKnight",
+    likes: 0,
+    highlightColour: "#437f8f",
+    lab: true,
+    tier: "lab",
+    cardbackUrl: "/evergreen-decks/art/superman/cardback.webp",
+  },
 ];

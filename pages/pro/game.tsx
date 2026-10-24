@@ -108,6 +108,7 @@ import { ForfeitDialog } from "@/components/Pro/ForfeitDialog";
 import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
+import { RevealedHandPanel } from "@/components/Pro/RevealedHandPanel";
 import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
@@ -116,7 +117,7 @@ import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
 import { useFigureManifests } from "@/lib/pro/useFigureManifest";
 import { useFigureStyle } from "@/lib/pro/useFigureStyle";
 import { useZoneDiscs } from "@/lib/pro/useZoneDiscs";
-import { useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
+import { useElementBottom, useElementHeight, useProLayout } from "@/lib/pro/useProLayout";
 import { matchBoardOnScreen, usePageZoomGuard } from "@/lib/pro/usePageZoomGuard";
 import {
   EMPTY_SUB_ATTACK_CHAIN,
@@ -274,6 +275,8 @@ import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/Badg
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
+/** Breathing room between the HUD and the Keen Hearing panel hanging below it. */
+const REVEALED_PANEL_GAP_PX = 8;
 
 const BTN = {
   size: "sm" as const,
@@ -4329,7 +4332,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode } = socket;
+  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -4919,6 +4922,10 @@ const LiveGame = ({
   const mobileSheetRef = useRef<HTMLDivElement>(null);
   const [mobileSheetShown, setMobileSheetShown] = useState(false);
   const mobileChipsH = useElementHeight(mobileChipsRef, mobile);
+  // The desktop HUD's measured bottom: the Keen Hearing panel sits below it, however
+  // many sidekick rows have grown the plates.
+  const [hudOverlayEl, setHudOverlayEl] = useState<HTMLDivElement | null>(null);
+  const hudBottom = useElementBottom(mobile ? null : hudOverlayEl);
   const mobileControlsH = useElementHeight(mobileControlsRef, mobile && !rail);
   // The decision sheet IS counted (unlike the hand drawer and the log): it is
   // force-open for whole stretches of a game, and a board centred behind it
@@ -5072,6 +5079,9 @@ const LiveGame = ({
   // advances from; the state copy is what the combat panel renders.
   const chainRef = useRef<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
   const [chain, setChain] = useState<SubAttackChainState>(EMPTY_SUB_ATTACK_CHAIN);
+  // Last Keen Hearing reveal, kept for its panel (U3); folded per STATE batch in
+  // useProSocket (lib/pro/revealedHand.ts), not from `snapshot`.
+  const revealedHand = revealState.panel;
   const logSeqRef = useRef(0);
   // One monotonic id per appended STATE batch (issue #298) — every line of a
   // batch shares it, so the log panel groups a single player action together.
@@ -7555,7 +7565,7 @@ const LiveGame = ({
           }}
         />
       ) : (
-        <ProHud {...hudProps} />
+        <ProHud {...hudProps} overlayRef={setHudOverlayEl} />
       )}
 
       {/* Slow mode (issue #703): one opponent action at a time, held until the
@@ -7646,6 +7656,21 @@ const LiveGame = ({
         resolveCard={resolveCard}
         labelFor={(c) => cardLabel(view.catalog, c)}
       />
+
+      {revealedHand && (
+        <RevealedHandPanel
+          // a newer reveal starts expanded, whatever the last one was collapsed to
+          key={`${revealedHand.owner}:${revealedHand.turn}:${revealedHand.cards.join(",")}`}
+          revealed={revealedHand}
+          top={!mobile && hudBottom > 0 ? hudBottom + REVEALED_PANEL_GAP_PX : undefined}
+          heroName={
+            view.fighters.find((f) => f.owner === revealedHand.owner && f.kind === "HERO")?.name ??
+            seatLabel(view, revealedHand.owner)
+          }
+          resolveCard={resolveCard}
+          labelFor={(c) => cardLabel(view.catalog, c)}
+        />
+      )}
 
       <ProLog
         entries={logEntries}

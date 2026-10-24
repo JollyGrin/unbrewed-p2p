@@ -100,6 +100,15 @@ export const FIGHTER_MARKER_BADGES: Record<string, FighterMarkerBadge> = {
     bg: "#8C1C24",
     color: "#FDE9E4",
   },
+  // Superman's *Unchained* (5zMj): a transient per-turn mark (`until: TURN_END`) on each
+  // fighter he damaged, so the follow-up move prompt can offer them. Not a counter/flag.
+  UNCHAINED: {
+    icon: "⛓",
+    label: "Unchained",
+    titleTemplate: "Unchained — may be moved up to 1 space (Superman, this turn)",
+    bg: "#1F5F7A",
+    color: "#E3F4FB",
+  },
 };
 
 /**

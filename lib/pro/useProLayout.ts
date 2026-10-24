@@ -114,3 +114,33 @@ export const useElementHeight = (ref: RefObject<HTMLElement>, enabled: boolean):
 
   return height;
 };
+
+/**
+ * Live viewport-y of an element's bottom edge, or 0 while there is no element. For
+ * chrome that must sit BELOW something whose height varies (the desktop HUD grows a
+ * row per sidekick, and wraps), where a hardcoded offset ends up behind it. Takes
+ * the element itself (hold it with a callback ref into state) so the measurement
+ * starts when it mounts, however late. Re-measured when the element resizes and on
+ * window resize; a fixed element's bottom does not move with page scroll.
+ */
+export const useElementBottom = (el: HTMLElement | null): number => {
+  const [bottom, setBottom] = useState(0);
+
+  useEffect(() => {
+    if (!el) {
+      setBottom(0);
+      return;
+    }
+    const measure = () => setBottom(Math.ceil(el.getBoundingClientRect().bottom));
+    measure();
+    window.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, [el]);
+
+  return bottom;
+};
