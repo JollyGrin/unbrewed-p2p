@@ -47,7 +47,7 @@ describe("enemyIntentLine", () => {
   it("phrases the four outcomes, hedged, naming the target by its fighter name", () => {
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "ATTACK", target: "p1/hero" })).toBe("plans to attack Dr. Sattler");
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "MOVE_THEN_ATTACK", target: "p1/hero", move: 2 })).toBe(
-      "plans to move toward Dr. Sattler",
+      "plans to move to Dr. Sattler and attack",
     );
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "NO_TARGET" })).toBe("no target");
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "PLAYERS_CHOOSE" })).toBe("players choose");
@@ -62,10 +62,28 @@ describe("enemyIntentLine", () => {
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "ATTACK" })).toBe("plans to attack each in range");
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "MOVE_THEN_ATTACK", move: 1 })).toBe("plans to move, then attack");
   });
-  it("resolves a target through the dial roster by enemy id too, and falls back to the raw id — never throws", () => {
+  it("resolves a target through the dial roster by enemy id too, and never prints a raw id (#1473)", () => {
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "ATTACK", target: "dilophosaurus" })).toBe("plans to attack Dilophosaurus");
-    // a fighter the placement prompt has not put on the board yet
-    expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "MOVE_THEN_ATTACK", target: "e9/spawn" })).toBe("plans to move toward e9/spawn");
+    // a fighter the placement prompt has not put on the board yet, from a seat the view does not know
+    expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "MOVE_THEN_ATTACK", target: "e9/spawn" })).toBe(
+      "plans to move to a hero and attack",
+    );
+    // … and from a seat it does know: the seat label (claimed name, else "P2"), never "p2/hero"
+    const two = view("PLAY", undefined);
+    (two as unknown as { players: object[] }).players = [{ id: "p1", displayName: "Dean" }, { id: "p2", displayName: "Bo" }, { id: "p3" }];
+    expect(enemyIntentLine(two, { fighter: "e1/raptor", outcome: "ATTACK", target: "p2/hero" })).toBe("plans to attack Bo");
+    expect(enemyIntentLine(two, { fighter: "e1/raptor", outcome: "ATTACK", target: "p3/hero" })).toBe("plans to attack P3");
+    for (const target of ["e9/spawn", "p2/hero", "p3/hero", "p9/hero"]) {
+      expect(enemyIntentLine(two, { fighter: "e1/raptor", outcome: "ATTACK", target })).not.toContain("/");
+    }
+  });
+  it("two copies of the same hero read with their seat, so the target is never ambiguous", () => {
+    const twins = view("PLAY", undefined, [fighter("p2/hero", "Dr. Sattler", { owner: "p2" })]);
+    (twins as unknown as { players: object[] }).players = [{ id: "p1", displayName: "Dean" }, { id: "p2" }];
+    expect(enemyIntentLine(twins, { fighter: "e1/raptor", outcome: "ATTACK", target: "p1/hero" })).toBe("plans to attack Dr. Sattler (Dean)");
+    expect(enemyIntentLine(twins, { fighter: "e1/raptor", outcome: "ATTACK", target: "p2/hero" })).toBe("plans to attack Dr. Sattler (Opponent)");
+    // a lone copy stays bare
+    expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "ATTACK", target: "p1/hero" })).toBe("plans to attack Dr. Sattler");
   });
   it("PLAYERS_CHOOSE keeps a settled target: the tie is on the route to it, not on the target", () => {
     expect(enemyIntentLine(v, { fighter: "e1/raptor", outcome: "PLAYERS_CHOOSE", target: "p1/hero", move: 2 })).toBe(
@@ -86,7 +104,7 @@ describe("adventureBoardModel enemy intents", () => {
   it("attaches one badge per living enemy dial in PLAY", () => {
     const m = adventureBoardModel(view("PLAY", intents))!;
     expect(m.enemies.map((e) => [e.id, e.intent])).toEqual([
-      ["e1/raptor", "plans to move toward Dr. Sattler"],
+      ["e1/raptor", "plans to move to Dr. Sattler and attack"],
       ["e2/dilo", "no target"],
     ]);
   });

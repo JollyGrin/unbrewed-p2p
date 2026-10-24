@@ -7430,6 +7430,7 @@ const LiveGame = ({
   const dockEl = (
     <ProDock
       view={view}
+      formatId={roomInfo?.formatId}
       myTurn={myTurn}
       activeTurnLabel={activeTurnLabel}
       disconnectedLabel={disconnectedLabel}

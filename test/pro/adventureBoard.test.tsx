@@ -1230,7 +1230,7 @@ describe("AdventureBoard enemy intent badge", () => {
       ]),
     );
     expect(screen.getByTestId("adv-villain")).toContainElement(screen.getByTestId("adv-enemy-intent-e1/rex"));
-    expect(screen.getByTestId("adv-enemy-intent-e1/rex")).toHaveTextContent("NEXT plans to move toward Hero");
+    expect(screen.getByTestId("adv-enemy-intent-e1/rex")).toHaveTextContent("NEXT plans to move to Hero and attack");
     expect(screen.getByTestId("adv-enemy-e2/dilo")).toContainElement(screen.getByTestId("adv-enemy-intent-e2/dilo"));
     expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).toHaveTextContent("NEXT no target");
     // the consequence is not on the wire: never asserted
@@ -1255,9 +1255,10 @@ describe("AdventureBoard enemy intent badge", () => {
     expect(screen.queryByTestId(/^adv-enemy-intent-/)).toBeNull();
   });
 
-  it("names a not-yet-placed target by its raw id rather than throwing (placement prompt)", () => {
+  it("names a not-yet-placed target as a hero, never its raw id (placement prompt, #1473)", () => {
     mount("adventure", withIntents("PLAY", [{ fighter: "e2/dilo", outcome: "MOVE_THEN_ATTACK", target: "e9/spawn", move: 2 }]));
-    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).toHaveTextContent("plans to move toward e9/spawn");
+    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).toHaveTextContent("plans to move to a hero and attack");
+    expect(screen.getByTestId("adv-enemy-intent-e2/dilo")).not.toHaveTextContent("e9/spawn");
   });
 
   it("is hidden in SETUP and when the view carries no preview (byte-identical dials)", () => {

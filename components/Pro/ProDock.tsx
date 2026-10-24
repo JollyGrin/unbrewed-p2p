@@ -35,6 +35,7 @@ import { tokenInitials } from "./FighterTokenPortrait";
 import { DockRow } from "@/lib/pro/actionDock";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
 import { UndoButton } from "@/components/Pro/UndoButton";
+import { formatSupportsUndo } from "@/lib/pro/formatUndo";
 import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
 import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
@@ -274,6 +275,12 @@ export interface ProDockProps {
   undoPending: boolean;
   onUndo: () => void;
   /**
+   * The room's format id (`roomInfo.formatId`), for the Undo registry (#1473): a format that
+   * can never offer undo (ffa-3, team-2v2) renders no Undo control at all. Absent = decided
+   * from the view (two seats, or a scenario game).
+   */
+  formatId?: string | null;
+  /**
    * Render one of the mobile shells instead of the floating desktop dock
    * (issue #708, direction B). Same rows, same panels, same rule that a
    * decision the engine is waiting on can never be tucked out of sight — what
@@ -367,6 +374,7 @@ export const ProDock = ({
   postGame = NO_POST_GAME_CONTEXT,
   undoPending,
   onUndo,
+  formatId,
   mobile = false,
   mobileHandOpen = false,
   mobileSheetRef,
@@ -815,8 +823,10 @@ export const ProDock = ({
   // Undo (issue #154, #1407): always on screen while the game is live — greyed
   // with a reason when nothing is eligible — so a misclick's way out is never
   // hunting for a button that appears and disappears. Spectators/forfeited
-  // seats have nothing to undo, so they never see it.
-  const undoLive = view.phase === "PLAY" && !view.winner && !iAmSpectating && !iForfeited;
+  // seats have nothing to undo, so they never see it. A format whose engine rule can never
+  // allow an undo (ffa-3 / team-2v2, #1473) renders no control rather than a permanent grey one.
+  const undoLive =
+    view.phase === "PLAY" && !view.winner && !iAmSpectating && !iForfeited && formatSupportsUndo(formatId, view);
   const undoEl = undoLive ? (
     <UndoButton canUndo={!!view.canUndo} pending={undoPending} onUndo={onUndo} />
   ) : null;

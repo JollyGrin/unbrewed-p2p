@@ -4,6 +4,7 @@
  * agnostic: roles come from the fighter's kind, never from an enemy id or scenario copy.
  */
 import type { FighterId, PlayerView, ViewFighter } from "./protocol";
+import { fighterLabel, seatLabelOf } from "./seatLabel";
 
 /** The fighter the open prompt is about, or null when the prompt carries no (known) subject. */
 export const promptSubjectFighter = (view: PlayerView): ViewFighter | null => {
@@ -17,9 +18,10 @@ export const promptSubjectId = (view: PlayerView): FighterId | null =>
 const roleWord = (f: ViewFighter): string | null =>
   f.enemy ? (f.enemy.role === "VILLAIN" ? "villain" : "minion") : f.kind === "HERO" ? "hero" : null;
 
-const withRole = (f: ViewFighter) => {
+const withRole = (view: PlayerView, f: ViewFighter) => {
   const r = roleWord(f);
-  return r ? `${f.name} (${r})` : f.name;
+  const name = fighterLabel(view, f);
+  return r ? `${name} (${r})` : name;
 };
 
 /**
@@ -37,21 +39,25 @@ export const promptSubjectLine = (view: PlayerView, text: string | null): string
     view.fighters.find((f) => f.owner === p.player && f.kind === "HERO") ??
     view.fighters.find((f) => f.owner === p.player);
   // A TEAM prompt is the enemy deciding (the subject); otherwise the choosing seat acts.
+  // Never a raw seat id (#1473): a seat with no claimed name and no fighter reads as the
+  // nameplate label ("Opponent" / "P3").
   const actor = team
-    ? withRole(subject)
+    ? withRole(view, subject)
     : p.player === view.you
       ? "You"
-      : (chooser?.displayName?.trim() || (seatFighter ? withRole(seatFighter) : p.player));
+      : (chooser?.displayName?.trim() || (seatFighter ? withRole(view, seatFighter) : seatLabelOf(view, p.player)));
+  const subjectName = fighterLabel(view, subject);
   const what = text?.trim();
-  if (!what) return `${actor} — choose for ${subject.name}`;
+  if (!what) return `${actor} — choose for ${subjectName}`;
   const named = promptSubjectText(view, what);
   // The enemy named as actor is already the subject of its own decision.
   const alreadyNamed = what.toLowerCase().includes(subject.name.toLowerCase());
-  return team || alreadyNamed || named !== what ? `${actor} — ${named}` : `${actor} — ${what} (${subject.name})`;
+  return team || alreadyNamed || named !== what ? `${actor} — ${named}` : `${actor} — ${what} (${subjectName})`;
 };
 
-/** `text` with the generic "the fighter" replaced by the subject's name; unchanged otherwise. */
+/** `text` with the generic "the fighter" replaced by the subject's name (seat-tagged when a second
+ *  copy of that hero is at the table); unchanged otherwise. */
 export const promptSubjectText = (view: PlayerView, text: string): string => {
   const subject = promptSubjectFighter(view);
-  return subject && /\bthe fighter\b/i.test(text) ? text.replace(/\bthe fighter\b/i, subject.name) : text;
+  return subject && /\bthe fighter\b/i.test(text) ? text.replace(/\bthe fighter\b/i, fighterLabel(view, subject)) : text;
 };
