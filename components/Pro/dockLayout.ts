@@ -56,12 +56,15 @@ export const ADVENTURE_BOARD_TOP_PHONE = "5.8rem";
 export const ADVENTURE_BOARD_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_BOARD_TOP_PHONE} - ${HAND_FAN_RESERVE_REM}rem)`;
 
 /**
- * #1405: the board-side band (initiative strip + threat track) floats above the map: desktop
- * under the HUD band (DOCK_TOP), left of the Adventure column; phone full width under the chip
- * row, with the column pushed below it (ADVENTURE_COLUMN_TOP_PHONE).
+ * #1405: the board-side band (initiative strip + threat track; the Keen Hearing panel beside or,
+ * wrapped, under them, p2p #1456/#1462) floats above the map: desktop under the HUD band
+ * (DOCK_TOP), left of the Adventure column; phone full width under the chip row. The phone
+ * column starts at ADVENTURE_COLUMN_TOP_PHONE, which clears the strip + track (~116px) but NOT
+ * a wrapped panel: with one the band reaches ~245px (up to ~272px) and the drawer toggle
+ * deliberately sits over its second row, in the 6.5rem lane the panel leaves free.
  */
 export const ADVENTURE_BAND_TOP = DOCK_TOP;
 export const ADVENTURE_BAND_TOP_PHONE = ADVENTURE_BOARD_TOP_PHONE;
-/** 5.8rem (ADVENTURE_BOARD_TOP_PHONE) + the 8rem band + 0.4rem gap, one literal so the cap stays a flat calc. */
+/** 5.8rem (ADVENTURE_BOARD_TOP_PHONE) + 8rem for the strip + track + 0.4rem gap, one literal so the cap stays a flat calc. */
 export const ADVENTURE_COLUMN_TOP_PHONE = "14.2rem";
 export const ADVENTURE_COLUMN_MAX_HEIGHT_PHONE = `calc(100vh - ${ADVENTURE_COLUMN_TOP_PHONE} - ${HAND_FAN_RESERVE_REM}rem)`;

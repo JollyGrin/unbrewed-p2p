@@ -6,8 +6,9 @@
  *
  * Fixed at the top-left under the HUD by default. A format that reserves its own chrome
  * strip above the board (Adventure's band, `formatOwnsRevealedHand`) renders it `inline`
- * inside that strip instead — the board is fitted under the measured strip — so it can never
- * cover a printed board space or the dock.
+ * inside that strip instead — the board's initial fit and "reset view" start under the
+ * measured strip, so neither ever covers a printed board space or the dock (a view the player
+ * has already panned or zoomed keeps its transform and re-fits on reset).
  */
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { ChevronDownIcon, ChevronRightIcon } from "@chakra-ui/icons";
