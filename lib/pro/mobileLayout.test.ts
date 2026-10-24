@@ -1,15 +1,16 @@
 /**
  * Board-fit geometry + the breakpoint policy behind it (issue #708).
  *
- * The two things worth pinning: desktop's inset is EXACTLY the constants the
- * page has always used (the guardrail on this ticket is that >= 62em does not
- * move a pixel), and the mobile insets follow the chrome that is actually on
+ * The two things worth pinning: desktop's inset is EXACTLY its fixed constants
+ * (#708's guardrail was that >= 62em does not move a pixel; #1479 raised the
+ * bottom one to the hand fan's real height), and the mobile insets follow the chrome that is actually on
  * screen rather than a guess.
  */
 import {
   ADVENTURE_BAND_FIT,
   ADVENTURE_OVERLAY_INSET,
   CHIP_NAME_MAX,
+  DESKTOP_HAND_FAN_H,
   DESKTOP_INSET,
   MOBILE_CHIPS_H,
   MOBILE_CONTROLS_H,
@@ -23,13 +24,19 @@ import {
 import { proLayoutMode } from "./useProLayout";
 
 describe("boardFitInsetFor", () => {
-  it("hands desktop the untouched 120/136/16 + dock column", () => {
+  it("hands desktop the fixed 120 / hand fan / 16 + dock column", () => {
     expect(boardFitInsetFor({ mode: "desktop" })).toEqual({
       top: DESKTOP_INSET.top,
       bottom: DESKTOP_INSET.bottom,
       left: DESKTOP_INSET.side,
       right: DESKTOP_INSET.dockColumn,
     });
+  });
+
+  it("keeps the whole desktop hand fan clear of the board, not just a card's width (p2p #1479)", () => {
+    // 8.5rem card at 63:88 + 0.5rem row padding - 0.75rem the dock hangs below the viewport
+    expect(DESKTOP_HAND_FAN_H).toBe(186);
+    expect(DESKTOP_INSET.bottom).toBe(DESKTOP_HAND_FAN_H);
   });
 
   it("ignores measured mobile chrome while the layout is desktop", () => {
