@@ -2418,6 +2418,12 @@ export interface ReplayExpansion {
   // Echo of the bundle's own version block, so a viewer can say WHICH engine the
   // game was recorded on next to the one that replayed it (`engine`, above).
   recordedEngine?: { schemaVersion: number; dslVersion: string };
+  // Engine #908: set only when the latest engine could not reproduce the bundle and
+  // a frozen earlier engine build did (every per-turn digest matched), e.g.
+  // "legacy-epoch-1". Then verification === "digest-verified", the frames are full,
+  // and `engine` names the ARCHIVED build. ABSENT = served by this server's engine.
+  // Additive and optional: no PROTOCOL_VERSION bump; viewers may ignore it.
+  servedBy?: string;
 }
 
 export type ReplayErrorCode =
