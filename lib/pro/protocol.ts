@@ -2110,15 +2110,18 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; ticket?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; ticket?: string; analyticsId?: string }
   // `ticket` (v37, engine #755): a signed tournament join ticket — opaque to the client.
   // See the v37 header note.
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; ticket?: string }
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; ticket?: string; analyticsId?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
-  | { v: number; type: "RECONNECT"; roomId: string; token: string }
+  | { v: number; type: "RECONNECT"; roomId: string; token: string; analyticsId?: string }
+  // `analyticsId` (p2p #1438 / engine #894): optional anonymous analytics id on every
+  // seat-binding message (CREATE/JOIN/RECONNECT/RESUME_ROOM); client-ahead until the
+  // engine's version bump lands.
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
   // encrypted blob the server last pushed via RESUME_TOKEN (client localStorage).
-  | { v: number; type: "RESUME_ROOM"; token: string }
+  | { v: number; type: "RESUME_ROOM"; token: string; analyticsId?: string }
   // v11: pro undo. UNDO_REQUEST asks to undo your OWN last discrete move; the server
   // pushes UNDO_REQUESTED to the opponent. UNDO_RESPONSE carries the opponent's
   // accept/reject. Neither is an `Action` — undo never enters the replay log.
