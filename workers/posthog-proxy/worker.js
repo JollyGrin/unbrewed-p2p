@@ -24,6 +24,9 @@ export default {
     const headers = new Headers(request.headers);
     headers.set("Host", url.hostname);
     headers.delete("cookie");
+    // Forward the visitor IP so PostHog geolocates them, not Cloudflare.
+    const ip = request.headers.get("CF-Connecting-IP");
+    if (ip) headers.set("X-Forwarded-For", ip);
     const upstream = await fetch(new Request(url.toString(), { method: request.method, headers, body: request.body }));
     const out = new Response(upstream.body, upstream);
     for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);

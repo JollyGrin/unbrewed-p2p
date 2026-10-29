@@ -16,7 +16,7 @@ Replaces counter.dev (which stays until the ~2-week comparison ends). Game/balan
 | `NEXT_PUBLIC_POSTHOG_HOST` | Proxy origin, e.g. `https://t.unbrewed.xyz`. Defaults to `https://eu.i.posthog.com`. |
 
 Analytics are off in dev and test (`NODE_ENV !== "production"`), on `/dev/*` and `/debug`, and whenever the key is unset.
-Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`).
+Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, loaded by dynamic `import()` only once analytics starts, so nothing downloads when it is off/declined). The notice and first start are skipped on in-game routes (`/pro/game`, `/game`, `/irl`, `/offline`, `/table`): a new visitor starts on the first normal route. The account probe for identify mounts only when analytics is available.
 
 ## Privacy model
 - No cookie; anonymous id in localStorage. Notice (`AnalyticsNotice`) renders first, capture starts after it
@@ -29,7 +29,7 @@ Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`).
 
 ## Proxy (Cloudflare Worker, `workers/posthog-proxy`)
 GitHub Pages cannot proxy, so a Worker on `t.unbrewed.xyz` forwards to `eu.i.posthog.com` (and `/static/*` to
-`eu-assets.i.posthog.com`), strips cookies, answers CORS for unbrewed.xyz. Deploy: `cd workers/posthog-proxy && npx wrangler deploy`,
+`eu-assets.i.posthog.com`), strips cookies, forwards the visitor IP as `X-Forwarded-For` (from `CF-Connecting-IP`), answers CORS for unbrewed.xyz. Deploy: `cd workers/posthog-proxy && npx wrangler deploy`,
 then set `NEXT_PUBLIC_POSTHOG_HOST=https://t.unbrewed.xyz` in the build env. Also set the PostHog billing limit.
 
 ## Wire: `analyticsId`

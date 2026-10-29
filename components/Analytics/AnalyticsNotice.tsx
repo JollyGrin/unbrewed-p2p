@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import { acknowledgeNotice, declineAnalytics, shouldShowNotice, startAnalytics } from "@/lib/analytics";
+import { acknowledgeNotice, declineAnalytics, isGameRoute, shouldShowNotice, startAnalytics } from "@/lib/analytics";
 
 /**
  * One-line, dismissible analytics notice. Capturing starts from the effect
@@ -11,16 +12,23 @@ import { acknowledgeNotice, declineAnalytics, shouldShowNotice, startAnalytics }
  */
 export const AnalyticsNotice = () => {
   const [show, setShow] = useState(false);
+  const { pathname } = useRouter();
 
   useEffect(() => {
     if (shouldShowNotice()) {
+      // In-game routes never show the notice, so a new visitor is not started
+      // there either; they start on the first normal route.
+      if (isGameRoute(pathname)) {
+        setShow(false);
+        return;
+      }
       setShow(true);
       // Notice is now in the tree; start once it has had a frame to render.
       const raf = requestAnimationFrame(acknowledgeNotice);
       return () => cancelAnimationFrame(raf);
     }
     startAnalytics();
-  }, []);
+  }, [pathname]);
 
   if (!show) return null;
   return (
