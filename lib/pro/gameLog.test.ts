@@ -2246,3 +2246,75 @@ describe("range purchases in the activity feed", () => {
     expect(lines.map((l) => l.text)).toContain("spent 2 RAGE (1 remaining)");
   });
 });
+
+// Cloud Strife P0 (unbrewed-p2p-1488): Omnislash counter wording, HOLY_PLAYED silence,
+// the optional `aura` value term, and the ACTION_SPENT 'PLACE' literal.
+describe("Cloud Strife log lines", () => {
+  const cc = (name: string, value: number): GameEvent => ({ type: "COUNTER_CHANGED", player: "p1", name, value });
+  const whoOf = (p: PlayerId): "you" | "opp" => (p === "p1" ? "you" : "opp");
+
+  it("words OMNI_ACTIONS gains and spends as Omnislash actions", () => {
+    expect(counterChangeLines([cc("OMNI_ACTIONS", 3)], () => 0, whoOf)).toEqual([
+      { text: "gained 3 Omnislash actions", who: "you" },
+    ]);
+    expect(counterChangeLines([cc("OMNI_ACTIONS", 2)], () => 3, whoOf)).toEqual([
+      { text: "spent 1 Omnislash action (2 left)", who: "you" },
+    ]);
+    expect(counterChangeLines([cc("OMNI_ACTIONS", 0)], () => 1, whoOf)[0].text).toBe(
+      "spent 1 Omnislash action (0 left)"
+    );
+  });
+
+  it("leaves other counters on the raw-key wording", () => {
+    expect(counterChangeLines([cc("RAGE", 2)], () => 1, whoOf)[0].text).toBe("gained 1 RAGE (2 total)");
+  });
+
+  it("silences HOLY_PLAYED", () => {
+    expect(counterChangeLines([cc("HOLY_PLAYED", 1)], () => 0, whoOf)).toEqual([]);
+  });
+
+  const side = (over: Partial<ValueBreakdown> = {}): ValueBreakdown => ({
+    role: "DEFENSE", card: "a/feint#1", printed: 2, override: null, delta: 0,
+    boosts: 0, abilityBoosts: 0, locked: false, total: 2, ...over,
+  });
+  const breakdown = (defense: ValueBreakdown): GameEvent => ({
+    type: "COMBAT_VALUE_BREAKDOWN",
+    attack: side({ role: "ATTACK", card: "a/gromnir#1", printed: 6, total: 6 }),
+    defense: [defense],
+    effectiveAttack: 6,
+    effectiveDefense: defense.total,
+    ignoreDefense: false,
+  });
+
+  it("itemises a non-zero aura term in the breakdown line", () => {
+    const [line] = enrichLines([], [breakdown(side({ aura: 1, total: 3 }))], ctx());
+    expect(line.text).toBe("Attack: 6 (gromnir) = 6 · Defense: 2 (feint) + 1 (aura) = 3");
+  });
+
+  it("is byte-identical when aura is absent or 0", () => {
+    const absent = enrichLines([], [breakdown(side())], ctx())[0].text;
+    expect(absent).toBe("Attack: 6 (gromnir) = 6 · Defense: 2 (feint) = 2");
+    expect(enrichLines([], [breakdown(side({ aura: 0 }))], ctx())[0].text).toBe(absent);
+  });
+
+  it("narrates ACTION_SPENT PLACE as '<seat> placed <fighter>' instead of 'moved'", () => {
+    const placed: GameEvent[] = [{ type: "ACTION_SPENT", player: "p1", action: "PLACE" }];
+    const before = view({});
+    const after = view({
+      fighters: [fighter({ space: "s9" }), fighter({ id: "p2/hero", owner: "p2", name: "Thrall", space: "s2" })],
+    });
+    const lines = diffViews(before, after, label, placed);
+    expect(lines).toContainEqual({ text: "You placed King Taranis", who: "you" });
+    expect(lines.some((l) => /moved$/.test(l.text))).toBe(false);
+    expect(batchPhase(placed)).toBe("Place");
+  });
+
+  it("never crashes on an ACTION_SPENT literal this client does not know", () => {
+    const future = [{ type: "ACTION_SPENT", player: "p2", action: "TELEPORT" }] as unknown as GameEvent[];
+    expect(batchPhase(future)).toBeUndefined();
+    expect(actionFallbackLine(future, "p1", (p) => (p === "p1" ? "You" : "Opponent"))).toEqual({
+      text: "Opponent acted",
+      who: "opp",
+    });
+  });
+});

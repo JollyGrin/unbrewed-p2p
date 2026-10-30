@@ -305,6 +305,32 @@ describe("HERO_STATE_COUNTERS registry", () => {
   });
 });
 
+describe("Cloud Strife counters (OMNI_ACTIONS / HOLY_PLAYED)", () => {
+  it("OMNI_ACTIONS renders the nameplate pill and the token badge from one row", () => {
+    const chips = counterChipsFor("cloud-strife", { OMNI_ACTIONS: 3 });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip.onLabel).toBe("OMNISLASH: 3");
+    expect(chips[0].chip.flag).toBe("counter:OMNI_ACTIONS");
+    const row = HERO_STATE_COUNTERS.find((e) => e.counter === "OMNI_ACTIONS");
+    expect(row?.token).toMatchObject({ title: "OMNISLASH ACTIONS" });
+    expect(fighterTokenCounterBadgeFor("cloud-strife", { OMNI_ACTIONS: 3 })).toMatchObject({ label: "3" });
+  });
+
+  it("hides at 0 / absent and for other heroes", () => {
+    expect(counterChipsFor("cloud-strife", { OMNI_ACTIONS: 0 })).toEqual([]);
+    expect(counterChipsFor("cloud-strife", {})).toEqual([]);
+    expect(counterChipsFor("king-kong", { OMNI_ACTIONS: 3 })).toEqual([]);
+  });
+
+  it("HOLY_PLAYED is a nameplate-only pill shown at 1, with no token badge", () => {
+    const chips = counterChipsFor("cloud-strife", { HOLY_PLAYED: 1 });
+    expect(chips.map((c) => c.chip.onLabel)).toEqual(["HOLY — BACK IN DECK"]);
+    expect(counterChipsFor("cloud-strife", { HOLY_PLAYED: 0 })).toEqual([]);
+    expect(HERO_STATE_COUNTERS.find((e) => e.counter === "HOLY_PLAYED")?.token).toBeUndefined();
+    expect(fighterTokenCounterBadgeFor("cloud-strife", { HOLY_PLAYED: 1 })).toBeNull();
+  });
+});
+
 describe("counterChipsFor (HUD nameplate)", () => {
   it("shows a CLUES pill with the live value when Nancy has clues", () => {
     const chips = counterChipsFor("nancy-drew", { CLUE: 3 });

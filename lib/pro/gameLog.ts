@@ -40,22 +40,24 @@ export interface ProLogLine {
  * for batches with no player action (setup, forced end-of-turn, prompt
  * resolutions), which render as a neutral (unlabeled) group.
  */
-export type ProLogPhase = "Maneuver" | "Scheme" | "Attack" | "Scheme Item";
+export type ProLogPhase = "Maneuver" | "Scheme" | "Attack" | "Scheme Item" | "Place";
 
-const ACTION_PHASE: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", ProLogPhase> = {
+const ACTION_PHASE: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" | "PLACE", ProLogPhase> = {
   MANEUVER: "Maneuver",
   SCHEME: "Scheme",
   ATTACK: "Attack",
   SCHEME_ITEM: "Scheme Item",
+  PLACE: "Place",
 };
 
 /** Past-tense verb per action, for the minimal fallback line (see
  *  `actionFallbackLine`). */
-const ACTION_VERB: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", string> = {
+const ACTION_VERB: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" | "PLACE", string> = {
   MANEUVER: "maneuvered",
   SCHEME: "schemed",
   ATTACK: "attacked",
   SCHEME_ITEM: "used a scheme item",
+  PLACE: "placed a fighter",
 };
 
 /**
@@ -65,6 +67,7 @@ const ACTION_VERB: Record<"MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM", stri
  */
 export function batchPhase(events: GameEvent[]): ProLogPhase | undefined {
   const spent = events.find((e) => e.type === "ACTION_SPENT");
+  // An action literal a newer engine adds is unknown here: no label, never a crash.
   return spent && spent.type === "ACTION_SPENT" ? ACTION_PHASE[spent.action] : undefined;
 }
 
@@ -87,7 +90,7 @@ export function actionFallbackLine(
   const spent = events.find((e) => e.type === "ACTION_SPENT");
   if (!spent || spent.type !== "ACTION_SPENT") return undefined;
   return {
-    text: `${seat(spent.player)} ${ACTION_VERB[spent.action]}`,
+    text: `${seat(spent.player)} ${ACTION_VERB[spent.action] ?? "acted"}`,
     who: spent.player === you ? "you" : "opp",
   };
 }
@@ -313,7 +316,24 @@ const COUNTER_KEY_SEP = "\u001f";
  * effect the face-up ongoing scheme already shows on the board. None is printed on
  * a card or ever spendable, and none has a heroStateFlags.ts row, by decision.
  */
-const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER, "MAD", "COS", "ITS_ALIVE"]);
+const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([
+  MITIGATION_COUNTER,
+  "MAD",
+  "COS",
+  "ITS_ALIVE",
+  // Cloud Strife's Holy "already shuffled back once" ledger (0/1): the shuffle itself
+  // is narrated by CARD_SHUFFLED_INTO_DECK and the plate pill, so the counter flip is noise.
+  "HOLY_PLAYED",
+]);
+
+/**
+ * Player-facing nouns for counters whose raw engine key reads badly in the feed.
+ * Only `OMNI_ACTIONS` today (Cloud Strife's Omnislash pool): "gained 3 Omnislash
+ * actions" / "spent 1 Omnislash action (2 left)". Absent key ⇒ the raw-key lines.
+ */
+const COUNTER_NOUNS: Readonly<Record<string, { one: string; many: string }>> = {
+  OMNI_ACTIONS: { one: "Omnislash action", many: "Omnislash actions" },
+};
 
 export function counterChangeLines(
   events: GameEvent[],
@@ -339,9 +359,15 @@ export function counterChangeLines(
     const delta = e.value - prior;
     if (delta === 0) continue;
     const bespoke = delta < 0 ? (spendText?.(e.player, e.name, -delta) ?? null) : null;
+    const noun = COUNTER_NOUNS[e.name];
+    const nounFor = (n: number) => (noun ? (n === 1 ? noun.one : noun.many) : e.name);
     const text =
       bespoke ??
-      (delta > 0
+      (noun
+        ? delta > 0
+          ? `gained ${delta} ${nounFor(delta)}`
+          : `spent ${-delta} ${nounFor(-delta)} (${e.value} left)`
+        : delta > 0
         ? `gained ${delta} ${e.name} (${e.value} total)`
         : e.value === 0
           ? `lost all ${e.name} (was ${prior})`
@@ -445,14 +471,25 @@ export function diffViews(
   const relocated = new Set(
     (next.maneuver?.relocated ?? []).filter((id) => !relocatedBefore.has(id))
   );
+  // `ACTION_SPENT {action:'PLACE'}` (Cloud Strife's Omnislash placement): the fighter
+  // that changed space for the placing seat was placed, not walked. Narrated once.
+  const placer = events.find(
+    (e): e is Extract<GameEvent, { type: "ACTION_SPENT" }> =>
+      e.type === "ACTION_SPENT" && e.action === "PLACE"
+  )?.player;
+  let placeNarrated = false;
   for (const f of next.fighters) {
     const was = prevFighters.get(f.id);
     if (!was) continue;
     if (f.space !== was.space && f.space && was.space && !swapped.has(f.id)) {
+      const placed = placer !== undefined && f.owner === placer && !placeNarrated;
+      if (placed) placeNarrated = true;
       lines.push({
-        text: relocated.has(f.id)
-          ? `${f.name} started its maneuver from ${spaceLabel(f.space)}`
-          : `${f.name} moved`,
+        text: placed
+          ? `${seat(f.owner)} placed ${f.name}`
+          : relocated.has(f.id)
+            ? `${f.name} started its maneuver from ${spaceLabel(f.space)}`
+            : `${f.name} moved`,
         who: whoOf(f.owner),
       });
     }
@@ -696,7 +733,9 @@ function breakdownTerms(b: ValueBreakdown, label: (source: string) => string): s
   if (b.delta !== 0) parts.push(term(b.delta));
   if (b.boosts !== 0) parts.push(term(b.boosts, "boost"));
   if (b.abilityBoosts !== 0) parts.push(term(b.abilityBoosts, "ability boost"));
-  if (base + b.delta + b.boosts + b.abilityBoosts < 0 && b.total === 0) parts.push("(min 0)");
+  const aura = b.aura ?? 0; // absent on every deck without a static aura
+  if (aura !== 0) parts.push(term(aura, "aura"));
+  if (base + b.delta + b.boosts + b.abilityBoosts + aura < 0 && b.total === 0) parts.push("(min 0)");
   return parts.join(" ");
 }
 

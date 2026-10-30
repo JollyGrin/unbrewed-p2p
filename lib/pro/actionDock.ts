@@ -42,6 +42,14 @@ export interface DescribeCtx {
    *  picker is the ONLY way to answer a defense (#833 hides the hand peek), and
    *  two identical buttons there means one silently spends the item (#841). */
   attachItem?: AttachItem;
+  /** The batch offers `RELOCATE_FIGHTER` as a PLACEMENT (see `isPlaceRelocate`), so
+   *  the row reads "Place <fighter> on <space>" instead of "Start maneuver from". */
+  placeRelocate?: boolean;
+  /** Viewer's discard pile (`view.self.discard`) and hand: a `COMMIT_ATTACK_CARD`
+   *  naming a discard instance that is not in the hand reads "(from discard)"
+   *  (Cloud Strife's Omnislash replays its card from the discard). */
+  discard?: readonly CardInstanceId[];
+  hand?: readonly CardInstanceId[];
 }
 
 /** " + Sword (+2)" for an `attachItem: true` commit variant (#841), so it never
@@ -53,6 +61,26 @@ const attachSuffix = (a: { attachItem?: boolean }, ctx?: DescribeCtx): string =>
   const item = ctx?.attachItem;
   return item ? ` + ${item.label} (+${item.value})` : " + item";
 };
+
+/** " (from discard)" when the committed instance sits in the viewer's discard pile
+ *  and not in their hand — the engine offers it there only for a restricted replay
+ *  (Omnislash). A card present in both (stale view) is treated as a hand card. */
+const fromDiscardSuffix = (card: CardInstanceId, ctx?: DescribeCtx): string =>
+  ctx?.discard?.includes(card) && !ctx.hand?.includes(card) ? " (from discard)" : "";
+
+/**
+ * A `RELOCATE_FIGHTER` batch is a PLACEMENT (Cloud Strife's Omnislash "place Cloud")
+ * rather than a maneuver-origin relocation (engine #535) when it arrives outside
+ * MANEUVER_MOVE with no `MOVE_FIGHTER` sibling: the maneuver form always sits beside
+ * the fighter's moves. Presentation only — the rows are the server's offers.
+ */
+export const isPlaceRelocate = (
+  legalActions: readonly Action[],
+  turnPhase?: string | null
+): boolean =>
+  turnPhase !== "MANEUVER_MOVE" &&
+  legalActions.some((a) => a.type === "RELOCATE_FIGHTER") &&
+  !legalActions.some((a) => a.type === "MOVE_FIGHTER");
 
 /**
  * Presentational label for a server-offered action (sidebar list).
@@ -88,6 +116,10 @@ export const describeAction = (
     case "MOVE_FIGHTER":
       return `Move ${a.fighter.split("/")[1]}`;
     case "RELOCATE_FIGHTER":
+      if (ctx?.placeRelocate) {
+        const who = ctx.nameOf ? ctx.nameOf(a.fighter) : a.fighter.split("/")[1];
+        return `Place ${who} on ${spaceLabel(a.space)}`;
+      }
       // Never a dock row (NON_DOCK_ACTION_TYPES — it's a board affordance like the
       // move), but the activity log and tooltips read this (engine #535).
       return `Start maneuver from ${spaceLabel(a.space)}`;
@@ -121,7 +153,7 @@ export const describeAction = (
       // the only thing that says why the opponent is about to see it. Set off with a
       // MIDDOT, not a second bracket: `cardLabel` already ends in "(5/1)", and
       // "(5/1) (face up)" reads as two halves of one stat block.
-      return `Commit ${cardLabel(catalog, a.card)}${attachSuffix(a, ctx)}${a.faceUp ? " · face up" : ""}`;
+      return `Commit ${cardLabel(catalog, a.card)}${attachSuffix(a, ctx)}${a.faceUp ? " · face up" : ""}${fromDiscardSuffix(a.card, ctx)}`;
     case "COMMIT_DEFENSE_CARD":
       return `Defend with ${cardLabel(catalog, a.card)}${attachSuffix(a, ctx)}`;
     case "DECLINE_DEFENSE":

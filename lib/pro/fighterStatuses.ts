@@ -149,6 +149,16 @@ export const FIGHTER_MARKER_BADGES: Record<string, FighterMarkerBadge> = {
     bg: "#1F5F7A",
     color: "#E3F4FB",
   },
+  // Cloud Strife's Omnislash target (gate0 §1 row 5): `markFighter OMNI_TARGET until
+  // TURN_END` on the opposing fighter the card named; Cloud's restricted PLACE lands
+  // adjacent to it. Rides `FIGHTER_MARKED` like MERIDIAN. P1 re-verifies the key.
+  OMNI_TARGET: {
+    icon: "⚔",
+    label: "Omnislash target",
+    titleTemplate: "Omnislash target — Cloud may place adjacent to this fighter (this turn)",
+    bg: "#1F3F73",
+    color: "#E6EEFB",
+  },
 };
 
 /**

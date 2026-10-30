@@ -91,7 +91,7 @@ type ReplayPrompt = {
   source?: { card?: CardInstanceId; hero?: string } | null;
 };
 
-type ReplayFrameForLog = { prompt?: ReplayPrompt | null };
+type ReplayFrameForLog = { prompt?: ReplayPrompt | null; turnPhase?: string | null };
 
 const shortId = (id: string) => id.split("/").pop()?.split("#")[0]?.replace(/-/g, " ") ?? id;
 const cardLabel = (card: CardInstanceId) => shortId(card);
@@ -119,6 +119,10 @@ const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): stri
       return `${action.player ?? "?"}: move ${fighterLabel(action.fighter ?? "fighter")}${to ? ` to ${spaceLabel(to)}` : ""}`;
     }
     case "RELOCATE_FIGHTER":
+      // Outside MANEUVER_MOVE it is a placement (Cloud Strife's Omnislash).
+      if (beforeStep?.turnPhase && beforeStep.turnPhase !== "MANEUVER_MOVE") {
+        return `${action.player ?? "?"}: place ${fighterLabel(action.fighter ?? "fighter")} at ${spaceLabel(action.space ?? "?")}`;
+      }
       // The chosen origin is the point of the ability (engine #535) — name it,
       // and word it as the maneuver-start it is rather than a move.
       return `${action.player ?? "?"}: start maneuver from ${spaceLabel(action.space ?? "?")}`;

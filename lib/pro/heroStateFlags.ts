@@ -598,6 +598,29 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "🦺 {n}", longLabelTemplate: "EQUIPPED: {n}" },
     token: { icon: "🦺", title: "EQUIPPED", bg: "#4A3B22", color: "#F0E9DA" },
   },
+  {
+    // Cloud Strife's Omnislash action pool (gate0 §1 row 5 / G2). Engine counter key is
+    // `OMNI_ACTIONS` — the restricted actions Omnislash grants (spendable ONLY on
+    // replaying Omnislash from the discard or placing Cloud), cleared at TURN_END. A
+    // PUBLIC counter, kept apart from `actionsRemaining` so the strip stays truthful.
+    // Token badge too: the pool is what the opponent must respect on their own turn.
+    // P1 re-verifies this key against the merged cloud-strife.rules.ts.
+    counter: "OMNI_ACTIONS",
+    heroes: ["cloud-strife"],
+    nameplate: { labelTemplate: "OMNISLASH: {n}" },
+    token: { icon: "⚔", title: "OMNISLASH ACTIONS", bg: "#1F3F73", color: "#E6EEFB" },
+  },
+  {
+    // Holy's "first time Aerith plays it, shuffle it back" ledger (gate0 §1 row 3):
+    // `HOLY_PLAYED` is a counter declared `max: 1`, so it only ever reads 0 or 1. The
+    // shuffle is otherwise silent, so the plate says why Holy is back in the deck.
+    // NAMEPLATE ONLY (no token badge, like SLAVE_I): it carries no board position.
+    // Hidden at 0, shown at 1 — the default `rendersAt` rule. Cosmetic: the engine
+    // need not emit it. P1 re-verifies this key.
+    counter: "HOLY_PLAYED",
+    heroes: ["cloud-strife"],
+    nameplate: { labelTemplate: "HOLY — BACK IN DECK" },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */

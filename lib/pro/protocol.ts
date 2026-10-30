@@ -1139,7 +1139,7 @@ export type GameEvent =
   | { type: "HERO_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "SIDEKICK_PLACED"; fighter: FighterId; space: SpaceId }
   | { type: "TURN_STARTED"; player: PlayerId; turnNumber: number }
-  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" }
+  | { type: "ACTION_SPENT"; player: PlayerId; action: "MANEUVER" | "SCHEME" | "ATTACK" | "SCHEME_ITEM" | "PLACE" }
   | { type: "CARD_DRAWN"; player: PlayerId; card: CardInstanceId }
   | { type: "EXHAUSTION_DAMAGE"; player: PlayerId }
   | { type: "DAMAGE_APPLIED"; fighter: FighterId; amount: number; source: "EXHAUSTION" | "EFFECT" | "ATTACK" }
@@ -1335,6 +1335,10 @@ export interface ValueBreakdown {
   delta: number;
   boosts: number;
   abilityBoosts: number;
+  /** Static defense aura (Cloud Strife → the fighter adjacent to him, engine gate0 G1).
+   *  OPTIONAL and absent when 0 — ADDITIVE, no PROTOCOL_VERSION change: every other
+   *  deck's message is byte-identical, and `total` already includes it. */
+  aura?: number;
   locked: boolean;
   total: number;
 }
