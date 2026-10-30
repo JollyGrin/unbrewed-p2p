@@ -1,4 +1,12 @@
-import { cardAffordances, describeAction, dockGroup, dockRows, NON_DOCK_ACTION_TYPES, soleAction } from "./actionDock";
+import {
+  cardAffordances,
+  describeAction,
+  dockGroup,
+  dockRows,
+  isPlaceRelocate,
+  NON_DOCK_ACTION_TYPES,
+  soleAction,
+} from "./actionDock";
 import { Action, CardMeta } from "./protocol";
 
 // A minimal catalog so cardLabel prints a real "title (value/boost)" string.
@@ -352,5 +360,52 @@ describe("actionDock — Malfurion shapeshift", () => {
     expect(nightElfShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Human", via: "MANEUVER" });
     expect(maneuverShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Bear", via: "MANEUVER" });
     expect(omenShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Moonkin", via: "OMEN" });
+  });
+});
+
+describe("actionDock — Cloud Strife: RELOCATE_FIGHTER as a placement", () => {
+  const place: Action = { type: "RELOCATE_FIGHTER", player: "p1", fighter: "p1/hero", space: "B2" };
+  const move: Action = { type: "MOVE_FIGHTER", player: "p1", fighter: "p1/hero", path: ["B2"] };
+
+  it("ACTION_SELECT batch with no MOVE_FIGHTER sibling is a placement", () => {
+    expect(isPlaceRelocate([place, { type: "MANEUVER", player: "p1" }], "ACTION_SELECT")).toBe(true);
+    expect(describeAction(catalog, place, { nameOf: () => "Cloud", placeRelocate: true })).toBe("Place Cloud on B2");
+  });
+
+  it("maneuver context (MOVE_FIGHTER sibling, or MANEUVER_MOVE) keeps the origin reading", () => {
+    expect(isPlaceRelocate([place, move], "ACTION_SELECT")).toBe(false);
+    expect(isPlaceRelocate([place], "MANEUVER_MOVE")).toBe(false);
+    expect(describeAction(catalog, place, { nameOf: () => "Cloud" })).toBe("Start maneuver from B2");
+    expect(describeAction(catalog, place)).toBe("Start maneuver from B2");
+  });
+
+  it("no RELOCATE_FIGHTER at all is never a placement", () => {
+    expect(isPlaceRelocate([{ type: "MANEUVER", player: "p1" }], "ACTION_SELECT")).toBe(false);
+  });
+});
+
+describe("actionDock — Cloud Strife: COMMIT_ATTACK_CARD from the discard", () => {
+  const omni = "cloud-strife/omnislash#1";
+  const cat: Record<string, CardMeta> = {
+    "cloud-strife/omnislash": { title: "Omnislash", type: "attack", value: 1, boost: 5 },
+  };
+  const commit: Action = { type: "COMMIT_ATTACK_CARD", player: "p1", card: omni };
+
+  it("suffixes '(from discard)' only when the card is in the discard and not the hand", () => {
+    expect(describeAction(cat, commit, { nameOf, discard: [omni], hand: [] })).toBe(
+      "Commit Omnislash (1/5) (from discard)"
+    );
+    expect(describeAction(cat, commit, { nameOf, discard: [omni], hand: [omni] })).toBe("Commit Omnislash (1/5)");
+    expect(describeAction(cat, commit, { nameOf, discard: [], hand: [omni] })).toBe("Commit Omnislash (1/5)");
+    expect(describeAction(cat, commit)).toBe("Commit Omnislash (1/5)");
+  });
+
+  it("a discard-only commit set is one dock row and no hand affordance", () => {
+    const legal: Action[] = [commit];
+    const rows = dockRows(legal.filter((a) => !NON_DOCK_ACTION_TYPES.includes(a.type)));
+    expect(rows).toHaveLength(1);
+    // Hand cards iterate the hand: with no hand rows there is nothing to attach to,
+    // and an unrelated hand card matches nothing (never throws).
+    expect(cardAffordances(legal, "cloud-strife/other#1")).toEqual([]);
   });
 });

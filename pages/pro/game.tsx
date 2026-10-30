@@ -141,6 +141,7 @@ import {
   cardTitle,
   describeAction,
   dockRows,
+  isPlaceRelocate,
   NON_DOCK_ACTION_TYPES,
   soleAction,
 } from "@/lib/pro/actionDock";
@@ -6209,9 +6210,19 @@ const LiveGame = ({
   // highlighted space maps back to the exact server-offered action so a click
   // sends it verbatim (incl. the enumerated MOVE_FIGHTER path).
   const spaceActions = new Map<SpaceId, Action[]>();
+  // An ACTION_SELECT-context RELOCATE_FIGHTER is a PLACEMENT (Omnislash "place
+  // Cloud"): it lights its spaces like PLACE_SIDEKICK. The maneuver-origin form
+  // stays behind the dock-armed dashed picks (deriveRelocateMode).
+  const relocateIsPlace = isPlaceRelocate(legalActions, view.turnPhase);
   for (const a of legalActions) {
     const dest =
-      a.type === "PLACE_SIDEKICK" ? a.space : a.type === "MOVE_FIGHTER" ? a.path[a.path.length - 1] : null;
+      a.type === "PLACE_SIDEKICK"
+        ? a.space
+        : a.type === "MOVE_FIGHTER"
+          ? a.path[a.path.length - 1]
+          : a.type === "RELOCATE_FIGHTER" && relocateIsPlace
+            ? a.space
+            : null;
     if (dest) spaceActions.set(dest, [...(spaceActions.get(dest) ?? []), a]);
   }
   const attackActions = new Map<FighterId, Action>();
@@ -7432,7 +7443,15 @@ const LiveGame = ({
       rows={dockActionRows}
       soleAction={sole}
       describe={(a) =>
-        describeAction(view.catalog, a, { nameOf, attackerBadge, itemForSpace: liveItemForSpace, attachItem: attachItemContext })
+        describeAction(view.catalog, a, {
+          nameOf,
+          attackerBadge,
+          itemForSpace: liveItemForSpace,
+          attachItem: attachItemContext,
+          placeRelocate: relocateIsPlace,
+          discard: view.self.discard,
+          hand: view.self.hand,
+        })
       }
       isExtendedReach={isExtendedReach}
       rangePurchaseChip={rangePurchaseChip}

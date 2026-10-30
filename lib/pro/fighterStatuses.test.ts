@@ -54,6 +54,16 @@ describe("MARKED / UNCHAINED (Superman 5zMj)", () => {
   });
 });
 
+describe("MARKED / OMNI_TARGET (Cloud Strife Omnislash)", () => {
+  it("has a known marker badge on the marked enemy, not the generic fallback", () => {
+    expect(FIGHTER_MARKER_BADGES.OMNI_TARGET.label).toBe("Omnislash target");
+    const [b] = fighterStatusBadgesFor(
+      fighter({ owner: "p2", statuses: [{ kind: "MARKED", name: "OMNI_TARGET", count: 1 }] })
+    );
+    expect(b).toMatchObject({ key: "MARKED:OMNI_TARGET", label: "Omnislash target", icon: "⚔" });
+  });
+});
+
 describe("MARKED / MERIDIAN (issue #596 ↔ engine #360, protocol v29)", () => {
   it("keys the mark by NAME, not kind — 'MARKED' says only 'a durable marker'", () => {
     // The engine emits { kind: 'MARKED', name: 'MERIDIAN', count } (verified against
