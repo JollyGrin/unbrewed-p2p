@@ -1,0 +1,6 @@
+name = "unbrewed-posthog-proxy"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Dean deploys: `npx wrangler deploy`, then attach the custom domain t.unbrewed.xyz.
+routes = [{ pattern = "t.unbrewed.xyz", custom_domain = true }]
