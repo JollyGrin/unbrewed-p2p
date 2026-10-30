@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { useAccount } from "@/lib/account/useAccount";
 import { analyticsAvailable, identifyAccount, resetIdentity, trackPageview } from "@/lib/analytics";
 
-/** Ties the anonymous id to the Discord account. Mounted only when analytics is on. */
+/** Ties the anonymous id to the Unbrewed account id (/me `account.id`). Mounted only when analytics is on. */
 const AnalyticsIdentity = () => {
   const { status, account } = useAccount();
   const identified = useRef(false);

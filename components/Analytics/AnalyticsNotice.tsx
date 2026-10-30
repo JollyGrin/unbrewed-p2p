@@ -27,10 +27,13 @@ export const AnalyticsNotice = () => {
       const raf = requestAnimationFrame(acknowledgeNotice);
       return () => cancelAnimationFrame(raf);
     }
+    // Already seen/declined (or analytics unavailable): never (re-)show.
+    setShow(false);
     startAnalytics();
   }, [pathname]);
 
-  if (!show) return null;
+  // Render guard, independent of effect ordering: never over the game UI.
+  if (!show || isGameRoute(pathname)) return null;
   return (
     <Flex
       role="region"

@@ -4,7 +4,7 @@ Replaces counter.dev (which stays until the ~2-week comparison ends). Game/balan
 `unbrewed-telemetry`; PostHog answers product questions only.
 
 ## Status
-- **Phase A (this PR):** SDK, `lib/analytics.ts`, notice + `/privacy`, identify on login, `$pageview`/`$pageleave`,
+- **Phase A (this PR):** SDK, `lib/analytics.ts`, notice + `/privacy`, identify on login, `$pageview`,
   release super-properties, proxy Worker, `analyticsId` on the wire.
 - **Phase B (after A merges):** event call sites for sections 2, 3 (client modes), 4 (client), 6 below.
 - **Engine:** `JollyGrin/unbrewed-engine#894` (`posthog-node`, pro game events).
@@ -22,8 +22,9 @@ Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, l
 - No cookie; anonymous id in localStorage. Notice (`AnalyticsNotice`) renders first, capture starts after it
   has painted; `Decline` persists and calls `opt_out_capturing`. `/privacy` explains and lets users flip it.
 - `person_profiles: "identified_only"`, autocapture off, session replay off.
-- On sign-in (`useAccount` → signed-in) `posthog.identify(discordId)` merges the anonymous history; sign-out resets.
+- On sign-in (`useAccount` → signed-in) `posthog.identify(account.id)` — the Unbrewed account uuid from `/me`, not the Discord snowflake — merges the anonymous history; sign-out resets.
   The privacy blurb says this.
+- `capture_pageleave` is off (it doubles volume against the 1M/month free tier). Exception autocapture, web vitals, performance, heatmaps, dead clicks, surveys and replay are pinned off.
 - Super-properties on every event: `app_commit`, `app_version`.
 - No PII: no typed deck names, chat text or e-mails in properties.
 
@@ -40,7 +41,7 @@ protocol version bump is owned by engine #894; the client constant is not bumped
 ## Taxonomy
 Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table` (`/table`), `irl` (`/irl`, `/offline`), `pro` (`/pro/game`).
 
-1. **Growth:** `$pageview`/`$pageleave` (automatic, referrer/UTM), `landing_cta_clicked`, `share_link_opened`,
+1. **Growth:** `$pageview` (referrer/UTM), `landing_cta_clicked`, `share_link_opened`,
    `invite_link_copied`, `join_link_opened`, `login_started`, `login_completed` (+ `$identify`), `pwa_installed`, `app_first_open`.
 2. **Decks:** `deck_added` {source, deck_id, hero_name, card_count, success, …}, `deck_add_failed` {source, reason},
    `deck_removed`, `deck_replaced`, `deck_selected_for_game`, `hero_picked`, `hero_preview_opened`.

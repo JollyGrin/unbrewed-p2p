@@ -125,3 +125,24 @@ describe("analytics wrapper", () => {
     for (const p of ["/", "/pro", "/bag", "/gamesx", "/tournaments"]) expect(a.isGameRoute(p)).toBe(false);
   });
 });
+
+describe("init options", () => {
+  it("pins default captures off and cookieless", async () => {
+    const a = load({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test", NODE_ENV: "production" });
+    a.acknowledgeNotice();
+    await flush();
+    expect(init.mock.calls[0][1]).toMatchObject({
+      persistence: "localStorage",
+      autocapture: false,
+      capture_pageview: false,
+      capture_pageleave: false,
+      disable_session_recording: true,
+      disable_surveys: true,
+      advanced_disable_decide: true,
+      capture_performance: false,
+      capture_heatmaps: false,
+      enable_heatmaps: false,
+      capture_dead_clicks: false,
+    });
+  });
+});

@@ -22,7 +22,7 @@ const CONSENT_KEY = "unbrewed-analytics-notice";
 const SILENT_PREFIXES = ["/dev", "/debug"];
 
 /**
- * Event names, in one place. Phase A only emits `$pageview`/`$pageleave`
+ * Event names, in one place. Phase A only emits `$pageview`
  * (automatic) and `$identify`; the rest are the agreed taxonomy that phase B
  * call sites will use. Properties never carry user-typed text, deck names,
  * chat or e-mail.
@@ -127,9 +127,18 @@ export const startAnalytics = (): void => {
         person_profiles: "identified_only",
         autocapture: false,
         capture_pageview: false, // SPA: pageviews are sent on route change
-        capture_pageleave: true,
+        capture_pageleave: false, // doubles volume against the free tier; nothing planned needs it
         disable_session_recording: true,
         disable_surveys: true,
+        // Pin every default capture off. posthog-js 1.200 has no client option for
+        // exception autocapture or web vitals: both are switched on by the project's
+        // remote config, so skipping that fetch (advanced_disable_decide) keeps them
+        // off; capture_performance:false covers web vitals + network timing too.
+        advanced_disable_decide: true,
+        capture_performance: false,
+        capture_heatmaps: false,
+        enable_heatmaps: false,
+        capture_dead_clicks: false,
       });
       posthog.register({ app_commit: APP_COMMIT, app_version: APP_VERSION });
       if (readConsent() === "declined") posthog.opt_out_capturing();
@@ -183,10 +192,10 @@ export const track = (event: AnalyticsEvent, props?: AnalyticsProps): void => {
   run((p) => p.capture(event, props));
 };
 
-/** Link the anonymous history to the Discord account (one-way merge). */
-export const identifyAccount = (discordId: string): void => {
+/** Link the anonymous history to the signed-in Unbrewed account id (one-way merge). */
+export const identifyAccount = (accountId: string): void => {
   run((p) => {
-    if (p.get_distinct_id() !== discordId) p.identify(discordId);
+    if (p.get_distinct_id() !== accountId) p.identify(accountId);
   });
 };
 

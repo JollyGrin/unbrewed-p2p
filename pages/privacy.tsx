@@ -24,8 +24,8 @@ const PrivacyPage: React.FC = () => {
         deck names you type, chat text or e-mail addresses.
       </Text>
       <Text mb={3}>
-        <strong>If you sign in with Discord</strong>, your analytics are tied to your Discord account id, including the
-        anonymous history from before you signed in. Signing out stops that.
+        <strong>While you are signed in</strong>, analytics are tied to your Unbrewed account id (created when you sign in
+        with Discord), including the anonymous history from before you signed in. Signing out stops that.
       </Text>
       <Text mb={5}>Game balance data is kept separately and is not part of this.</Text>
       {available && (
