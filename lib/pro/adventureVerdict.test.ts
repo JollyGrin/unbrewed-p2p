@@ -56,7 +56,7 @@ describe("adventureVerdictModel", () => {
       // opened a space with no printed number: no label to show
       { round: 2, openedSpace: "s3", fighter: "e1/trex", enemyId: "triceratops-asset" },
     ];
-    const m = adventureVerdictModel(view(objective, { scenario: { releases, display: { objectNoun: enclosure } } }))!;
+    const m = adventureVerdictModel(view(objective, { scenario: { releases, display: { verdict: { win: "W", lose: "L" }, objectNoun: enclosure } } }))!;
     expect(m.releases.map((t) => t.objectLabel)).toEqual(["7", null, null]);
     expect(m.releases.map((t) => releaseTileHeading(t, m.objectNoun))).toEqual([
       "Round 1 · enclosure 07",

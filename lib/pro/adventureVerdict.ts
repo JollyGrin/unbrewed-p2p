@@ -23,8 +23,9 @@ import { objectNounOf, type ObjectNoun } from "./scenarioObjects";
 export interface VerdictReleaseTile {
   round: number;
   /**
-   * printed scenario-object number (`display.objectGroup` order), else its order of release.
-   * null on the final tile: the wire has no label for the space the last overflow opened, and
+   * printed number of the scenario object that opened (`openedSpaceLabel`, engine #989; a view
+   * without `openedSpace` falls back to the spawn space's `spaceLabel`). null when the wire has no
+   * number — never the order of release (#1500). Also null on the final tile: the wire has no label for the space the last overflow opened, and
    * `finalSlot` is an ordinal, not a printed number — use `ordinal` there.
    */
   objectLabel: string | null;
@@ -65,14 +66,21 @@ export const ordinalWord = (n: number): string => ORDINALS[n - 1] ?? `${n}th`;
 const finalSlot = (view: PlayerView): number | null => view.scenario?.result?.finalSlot ?? null;
 
 const releaseTiles = (view: PlayerView, releases: readonly ScenarioRelease[]): VerdictReleaseTile[] =>
-  releases.map((r, i) => ({
+  releases.map((r) => ({
     round: r.round,
-    objectLabel: r.spaceLabel ?? String(i + 1),
+    objectLabel: (r.openedSpace !== undefined ? r.openedSpaceLabel : r.spaceLabel) ?? null,
     ordinal: null,
     enemyName: view.fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId,
     defeatedRound: r.defeatedRound ?? null,
     final: false,
   }));
+
+/** A tile's first line. The number is padded like the board's object mark ("enclosure 07"); a
+ *  release with no number leaves the object out (#1500). */
+export const releaseTileHeading = (t: VerdictReleaseTile, noun: ObjectNoun): string => {
+  if (t.objectLabel != null) return `Round ${t.round} · ${noun.singular} ${/^\d+$/.test(t.objectLabel) ? t.objectLabel.padStart(2, "0") : t.objectLabel}`;
+  return t.final ? `Round ${t.round} · ${t.ordinal ?? "last"} ${noun.singular}` : `Round ${t.round}`;
+};
 
 const sourceFact = (view: PlayerView): VerdictFact | null => {
   const s = view.scenario?.threat.bySource;

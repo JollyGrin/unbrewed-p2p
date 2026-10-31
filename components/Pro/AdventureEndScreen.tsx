@@ -10,7 +10,7 @@
 import { Box, Button, Flex, Grid, Link, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { TbExternalLink, TbLink, TbMap, TbPlus, TbTrophy } from "react-icons/tb";
-import { adventureVerdictModel } from "@/lib/pro/adventureVerdict";
+import { adventureVerdictModel, releaseTileHeading } from "@/lib/pro/adventureVerdict";
 import type { AdventureVerdictModel } from "@/lib/pro/adventureVerdict";
 import { isViewerOnWinningTeam } from "@/lib/pro/teams";
 import type { FormatEndScreenProps } from "./FormatEndScreen";
@@ -41,9 +41,7 @@ const ReleaseTiles = ({ model }: { model: AdventureVerdictModel }) => (
           fontSize="0.8rem"
           color="brand.parchment"
         >
-          <Text fontWeight={700}>
-            Round {t.round} · {t.objectLabel != null ? `${model.objectNoun.singular} ${t.objectLabel}` : `${t.ordinal ?? "last"} ${model.objectNoun.singular}`}
-          </Text>
+          <Text fontWeight={700}>{releaseTileHeading(t, model.objectNoun)}</Text>
           {t.final ? (
             <Text color="red.200">game over</Text>
           ) : (
