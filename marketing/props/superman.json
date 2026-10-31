@@ -1,0 +1,23 @@
+{
+  "deckSlug": "5zMj",
+  "tagline": "Flies before every turn, and hits hardest the moment he lands",
+  "backdropColour": "#1b3a78",
+  "featuredCards": [
+    {
+      "title": "Able To Leap Tall Buildings In A Single Bound",
+      "caption": "Land him on a space that touches two zones and his free flight at the start of every turn doubles."
+    },
+    {
+      "title": "Momentous Shift",
+      "caption": "His passive flies him before he even acts, so when he swings, this 3 is a 5."
+    },
+    {
+      "title": "Heroic Interception",
+      "caption": "The rescue, or the throw. He grabs the fighter beside him and carries them up to four spaces, wherever he wants them."
+    },
+    {
+      "title": "Last Son of Krypton",
+      "caption": "Win the fight and he draws and heals. Eighteen health that keeps coming back is a lot to chew through."
+    }
+  ]
+}

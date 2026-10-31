@@ -1,0 +1,22 @@
+{
+  "deckSlug": "xenomorph",
+  "tagline": "Three Blips in the dark. Only you know which one is the Xenomorph.",
+  "featuredCards": [
+    {
+      "title": "SIGNAL LOST",
+      "caption": "He vanishes and his missing Blips return anywhere on the board, one of them secretly him. He heals while they guess which."
+    },
+    {
+      "title": "OUT OF THE SHADOWS",
+      "caption": "Spend a Blip to attack. If it was the marked one, the Xenomorph bursts out mid-combat and a 2 becomes a 5."
+    },
+    {
+      "title": "ACID FOR BLOOD",
+      "caption": "Hurting him hurts back. Every point of combat damage they land splashes right back onto the attacker."
+    },
+    {
+      "title": "IT’S USING THE AIR SHAFTS",
+      "caption": "Win the fight, then gone. The Blips pour back into his zone with him hidden among them, and the guessing starts over."
+    }
+  ]
+}
