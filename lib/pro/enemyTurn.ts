@@ -5,7 +5,7 @@
  * Pure — the React layer only renders it.
  */
 import type { FighterId, GameEvent, PlayerView } from "./protocol";
-import { ENEMY_LADDER, LARGE_REACH_NOTE, enemyIntent } from "./adventureRulesCopy";
+import { ENEMY_LADDER, LARGE_REACH_NOTE, enemyIntent, noTargetRaisedThreat } from "./adventureRulesCopy";
 
 export interface EnemyTurnStep {
   n: 1 | 2 | 3;
@@ -83,9 +83,11 @@ export const enemyTurnModel = (
   const threat = view.scenario?.threat.level;
   const consequence =
     step === 3
-      ? threat != null
-        ? `threat +1 (now ${threat})`
-        : "threat +1"
+      ? !noTargetRaisedThreat(list, at)
+        ? `no hero in reach, ${enemyIntent(ev.outcome, null)}`
+        : threat != null
+          ? `threat +1 (now ${threat})`
+          : "threat +1"
       : step === 1
         ? enemyIntent(ev.outcome, targetName)
         : `${enemyIntent(ev.outcome, targetName)}, attacks`;

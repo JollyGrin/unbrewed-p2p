@@ -32,21 +32,36 @@ export const ROUND_COPY = {
 export const ENEMY_LADDER = [
   { n: 1, label: "Hero adjacent?", does: "attacks" },
   { n: 2, label: "Closest reachable hero", does: "moves, attacks" },
-  { n: 3, label: "No one in reach", does: "threat +1" },
+  { n: 3, label: "No one in reach", does: "per its card" },
 ] as const;
 
 export const LARGE_REACH_NOTE = "hits from 2 away";
 
 /**
  * What an activating enemy does, in the words the log, the enemy-turn card and the board share:
- * "attacks X" / "moves toward X" / "stays put, threat +1".
+ * "attacks X" / "moves toward X" / "stays put" (", threat +1" only when `threatUp`).
  */
-export const enemyIntent = (outcome: EnemyActivationOutcome, target: string | null): string =>
+export const enemyIntent = (outcome: EnemyActivationOutcome, target: string | null, threatUp = false): string =>
   outcome === "NO_TARGET"
-    ? "stays put, threat +1"
+    ? threatUp
+      ? "stays put, threat +1"
+      : "stays put"
     : outcome === "ADJACENT"
       ? `attacks ${target ?? "a hero"}`
       : `moves toward ${target ?? "a hero"}`;
+
+/**
+ * Did the NO_TARGET activation at `events[at]` raise the threat? Only when a THREAT_CHANGED follows
+ * it before the next ENEMY_ACTIVATION — an empty no-target box (Apatosaurus, Gallimimus,
+ * Parasaurolophus) emits the activation alone.
+ */
+export const noTargetRaisedThreat = (events: readonly GameEvent[], at: number): boolean => {
+  for (let i = at + 1; i < events.length; i++) {
+    if (events[i].type === "ENEMY_ACTIVATION") return false;
+    if (events[i].type === "THREAT_CHANGED") return true;
+  }
+  return false;
+};
 
 /** "an enemy" (or the scenario's own `enemyNoun`) with its article. */
 export const anEnemy = (display?: ScenarioDisplay | null): string => {
