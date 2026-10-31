@@ -1214,6 +1214,13 @@
  * The server reads it for the adventure self-undo (a deck top, or another seat's hand card, withholds
  * the undo). CLIENT SURFACE: an activity-log line may say where the card came from; a client that
  * ignores `from` loses nothing.
+ *
+ * RIDES v39 (engine #989, additive, no bump): `ScenarioRelease.openedSpace?: SpaceId` + `openedSpaceLabel?:
+ * string` — the scenario space whose opening released this enemy (Isla Nublar: the enclosure that broke)
+ * and its printed group number, present whenever the release came from an opened space. `space` keeps
+ * meaning the SPAWN space: the #741 fallback places a LARGE body off its own enclosure, and a tied spawn
+ * leaves `space` absent, so a client tying a release to its enclosure reads `openedSpace` /
+ * `openedSpaceLabel`, never `space` / `spaceLabel` or the list position. Only scenario views change.
  */
 /**
  * CLIENT-ONLY PIN (p2p #880, #1201, #1301) — the engine's copy says `PROTOCOL_VERSION = 39`; this
@@ -2580,10 +2587,14 @@ export interface ScenarioThreatBySource {
 // v36 (#735): one enemy the scenario released mid-game. `space` = where it was placed when that
 // was forced (one legal space); `spaceLabel` = that space's printed number in a numbered scenario
 // space group (`ProMapSpaceGroup.order` — the enclosure's fence number), as a string, when it has one.
+// `openedSpace` / `openedSpaceLabel` (#989, rides v39): the scenario space whose opening released it (the
+// enclosure that broke) and its printed number — set even when `space` is elsewhere or absent.
 export interface ScenarioRelease {
   round: number;
   space?: SpaceId;
   spaceLabel?: string;
+  openedSpace?: SpaceId; // #989 (rides v39)
+  openedSpaceLabel?: string; // #989 (rides v39)
   fighter: FighterId;
   enemyId: string;
   defeatedRound?: number; // #749 (rides v39): the round this released enemy was defeated in; ABSENT while it lives

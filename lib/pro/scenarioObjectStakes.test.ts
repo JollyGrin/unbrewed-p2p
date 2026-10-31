@@ -82,6 +82,17 @@ describe("scenarioObjectStakes mapping", () => {
     expect(st.c).toBeUndefined();
   });
 
+  it("#1500: a #741-fallback release (LARGE body spawned off its enclosure) marks the enclosure that opened", () => {
+    // the shape engine #989 sends: `space` is the spawn space (open, not an enclosure), `openedSpace` the pen that broke
+    const releases = [{ round: 1, space: "d", openedSpace: "c", openedSpaceLabel: "3", fighter: "f1", enemyId: "triceratops-asset" }];
+    const st = scenarioObjectModel(map, ["a", "b"], sc({ releases, display: { markers: { "triceratops-asset": "Triceratops" } } }), fighters)!.stakes;
+    expect(st.c.release).toEqual({ name: "Gallimimus", glyph: "Ga" });
+    expect(st.d).toBeUndefined();
+    // a tied spawn leaves `space` absent: still the opened pen
+    const tied = [{ round: 1, openedSpace: "b", openedSpaceLabel: "2", fighter: "f1", enemyId: "triceratops-asset" }];
+    expect(scenarioObjectModel(map, ["a", "c"], sc({ releases: tied }), fighters)!.stakes.b.release).toEqual({ name: "Gallimimus", glyph: "Ga" });
+  });
+
   it("ignores stakes for spaces that are not (any longer) closed", () => {
     const st = scenarioObjectStakes(sc({ contacts: { adjacent: ["a"], nextToOpen: ["a"] } }), [], new Set(), new Set(["a"]), {});
     expect(st).toEqual({});
