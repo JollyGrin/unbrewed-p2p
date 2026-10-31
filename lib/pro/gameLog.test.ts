@@ -822,7 +822,21 @@ describe("enrichLines", () => {
       expect(act("ADJACENT", "p1/hero")).toEqual({ text: "raptor attacks hero", who: "opp" });
       expect(act("CLOSEST", "p1/hero").text).toBe("raptor moves toward hero");
       expect(act("CLOSEST").text).toBe("raptor moves toward a hero");
-      expect(act("NO_TARGET").text).toBe("raptor: no hero in reach → stays put, threat +1");
+      expect(act("NO_TARGET").text).toBe("raptor: no hero in reach → stays put");
+    });
+
+    // #1496: an empty no-target box (Apatosaurus, Gallimimus, Parasaurolophus) emits no THREAT_CHANGED.
+    it("ENEMY_ACTIVATION NO_TARGET claims threat +1 only when its own THREAT_CHANGED follows", () => {
+      const nt = (fighter: string): GameEvent => ({ type: "ENEMY_ACTIVATION", fighter, outcome: "NO_TARGET" });
+      const t: GameEvent = { type: "THREAT_CHANGED", position: 3, level: 2 };
+      const texts = (events: GameEvent[]) => enrichLines([], events, ac).map((l) => l.text);
+      expect(texts([nt("e/raptor"), t])[0]).toBe("raptor: no hero in reach → stays put, threat +1");
+      expect(texts([nt("e/apato")])).toEqual(["apato: no hero in reach → stays put"]);
+      // the bump after the second activation is not the first one's
+      expect(texts([nt("e/apato"), nt("e/raptor"), t]).slice(0, 2)).toEqual([
+        "apato: no hero in reach → stays put",
+        "raptor: no hero in reach → stays put, threat +1",
+      ]);
     });
 
     it("THREAT_CHANGED reports level and attributes an obvious cause", () => {

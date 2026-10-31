@@ -7,7 +7,7 @@
  */
 import { adventureEnemySeatName } from "./adventureBoard";
 import { adventureEndLogLine } from "./adventureVerdict";
-import { enemyIntent } from "./adventureRulesCopy";
+import { enemyIntent, noTargetRaisedThreat } from "./adventureRulesCopy";
 import { capitalize, GENERIC_OBJECT_NOUN, withArticle, type ObjectNoun } from "./scenarioObjects";
 import {
   CardInstanceId,
@@ -833,7 +833,7 @@ export function enrichLines(
   const sourceCards = (source: string): CardInstanceId[] | undefined =>
     isCardSource(source) ? [source] : undefined;
 
-  for (const e of events) {
+  for (const [at, e] of events.entries()) {
     switch (e.type) {
       // --- Mode 1: annotate an existing diff line ---------------------------
       case "CARD_DISCARDED": {
@@ -1066,7 +1066,7 @@ export function enrichLines(
       case "ENEMY_ACTIVATION": {
         const enemy = ctx.fighter(e.fighter);
         const target = e.target ? ctx.fighter(e.target) : null;
-        const intent = enemyIntent(e.outcome, target);
+        const intent = enemyIntent(e.outcome, target, e.outcome === "NO_TARGET" && noTargetRaisedThreat(events, at));
         const text = e.outcome === "NO_TARGET" ? `${enemy}: no hero in reach → ${intent}` : `${enemy} ${intent}`;
         added.push({ text, who: "opp" });
         break;

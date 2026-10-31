@@ -45,13 +45,28 @@ describe("enemyTurnModel", () => {
     expect(lit([act("CLOSEST", "p1/hero")])).toEqual([2]);
     expect(enemyTurnModel([act("CLOSEST", "p1/hero")], VIEW)!.consequence).toBe("moves toward Hero, attacks");
   });
-  it("NO_TARGET lights step 3, threat +1 (now N), no target/attack", () => {
-    const m = enemyTurnModel([act("NO_TARGET")], VIEW)!;
+  const bump = { type: "THREAT_CHANGED", position: 3, level: 4 } as GameEvent;
+  it("NO_TARGET with its THREAT_CHANGED lights step 3, threat +1 (now N), no target/attack", () => {
+    const m = enemyTurnModel([act("NO_TARGET"), bump], VIEW)!;
     expect(m.steps.filter((s) => s.lit).map((s) => s.n)).toEqual([3]);
     expect(m.consequence).toBe("threat +1 (now 4)");
     expect(m.targetId).toBeNull();
     expect(m.attack).toBeNull();
     expect(enemyTurnSummary(m)).toBe("Indominus Rex: threat +1 (now 4)");
+  });
+  // #1496: Apatosaurus / Gallimimus / Parasaurolophus have an empty no-target box — the engine
+  // emits the activation alone, so the card must not claim a bump.
+  it("NO_TARGET without a THREAT_CHANGED stays put with no threat claim", () => {
+    const m = enemyTurnModel([act("NO_TARGET")], VIEW)!;
+    expect(m.steps.filter((s) => s.lit).map((s) => s.n)).toEqual([3]);
+    expect(m.consequence).toBe("no hero in reach, stays put");
+    expect(enemyTurnSummary(m)).toBe("Indominus Rex: no hero in reach, stays put");
+  });
+  it("a THREAT_CHANGED before the NO_TARGET activation is not its bump", () => {
+    expect(enemyTurnModel([bump, act("NO_TARGET")], VIEW)!.consequence).toBe("no hero in reach, stays put");
+  });
+  it("the ladder's step 3 promises no threat bump", () => {
+    expect(enemyTurnModel([act("NO_TARGET")], VIEW)!.steps[2].does).not.toMatch(/threat/i);
   });
   it("is null without an activation", () => {
     expect(enemyTurnModel([], VIEW)).toBeNull();
