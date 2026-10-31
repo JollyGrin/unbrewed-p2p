@@ -116,7 +116,9 @@ export const adventureVerdictModel = (view: PlayerView): AdventureVerdictModel |
   const team = teamFact(view);
   if (team) facts.push(team);
   const lines: string[] = [];
-  const hpText = villain ? `${villain.hp} of ${villain.maxHp}` : null;
+  // #1495: a felled villain is never credited with the loss or reported at "0 of N health"
+  const villainDown = villain?.defeated === true;
+  const hpText = villain && !villainDown ? `${villain.hp} of ${villain.maxHp}` : null;
 
   if (result.verdict === "VICTORY") {
     const villainRound = villain?.defeatedRound;
@@ -137,7 +139,13 @@ export const adventureVerdictModel = (view: PlayerView): AdventureVerdictModel |
   if (cause.kind === "OBJECTIVE") {
     headline = scenario.display?.verdict.lose ?? "DEFEAT";
     const n = finalSlot(view);
-    lines.push(`${villainName} broke open the ${n ? `${ordinalWord(n)} ` : "last "}${objectNoun.singular}.`);
+    const space = `${n ? `${ordinalWord(n)} ` : "last "}${objectNoun.singular}`;
+    if (villainDown) {
+      const fell = villain?.defeatedRound != null ? `fell in round ${villain.defeatedRound}` : "fell";
+      lines.push(`${villainName} ${fell}, but the ${space} broke open.`);
+    } else {
+      lines.push(`${villainName} broke open the ${space}.`);
+    }
     if (hpText) lines.push(`${villainName} was left at ${hpText} health.`);
     tiles.push({ round: result.round, objectLabel: null, ordinal: n ? ordinalWord(n) : null, enemyName: "", defeatedRound: null, final: true });
   } else if (cause.kind === "WIPE") {

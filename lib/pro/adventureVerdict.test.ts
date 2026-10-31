@@ -83,7 +83,7 @@ describe("adventureVerdictModel", () => {
   it("DEFEAT by WIPE", () => {
     const m = adventureVerdictModel(view({ verdict: "DEFEAT", cause: { kind: "WIPE" }, round: 4 }))!;
     expect(m.headline).toBe("THE HEROES FELL");
-    expect(m.lines[0]).toBe("Every hero and sidekick is down.");
+    expect(m.lines).toEqual(["Every hero and sidekick is down.", "Indominus Rex was left at 6 of 20 health."]);
     expect(m.releases.some((t) => t.final)).toBe(false);
   });
 
@@ -96,6 +96,32 @@ describe("adventureVerdictModel", () => {
     expect(m.lines).toEqual(["Indominus Rex fell in round 7.", "The last loose enemy, T. Rex, fell in round 8."]);
     // field absent: no round, no crash
     expect(adventureVerdictModel(view(win))!.lines).toEqual(["Indominus Rex fell."]);
+  });
+
+  describe("the villain fell, the team still lost (#1495)", () => {
+    const felled = (result: ScenarioResult, extra: Record<string, unknown> = { defeatedRound: 6 }, over: Record<string, unknown> = {}) => {
+      const v = view(result, over);
+      Object.assign(v.fighters[1], { hp: 0, defeated: true, ...extra });
+      return adventureVerdictModel(v)!;
+    };
+
+    it("OBJECTIVE: names the round she fell and the space that broke, never credits her or prints her hp", () => {
+      expect(felled(objective).lines).toEqual(["Indominus Rex fell in round 6, but the fourth pen broke open."]);
+      // no defeatedRound on the view, no finalSlot on the wire
+      expect(felled({ ...objective, finalSlot: undefined }, {}).lines).toEqual(["Indominus Rex fell, but the last pen broke open."]);
+      expect(felled(objective).releases.at(-1)).toMatchObject({ final: true, ordinal: "fourth" });
+    });
+
+    it("WIPE: no 'was left at … health' line", () => {
+      expect(felled({ verdict: "DEFEAT", cause: { kind: "WIPE" }, round: 9 }).lines).toEqual(["Every hero and sidekick is down."]);
+    });
+
+    it("DEFEAT_CONDITION: no 'was left at … health' line", () => {
+      const briefing = { scenario: { briefing: { tagline: "", objective: "", win: "", lose: "The vault was emptied." } } };
+      expect(felled({ verdict: "DEFEAT", cause: { kind: "DEFEAT_CONDITION" }, round: 9 }, undefined, briefing).lines).toEqual([
+        "The vault was emptied.",
+      ]);
+    });
   });
 
   it("a scenario with no display copy gets the generic headlines", () => {
@@ -112,7 +138,7 @@ describe("adventureVerdictModel", () => {
       }),
     )!;
     expect(m.headline).toBe("DEFEAT");
-    expect(m.lines[0]).toBe("The vault was emptied.");
+    expect(m.lines).toEqual(["The vault was emptied.", "Indominus Rex was left at 6 of 20 health."]);
   });
 
   it("missing result falls back (not explained); no scenario or no winner is null", () => {
