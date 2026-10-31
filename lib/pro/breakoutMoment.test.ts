@@ -1,4 +1,4 @@
-import { breakoutInBatch, breakoutMoment, pushedOverBy, withLateSpawn } from "./breakoutMoment";
+import { breakoutInBatch, breakoutMoment, overflowAwaitingOpen, pushedOverBy, withLateSpawn } from "./breakoutMoment";
 import type { GameEvent, PlayerView } from "./protocol";
 
 const overflow = (n: number): GameEvent => ({ type: "THREAT_OVERFLOW", overflows: n, objective: null });
@@ -85,5 +85,13 @@ describe("split-batch breakout (spawn lands in a later batch)", () => {
     expect(filled.space).toBe("s3");
     expect(withLateSpawn(filled, [spawn], view())).toBeNull();
     expect(withLateSpawn(m, [], view())).toBeNull();
+  });
+});
+
+describe("overflowAwaitingOpen (team picks the enclosure, #1494)", () => {
+  it("holds an overflow whose open is still to come", () => {
+    expect(overflowAwaitingOpen([overflow(1)])).toEqual(overflow(1));
+    expect(overflowAwaitingOpen([overflow(1), opened])).toBeNull();
+    expect(overflowAwaitingOpen([opened, spawn])).toBeNull();
   });
 });

@@ -34,6 +34,17 @@ export const breakoutInBatch = (events: readonly GameEvent[]): BreakoutChain | n
   };
 };
 
+/**
+ * The overflow whose open is still to come (#1494): a tied nearest enclosure parks the run on a
+ * team CHOOSE_SPACE prompt, and SPACE_OPENED arrives in the batch that answers it. Null when this
+ * batch has no overflow or already opened its space.
+ */
+export const overflowAwaitingOpen = (events: readonly GameEvent[]): GameEvent | null => {
+  const at = events.findIndex((e) => e.type === "THREAT_OVERFLOW");
+  if (at < 0 || events.slice(at + 1).some((e) => e.type === "SPACE_OPENED")) return null;
+  return events[at];
+};
+
 export interface BreakoutMoment {
   /** printed scenario-object number, null when the map declares none */
   objectNumber: number | null;
