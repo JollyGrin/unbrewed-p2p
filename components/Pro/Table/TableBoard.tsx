@@ -161,6 +161,7 @@ export const TableBoard = ({
   selectedFighter = null,
   attack = null,
   defenderStepIn = null,
+  attackerStepIn = null,
   friendlyOwners = [],
   fighterBadges = {},
   extendedReachTargets = [],
@@ -343,9 +344,15 @@ export const TableBoard = ({
     const isFriendly = friendlySet.has(f.owner);
     const isExtendedReachTarget = isTarget && extendedReachSet.has(f.id);
     const boughtRange = isTarget ? (boughtRangeById.get(f.id) ?? null) : null;
-    const stepsInAsDefender = defenderStepIn?.fighterId === f.id;
+    const stepIn =
+      defenderStepIn?.fighterId === f.id
+        ? defenderStepIn
+        : attackerStepIn?.fighterId === f.id
+          ? attackerStepIn
+          : null;
+    const stepsInAsDefender = !!stepIn;
     const spaceHighlighted = highlightSet.has(f.space) && !!onSpaceClick;
-    const chipText = stepsInAsDefender ? defenderStepIn!.chip : boughtRange ? boughtRange.chip : null;
+    const chipText = stepIn ? stepIn.chip : boughtRange ? boughtRange.chip : null;
     return {
       selected: isSelected,
       targetable: isTarget,
@@ -617,6 +624,7 @@ export const TableBoard = ({
     selectedFighter,
     attack,
     defenderStepIn,
+    attackerStepIn,
     friendlyOwners,
     fighterBadges,
     extendedReachTargets,

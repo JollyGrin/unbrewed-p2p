@@ -467,6 +467,18 @@
         "file": "data/heroes/superman.rules.ts",
         "commit": "59b64796244a717ffbd2e9df0faadd652b73cded"
       }
+    },
+    {
+      "heroId": "xenomorph",
+      "deckId": "xenomorph",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-10-24",
+      "digest": "sha256:5cdc0585eb9a68dacb7af1e9f75442476a673e6c125a461bb4c82b8d2747570c",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/xenomorph.rules.ts",
+        "commit": "77cd7f882f278fc88a4df618f48b57a302aaea94"
+      }
     }
   ]
 }

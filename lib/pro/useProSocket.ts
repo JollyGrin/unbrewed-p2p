@@ -729,8 +729,8 @@ export function useProSocket(
   }, []);
 
   // Every message that binds a seat (CREATE/JOIN/RECONNECT/RESUME) goes out at
-  // `wireVersionFor` (lib/pro/wireVersion) — always PROTOCOL_VERSION (36) since
-  // #1201: prod engines accept only {35, 36}, so the old v34 fallback is gone.
+  // `wireVersionFor` (lib/pro/wireVersion) — always PROTOCOL_VERSION (38 since engine #918) since
+  // #1201: prod engines accept a two-version window ({37, 38} since #918), so the old v34 fallback is gone.
   const sendBind = useCallback(
     (msg: ClientMsg, version?: number) => {
       const v = version ?? (wsUrl ? wireVersionFor(wsUrl) : PROTOCOL_VERSION);

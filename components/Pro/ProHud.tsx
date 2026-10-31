@@ -82,7 +82,8 @@ import {
   wornBadgeIds,
 } from "@/components/Badges/BadgeGlyph";
 import { DeckImportHeroType, DeckImportRuleCardType } from "@/components/DeckPool/deck-import.type";
-import { CardInstanceId, PileEntry, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { CardInstanceId, FighterId, PileEntry, PlayerId, PlayerView, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
+import { secretMarkedFighterIds } from "@/lib/pro/fighterStatuses";
 import { isLargeFighter, LARGE_FIGHTER_BLURB } from "@/lib/pro/largeReach";
 import { deriveTeams } from "@/lib/pro/teams";
 import { showLiveTurnChrome } from "@/lib/pro/turnChrome";
@@ -90,6 +91,7 @@ import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCard
 import {
   FlagHudChip,
   flagChipsFor,
+  offBoardChipsFor,
   counterChipsFor,
   pileDisplayName,
   pileCardIds,
@@ -630,6 +632,7 @@ export const SeatPlate = ({
   heroId,
   heroFighter,
   sidekicks,
+  markedFighters,
   flags,
   counters,
   piles,
@@ -667,6 +670,10 @@ export const SeatPlate = ({
   heroId: string;
   heroFighter: ViewFighter | undefined;
   sidekicks: ViewFighter[];
+  /** v38 (issue #1453): the fighters THIS viewer sees a secret mark on — the
+   *  owner's hidden mark, or anyone's open one (engine-redacted `marks`). Their
+   *  sidekick row reads "(marked)". Absent = none. */
+  markedFighters?: ReadonlySet<FighterId>;
   /** public per-player engine flags (tide etc.); undefined on older servers */
   flags?: Record<string, boolean>;
   /** public per-player engine counters (Nancy's CLUE etc.; PlayerView.counters).
@@ -924,6 +931,7 @@ export const SeatPlate = ({
   // BOTH seats' plates and either player can read either pile.
   const flagTags = [
     ...flagChipsFor(heroId, flags),
+    ...offBoardChipsFor(heroFighter, flags),
     ...counterChipsFor(heroId, counters, piles),
   ].map(({ chip, on }) => (
     <FlagChip
@@ -1076,6 +1084,7 @@ export const SeatPlate = ({
         textDecoration={s.defeated ? "line-through" : undefined}
       >
         {s.name}
+        {markedFighters?.has(s.id) ? " (marked)" : ""}
       </Text>
       <GiHearts color="#C0392B" size="11px" />
       <Text fontSize="0.72rem" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
@@ -1657,6 +1666,7 @@ export const ProHud = ({
     view.fighters.find((f) => f.owner === player && f.kind === "HERO");
   const sidekicksOf = (player: PlayerId) =>
     view.fighters.filter((f) => f.owner === player && f.kind === "SIDEKICK");
+  const markedFighters = secretMarkedFighterIds(view);
   const display = STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting;
   // Local-only (issue #568): your own avatar for your own plate. Null for a
   // guest, an unreachable accounts API, or an account with no avatar set — all
@@ -1717,6 +1727,7 @@ export const ProHud = ({
             figureCredit={figureCreditFor?.(seat.id) ?? null}
             heroFighter={heroOf(seat.id)}
             sidekicks={sidekicksOf(seat.id)}
+            markedFighters={markedFighters}
             flags={seat.flags}
             counters={seat.counters}
             piles={seat.piles}
