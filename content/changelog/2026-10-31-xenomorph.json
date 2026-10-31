@@ -1,0 +1,11 @@
+{
+  "id": "2026-10-31-xenomorph",
+  "date": "2026-10-31",
+  "title": "The Xenomorph joins the lab",
+  "summary": "It starts as three Blips, and only its player knows which one hides the Xenomorph. Defeat the wrong Blip and it bursts out mid-fight. Community deck by MrBrownieDL.",
+  "tags": ["deck"],
+  "pro": true,
+  "highlight": false,
+  "video": { "slug": "xenomorph" },
+  "cta": { "label": "Play the Xenomorph in Pro", "href": "/pro" }
+}
