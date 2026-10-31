@@ -50,10 +50,14 @@ export const scenarioObjectStakes = (
     }
   }
   for (const r of scenario.releases ?? []) {
+    // #1500: `openedSpace` (engine #989) is the object that broke; `space` is only where the enemy
+    // spawned, which the #741 fallback puts off its own enclosure.
     const id =
-      r.space && destroyed.has(r.space)
-        ? r.space
-        : [...destroyed].find((d) => r.spaceLabel != null && numbers[d] === Number(r.spaceLabel));
+      r.openedSpace && destroyed.has(r.openedSpace)
+        ? r.openedSpace
+        : r.space && destroyed.has(r.space)
+          ? r.space
+          : [...destroyed].find((d) => r.spaceLabel != null && numbers[d] === Number(r.spaceLabel));
     if (!id) continue;
     const name = fighters.find((f) => f.id === r.fighter)?.name ?? r.enemyId;
     out[id] = { adjacent: false, next: false, tie: false, release: { name, glyph: markerGlyph(scenario.display?.markers[r.enemyId] ?? name, scenario.display?.markers) } };

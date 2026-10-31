@@ -1,4 +1,4 @@
-import { adventureEndLogLine, adventureVerdictModel } from "./adventureVerdict";
+import { adventureEndLogLine, adventureVerdictModel, releaseTileHeading } from "./adventureVerdict";
 import type { PlayerView, ScenarioResult } from "./protocol";
 
 const fighter = (id: string, name: string, extra: Record<string, unknown> = {}) =>
@@ -41,11 +41,28 @@ describe("adventureVerdictModel", () => {
     expect(m.lines).toEqual(["Indominus Rex broke open the fourth pen.", "Indominus Rex was left at 6 of 20 health."]);
     expect(m.releases.map((t) => [t.round, t.objectLabel, t.defeatedRound, t.final])).toEqual([
       [3, "2", 6, false],
-      [5, "2", 6, false],
+      [5, null, 6, false],
       [9, null, null, true],
     ]);
     expect(m.releases[2].ordinal).toBe("fourth");
     expect(m.facts[0].text).toContain("Round ends 19");
+  });
+
+  it("#1500: a #741-fallback release names the enclosure that opened, never the list position", () => {
+    const enclosure = { singular: "enclosure", plural: "enclosures" };
+    const releases = [
+      // engine #989 shape: spawned off its enclosure (s9, no label), enclosure 07 (s10) opened
+      { round: 1, space: "s9", openedSpace: "s10", openedSpaceLabel: "7", fighter: "e1/trex", enemyId: "triceratops-asset" },
+      // opened a space with no printed number: no label to show
+      { round: 2, openedSpace: "s3", fighter: "e1/trex", enemyId: "triceratops-asset" },
+    ];
+    const m = adventureVerdictModel(view(objective, { scenario: { releases, display: { verdict: { win: "W", lose: "L" }, objectNoun: enclosure } } }))!;
+    expect(m.releases.map((t) => t.objectLabel)).toEqual(["7", null, null]);
+    expect(m.releases.map((t) => releaseTileHeading(t, m.objectNoun))).toEqual([
+      "Round 1 · enclosure 07",
+      "Round 2",
+      "Round 9 · fourth enclosure",
+    ]);
   });
 
   it("the final tile never prints finalSlot as a space label (#1327)", () => {
