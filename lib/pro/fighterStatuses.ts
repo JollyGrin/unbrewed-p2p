@@ -273,17 +273,46 @@ export const secretMarkPromptDescription = (description: string | undefined): st
 };
 
 /**
+ * Events that mean "the fighter has already been put somewhere" — a reveal followed
+ * by one of these is an emergence that ALREADY happened, so a later CHOOSE_SPACE in
+ * the same batch is some other placement. PROMPT_RESOLVED covers the placement
+ * prompt itself being answered in-batch.
+ */
+const PLACED_AFTER_REVEAL: ReadonlySet<GameEvent["type"]> = new Set<GameEvent["type"]>([
+  "FIGHTER_MOVED",
+  "HERO_PLACED",
+  "SIDEKICK_PLACED",
+  "FIGHTER_REVIVED",
+  "POSITIONS_SWAPPED",
+  "PROMPT_RESOLVED",
+]);
+
+/**
  * Caption for the Xenomorph's reveal placement. `ViewPrompt.source` does not name the
  * trigger (it names the card whose effect killed the Blip, e.g. Thorns), so the cue is
- * the batch itself: the last event before the prompt is SECRET_MARK_REVEALED for the
- * prompted player. null = keep the usual "Effect of <card>" attribution.
+ * the batch itself: a SECRET_MARK_REVEALED for the prompted player with nothing placed
+ * since. The reveal is NOT the last event before the prompt — the deck's T-REVEAL runs
+ * `revealSecretMark → counter gain XENO_REVEALS → place`, so a live batch reads
+ * `… SECRET_MARK_REVEALED, COUNTER_CHANGED(XENO_REVEALS), PROMPT_OPENED` (issue #1492;
+ * EFFECT_RESOLVING markers can sit in there too), hence the walk back past bookkeeping
+ * rather than a last-event check. An OPEN pair (ASSIGNED immediately before REVEALED:
+ * ESCAPE, and engine E6's lone summoned Blip) is a face-up assignment, not an
+ * emergence, and ESCAPE opens its own CHOOSE_SPACE prompts around it, so it is skipped.
+ * null = keep the usual "Effect of <card>" attribution.
  */
 export const emergenceCaption = (
   prompt: Pick<ViewPrompt, "kind" | "player"> | null | undefined,
   events: readonly GameEvent[] | undefined
 ): string | null => {
-  const last = events?.[events.length - 1];
-  return prompt?.kind === "CHOOSE_SPACE" && last?.type === "SECRET_MARK_REVEALED" && last.player === prompt.player
-    ? "The Xenomorph emerges — choose its space"
-    : null;
+  if (prompt?.kind !== "CHOOSE_SPACE" || !events) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (PLACED_AFTER_REVEAL.has(e.type)) return null;
+    if (e.type !== "SECRET_MARK_REVEALED") continue;
+    if (e.player !== prompt.player) return null;
+    const prev = events[i - 1];
+    const open = prev?.type === "SECRET_MARK_ASSIGNED" && prev.player === e.player && prev.name === e.name;
+    return open ? null : "The Xenomorph emerges — choose its space";
+  }
+  return null;
 };

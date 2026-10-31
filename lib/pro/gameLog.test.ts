@@ -938,6 +938,23 @@ describe("enrichLines", () => {
       ]);
     });
 
+    it("reads the same for a lone Blip summoned face-up by AIR SHAFTS / SIGNAL LOST (engine E6)", () => {
+      // Engine #971: a lone Blip summoned by IT'S USING THE AIR SHAFTS / SIGNAL LOST becomes
+      // the Marked Blip face-up — `assignSecretMark … open:true`, the ESCAPE wire shape —
+      // so the pair arrives beside the summon, and must still print as one open line.
+      const summon: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "SIGNAL LOST", window: "IMMEDIATELY", player: "p1" },
+        { type: "FIGHTER_REMOVED", fighter: "p1/hero", space: "s16" },
+        { type: "FIGHTER_REVIVED", fighter: "p1/sidekick-2", space: "s11" },
+        assigned,
+        revealed,
+      ];
+      const lines = enrichLines([], summon, named);
+      expect(lines).toContainEqual({ text: "Blip 2 is the Marked Blip — revealed to every seat", who: "you" });
+      expect(JSON.stringify(lines)).not.toContain("emerges");
+      expect(JSON.stringify(lines)).not.toContain("chose your Marked Blip");
+    });
+
     it("never prints the masked answer of the private pick", () => {
       const hidden: GameEvent = { type: "PROMPT_RESOLVED", player: "p2", promptId: "p9", optionId: "(hidden)" };
       expect(enrichLines([], [hidden], named)).toEqual([]);
@@ -2150,6 +2167,23 @@ describe("counterChangeLines suppresses engine bookkeeping counters", () => {
       whoOf
     );
     expect(lines).toEqual([]);
+  });
+
+  it("says nothing about the Xenomorph's XENO_REVEALS reveal tally (#1492)", () => {
+    // Live order (client c8c74fd × engine 0915bf7d): the reveal, then the counter gain,
+    // then the placement prompt. The reveal line already tells the story.
+    const lines = counterChangeLines(
+      [
+        { type: "SECRET_MARK_REVEALED", player: "p2", name: "MARK", fighter: "p2/sidekick-1" },
+        { type: "COUNTER_CHANGED", player: "p2", name: "XENO_REVEALS", value: 1 },
+        { type: "PROMPT_OPENED", player: "p2", kind: "CHOOSE_SPACE", promptId: "p14" },
+        { type: "COUNTER_CHANGED", player: "p2", name: "XENO_REVEALS", value: 2 },
+      ] as GameEvent[],
+      () => 0,
+      whoOf
+    );
+    expect(lines).toEqual([]);
+    expect(JSON.stringify(lines)).not.toContain("XENO_REVEALS");
   });
 
   it("still narrates the clock itself, and every other counter", () => {

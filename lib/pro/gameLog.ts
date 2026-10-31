@@ -312,8 +312,15 @@ const COUNTER_KEY_SEP = "\u001f";
  * combat; `ITS_ALIVE` is 0/1 "the +2 Move is live" memory for *IT´S ALIVE!*, whose
  * effect the face-up ongoing scheme already shows on the board. None is printed on
  * a card or ever spendable, and none has a heroStateFlags.ts row, by decision.
+ *
+ * Xenomorph (issue #1492): `XENO_REVEALS` counts the Marked Blip's reveals so *OUT OF
+ * THE SHADOWS* can tell the first from the rest. It moves only inside the reveal
+ * itself (`revealSecretMark → counter gain → place`), so "gained 1 XENO_REVEALS
+ * (1 total)" would land right under the "was the Marked Blip — the Xenomorph emerges"
+ * line that already tells the story. Printed on no card, never spendable, and by
+ * decision no heroStateFlags.ts row (see useProCardArt.ts).
  */
-const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER, "MAD", "COS", "ITS_ALIVE"]);
+const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER, "MAD", "COS", "ITS_ALIVE", "XENO_REVEALS"]);
 
 export function counterChangeLines(
   events: GameEvent[],
