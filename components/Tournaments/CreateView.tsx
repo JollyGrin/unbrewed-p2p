@@ -3,7 +3,8 @@ import NextLink from "next/link";
 import { useRouter } from "next/router";
 import { useRef, useState } from "react";
 
-import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { createTournament } from "@/lib/tournaments/api";
 import {
   PRESETS,
@@ -146,7 +147,7 @@ export const CreateView = () => {
       <Page {...base} lede="Pick a starting point. You'll be the organizer.">
         <Notice title="Sign in to create">Tournaments are organized from a Discord account, so we can ping your players.</Notice>
         <Box mt="16px">
-          <Btn variant="discord" href={signInUrl("/tournaments?new=1")}>Sign in with Discord</Btn>
+          <Btn variant="discord" {...signInLink("/tournaments?new=1")}>Sign in with Discord</Btn>
         </Box>
       </Page>
     );
@@ -278,7 +279,7 @@ export const CreateView = () => {
                 {problems.map((p) => <Text key={p}>{p}</Text>)}
                 {signedOutOnSubmit && (
                   <Box mt="8px">
-                    <Btn variant="discord" href={signInUrl("/tournaments?new=1")}>Sign in with Discord</Btn>
+                    <Btn variant="discord" {...signInLink("/tournaments?new=1")}>Sign in with Discord</Btn>
                   </Box>
                 )}
               </ErrorText>

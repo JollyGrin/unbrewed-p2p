@@ -48,7 +48,8 @@ import { HeroPicker } from "@/components/Collection/HeroPicker";
 import { RimTierPicker } from "@/components/Collection/RimTierPicker";
 import { TokenRimPanel } from "@/components/Collection/TokenRimPanel";
 import { tokenInitials } from "@/components/Pro/FighterTokenPortrait";
-import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { useCosmetics } from "@/lib/account/useCosmetics";
 import { rimProgress, rimTierName, topCardTier } from "@/lib/account/cosmetics";
 import { heroPickerSections } from "@/lib/collection/picker";
@@ -115,7 +116,7 @@ const SignInPrompt = () => (
       as="a"
       // A real navigation, not next/link: a cross-origin OAuth handoff the API
       // has to be able to set its cookie on.
-      href={signInUrl("/collection")}
+      {...signInLink("/collection")}
       size="sm"
       leftIcon={<FaDiscord />}
       bg="#5865F2"

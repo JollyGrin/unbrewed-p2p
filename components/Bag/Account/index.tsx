@@ -32,7 +32,8 @@ import {
   cloudFailureMessage,
   shareUrl,
 } from "@/lib/account/bagCloud";
-import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { BagSource } from "@/lib/bag/bagStore";
 import { migrateLocalBagToAccount, MigrationReport } from "@/lib/bag/migrate";
 import { useLocalBagRemainder } from "@/lib/bag/useBag";
@@ -202,7 +203,7 @@ export const AccountBagPanel = () => {
             as="a"
             // A real navigation, not next/link: this is a cross-origin OAuth
             // handoff and the API has to be able to set its cookie.
-            href={signInUrl(router?.asPath)}
+            {...signInLink(router?.asPath)}
             size="sm"
             leftIcon={<FaDiscord />}
             bg="#5865F2"

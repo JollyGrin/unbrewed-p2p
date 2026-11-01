@@ -144,6 +144,8 @@ export const startAnalytics = (): void => {
       if (readConsent() === "declined") posthog.opt_out_capturing();
       ph = posthog;
       starting = false;
+      // Identity first, so queued and landing events already carry the account.
+      if (known && !posthog.has_opted_out_capturing()) applyIdentity(posthog);
       const pending = queue;
       queue = [];
       pending.forEach((fn) => run(fn));
@@ -192,25 +194,156 @@ export const track = (event: AnalyticsEvent, props?: AnalyticsProps): void => {
   run((p) => p.capture(event, props));
 };
 
-/** Link the anonymous history to the signed-in Unbrewed account id (one-way merge). */
-export const identifyAccount = (accountId: string): void => {
-  run((p) => {
-    if (p.get_distinct_id() !== accountId) p.identify(accountId);
-  });
+/**
+ * What `/me` says about the signed-in player, as person properties. Fields the
+ * API does not return yet are absent, never null. Never e-mail, never tokens.
+ */
+export type AnalyticsAccount = {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+  discordId?: string;
+  createdAt?: string;
 };
 
-/** Signed out: stop attributing events to the account. */
-export const resetIdentity = (): void => {
-  run((p) => p.reset());
+/** Last person properties sent for this browser, so a repeat page load sends nothing. */
+const PERSON_KEY = "unbrewed-analytics-person";
+type PersonFingerprint = { id: string; set?: string; roles?: boolean };
+
+const readPerson = (): PersonFingerprint | null => {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(PERSON_KEY) || "null");
+    return v && typeof v.id === "string" ? v : null;
+  } catch {
+    return null;
+  }
+};
+
+const writePerson = (v: PersonFingerprint | null) => {
+  try {
+    if (v) window.localStorage.setItem(PERSON_KEY, JSON.stringify(v));
+    else window.localStorage.removeItem(PERSON_KEY);
+  } catch {
+    /* storage blocked: properties are re-sent next load, harmless */
+  }
 };
 
 /**
- * The anonymous id the engine should adopt as its `distinct_id` (wire field
- * `analyticsId`), or undefined when analytics is off/declined/not yet loaded —
- * in which case the field is simply not sent.
+ * The latest `/me` answer this page session, kept in the module so it can be
+ * applied whenever PostHog starts, including late (a first visit that lands
+ * on a game route only starts on the next normal route).
+ */
+let known: AnalyticsAccount | "guest" | null = null;
+
+const isIdentified = (p: PostHog): boolean => p.get_property("$user_state") === "identified";
+
+const resetPerson = (p: PostHog) => {
+  p.reset();
+  writePerson(null);
+};
+
+const personSet = (a: AnalyticsAccount): Record<string, string> => ({
+  username: a.username,
+  ...(a.avatarUrl ? { avatar_url: a.avatarUrl } : {}),
+  ...(a.discordId ? { discord_id: a.discordId } : {}),
+  auth_provider: "discord",
+});
+
+/** Bring PostHog's identity in line with `known`. Idempotent: steady state sends nothing. */
+const applyIdentity = (p: PostHog): void => {
+  if (known === "guest") {
+    // Covers sign-out in this tab and a session that ended elsewhere (expired,
+    // signed out in another tab) while PostHog still persists the account id.
+    if (isIdentified(p)) resetPerson(p);
+    return;
+  }
+  if (!known) return;
+  const account = known;
+  const set = personSet(account);
+  const setKey = JSON.stringify(set);
+  if (p.get_distinct_id() !== account.id) {
+    // A different account was signed in on this device: start it fresh.
+    if (isIdentified(p)) resetPerson(p);
+    p.identify(account.id, set, {
+      ...(account.createdAt ? { account_created_at: account.createdAt } : {}),
+      first_identified_at: new Date().toISOString(),
+    });
+    writePerson({ id: account.id, set: setKey });
+    if (!isSilentPath(window.location.pathname)) p.capture("login_completed", { provider: "discord" });
+    return;
+  }
+  const last = readPerson();
+  if (last?.id === account.id && last.set === setKey) return;
+  p.setPersonProperties(set);
+  writePerson({ ...(last?.id === account.id ? last : {}), id: account.id, set: setKey });
+};
+
+/**
+ * Link the anonymous history to the signed-in Unbrewed account id (one-way
+ * merge), with the player's profile as person properties. Remembered, so it
+ * also applies if analytics only starts later in this page session.
+ */
+export const identifyAccount = (account: AnalyticsAccount): void => {
+  known = account;
+  if (ph && analyticsAvailable() && !ph.has_opted_out_capturing()) applyIdentity(ph);
+};
+
+/**
+ * `/me` answered guest (signed out here, elsewhere, or the session expired):
+ * stop attributing events to whichever account PostHog last persisted.
+ */
+export const resetIdentity = (): void => {
+  known = "guest";
+  if (ph && analyticsAvailable() && !ph.has_opted_out_capturing()) applyIdentity(ph);
+};
+
+/**
+ * The Discord Linked Roles grant, from the `/me/discord` read the account page
+ * already makes (and after link/unlink). Sent only when it changed.
+ */
+export const setDiscordRolesLinked = (linked: boolean): void => {
+  run((p) => {
+    if (!known || known === "guest" || p.get_distinct_id() !== known.id) return;
+    const last = readPerson();
+    if (last?.id === known.id && last.roles === linked) return;
+    p.setPersonProperties({ discord_roles_linked: linked });
+    writePerson({ ...(last?.id === known.id ? last : {}), id: known.id, roles: linked });
+  });
+};
+
+/** What posthog-js persisted in localStorage on an earlier load (read before it loads). */
+const readPersisted = (): { distinctId?: string; identified: boolean } => {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(`ph_${KEY}_posthog`) || "null");
+    const id = v?.distinct_id;
+    return { distinctId: typeof id === "string" && id ? id : undefined, identified: v?.$user_state === "identified" };
+  } catch {
+    return { identified: false };
+  }
+};
+
+/**
+ * The id the engine should adopt as its `distinct_id` (wire field
+ * `analyticsId`), or undefined when analytics is off/declined/unavailable — in
+ * which case the field is simply not sent.
+ *
+ * Before posthog-js has loaded (a direct `/pro/game` load can bind first), a
+ * visitor who accepted the notice gets the id PostHog persisted on an earlier
+ * load: it is the id PostHog itself is about to use, so the engine's events
+ * land on the same person without delaying the bind. Exceptions: a known
+ * signed-in account wins (identify is about to switch to it), and a persisted
+ * account id on a guest load is withheld (reset is about to replace it).
  */
 export const getAnalyticsId = (): string | undefined => {
-  if (!ph || !analyticsAvailable() || ph.has_opted_out_capturing()) return undefined;
-  const id = ph.get_distinct_id();
-  return typeof id === "string" && id ? id : undefined;
+  if (!analyticsAvailable()) return undefined;
+  if (ph) {
+    if (ph.has_opted_out_capturing()) return undefined;
+    const id = ph.get_distinct_id();
+    return typeof id === "string" && id ? id : undefined;
+  }
+  if (readConsent() !== "seen") return undefined;
+  if (known && known !== "guest") return known.id;
+  const persisted = readPersisted();
+  if (known === "guest" && persisted.identified) return undefined;
+  return persisted.distinctId;
 };

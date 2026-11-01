@@ -26,7 +26,8 @@ import { useState } from "react";
 import { AccountDiscord } from "@/components/Account/AccountDiscord";
 import { ProfileView } from "@/components/Account/ProfileView";
 import { AccountShell, Panel } from "@/components/Account/Shell";
-import { signInUrl, signOut, useAccount } from "@/lib/account/useAccount";
+import { signOut, useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { useAccountStats } from "@/lib/account/useAccountStats";
 import { useBadges } from "@/lib/account/useBadges";
 import { useGameHistory } from "@/lib/account/useGameHistory";
@@ -113,7 +114,7 @@ const SignInPrompt = () => (
       as="a"
       // A real navigation, not next/link: a cross-origin OAuth handoff the API
       // has to be able to set its cookie on.
-      href={signInUrl("/account")}
+      {...signInLink("/account")}
       size="sm"
       leftIcon={<FaDiscord />}
       bg="#5865F2"
