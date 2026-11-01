@@ -10,6 +10,7 @@
  * replay RECONNECT on the next socket open for the same room.
  */
 import { getAnalyticsId, track } from "@/lib/analytics";
+import { trackOncePerPageLoad } from "@/lib/analyticsErrors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   forgetRoom,
@@ -456,6 +457,37 @@ export const SEAT_REPLACED_CLOSE_CODE = 4001;
 export const isSeatReplacedClose = (e?: { code?: number; reason?: string } | null): boolean =>
   !!e && (e.code === SEAT_REPLACED_CLOSE_CODE || e.reason === "seat_replaced");
 
+/**
+ * Close codes that are a planned end, not a drop (issue #1514): 1000 normal,
+ * 1001 going away (navigation, or the server shutting down), 1012 service
+ * restart. Everything else that ends an OPEN socket and sends the backoff loop
+ * into a reconnect counts as `ws_closed_unexpected` — including 1006 and the
+ * code-less synthetic close of a half-open socket on tab return.
+ */
+const PLANNED_CLOSE_CODES = new Set([1000, 1001, 1012]);
+
+/**
+ * `ws_connect_failed` / `ws_closed_unexpected`, at most one of each per page
+ * load (a redeploy storm cannot flood). Only called for a close the backoff
+ * loop is about to retry: a deliberate leave, unmount or closeForGood
+ * supersedes the socket first and never gets here. Skipped while a
+ * SERVER_RESTARTING window is open (the planned path that already toasts) and
+ * for a seat taken over by another tab (an engine decision, not a fault).
+ */
+export const reportSocketClose = (
+  opened: boolean,
+  e: { code?: number; reason?: string } | null | undefined,
+  serverRestarting: boolean
+): void => {
+  if (serverRestarting || isSeatReplacedClose(e)) return;
+  if (!opened) {
+    trackOncePerPageLoad("ws_connect_failed", "ws_connect_failed", { mode: "pro" });
+    return;
+  }
+  if (e?.code !== undefined && PLANNED_CLOSE_CODES.has(e.code)) return;
+  trackOncePerPageLoad("ws_closed_unexpected", "ws_closed_unexpected", { mode: "pro", code: e?.code ?? null });
+};
+
 const notATournamentRoom = () => false;
 
 export function useProSocket(
@@ -685,6 +717,9 @@ export function useProSocket(
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
   const [serverRestarting, setServerRestarting] = useState(false);
+  // Analytics restart window (#1514): from a SERVER_RESTARTING until the next
+  // socket opens. Closes and failed connects inside it are the planned path.
+  const restartWindowRef = useRef(false);
   const [replayBundle, setReplayBundle] = useState<ReplayBundle | null>(null);
   const [gameLost, setGameLost] = useState(false);
   const [seatReplaced, setSeatReplaced] = useState(false);
@@ -824,8 +859,14 @@ export function useProSocket(
     setStatus((s) => (s === "idle" || s === "connecting" ? "connecting" : "reconnecting"));
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    let opened = false; // never opened ⇒ a connect failure, not a drop (#1514)
 
     ws.onopen = () => {
+      opened = true;
+      // An open ends the analytics restart window (#1514): a SERVER_RESTARTING
+      // that never led to a STATE must not hide every later drop. The toast
+      // flag itself is still cleared by the resume STATE.
+      restartWindowRef.current = false;
       retryRef.current.attempts = 0;
       setStatus("open");
       // Whatever we say next (RECONNECT or a pending join), the STATE that comes
@@ -1045,6 +1086,7 @@ export function useProSocket(
           // the socket will close and the backoff loop reconnects to the new
           // instance, where RECONNECT/RESUME_ROOM revives the game.
           setServerRestarting(true);
+          restartWindowRef.current = true; // #1514
           // Arm the terminal-failure deadline: if no STATE/ROOM_JOINED lands
           // within RESUME_DEADLINE_MS the game is declared lost (issue #133).
           // Only meaningful once we've actually been in a live game.
@@ -1303,6 +1345,7 @@ export function useProSocket(
         setSeatReplaced(true);
         return;
       }
+      reportSocketClose(opened, e, restartWindowRef.current);
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling

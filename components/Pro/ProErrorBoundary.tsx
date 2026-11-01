@@ -14,7 +14,8 @@
  *    user-driven retry, never an automatic crash loop.
  *  - "Leave room" is the escape hatch when re-render keeps failing.
  *  - It NEVER swallows the error silently: componentDidCatch logs the message
- *    and the component stack to the console for diagnostics.
+ *    and the component stack to the console for diagnostics, and reports one
+ *    `client_error` analytics event per page load (issue #1514).
  *
  * Deliberately NOT auto-resetting on a new `view`: a reconnect delivers the same
  * throwing state, so auto-retrying it would reintroduce the infinite crash. The
@@ -37,6 +38,7 @@
  */
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Box, Button, Code, Flex, Text } from "@chakra-ui/react";
+import { reportClientError } from "@/lib/analyticsErrors";
 
 export interface ProErrorBoundaryProps {
   children: ReactNode;
@@ -110,6 +112,7 @@ export class ProErrorBoundary extends Component<
     // the props of the render that crashed (this fires during that render's
     // commit), before the socket pushes a newer view and the props drift.
     const { roomId, seat, stateHash } = this.props;
+    reportClientError("pro", error, { roomId, seat, stateHash }); // #1514, once per page load
     this.setState({ caught: { roomId, seat, stateHash } });
   }
 

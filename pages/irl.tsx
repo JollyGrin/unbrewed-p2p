@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
 import { PageSeo } from "@/components/Helmet/Head";
+import { GameErrorBoundary } from "@/components/ErrorBoundary/GameErrorBoundary";
 import { IrlShell } from "@/components/Irl/IrlShell";
 import { IRL_SEAT } from "@/components/Irl/irlGame";
 import { isOfflineError, useIrlServiceWorker } from "@/components/Irl/irlOffline";
@@ -107,10 +108,13 @@ const Irl = () => {
       </Head>
       {deck && query.name ? (
         <OfflineGameProvider>
-          <IrlShell deck={deck} />
-          <DeckRefreshOnTable refresh={refresh} />
-          {link.held?.refresh && <DeckLinkHold link={link} />}
-          <DeckLinkNotice link={link} />
+          {/* Inside the provider: its board state is in memory, so "Try again" keeps it. */}
+          <GameErrorBoundary boundary="irl">
+            <IrlShell deck={deck} />
+            <DeckRefreshOnTable refresh={refresh} />
+            {link.held?.refresh && <DeckLinkHold link={link} />}
+            <DeckLinkNotice link={link} />
+          </GameErrorBoundary>
         </OfflineGameProvider>
       ) : (
         <Grid
