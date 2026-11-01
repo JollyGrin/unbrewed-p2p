@@ -9,7 +9,7 @@
  * in localStorage (plus a recent-rooms index — see lib/pro/recentRooms.ts) and
  * replay RECONNECT on the next socket open for the same room.
  */
-import { getAnalyticsId } from "@/lib/analytics";
+import { getAnalyticsId, track } from "@/lib/analytics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   forgetRoom,
@@ -661,6 +661,17 @@ export function useProSocket(
   const ownClockRef = useRef<{ deadline: number; acted: boolean } | null>(null);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [heroes, setHeroes] = useState<HeroListing[] | null>(null);
+  const heroesRef = useRef(heroes);
+  heroesRef.current = heroes;
+  // `hero_picked` (#1512): one per create/join that names a hero. A tournament
+  // ticket is the competitive game, reported as `ranked`.
+  const trackHeroPicked = useCallback(
+    (heroId: string, mode: "ranked" | "casual" | "bot" | "quickmatch") => {
+      const tier = heroesRef.current?.find((h) => h.heroId === heroId)?.tier;
+      track("hero_picked", { hero_id: heroId, tier, mode });
+    },
+    []
+  );
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
   const [serverRestarting, setServerRestarting] = useState(false);
@@ -1480,8 +1491,12 @@ export function useProSocket(
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
+      trackHeroPicked(
+        heroId,
+        ticket ? "ranked" : bot || botSeats?.length ? "bot" : quickMatch ? "quickmatch" : "casual"
+      );
     },
-    [sendBind, clearResumeDeadline]
+    [sendBind, clearResumeDeadline, trackHeroPicked]
   );
 
   const joinRoom = useCallback(
@@ -1516,8 +1531,10 @@ export function useProSocket(
         : joinRoomMsg(room, heroId, ticket);
       if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
+      // A heroless join is a resume, and a held seat token a reconnect: no pick.
+      if (heroId && !token) trackHeroPicked(heroId, ticket ? "ranked" : "casual");
     },
-    [sendBind, clearResumeDeadline, joinRoomMsg]
+    [sendBind, clearResumeDeadline, joinRoomMsg, trackHeroPicked]
   );
 
   // In-flight guard (p2p #840, narrowed in #847): lets an ACTION through unless

@@ -32,6 +32,12 @@ jest.mock("axios", () => ({
   default: { get: (...a: unknown[]) => mockProFetch(...a) },
 }));
 
+const mockTrack = jest.fn();
+jest.mock("../analytics", () => ({
+  ...jest.requireActual("../analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
+
 const toastPlain = jest.fn();
 jest.mock("react-hot-toast", () => {
   const toast: any = (...args: unknown[]) => toastPlain(...args);
@@ -115,6 +121,7 @@ const signedInApi = (options?: {
 };
 
 beforeEach(() => {
+  mockTrack.mockClear();
   toastPlain.mockClear();
   localStorage.clear();
   __resetAccountStoreForTests();
@@ -516,5 +523,75 @@ describe("a starred Pro deck that is not in the bag (#1421)", () => {
 
     await waitFor(() => expect(result.current.starredDeck?.name).toBe("My Kong"));
     expect(mockProFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("deck events (#1512)", () => {
+  const withHero = (id: string, name: string, hero: string) => ({
+    ...deck(id, name),
+    deck_data: { hero: { name: hero }, cards: [{ quantity: 3 }, { quantity: 2 }] },
+  });
+
+  const guestBag = async () => {
+    install(() => reply(401, { user: null }));
+    const hook = renderHook(() => useBagDecks());
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    return hook.result;
+  };
+
+  it("sends deck_added with the source and stores it on the deck", async () => {
+    const result = await guestBag();
+    await act(async () => {
+      await result.current.pushDeck(withHero("d1", "My Spicy Tuesday Brew", "Thrall"), {
+        source: "popular",
+      });
+    });
+    expect(mockTrack).toHaveBeenCalledWith("deck_added", {
+      source: "popular",
+      deck_id: "d1",
+      hero_name: "Thrall",
+      card_count: 5,
+    });
+    expect(JSON.stringify(mockTrack.mock.calls)).not.toContain("Spicy Tuesday");
+    expect(result.current.decks?.[0].addSource).toBe("popular");
+  });
+
+  it("sends deck_replaced instead for a deck already in the bag", async () => {
+    const result = await guestBag();
+    await act(async () => {
+      await result.current.pushDeck(deck("d1"), { source: "code" });
+    });
+    mockTrack.mockClear();
+    await act(async () => {
+      await result.current.pushDeck(deck("d1"), { source: "code" });
+    });
+    expect(mockTrack.mock.calls).toEqual([["deck_replaced", { source: "code" }]]);
+  });
+
+  it("sends deck_add_failed for a blocked author and a full device", async () => {
+    const result = await guestBag();
+    await act(async () => {
+      await result.current.pushDeck({ ...deck("j1"), user: "JOWEE" }, { source: "deeplink" });
+    });
+    const setItem = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
+    });
+    await act(async () => {
+      await result.current.pushDeck(deck("d2"), { source: "starter" });
+    });
+    setItem.mockRestore();
+    expect(mockTrack.mock.calls).toEqual([
+      ["deck_add_failed", { source: "deeplink", reason: "blocked_author" }],
+      ["deck_add_failed", { source: "starter", reason: "device_full" }],
+    ]);
+  });
+
+  it("sends nothing without a source", async () => {
+    const result = await guestBag();
+    await act(async () => {
+      await result.current.pushDeck(deck("d1"));
+    });
+    expect(mockTrack).not.toHaveBeenCalled();
+    expect(result.current.decks?.[0].addSource).toBeUndefined();
   });
 });

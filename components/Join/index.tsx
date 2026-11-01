@@ -24,6 +24,7 @@ import {
   useLocalServerStorage,
 } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { trackDeckSelected } from "@/lib/deckAnalytics";
 import {
   fetchDeckById,
   isValidServerUrl,
@@ -179,6 +180,7 @@ export const JoinPage = () => {
         }
       } else {
         setStar(deckChoice);
+        trackDeckSelected("sandbox", deckChoice, decks);
       }
 
       track("lobby_joined", { mode: "sandbox" });

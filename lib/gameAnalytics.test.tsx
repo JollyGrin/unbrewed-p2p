@@ -171,4 +171,9 @@ describe("deckSourceOf", () => {
     };
     expect(deckSourceOf(curated)).toBeUndefined();
   });
+
+  it("prefers the add source the bag stored, ignoring one it didn't mint", () => {
+    expect(deckSourceOf({ id: "abc123", addSource: "popular" })).toBe("popular");
+    expect(deckSourceOf({ id: "abc123", addSource: "typed" as never })).toBeUndefined();
+  });
 });

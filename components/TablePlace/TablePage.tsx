@@ -32,6 +32,7 @@ import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useProDecks } from "@/lib/proDecks";
 import { track, type AnalyticsProps } from "@/lib/analytics";
 import { deckSourceOf } from "@/lib/gameAnalytics";
+import { trackDeckSelected } from "@/lib/deckAnalytics";
 import { useProFaces } from "@/lib/proFaces";
 import { plainSkipped, previewDeck, previewOf } from "@/lib/tableplace/preview";
 import { DeckGallery } from "./DeckGallery";
@@ -156,6 +157,7 @@ export const TablePage = () => {
   };
   const pickYours = (id: string) => {
     setStar(id);
+    trackDeckSelected("sandbox-table", id, decks, proRoster);
     advance(!opponent.deck ? "them" : !map ? "map" : "you");
   };
   const pickTheirs = (id: string) => {

@@ -4,6 +4,8 @@ import { MapData } from "@/lib/hooks";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { useGenericImport } from "@/lib/hooks/useGenericImport";
+import { track } from "@/lib/analytics";
+import { trackDeckAddFailed } from "@/lib/deckAnalytics";
 import {
   Box,
   Button,
@@ -222,12 +224,17 @@ const ImportPanel = ({
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setRawText(await file.text());
+    const text = await file.text();
+    if (!normalizeBundle(parseJson(text))) trackDeckAddFailed("bulk", "parse_error");
+    setRawText(text);
   };
 
   const runImport = async () => {
     const addedDecks = await importDecks(newDecks);
     const addedMaps = await importMaps(newMaps);
+    // One event per import, not per deck (#1512).
+    if (addedDecks > 0) track("deck_added", { source: "bulk", deck_count: addedDecks });
+    else if (newDecks.length > 0) trackDeckAddFailed("bulk", "storage_refused");
     // 0 added with something to add means the write was refused (storage full,
     // already toasted) — don't claim a successful import over that.
     if (addedDecks + addedMaps === 0 && newDecks.length + newMaps.length > 0) return;

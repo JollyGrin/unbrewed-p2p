@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { gameModeOfPath, trackDeckSelected } from "@/lib/deckAnalytics";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { colors, fonts } from "@/styles/style";
 
@@ -53,6 +54,7 @@ export const ChangeDeckModal = (props: {
   const confirm = () => {
     if (!selected) return;
     setStar(selected.id);
+    trackDeckSelected(gameModeOfPath(window.location.pathname), selected.id, decks);
     switchDeck(selected);
     toast.success(`Switched to ${selected.deck_data?.hero?.name ?? selected.name}`);
     props.onClose();

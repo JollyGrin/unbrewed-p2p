@@ -38,6 +38,7 @@ import {
 import { GiPawn } from "@/components/Icons/gi";
 
 import { AddDeckHub } from "@/components/Bag/AddDeckHub";
+import { track } from "@/lib/analytics";
 import { BagSourceChip, ShareItemButton } from "@/components/Bag/Account";
 import { shareUrl } from "@/lib/account/bagCloud";
 import { DeckStats } from "./Stats";
@@ -496,6 +497,7 @@ const DeckActions = ({
     setSelectedDeckId(undefined);
     onBackToRail();
     removeDeckbyId(selectedDeckId);
+    track("deck_removed", { source: deck?.addSource });
     toast.success(`Tossed ${deck?.name} from your bag`);
   };
 

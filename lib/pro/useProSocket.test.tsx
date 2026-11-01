@@ -46,6 +46,13 @@ jest.mock("../account/useCosmetics", () => ({
   useCosmetics: () => ({ status: "ready", heroes: mockCosmetics }),
 }));
 
+// `hero_picked` (#1512) goes through the analytics wrapper; captured here.
+const mockTrack = jest.fn();
+jest.mock("../analytics", () => ({
+  ...jest.requireActual("../analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
+
 /**
  * Minimal fake WebSocket so we can drive the client's message handling without a
  * real server. Captures outbound frames and lets a test feed inbound ServerMsgs.
@@ -2708,5 +2715,56 @@ describe("useProSocket — Keen Hearing panel folds every STATE batch (p2p #1449
       ]));
     });
     expect(hook.result.current.revealState.panel).toMatchObject({ cards: ["a/y#2"], turn: 4 });
+  });
+});
+
+describe("useProSocket — hero_picked (#1512)", () => {
+  const realWS = global.WebSocket;
+  beforeEach(() => {
+    // @ts-expect-error — swap in the fake for the test
+    global.WebSocket = FakeWebSocket;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    mockTrack.mockClear();
+  });
+  afterEach(() => {
+    global.WebSocket = realWS;
+    FakeWebSocket.last = null;
+  });
+
+  const openSocket = () => {
+    const hook = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() =>
+      ws.emit({ type: "HEROES", heroes: [{ heroId: "thrall", name: "Thrall", tier: "community" }] })
+    );
+    return hook;
+  };
+  const picks = () => mockTrack.mock.calls.filter(([event]) => event === "hero_picked");
+
+  it("reports each create with its mode and the hero's tier", () => {
+    const hook = openSocket();
+    act(() => hook.result.current.createRoom("thrall"));
+    act(() => hook.result.current.createRoom("thrall", { difficulty: "easy" }));
+    act(() =>
+      hook.result.current.createRoom("thrall", undefined, undefined, undefined, undefined, undefined, undefined, true)
+    );
+    act(() =>
+      hook.result.current.createRoom("thrall", undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, "tkt")
+    );
+    expect(picks().map(([, p]) => p)).toEqual([
+      { hero_id: "thrall", tier: "community", mode: "casual" },
+      { hero_id: "thrall", tier: "community", mode: "bot" },
+      { hero_id: "thrall", tier: "community", mode: "quickmatch" },
+      { hero_id: "thrall", tier: "community", mode: "ranked" },
+    ]);
+  });
+
+  it("reports a join with a hero, but not a heroless resume", () => {
+    const hook = openSocket();
+    act(() => hook.result.current.joinRoom("R9", ""));
+    act(() => hook.result.current.joinRoom("R1", "thrall"));
+    expect(picks().map(([, p]) => p)).toEqual([{ hero_id: "thrall", tier: "community", mode: "casual" }]);
   });
 });

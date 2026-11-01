@@ -8,6 +8,7 @@ import { useDebounce } from "use-debounce";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { DEFAULT_DECK_API } from "@/lib/evergreenDecks";
 import { LinkedDeck, fetchLinkedDeck } from "@/lib/deckLink";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 
 const RELOADED_FOR_DECK_ID_KEY = "unbrewed:reloadedForDeckId";
 const NO_UNSUPPORTED: LinkedDeck["unsupported"] = [];
@@ -124,6 +125,7 @@ export const useLoadRouterDeck = () => {
     if (error) {
       setIsImporting(false);
       setImportFailed(true);
+      trackDeckAddFailed("deeplink", failureReason(error));
     }
   }, [error, deckId]);
 
@@ -134,7 +136,8 @@ export const useLoadRouterDeck = () => {
     // once the api data is available, put the deck in the bag and star it
     let cancelled = false;
     void (async () => {
-      if (!(await pushDeck(data))) return; // storage full — already toasted
+      // storage full — already toasted
+      if (!(await pushDeck(data, { source: "deeplink" }))) return;
       if (!cancelled) setStar(data.id);
     })();
     return () => {

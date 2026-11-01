@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Box, Button, Flex, HStack, Input, Link, Text } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
@@ -5,6 +6,7 @@ import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
 import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { BagDeckView } from "@/lib/bag/useBag";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 
 /**
  * Paste a deck code from unmatched.cards, preview the fetched deck, then
@@ -19,13 +21,17 @@ export const CodePanel = ({
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
 }) => {
-  const { data, isLoading, setDeckId } = useUnmatchedDeck();
+  const { data, isLoading, error, setDeckId } = useUnmatchedDeck();
   const { confirmReplace, asking, prompt } = useReplaceConfirm();
+
+  useEffect(() => {
+    if (error) trackDeckAddFailed("code", failureReason(error));
+  }, [error]);
 
   const save = async () => {
     if (!data) return;
     // storage full, or the player kept their edited copy — already toasted
-    if (!(await pushDeck(data, { confirmReplace }))) return;
+    if (!(await pushDeck(data, { confirmReplace, source: "code" }))) return;
     setStar(data.id);
     toast.success(`${data.name} saved & ready to play`);
     setDeckId(undefined);

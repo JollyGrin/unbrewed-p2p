@@ -5,6 +5,7 @@ import type { SavedToken } from "@/components/Positions/position.type";
 // type-only: the cosmetic ladder's tier names live with the ladder itself
 // (lib/pro/cosmetics.ts), so a re-tune can never leave this field behind.
 import type { CosmeticRimTier } from "@/lib/pro/cosmetics";
+import type { DeckSource } from "@/lib/deckAnalytics";
 
 export type DeckImportType = {
   bgg_link: string | null;
@@ -51,6 +52,12 @@ export type DeckImportType = {
    * without ever touching a token the player added.
    */
   labsComponents?: LabsComponentRecord[];
+  /**
+   * How this deck came into the bag (#1512): the `source` of its `deck_added`
+   * event, stamped by `pushDeck`. Optional and additive — absent on decks added
+   * before it existed, and on bulk imports, which keep whatever they carried.
+   */
+  addSource?: DeckSource;
   tags: string[];
   updated_on: DateString;
   user: string;

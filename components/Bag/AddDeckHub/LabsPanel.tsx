@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -14,6 +14,7 @@ import { toast } from "react-hot-toast";
 import { BagDeckView, useBagMaps } from "@/lib/bag/useBag";
 import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { LabsSkippedSummary } from "./LabsSkipped";
 import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
 import {
@@ -63,14 +64,17 @@ export const LabsPanel = ({
     () => (loaded ? listLabsHeroes(loaded.row.document.set) : []),
     [loaded],
   );
-  const built = useMemo((): LabsImport | { error: string } | undefined => {
+  const built = useMemo((): LabsImport | { error: string; cause: unknown } | undefined => {
     if (!loaded || !characterId) return undefined;
     try {
       return buildLabsImport(loaded, characterId);
     } catch (err) {
-      return { error: messageOf(err) };
+      return { error: messageOf(err), cause: err };
     }
   }, [loaded, characterId]);
+  useEffect(() => {
+    if (built && "error" in built) trackDeckAddFailed("unmatched-labs", failureReason(built.cause));
+  }, [built]);
   const result = built && "deck" in built ? built : undefined;
   const shownError = error ?? (built && "error" in built ? built.error : undefined);
 
@@ -91,6 +95,7 @@ export const LabsPanel = ({
       setCharacterId(defaultLabsCharacter(next));
     } catch (err) {
       setError(messageOf(err));
+      trackDeckAddFailed("unmatched-labs", failureReason(err));
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +105,16 @@ export const LabsPanel = ({
     if (!result) return;
     const { deck } = result;
     // blocked author, storage full, or the player kept their edited copy — already toasted
-    if (!(await pushDeck(deck, { confirmReplace }))) return;
+    const skipped = addMap && result.map ? withoutSkippedMap(result.skipped) : result.skipped;
+    const saved = await pushDeck(deck, {
+      confirmReplace,
+      source: "unmatched-labs",
+      addedProps: {
+        labs_unsupported_count: result.unsupported.length,
+        labs_skipped_count: skipped.reduce((n, s) => n + s.count, 0),
+      },
+    });
+    if (!saved) return;
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
     if (addMap && result.map) {
