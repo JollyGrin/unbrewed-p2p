@@ -54,6 +54,24 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
 
 1. **Growth:** `$pageview` (referrer/UTM), `landing_cta_clicked`, `share_link_opened`,
    `invite_link_copied`, `join_link_opened`, `login_started`, `login_completed` (+ `$identify`), `pwa_installed`, `app_first_open`.
+   `$pageview` already carries referrer, UTM and landing page (posthog-js campaign params). The events below (#1513) live in
+   `lib/growthAnalytics.ts`; each is sent **at most once per page load** (a re-render, a second click or a URL the page rewrites
+   itself sends nothing).
+   | Event | Properties | Trigger |
+   |---|---|---|
+   | `landing_cta_clicked` | cta `<section>:<href>`, from_page | A click on a landing CTA (`components/LandingPage/`): `chooser` (Play now options), `tables` (the four table cards), `intent` ("I want to…" card), `pro` (Pro band buttons), `progression` (collection/leaderboard/tournaments), `decks` (2D/3D picks, "Open your bag"). In-page anchors, changelog, footer and nav are not CTAs. |
+   | `share_link_opened` | kind `deck`\|`map`\|`replay`, source `share_page` | `/share/{deck,map,replay}/<id>` once the id is known (`ShareLanding`, `ReplaySharePage`; the routes and the 404.html rescue render the same components). |
+   | `share_link_opened` | kind `deck`, source `deeplink` | `?deckId=` present when `/irl`, `/offline` or `/table` first has its query (`lib/hooks/useDeckLink.ts`). A deckId `/irl` writes itself after an in-game deck switch is not counted. |
+   | `invite_link_copied` | mode `sandbox`\|`sandbox-table`\|`pro` | The clipboard write succeeded: `/connect` "Copy Invite Link" (`InviteLink`), `/table` friend's seat "Copy" (`InviteScreen`), pro lobby "copy link", the in-game room chip (`ProHud`) and mobile menu "Copy join link". The native Share sheet and replay share links are not counted here. |
+   | `join_link_opened` | mode `sandbox` | `/join` with `?gid=` once the router is ready (`components/Join`). |
+   | `join_link_opened` | mode `pro` | `/pro/game?room=` as the page opened, unless this browser already holds a seat token for the room (refresh, "back to your room") or the URL is a tournament ticket. |
+   | `pwa_installed` | – | The browser's `appinstalled` event on `/irl` (the only page linking `public/irl.webmanifest`). |
+   | `app_first_open` | display_mode | `/irl` launched outside a browser tab (`display-mode` standalone/fullscreen/minimal-ui, or iOS `navigator.standalone`) with no `unbrewed-irl-first-open` localStorage flag; the flag is set then. |
+
+   Page-load events (`share_link_opened`, `join_link_opened`, `app_first_open`) are sent one frame after mount, after the
+   notice has had its chance to start analytics. `/irl`, `/offline`, `/table` and `/pro/game` are game routes: a first-time
+   visitor who lands straight on one is not started, so their entry event is **dropped** (and its once-per-load / first-open
+   flag is still spent). This is accepted.
 2. **Decks** (#1512, helpers in `lib/deckAnalytics.ts`):
    - `deck_added` {source, deck_id, hero_name?, card_count, labs_unsupported_count?, labs_skipped_count?}: a new deck
      landed in the bag (`pushDeck` with a `source`). No `success` prop: the event is the success. Bulk sends one

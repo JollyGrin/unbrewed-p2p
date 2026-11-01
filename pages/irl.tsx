@@ -13,6 +13,7 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { useDeckLink } from "@/lib/hooks/useDeckLink";
+import { useIrlInstallAnalytics } from "@/lib/growthAnalytics";
 import { deckMatchesLink } from "@/lib/deckLink";
 import { DeckLinkHold, DeckLinkNotice } from "@/components/DeckLink/DeckLinkHold";
 import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
@@ -47,6 +48,7 @@ const Irl = () => {
   // Works offline at the table (#801): the worker keeps the assets, #798's
   // localStorage pool keeps the game.
   useIrlServiceWorker();
+  useIrlInstallAnalytics();
 
   // The shared game components read "self" from ?name=, and the offline
   // provider's one seat is keyed "offline" — so that is the name to set.

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Chip, Eyebrow, GOLD_INK, H2, Section } from "./ui";
 import { IMPORT_SOURCES } from "./content";
 import type { ShowcaseMap } from "./catalog";
+import { trackLandingCta } from "@/lib/growthAnalytics";
 
 /** Section 7: import sources, map thumbnails, and the 2D-or-3D pick. */
 export const BringAnyDeck = ({
@@ -59,6 +60,7 @@ export const BringAnyDeck = ({
               key={pick.href}
               as={Link}
               href={pick.href}
+              onClick={() => trackLandingCta("decks", pick.href)}
               direction="column"
               gap="0.2rem"
               p="0.9rem"
@@ -75,7 +77,7 @@ export const BringAnyDeck = ({
             </Flex>
           ))}
         </SimpleGrid>
-        <Box as={Link} href="/bag" display="inline-block" mt="1rem" fontFamily="SpaceGrotesk" fontWeight={700} textDecoration="underline">
+        <Box as={Link} href="/bag" onClick={() => trackLandingCta("decks", "/bag")} display="inline-block" mt="1rem" fontFamily="SpaceGrotesk" fontWeight={700} textDecoration="underline">
           Open your bag →
         </Box>
       </Box>

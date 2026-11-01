@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Box, Button, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { CHOOSER_OPTIONS } from "./content";
+import { trackLandingCta } from "@/lib/growthAnalytics";
 
 /**
  * The hero's "Play now" button and its four-option chooser.
@@ -92,6 +93,7 @@ export const PlayChooser = () => {
               <Box
                 as={Link}
                 href={option.href}
+                onClick={() => trackLandingCta("chooser", option.href)}
                 display="block"
                 px="0.85rem"
                 py="0.65rem"

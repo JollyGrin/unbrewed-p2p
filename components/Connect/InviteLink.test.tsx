@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { InviteLink } from "./InviteLink";
+import { resetGrowthAnalytics } from "@/lib/growthAnalytics";
 
 /**
  * Issue #640: the "Bundle a deck for them" select used `version_id` as the
@@ -13,6 +14,9 @@ import { InviteLink } from "./InviteLink";
  * the second deck with a shared version snapped the controlled <select> back
  * to the first one, and the copied link carried an ambiguous deckId.
  */
+
+const track = jest.fn();
+jest.mock("../../lib/analytics", () => ({ track: (...args: unknown[]) => track(...args) }));
 
 jest.mock("react-hot-toast", () => ({
   toast: { success: jest.fn(), error: jest.fn() },
@@ -64,7 +68,11 @@ beforeAll(() => {
   });
 });
 
-beforeEach(() => writeText.mockClear());
+beforeEach(() => {
+  writeText.mockClear();
+  track.mockClear();
+  resetGrowthAnalytics();
+});
 
 describe("InviteLink — bundle a deck (issue #640)", () => {
   it("keeps the second same-version deck selected", () => {
@@ -104,6 +112,22 @@ describe("InviteLink — bundle a deck (issue #640)", () => {
 
     const url = new URL(writeText.mock.calls[0][0]);
     expect(url.searchParams.has("deckId")).toBe(false);
+  });
+
+  it("reports invite_link_copied (#1513) once the link is on the clipboard", async () => {
+    renderInvite();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Copy Invite Link"));
+    });
+    expect(track).toHaveBeenCalledWith("invite_link_copied", { mode: "sandbox" });
+
+    track.mockClear();
+    resetGrowthAnalytics();
+    writeText.mockRejectedValueOnce(new Error("denied"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Copy Invite Link"));
+    });
+    expect(track).not.toHaveBeenCalled();
   });
 
   it("collapses back to the disabled button when the lobby is cleared", () => {

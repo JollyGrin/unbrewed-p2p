@@ -5,6 +5,7 @@ import { COSMETIC_RIM_PAINTS, COSMETIC_RIM_TIERS } from "@/lib/pro/cosmetics";
 import { SIZES } from "@/lib/tournaments/createForm";
 import { Eyebrow, H2, Section } from "./ui";
 import { TOURNAMENT_SIZES_TEXT } from "./content";
+import { trackLandingCta } from "@/lib/growthAnalytics";
 
 /** Our own deck's cardback (King Taranis) — the rims are shown on a real card. */
 const CARDBACK = "/cardbacks/taranis.webp";
@@ -37,6 +38,7 @@ const SmallLink = ({ href, children }: { href: string; children: React.ReactNode
   <Box
     as={Link}
     href={href}
+    onClick={() => trackLandingCta("progression", href)}
     alignSelf="flex-start"
     mt="auto"
     fontFamily="SpaceGrotesk"

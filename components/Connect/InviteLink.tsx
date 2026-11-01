@@ -12,6 +12,7 @@ import { toast } from "react-hot-toast";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { buildInviteUrl } from "@/lib/invite";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import { trackInviteCopied } from "@/lib/growthAnalytics";
 
 /**
  * "Invite a friend with a link" — copies a /join URL for the lobby the host is
@@ -95,13 +96,13 @@ export const InviteLink = ({
               onClick={() => {
                 const gid = gidRef?.current?.value;
                 if (!gid) return;
-                copy(
+                void copy(
                   buildInviteUrl({
                     gid,
                     server: activeServer,
                     deckId: inviteDeckId || undefined,
                   }),
-                );
+                ).then((ok) => ok && trackInviteCopied("sandbox"));
                 toast.success(
                   "Invite link copied — anyone who clicks it jumps straight in!",
                 );

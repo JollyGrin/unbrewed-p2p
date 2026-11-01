@@ -31,6 +31,7 @@ import { replayVerificationNotice } from "@/lib/pro/replayVerification";
 import { assertBundle, downloadBundle, replayLabel } from "@/lib/pro/replayShare";
 import { saveReplay } from "@/lib/pro/replayStore";
 import { parseSharePath } from "@/lib/share/sharedItem";
+import { useEntryEvent } from "@/lib/growthAnalytics";
 import { ReplayScrubber } from "@/components/Pro/ReplayScrubber";
 import {
   ReplayDivergenceBanner,
@@ -252,12 +253,16 @@ export const sharedReplayIdFromPath = (asPath: string): string | null => {
 };
 
 /** Wrapper adding the page chrome, shared by the route and the 404 rescue. */
-export const ReplaySharePage = ({ id }: { id: string | null }) => (
-  <>
-    <Head>
-      <title>Unbrewed — shared replay</title>
-      <meta name="robots" content="noindex" />
-    </Head>
-    <ReplayShareLanding id={id} />
-  </>
-);
+export const ReplaySharePage = ({ id }: { id: string | null }) => {
+  // `null` until the router is ready.
+  useEntryEvent("share_link_opened", id === null ? undefined : { kind: "replay", source: "share_page" });
+  return (
+    <>
+      <Head>
+        <title>Unbrewed — shared replay</title>
+        <meta name="robots" content="noindex" />
+      </Head>
+      <ReplayShareLanding id={id} />
+    </>
+  );
+};
