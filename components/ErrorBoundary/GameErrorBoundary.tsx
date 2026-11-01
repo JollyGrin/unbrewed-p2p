@@ -7,7 +7,8 @@
  * children (a repeat throw is simply caught again, never an automatic loop);
  * the error is logged to the console and reported as one `client_error` per
  * boundary per page load. The sandbox game state lives in the relay / local
- * storage, so a re-mount picks it back up.
+ * storage, so a re-mount picks it back up; on /irl and /offline the boundary
+ * sits inside OfflineGameProvider so its in-memory board survives a retry.
  */
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Box, Button, Code, Flex, Text } from "@chakra-ui/react";
@@ -58,10 +59,10 @@ export class GameErrorBoundary extends Component<GameErrorBoundaryProps, GameErr
         data-testid="game-error-boundary-fallback"
       >
         <Text fontFamily="LeagueGothic" fontSize="2rem" letterSpacing="0.05em" color="red.300">
-          Something went wrong drawing the table
+          Something went wrong on this page
         </Text>
         <Text opacity={0.8} maxW="34rem">
-          This is a display glitch. Try again; if it keeps failing, head home and reopen the game.
+          This is a display glitch. Try again; if it keeps failing, head home and come back.
         </Text>
         <Box maxW="34rem" w="100%" bg="blackAlpha.400" borderRadius="md" p="0.75rem" textAlign="left">
           <Code

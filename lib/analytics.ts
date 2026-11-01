@@ -161,14 +161,26 @@ const writeConsent = (v: ConsentState) => {
 /** Whether the one-line notice should render (analytics on, not yet dismissed). */
 export const shouldShowNotice = (): boolean => analyticsAvailable() && readConsent() === "unseen";
 
-/** Run now if PostHog is loaded, queue if it is loading, otherwise drop. Never throws. */
-const run = (fn: (p: PostHog) => void): void => {
-  if (!analyticsAvailable()) return;
+/** Cap on calls held before PostHog loads (a render-time crash fires before the start effect). */
+const QUEUE_MAX = 20;
+
+/**
+ * Run now if PostHog is loaded, queue if it is loading or about to start (the
+ * notice was already seen, so start is imminent), otherwise drop. Returns
+ * whether the call was run or queued. Never throws.
+ */
+const run = (fn: (p: PostHog) => void): boolean => {
+  if (!analyticsAvailable()) return false;
   if (ph) {
-    if (!ph.has_opted_out_capturing()) fn(ph);
-  } else if (starting) {
-    queue.push(fn);
+    if (ph.has_opted_out_capturing()) return false;
+    fn(ph);
+    return true;
   }
+  if ((starting || readConsent() === "seen") && queue.length < QUEUE_MAX) {
+    queue.push(fn);
+    return true;
+  }
+  return false;
 };
 
 /**
@@ -258,14 +270,15 @@ export const trackPageview = (): void => {
 /**
  * `beacon`: send now over `navigator.sendBeacon`, for a capture made while the
  * page is going away (`pagehide`), where a batched or fetch send can be lost.
+ * Returns whether the event was captured or queued (false: dropped).
  */
 export const track = (
   event: AnalyticsEvent,
   props?: AnalyticsProps,
   opts?: { beacon?: boolean },
-): void => {
-  if (typeof window === "undefined" || isSilentPath(window.location.pathname)) return;
-  run((p) =>
+): boolean => {
+  if (typeof window === "undefined" || isSilentPath(window.location.pathname)) return false;
+  return run((p) =>
     opts?.beacon
       ? p.capture(event, props, { transport: "sendBeacon", send_instantly: true })
       : p.capture(event, props),

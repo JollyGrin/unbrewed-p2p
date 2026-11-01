@@ -66,14 +66,15 @@ const Offline = () => {
     <>
       <PageSeo path="/offline" title="Offline — Unbrewed" noindex />
       {deckReady && nameReady ? (
-        <GameErrorBoundary boundary="irl">
-          <OfflineGameProvider>
+        <OfflineGameProvider>
+          {/* Inside the provider: its board state is in memory, so "Try again" keeps it. */}
+          <GameErrorBoundary boundary="irl">
             <GameShell />
             <DeckRefreshOnTable refresh={link.refresh} />
             {link.held?.refresh && <DeckLinkHold link={link} />}
             <DeckLinkNotice link={link} />
-          </OfflineGameProvider>
-        </GameErrorBoundary>
+          </GameErrorBoundary>
+        </OfflineGameProvider>
       ) : (
         <Grid
           bg="brand.primary"

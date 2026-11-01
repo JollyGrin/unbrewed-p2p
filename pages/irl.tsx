@@ -107,14 +107,15 @@ const Irl = () => {
         <meta name="apple-mobile-web-app-title" content="IRL Mode" />
       </Head>
       {deck && query.name ? (
-        <GameErrorBoundary boundary="irl">
-          <OfflineGameProvider>
+        <OfflineGameProvider>
+          {/* Inside the provider: its board state is in memory, so "Try again" keeps it. */}
+          <GameErrorBoundary boundary="irl">
             <IrlShell deck={deck} />
             <DeckRefreshOnTable refresh={refresh} />
             {link.held?.refresh && <DeckLinkHold link={link} />}
             <DeckLinkNotice link={link} />
-          </OfflineGameProvider>
-        </GameErrorBoundary>
+          </GameErrorBoundary>
+        </OfflineGameProvider>
       ) : (
         <Grid
           bg="brand.secondary"

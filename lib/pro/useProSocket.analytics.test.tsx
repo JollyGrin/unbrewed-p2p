@@ -10,10 +10,10 @@ jest.mock("../account/useBadges", () => ({
 }));
 jest.mock("../account/useCosmetics", () => ({ useCosmetics: () => ({ status: "ready", heroes: [] }) }));
 
-const mockTrack = jest.fn();
+const mockTrack = jest.fn((_event: string, _props?: Record<string, unknown>) => true);
 jest.mock("../analytics", () => ({
   ...jest.requireActual("../analytics"),
-  track: (...args: unknown[]) => mockTrack(...args),
+  track: (event: string, props?: Record<string, unknown>) => mockTrack(event, props),
 }));
 
 class FakeWebSocket {
@@ -56,7 +56,7 @@ describe("useProSocket — ws failure analytics (issue #1514)", () => {
     // @ts-expect-error — swap in the fake for the test
     global.WebSocket = FakeWebSocket;
     window.localStorage.clear();
-    mockTrack.mockClear();
+    mockTrack.mockReset().mockImplementation(() => true);
     resetOncePerPageLoad();
   });
   afterEach(() => {
@@ -110,6 +110,17 @@ describe("useProSocket — ws failure analytics (issue #1514)", () => {
     act(() => FakeWebSocket.last!.drop(1006));
     act(() => nextSocket().drop(1006));
     expect(mockTrack).not.toHaveBeenCalled();
+  });
+
+  it("the restart window ends at the next open: a later drop is reported", () => {
+    renderHook(() => useProSocket("ws://test"));
+    act(() => FakeWebSocket.last!.open());
+    act(() => FakeWebSocket.last!.emit({ type: "SERVER_RESTARTING" })); // before any STATE
+    act(() => FakeWebSocket.last!.drop(1006));
+    const ws = nextSocket();
+    act(() => ws.open()); // the new instance is up
+    act(() => ws.drop(1006));
+    expect(events("ws_closed_unexpected")).toEqual([["ws_closed_unexpected", { mode: "pro", code: 1006 }]]);
   });
 
   it("a seat taken over by another tab reports nothing", () => {

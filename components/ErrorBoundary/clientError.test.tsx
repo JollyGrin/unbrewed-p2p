@@ -3,9 +3,9 @@ import { GameErrorBoundary } from "./GameErrorBoundary";
 import { ProErrorBoundary } from "../Pro/ProErrorBoundary";
 import { resetOncePerPageLoad } from "../../lib/analyticsErrors";
 
-const mockTrack = jest.fn();
+const mockTrack = jest.fn((_event: string, _props?: Record<string, unknown>) => true);
 jest.mock("../../lib/analytics", () => ({
-  track: (...args: unknown[]) => mockTrack(...args),
+  track: (event: string, props?: Record<string, unknown>) => mockTrack(event, props),
 }));
 
 const Boom = (): JSX.Element => {
@@ -16,7 +16,7 @@ const clientErrors = () => mockTrack.mock.calls.filter(([event]) => event === "c
 
 describe("client_error from error boundaries (issue #1514)", () => {
   beforeEach(() => {
-    mockTrack.mockClear();
+    mockTrack.mockReset().mockImplementation(() => true);
     resetOncePerPageLoad();
     jest.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -35,7 +35,7 @@ describe("client_error from error boundaries (issue #1514)", () => {
     expect(clientErrors()).toHaveLength(1);
     const props = clientErrors()[0][1];
     expect(props).toMatchObject({ boundary, route: "/", error_name: "TypeError" });
-    expect(props.message).toHaveLength(200);
+    expect(props!.message).toHaveLength(200);
   });
 
   it("pro: one event carrying the room identifiers", () => {
@@ -61,6 +61,6 @@ describe("client_error from error boundaries (issue #1514)", () => {
         </GameErrorBoundary>
       </>
     );
-    expect(clientErrors().map(([, p]) => p.boundary)).toEqual(["sandbox", "irl"]);
+    expect(clientErrors().map(([, p]) => p!.boundary)).toEqual(["sandbox", "irl"]);
   });
 });

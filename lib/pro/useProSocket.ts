@@ -717,9 +717,9 @@ export function useProSocket(
   const [lobbies, setLobbies] = useState<LobbyListing[] | null>(null);
   const [roomPublic, setRoomPublic] = useState(false);
   const [serverRestarting, setServerRestarting] = useState(false);
-  // Mirror for the socket's onclose, which outlives the render that made it (#1514).
-  const serverRestartingRef = useRef(false);
-  serverRestartingRef.current = serverRestarting;
+  // Analytics restart window (#1514): from a SERVER_RESTARTING until the next
+  // socket opens. Closes and failed connects inside it are the planned path.
+  const restartWindowRef = useRef(false);
   const [replayBundle, setReplayBundle] = useState<ReplayBundle | null>(null);
   const [gameLost, setGameLost] = useState(false);
   const [seatReplaced, setSeatReplaced] = useState(false);
@@ -863,6 +863,10 @@ export function useProSocket(
 
     ws.onopen = () => {
       opened = true;
+      // An open ends the analytics restart window (#1514): a SERVER_RESTARTING
+      // that never led to a STATE must not hide every later drop. The toast
+      // flag itself is still cleared by the resume STATE.
+      restartWindowRef.current = false;
       retryRef.current.attempts = 0;
       setStatus("open");
       // Whatever we say next (RECONNECT or a pending join), the STATE that comes
@@ -1082,7 +1086,7 @@ export function useProSocket(
           // the socket will close and the backoff loop reconnects to the new
           // instance, where RECONNECT/RESUME_ROOM revives the game.
           setServerRestarting(true);
-          serverRestartingRef.current = true; // the close may land before the re-render (#1514)
+          restartWindowRef.current = true; // #1514
           // Arm the terminal-failure deadline: if no STATE/ROOM_JOINED lands
           // within RESUME_DEADLINE_MS the game is declared lost (issue #133).
           // Only meaningful once we've actually been in a live game.
@@ -1341,7 +1345,7 @@ export function useProSocket(
         setSeatReplaced(true);
         return;
       }
-      reportSocketClose(opened, e, serverRestartingRef.current);
+      reportSocketClose(opened, e, restartWindowRef.current);
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
