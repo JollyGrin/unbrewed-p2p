@@ -34,11 +34,16 @@ jest.mock("next/router", () => ({ useRouter: () => ({ query: {} }) }));
 jest.mock("./Deck/DeckCards", () => ({ DeckCards: () => null }));
 jest.mock("../CardFactory/Card", () => ({ Card: () => null }));
 
-const mockUnmatched = { data: undefined as unknown, error: undefined as unknown };
+const mockUnmatched = {
+  data: undefined as unknown,
+  error: undefined as unknown,
+  deckId: undefined as string | undefined,
+};
 jest.mock("../../lib/hooks/useUnmatchedDeck", () => ({
   useUnmatchedDeck: () => ({
     data: mockUnmatched.data,
     error: mockUnmatched.error,
+    deckId: mockUnmatched.deckId,
     isLoading: false,
     setDeckId: () => {},
   }),
@@ -78,22 +83,47 @@ beforeEach(() => {
   mockPushDeck.mockClear();
   mockUnmatched.data = undefined;
   mockUnmatched.error = undefined;
+  mockUnmatched.deckId = undefined;
 });
 
 describe("CodePanel", () => {
   it("saves with source code", async () => {
     mockUnmatched.data = DECK;
-    const pushDeck = jest.fn(async () => true);
+    const pushDeck = jest.fn(async (..._a: unknown[]) => true);
     wrap(<CodePanel pushDeck={pushDeck} setStar={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
     await waitFor(() => expect(pushDeck).toHaveBeenCalled());
     expect(pushDeck.mock.calls[0][1]).toMatchObject({ source: "code" });
   });
 
-  it("reports a failed fetch by HTTP status", () => {
-    mockUnmatched.error = { response: { status: 404 }, message: "Request failed with status code 404" };
-    wrap(<CodePanel pushDeck={jest.fn()} setStar={() => {}} />);
-    expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", { source: "code", reason: 404 });
+  const NOT_FOUND = { response: { status: 404 }, message: "Request failed with status code 404" };
+
+  it("reports a complete code that fails, once, by HTTP status", () => {
+    mockUnmatched.error = NOT_FOUND;
+    mockUnmatched.deckId = "zzzz";
+    const { rerender } = wrap(<CodePanel pushDeck={jest.fn()} setStar={() => {}} />);
+    rerender(
+      <ChakraProvider>
+        <CodePanel pushDeck={jest.fn()} setStar={() => {}} />
+      </ChakraProvider>,
+    );
+    expect(mockTrack.mock.calls).toEqual([["deck_add_failed", { source: "code", reason: 404 }]]);
+  });
+
+  it("reports nothing while a partial code is still being typed", () => {
+    mockUnmatched.error = NOT_FOUND;
+    const panel = () => (
+      <ChakraProvider>
+        <CodePanel pushDeck={jest.fn()} setStar={() => {}} />
+      </ChakraProvider>
+    );
+    mockUnmatched.deckId = "p";
+    const { rerender } = render(panel());
+    for (const partial of ["pk", "pk1", "labs:"]) {
+      mockUnmatched.deckId = partial;
+      rerender(panel());
+    }
+    expect(mockTrack).not.toHaveBeenCalled();
   });
 });
 
@@ -127,13 +157,13 @@ describe("PopularDecks", () => {
 });
 
 describe("AddImageDeck", () => {
-  it("reports an unreadable TTS export as a parse error (the-unmatched.club)", () => {
+  it("reports an unreadable TTS export as a parse error (tts)", () => {
     wrap(<AddImageDeck />);
     fireEvent.change(screen.getByPlaceholderText(/paste the TTS JSON/), {
       target: { value: "{not json" },
     });
     expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", {
-      source: "the-unmatched.club",
+      source: "tts",
       reason: "parse_error",
     });
   });
@@ -163,5 +193,20 @@ describe("BagBulkContainer", () => {
       fireEvent.click(screen.getByRole("button", { name: /Import 3 new items/ }));
     });
     expect(mockTrack.mock.calls).toEqual([["deck_added", { source: "bulk", deck_count: 3 }]]);
+  });
+
+  it("reports blocked_author when every new deck is by a blocked author", async () => {
+    mockImportDecks.mockResolvedValueOnce(0);
+    wrap(<BagBulkContainer />);
+    const decks = [{ id: "j1", name: "Death", user: "JOWEE", deck_data: {} }];
+    fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
+      target: { value: JSON.stringify({ decks, maps: [] }) },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Import 1 new item/ }));
+    });
+    expect(mockTrack.mock.calls).toEqual([
+      ["deck_add_failed", { source: "bulk", reason: "blocked_author" }],
+    ]);
   });
 });

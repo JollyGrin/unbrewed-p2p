@@ -25,6 +25,13 @@ import type { HeroListing, LobbyListing } from "@/lib/pro/protocol";
 import { randomMapPool } from "@/lib/pro/mapCatalog";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
+// `hero_picked` (#1512): one per search, however many lobbies it walks.
+const mockTrack = jest.fn();
+jest.mock("../../lib/analytics", () => ({
+  ...jest.requireActual("../../lib/analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
+
 const HERO = "king-kong";
 
 const heroes: HeroListing[] = [
@@ -162,6 +169,18 @@ describe("Quick Match on the pre-join picker", () => {
     expect(frames("JOIN_ROOM").map((m) => m.roomId)).toEqual(["a", "b"]);
     expect(frames("CREATE_ROOM")).toEqual([
       expect.objectContaining({ type: "CREATE_ROOM", heroId: HERO, quickMatch: true }),
+    ]);
+  });
+
+  it("reports one hero_picked per search, as quickmatch, across skipped lobbies (#1512)", async () => {
+    mockTrack.mockClear();
+    await mountPicker([lobby("a", 120_000), lobby("b", 60_000)]);
+    await clickQuickMatch();
+    await raceAway("ROOM_FULL");
+    await raceAway("ROOM_NOT_FOUND"); // two stale lobbies, then our own room
+    expect(frames("CREATE_ROOM")).toHaveLength(1);
+    expect(mockTrack.mock.calls.filter(([e]) => e === "hero_picked")).toEqual([
+      ["hero_picked", { hero_id: HERO, tier: "community", mode: "quickmatch" }],
     ]);
   });
 

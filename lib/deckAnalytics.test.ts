@@ -32,7 +32,7 @@ describe("deckAddedProps", () => {
     });
   });
 
-  it.each(["image", "the-unmatched.club"] as const)(
+  it.each(["image", "tts", "the-unmatched.club"] as const)(
     "carries no player-typed text for a custom-named %s deck",
     (source) => {
       const props = deckAddedProps(deck(), source);
@@ -72,6 +72,16 @@ describe("trackDeckSelected", () => {
       deck_id: "p1",
       source: "pro-hero",
     });
+  });
+
+  it("leaves out an addSource that isn't one of ours (a backup file's)", () => {
+    trackDeckSelected("sandbox", "d1", [deck({ addSource: "Grandma's import" })]);
+    expect(mockTrack).toHaveBeenCalledWith("deck_selected_for_game", {
+      mode: "sandbox",
+      deck_id: "d1",
+      source: undefined,
+    });
+    expect(JSON.stringify(mockTrack.mock.calls)).not.toMatch(/Grandma/);
   });
 
   it("sends nothing for an unknown id", () => {

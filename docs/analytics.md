@@ -73,18 +73,20 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    |---|---|
    | `code` | /bag → Import from unmatched.cards (deck code, `CodePanel`) |
    | `unmatched-labs` | /bag → Import from Unmatched Labs (`LabsPanel`), with the unsupported/skipped counts |
-   | `the-unmatched.club` | /bag → The Unmatched Club → Tabletop Simulator export |
+   | `tts` | /bag → The Unmatched Club → Tabletop Simulator export (made by the club and unmatched.cards alike) |
    | `image` | /bag → The Unmatched Club → Image URLs |
    | `starter` | /bag → Starter decks |
    | `popular` | /bag → Popular decks |
    | `bulk` | /bag → Backup & Share → Import |
    | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`) |
    | `pro-hero` | `deck_selected_for_game` only: a Pro roster deck played without adding it to the bag (#1421) |
-   | `unmatched.cards` | Reserved: no add path is distinct from `code` today |
+   | `unmatched.cards`, `the-unmatched.club` | Reserved: no add path is distinct from `code` / `tts` today |
 
-   `hero_name` is the deck's catalog hero name and is omitted for `image` and `the-unmatched.club`, whose hero name
+   `hero_name` is the deck's catalog hero name and is omitted for `image` and `tts`, whose hero name
    is typed by the player. `deck_id` is the source site's id. Never a deck name. Each added deck stores its
-   `source` as `addSource` (optional field on the deck) for `deck_removed` and `deck_selected_for_game`.
+   `source` as `addSource` (optional field on the deck) for `deck_removed` and `deck_selected_for_game`; a value that
+   isn't in the list above (e.g. from a backup file) is left out. A deep link's automatic re-push (react-query refetch)
+   sends nothing.
 3. **Games:** engine: `game_created`, `game_started`, `game_finished` {duration_s, end_reason, …}, `game_abandoned`,
    `rematch_offered/accepted`, `reconnect`. Client (no-engine modes): `lobby_created/joined`, `game_started`, `game_ended`,
    `irl_session_started`, `tableplace_handoff`. Tournaments: `tournament_created/joined/match_played`.

@@ -63,6 +63,9 @@ import {
 } from "./rematchOffer";
 import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
 
+/** `hero_picked.mode` (#1512). */
+export type HeroPickMode = "ranked" | "casual" | "bot" | "quickmatch";
+
 /** An incoming undo request pushed to the opponent (protocol v11). */
 export interface IncomingUndo {
   requester: PlayerId;
@@ -228,8 +231,14 @@ export interface UseProSocketReturn {
      */
     ticket?: string
   ) => void;
-  /** `ticket` (v37): join a tournament room — required by the engine for one. */
-  joinRoom: (roomId: string, heroId: string, ticket?: string) => void;
+  /**
+   * `ticket` (v37): join a tournament room — required by the engine for one.
+   * `quickMatch`: a Quick Match search step, which reports no `hero_picked` of
+   * its own (the search reports one, see `trackHeroPicked`).
+   */
+  joinRoom: (roomId: string, heroId: string, ticket?: string, quickMatch?: boolean) => void;
+  /** `hero_picked` (#1512), for a pick no single create/join stands for: a Quick Match search. */
+  trackHeroPicked: (heroId: string, mode: HeroPickMode) => void;
   /** Sends one ACTION; false when it did NOT go out (no room / socket closed /
    *  the same action is already in flight — #840, #847). */
   sendAction: (action: Action) => boolean;
@@ -664,9 +673,10 @@ export function useProSocket(
   const heroesRef = useRef(heroes);
   heroesRef.current = heroes;
   // `hero_picked` (#1512): one per create/join that names a hero. A tournament
-  // ticket is the competitive game, reported as `ranked`.
+  // ticket is the competitive game, reported as `ranked`. A Quick Match search
+  // walks several lobbies, so the page reports it once instead.
   const trackHeroPicked = useCallback(
-    (heroId: string, mode: "ranked" | "casual" | "bot" | "quickmatch") => {
+    (heroId: string, mode: HeroPickMode) => {
       const tier = heroesRef.current?.find((h) => h.heroId === heroId)?.tier;
       track("hero_picked", { hero_id: heroId, tier, mode });
     },
@@ -1491,16 +1501,15 @@ export function useProSocket(
       };
       if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
-      trackHeroPicked(
-        heroId,
-        ticket ? "ranked" : bot || botSeats?.length ? "bot" : quickMatch ? "quickmatch" : "casual"
-      );
+      if (!quickMatch) {
+        trackHeroPicked(heroId, ticket ? "ranked" : bot || botSeats?.length ? "bot" : "casual");
+      }
     },
     [sendBind, clearResumeDeadline, trackHeroPicked]
   );
 
   const joinRoom = useCallback(
-    (room: string, heroId: string, ticket?: string) => {
+    (room: string, heroId: string, ticket?: string, quickMatch?: boolean) => {
       setError(null); // clear any prior room/hero error on a fresh attempt
       setSeatReleasedRoom(null);
       setGameLost(false); // fresh join/resume attempt — drop any prior lost state
@@ -1532,7 +1541,7 @@ export function useProSocket(
       if (wsRef.current?.readyState === WebSocket.OPEN) sendBind(msg);
       else pendingHelloRef.current = msg;
       // A heroless join is a resume, and a held seat token a reconnect: no pick.
-      if (heroId && !token) trackHeroPicked(heroId, ticket ? "ranked" : "casual");
+      if (heroId && !token && !quickMatch) trackHeroPicked(heroId, ticket ? "ranked" : "casual");
     },
     [sendBind, clearResumeDeadline, joinRoomMsg, trackHeroPicked]
   );
@@ -1724,6 +1733,7 @@ export function useProSocket(
     replayBundle,
     createRoom,
     joinRoom,
+    trackHeroPicked,
     sendAction,
     respondToPrompt,
     requestUndo,

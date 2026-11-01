@@ -4354,7 +4354,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
+  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, trackHeroPicked, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -5285,7 +5285,7 @@ const LiveGame = ({
     quickStepRef.current = quickSearch.index;
     const step = quickMatchStep(quickSearch);
     if (step.type === "join") {
-      joinRoom(step.roomId, quickSearch.heroId);
+      joinRoom(step.roomId, quickSearch.heroId, undefined, true);
     } else {
       // A matchmade room is a standard duel: it ignores the picker's format and
       // timer deliberately, so the room the next searcher joins is always the
@@ -5642,6 +5642,8 @@ const LiveGame = ({
                   tournament.seatedUntagged();
                   rememberHero(heroId); // "Recently played" row (#768)
                   setQuickSearch(startQuickMatch(heroId, lobbies));
+                  // One `hero_picked` per search, however many lobbies it walks (#1512).
+                  trackHeroPicked(heroId, "quickmatch");
                 }
           }
           onConfirm={(heroId) => {

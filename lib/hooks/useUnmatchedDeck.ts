@@ -2,7 +2,7 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useDebounce } from "use-debounce";
 import { useBagDecks } from "@/lib/bag/useBag";
@@ -129,15 +129,25 @@ export const useLoadRouterDeck = () => {
     }
   }, [error, deckId]);
 
+  // The link whose deck was already pushed: a react-query refetch (focus)
+  // hands back fresh `data` and re-pushes it, which is not another add (#1512).
+  const pushedFor = useRef<string>();
+
   useEffect(() => {
     if (!data) return;
     if (!deckId) return;
 
     // once the api data is available, put the deck in the bag and star it
     let cancelled = false;
+    const first = pushedFor.current !== deckId;
+    pushedFor.current = deckId;
     void (async () => {
-      // storage full — already toasted
-      if (!(await pushDeck(data, { source: "deeplink" }))) return;
+      // storage full — already toasted. Only the first push reports; a re-push
+      // still keeps the deck's add source.
+      const pushed = first
+        ? await pushDeck(data, { source: "deeplink" })
+        : await pushDeck({ ...data, addSource: "deeplink" });
+      if (!pushed) return;
       if (!cancelled) setStar(data.id);
     })();
     return () => {

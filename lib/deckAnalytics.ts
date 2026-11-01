@@ -7,17 +7,28 @@ import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { AnalyticsProps, track } from "@/lib/analytics";
 import { LabsImportError } from "@/lib/labs/errors";
 
-export type DeckSource =
-  | "unmatched.cards"
-  | "unmatched-labs"
-  | "the-unmatched.club"
-  | "starter"
-  | "popular"
-  | "code"
-  | "image"
-  | "bulk"
-  | "deeplink"
-  | "pro-hero";
+export const DECK_SOURCES = [
+  "unmatched.cards",
+  "unmatched-labs",
+  "the-unmatched.club",
+  "tts",
+  "starter",
+  "popular",
+  "code",
+  "image",
+  "bulk",
+  "deeplink",
+  "pro-hero",
+] as const;
+
+export type DeckSource = (typeof DECK_SOURCES)[number];
+
+/**
+ * A deck's stored `addSource`, when it is one we minted. A deck from a backup
+ * file carries whatever the file said, so anything else is left out.
+ */
+export const knownAddSource = (deck: DeckImportType | undefined): DeckSource | undefined =>
+  (DECK_SOURCES as readonly unknown[]).includes(deck?.addSource) ? deck!.addSource : undefined;
 
 /**
  * Sources whose hero name comes from a catalog (a deck site, the Pro roster).
@@ -79,7 +90,7 @@ export const trackDeckSelected = (
 ): void => {
   const inBag = bag?.find((deck) => deck.id === id);
   if (!inBag && !pro.some((deck) => deck.id === id)) return;
-  const source: DeckSource | undefined = inBag ? inBag.addSource : "pro-hero";
+  const source: DeckSource | undefined = inBag ? knownAddSource(inBag) : "pro-hero";
   track("deck_selected_for_game", { mode, deck_id: id, source });
 };
 

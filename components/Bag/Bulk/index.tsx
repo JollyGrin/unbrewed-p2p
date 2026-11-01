@@ -6,6 +6,7 @@ import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { useGenericImport } from "@/lib/hooks/useGenericImport";
 import { track } from "@/lib/analytics";
 import { trackDeckAddFailed } from "@/lib/deckAnalytics";
+import { isImportBlocked } from "@/lib/decks/blockedAuthors";
 import {
   Box,
   Button,
@@ -234,7 +235,12 @@ const ImportPanel = ({
     const addedMaps = await importMaps(newMaps);
     // One event per import, not per deck (#1512).
     if (addedDecks > 0) track("deck_added", { source: "bulk", deck_count: addedDecks });
-    else if (newDecks.length > 0) trackDeckAddFailed("bulk", "storage_refused");
+    else if (newDecks.length > 0) {
+      trackDeckAddFailed(
+        "bulk",
+        newDecks.every(isImportBlocked) ? "blocked_author" : "storage_refused",
+      );
+    }
     // 0 added with something to add means the write was refused (storage full,
     // already toasted) — don't claim a successful import over that.
     if (addedDecks + addedMaps === 0 && newDecks.length + newMaps.length > 0) return;

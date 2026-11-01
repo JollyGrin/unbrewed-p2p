@@ -2753,12 +2753,21 @@ describe("useProSocket — hero_picked (#1512)", () => {
     act(() =>
       hook.result.current.createRoom("thrall", undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, "tkt")
     );
+    // The Quick Match create is a search step: the page reports the search once.
     expect(picks().map(([, p]) => p)).toEqual([
       { hero_id: "thrall", tier: "community", mode: "casual" },
       { hero_id: "thrall", tier: "community", mode: "bot" },
-      { hero_id: "thrall", tier: "community", mode: "quickmatch" },
       { hero_id: "thrall", tier: "community", mode: "ranked" },
     ]);
+  });
+
+  it("sends nothing for Quick Match join steps; trackHeroPicked reports the search", () => {
+    const hook = openSocket();
+    act(() => hook.result.current.joinRoom("R1", "thrall", undefined, true));
+    act(() => hook.result.current.joinRoom("R2", "thrall", undefined, true));
+    expect(picks()).toEqual([]);
+    act(() => hook.result.current.trackHeroPicked("thrall", "quickmatch"));
+    expect(picks().map(([, p]) => p)).toEqual([{ hero_id: "thrall", tier: "community", mode: "quickmatch" }]);
   });
 
   it("reports a join with a hero, but not a heroless resume", () => {
