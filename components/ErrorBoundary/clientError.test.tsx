@@ -4,8 +4,10 @@ import { ProErrorBoundary } from "../Pro/ProErrorBoundary";
 import { resetOncePerPageLoad } from "../../lib/analyticsErrors";
 
 const mockTrack = jest.fn((_event: string, _props?: Record<string, unknown>) => true);
+const mockCaptureException = jest.fn((_error: unknown, _props?: Record<string, unknown>) => true);
 jest.mock("../../lib/analytics", () => ({
   track: (event: string, props?: Record<string, unknown>) => mockTrack(event, props),
+  captureException: (error: unknown, props?: Record<string, unknown>) => mockCaptureException(error, props),
 }));
 
 const Boom = (): JSX.Element => {
@@ -17,6 +19,7 @@ const clientErrors = () => mockTrack.mock.calls.filter(([event]) => event === "c
 describe("client_error from error boundaries (issue #1514)", () => {
   beforeEach(() => {
     mockTrack.mockReset().mockImplementation(() => true);
+    mockCaptureException.mockReset().mockImplementation(() => true);
     resetOncePerPageLoad();
     jest.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -36,6 +39,10 @@ describe("client_error from error boundaries (issue #1514)", () => {
     const props = clientErrors()[0][1];
     expect(props).toMatchObject({ boundary, route: "/", error_name: "TypeError" });
     expect(props!.message).toHaveLength(200);
+    // Error Tracking (#1526): the original error, once per boundary per page load.
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
+    expect(mockCaptureException.mock.calls[0][0]).toBeInstanceOf(TypeError);
+    expect(mockCaptureException.mock.calls[0][1]).toEqual({ boundary });
   });
 
   it("pro: one event carrying the room identifiers", () => {
@@ -62,5 +69,6 @@ describe("client_error from error boundaries (issue #1514)", () => {
       </>
     );
     expect(clientErrors().map(([, p]) => p!.boundary)).toEqual(["sandbox", "irl"]);
+    expect(mockCaptureException.mock.calls.map(([, p]) => p!.boundary)).toEqual(["sandbox", "irl"]);
   });
 });

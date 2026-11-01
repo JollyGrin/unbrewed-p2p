@@ -16,8 +16,9 @@ const PrivacyPage: React.FC = () => {
       <PageSeo path="/privacy" title="Privacy — Unbrewed" description="What Unbrewed measures and how to opt out." />
       <Heading size="lg" mb={4}>Privacy</Heading>
       <Text mb={3}>
-        Unbrewed counts visits, which sections get used, which deck sources work, and how long games last, so we know
-        what to fix. We use PostHog (EU cloud), reached through our own domain.
+        Unbrewed counts visits, which sections get used, which deck sources work, and how long games last, and records
+        app errors (the error message and where in the code it happened), so we know what to fix. We use PostHog (EU
+        cloud), reached through our own domain.
       </Text>
       <Text mb={3}>
         There are no cookies. An anonymous random id is kept in this browser&apos;s local storage. We never record

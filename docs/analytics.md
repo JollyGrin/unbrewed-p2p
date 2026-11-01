@@ -33,10 +33,12 @@ Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, l
   loads. A guest `/me` answer resets a persisted identified id (session expired / signed out in another tab).
   `login_completed` fires only when identify switches an anonymous id to the account. The count is slightly inflated by
   cleared browser storage and by players signed in before phase A, whose first load after deploy counts as one.
-- `capture_pageleave` is off (it doubles volume against the 1M/month free tier). Exception autocapture, web vitals, performance, heatmaps, dead clicks, surveys and replay are pinned off.
+- `capture_pageleave` is off (it doubles volume against the 1M/month free tier). Web vitals, performance, heatmaps, dead clicks, surveys, product tours, conversations and replay are pinned off.
+- Remote config is never fetched (`advanced_disable_flags: true`; no `/flags`, `config.js` or `array/*/config`), so nothing the PostHog project switches on remotely (replay, heatmaps, web vitals, console logs, tours, client-side error suppression rules) reaches the client. `defaults` is not passed, so no date-gated default flips on with an upgrade.
+- Exception autocapture is on (#1526) through the explicit `capture_exceptions` object (uncaught errors + unhandled rejections, never `console.error`), which works without remote config. It lazy-loads `exception-autocapture.js` from the proxy's `/static/*`.
 - Super-properties on every event: `app_commit`, `app_version`.
 - No PII: no typed deck names, chat text or e-mails in properties.
-- URL sanitizer (`before_send: sanitizeEvent`): every URL property (`$current_url`, `$referrer` from our own origin, `$initial_*`, `$initial_person_info`) loses its fragment and keeps only `utm_*`, `ref`, `deckId`, `tour`, `match` query params, so `name` / `gid` / `ticket` never leave; external referrers only lose the fragment. It also deletes `title` (`document.title` can carry a user-named deck, e.g. IRL Mode).
+- URL sanitizer (`before_send: sanitizeEvent`): every URL property (`$current_url`, `$referrer` from our own origin, `$initial_*`, `$session_entry_*`, `$initial_person_info`) loses its fragment and keeps only `utm_*`, `ref`, `deckId`, `tour`, `match` query params, so `name` / `gid` / `ticket` never leave; external referrers only lose the fragment. It also deletes `title` (`document.title` can carry a user-named deck, e.g. IRL Mode), runs each `$exception_list[].value` (the error message) through `scrubMessage` (long quoted runs redacted, 200-char cap; types and stack frames untouched), drops `$exception` on `/dev/*` and `/debug`, and drops any event it fails to sanitize rather than throwing.
 
 ## Proxy (Cloudflare Worker, `workers/posthog-proxy`)
 GitHub Pages cannot proxy, so a Worker on `t.unbrewed.xyz` forwards to `eu.i.posthog.com` (and `/static/*` to
@@ -133,9 +135,17 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    sandbox or irl game, plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
    routes (`GAME_PREFIXES`): a first-time visitor who lands straight on one has not been started yet, so their events are
    dropped until they reach a normal route. This is accepted.
-4. **Errors** (named events only: `$exception` autocapture stays off and `posthog.captureException` is never called,
-   since it bills the separate Error Tracking product). Client events fire at most once per key per page load
-   (`lib/analyticsErrors.ts`), so a crash loop or a redeploy reconnect storm costs one event.
+4. **Errors.** Two layers:
+   - **Error Tracking** (`$exception`, #1526; bills the separate Error Tracking product): exception autocapture
+     sends uncaught errors and unhandled promise rejections (not `console.error`) from event handlers, promises and
+     socket code. posthog-js rate-limits per exception type (10, then 1 per 10 s). Boundary-caught render crashes,
+     which React swallows so autocapture never sees them, are sent by `reportClientError` via
+     `captureException(error, { boundary })`, once per boundary per page load. Messages are scrubbed (see the privacy
+     model). Stack traces stay minified until source maps are uploaded (separate ticket); grouping by type and
+     message works without them. Server-side suppression rules apply; client-side ones arrive via remote config, so
+     they don't.
+   - **Named events** for the "Errors" dashboard. They fire at most once per key per page load
+     (`lib/analyticsErrors.ts`), so a crash loop or a redeploy reconnect storm costs one event.
    - `client_error` {boundary: `pro` | `sandbox` | `table` | `irl`, route, error_name, message (first 200 chars),
      room_id?, seat?, state_hash?}: a render error caught by an error boundary; one per boundary per page load.
      `pro` is `ProErrorBoundary` on `/pro/game` (carries room_id/seat/state_hash); `GameErrorBoundary` wraps
