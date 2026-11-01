@@ -74,8 +74,9 @@ export const failureReason = (err: unknown): string | number => {
   return "network";
 };
 
-export const trackDeckAddFailed = (source: DeckSource, reason: string | number): void =>
+export const trackDeckAddFailed = (source: DeckSource, reason: string | number): void => {
   track("deck_add_failed", { source, reason });
+};
 
 /**
  * The deck a game was picked with, by id. `source` is the add source the bag
