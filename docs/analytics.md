@@ -114,7 +114,21 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    sandbox or irl game, plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
    routes (`GAME_PREFIXES`): a first-time visitor who lands straight on one has not been started yet, so their events are
    dropped until they reach a normal route. This is accepted.
-4. **Errors:** `$exception`, `ws_connect_failed`, `ws_closed_unexpected`, `toast_error_shown`; engine `server_error`, `rate_limited`.
+4. **Errors** (named events only: `$exception` autocapture stays off and `posthog.captureException` is never called,
+   since it bills the separate Error Tracking product). Client events fire at most once per key per page load
+   (`lib/analyticsErrors.ts`), so a crash loop or a redeploy reconnect storm costs one event.
+   - `client_error` {boundary: `pro` | `sandbox` | `table` | `irl`, route, error_name, message (first 200 chars),
+     room_id?, seat?, state_hash?}: a render error caught by an error boundary; one per boundary per page load.
+     `pro` is `ProErrorBoundary` on `/pro/game` (carries room_id/seat/state_hash); `GameErrorBoundary` wraps
+     `/game` + `/connect` (`sandbox`), `/table` (`table`), `/irl` + `/offline` (`irl`).
+   - `ws_connect_failed` {mode: `pro`}: a `/pro/game` socket closed without ever opening.
+   - `ws_closed_unexpected` {mode: `pro`, code}: an open socket closed and the backoff loop is reconnecting.
+     Not unexpected: codes 1000 / 1001 / 1012, a deliberate leave / unmount / `closeForGood` (the socket is
+     superseded before its close lands), a close inside a `SERVER_RESTARTING` window (the planned redeploy path,
+     which also suppresses `ws_connect_failed` while the new instance boots), and a tournament seat taken over by
+     another tab (code 4001). `code` is null for the synthetic close of a half-open socket on tab return.
+   - Engine: `server_error`, `rate_limited`.
+   - Dismissed: `toast_error_shown` (toasts are free text with no key and can carry user text).
 5. **Funnels/paths:** built from the above (visitor → first game, deck-add per source, lobby funnel, retention).
 6. **Feature usage:** `cosmetics_equipped`, `collection_opened`, `stats_viewed`, `leaderboard_viewed`, `replay_opened`, settings toggles.
 

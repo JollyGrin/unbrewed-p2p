@@ -2,6 +2,7 @@ import { WebGameProvider } from "@/lib/contexts/WebGameProvider";
 import { GameShell } from "@/components/Game/GameShell";
 import { SandboxGameAnalytics } from "@/components/Game/SandboxGameAnalytics";
 import { PageSeo } from "@/components/Helmet/Head";
+import { GameErrorBoundary } from "@/components/ErrorBoundary/GameErrorBoundary";
 
 // Re-exported from its new home so the existing `@/pages/game` importers
 // (hand.container, command-menu, useDeckOpenWarning, game.modal-template) keep
@@ -12,10 +13,12 @@ const GamePage = () => {
   return (
     <>
       <PageSeo path="/game" title="Game — Unbrewed" noindex />
-      <WebGameProvider>
-        <GameShell />
-        <SandboxGameAnalytics />
-      </WebGameProvider>
+      <GameErrorBoundary boundary="sandbox">
+        <WebGameProvider>
+          <GameShell />
+          <SandboxGameAnalytics />
+        </WebGameProvider>
+      </GameErrorBoundary>
     </>
   );
 };

@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 
 import { PageSeo } from "@/components/Helmet/Head";
+import { GameErrorBoundary } from "@/components/ErrorBoundary/GameErrorBoundary";
 import { GameShell } from "@/components/Game/GameShell";
 import { OfflineGameProvider } from "@/lib/contexts/OfflineGameProvider";
 import { useBagDecks } from "@/lib/bag/useBag";
@@ -65,12 +66,14 @@ const Offline = () => {
     <>
       <PageSeo path="/offline" title="Offline — Unbrewed" noindex />
       {deckReady && nameReady ? (
-        <OfflineGameProvider>
-          <GameShell />
-          <DeckRefreshOnTable refresh={link.refresh} />
-          {link.held?.refresh && <DeckLinkHold link={link} />}
-          <DeckLinkNotice link={link} />
-        </OfflineGameProvider>
+        <GameErrorBoundary boundary="irl">
+          <OfflineGameProvider>
+            <GameShell />
+            <DeckRefreshOnTable refresh={link.refresh} />
+            {link.held?.refresh && <DeckLinkHold link={link} />}
+            <DeckLinkNotice link={link} />
+          </OfflineGameProvider>
+        </GameErrorBoundary>
       ) : (
         <Grid
           bg="brand.primary"

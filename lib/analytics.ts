@@ -48,7 +48,8 @@ export type AnalyticsEvent =
   | "irl_session_started"
   | "tableplace_handoff"
   | "ws_connect_failed"
-  | "ws_closed_unexpected";
+  | "ws_closed_unexpected"
+  | "client_error";
 
 export type AnalyticsProps = Record<string, string | number | boolean | null | undefined>;
 

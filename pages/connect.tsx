@@ -1,5 +1,6 @@
 import { ConnectPage } from "@/components/Connect";
 import { PageSeo } from "@/components/Helmet/Head";
+import { GameErrorBoundary } from "@/components/ErrorBoundary/GameErrorBoundary";
 
 export default function ConnectToGamePage() {
   return (
@@ -9,7 +10,9 @@ export default function ConnectToGamePage() {
         title="Connect & Play — Start an Unmatched Game Online | Unbrewed"
         description="Create a lobby, share the room name with a friend, and play Unmatched online in seconds. Free, browser-based, no account required."
       />
-      <ConnectPage />
+      <GameErrorBoundary boundary="sandbox">
+        <ConnectPage />
+      </GameErrorBoundary>
     </>
   );
 }

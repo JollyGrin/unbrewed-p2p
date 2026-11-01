@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
 import { PageSeo } from "@/components/Helmet/Head";
+import { GameErrorBoundary } from "@/components/ErrorBoundary/GameErrorBoundary";
 import { IrlShell } from "@/components/Irl/IrlShell";
 import { IRL_SEAT } from "@/components/Irl/irlGame";
 import { isOfflineError, useIrlServiceWorker } from "@/components/Irl/irlOffline";
@@ -106,12 +107,14 @@ const Irl = () => {
         <meta name="apple-mobile-web-app-title" content="IRL Mode" />
       </Head>
       {deck && query.name ? (
-        <OfflineGameProvider>
-          <IrlShell deck={deck} />
-          <DeckRefreshOnTable refresh={refresh} />
-          {link.held?.refresh && <DeckLinkHold link={link} />}
-          <DeckLinkNotice link={link} />
-        </OfflineGameProvider>
+        <GameErrorBoundary boundary="irl">
+          <OfflineGameProvider>
+            <IrlShell deck={deck} />
+            <DeckRefreshOnTable refresh={refresh} />
+            {link.held?.refresh && <DeckLinkHold link={link} />}
+            <DeckLinkNotice link={link} />
+          </OfflineGameProvider>
+        </GameErrorBoundary>
       ) : (
         <Grid
           bg="brand.secondary"
