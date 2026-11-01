@@ -43,9 +43,9 @@ import {
   seatHeroName,
 } from "@/lib/pro/postGame";
 import type { AccountState } from "@/lib/account/useAccount";
-import { signInUrl } from "@/lib/account/useAccount";
 import { profileHref } from "@/lib/account/publicProfile";
 import { BadgeCluster, wornBadgeIds } from "@/components/Badges/BadgeGlyph";
+import { signInLink } from "@/lib/account/signInLink";
 import { useSignInReturn } from "@/components/Account/AccountChip";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 import { ProPostGameEarned } from "@/components/Pro/ProPostGameEarned";
@@ -349,10 +349,9 @@ const GuestLine = ({ compact }: { compact: boolean }) => {
       </Text>
       <Button
         as="a"
-        href={signInUrl("/pro")}
+        {...signInLink("/pro", onSignInClick)}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={onSignInClick}
         alignSelf="flex-start"
         {...QUIET_BTN}
         minH={TAP_TARGET}

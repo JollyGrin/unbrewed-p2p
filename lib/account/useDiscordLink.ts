@@ -23,6 +23,7 @@ import {
   unlinkDiscord,
 } from "./discordLink";
 import { useAccount } from "./useAccount";
+import { setDiscordRolesLinked } from "@/lib/analytics";
 
 /**
  * - `loading`  — the account probe or the status request is in flight
@@ -71,6 +72,12 @@ export const useDiscordLink = (): DiscordLinkView => {
   const [busy, setBusy] = useState(false);
 
   const signedIn = accountStatus === "signed-in";
+
+  // Person property for analytics: the read this page already makes, and
+  // every link/unlink/sync answer after it. The wrapper drops repeats.
+  useEffect(() => {
+    if (status) setDiscordRolesLinked(status.linked && !status.stale);
+  }, [status]);
 
   useEffect(() => {
     if (!signedIn) {

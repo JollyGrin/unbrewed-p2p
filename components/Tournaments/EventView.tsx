@@ -2,7 +2,8 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useState } from "react";
 
-import { refreshAccount, signInUrl, useAccount } from "@/lib/account/useAccount";
+import { refreshAccount, useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { joinTournament, leaveTournament, rateLimitText, type TournamentFailure } from "@/lib/tournaments/api";
 import { useTournament } from "@/lib/tournaments/hooks";
 import { joinState, activeEntries } from "@/lib/tournaments/joinState";
@@ -108,7 +109,7 @@ export const JoinPanel = ({
     <Flex flexDir="column" gap="14px" data-testid="join-panel" data-state={state.kind}>
       {state.kind === "signed_out" && (
         <>
-          <Btn variant="discord" href={signInUrl(tournamentPath(t.slug))} w="100%">
+          <Btn variant="discord" {...signInLink(tournamentPath(t.slug))} w="100%">
             Sign in with Discord to join
           </Btn>
           <Text fontSize="13px" textAlign="center" opacity={0.7}>
@@ -165,7 +166,7 @@ export const JoinPanel = ({
       )}
       {error && <ErrorText fontSize="14px">{error}</ErrorText>}
       {signIn && (
-        <Btn variant="discord" href={signInUrl(tournamentPath(t.slug))} w="100%" data-testid="join-sign-in">
+        <Btn variant="discord" {...signInLink(tournamentPath(t.slug))} w="100%" data-testid="join-sign-in">
           Sign in with Discord
         </Btn>
       )}

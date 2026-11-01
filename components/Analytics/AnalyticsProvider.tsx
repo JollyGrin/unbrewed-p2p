@@ -1,22 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useAccount } from "@/lib/account/useAccount";
 import { analyticsAvailable, identifyAccount, resetIdentity, trackPageview } from "@/lib/analytics";
 
-/** Ties the anonymous id to the Unbrewed account id (/me `account.id`). Mounted only when analytics is on. */
+/**
+ * Ties the anonymous id to the Unbrewed account id (/me `account.id`) with the
+ * profile as person properties, and resets a stale identity on a guest answer.
+ * Mounted only when analytics is on. The wrapper remembers the answer, so it
+ * applies even if PostHog only starts later, and sends nothing when unchanged.
+ */
 const AnalyticsIdentity = () => {
   const { status, account } = useAccount();
-  const identified = useRef(false);
-  const accountId = account?.id;
   useEffect(() => {
-    if (status === "signed-in" && accountId) {
-      identifyAccount(accountId);
-      identified.current = true;
-    } else if (status === "guest" && identified.current) {
-      identified.current = false;
-      resetIdentity();
-    }
-  }, [status, accountId]);
+    if (status === "signed-in") identifyAccount(account);
+    else if (status === "guest") resetIdentity();
+  }, [status, account]);
   return null;
 };
 

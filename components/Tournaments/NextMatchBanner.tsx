@@ -6,7 +6,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 
-import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { noticedReseatCooldown } from "@/lib/tournaments/api";
 import { reseatCooldownText } from "@/lib/tournaments/copy";
 import { activeReseatCooldown } from "@/lib/tournaments/matchPage";
@@ -101,7 +102,7 @@ export const NextMatchCard = ({ view, myName, myAvatar }: { view: NextMatchView;
           {play.phase.kind === "error" && play.phase.reason === "unauthorized" && (
             // A dead session: the way back in, returning to this page (UX B3).
             <Box mt="8px">
-              <Btn variant="discord" href={signInUrl(typeof window === "undefined" ? "/pro" : `${window.location.pathname}${window.location.search}`)} data-testid="next-match-sign-in">Sign in with Discord</Btn>
+              <Btn variant="discord" {...signInLink(typeof window === "undefined" ? "/pro" : `${window.location.pathname}${window.location.search}`)} data-testid="next-match-sign-in">Sign in with Discord</Btn>
             </Box>
           )}
         </Box>

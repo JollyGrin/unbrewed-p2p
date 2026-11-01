@@ -19,6 +19,10 @@ export type Account = {
   username: string;
   /** Discord CDN URL built server-side; null if the user has no avatar. */
   avatarUrl: string | null;
+  /** Discord user id; absent until the API exposes it (unbrewed-api#150). */
+  discordId?: string;
+  /** ISO time the account was created; absent until the API exposes it. */
+  createdAt?: string;
 };
 
 /**
@@ -75,6 +79,8 @@ const fetchMe = async (): Promise<AccountState> => {
             ? user.username
             : "Player",
         avatarUrl: typeof user.avatarUrl === "string" ? user.avatarUrl : null,
+        ...(typeof user.discordId === "string" && user.discordId ? { discordId: user.discordId } : {}),
+        ...(typeof user.createdAt === "string" && user.createdAt ? { createdAt: user.createdAt } : {}),
       },
     };
   } catch {

@@ -26,6 +26,13 @@ Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, l
 - `person_profiles: "identified_only"`, autocapture off, session replay off.
 - On sign-in (`useAccount` → signed-in) `posthog.identify(account.id)` — the Unbrewed account uuid from `/me`, not the Discord snowflake — merges the anonymous history; sign-out resets.
   The privacy blurb says this.
+- While signed in, the person profile also stores the Discord username, avatar and Discord id (#1510), sent with
+  identify: `$set` {`username`, `avatar_url`, `discord_id`, `auth_provider`}, `$set_once` {`account_created_at`,
+  `first_identified_at`}, plus `discord_roles_linked` from the /account page's Linked Roles read. Fields `/me` lacks are
+  left out. A localStorage fingerprint (`unbrewed-analytics-person`) means an unchanged profile sends nothing on later
+  loads. A guest `/me` answer resets a persisted identified id (session expired / signed out in another tab).
+  `login_completed` fires only when identify switches an anonymous id to the account. The count is slightly inflated by
+  cleared browser storage and by players signed in before phase A, whose first load after deploy counts as one.
 - `capture_pageleave` is off (it doubles volume against the 1M/month free tier). Exception autocapture, web vitals, performance, heatmaps, dead clicks, surveys and replay are pinned off.
 - Super-properties on every event: `app_commit`, `app_version`.
 - No PII: no typed deck names, chat text or e-mails in properties.
@@ -37,7 +44,8 @@ then set `NEXT_PUBLIC_POSTHOG_HOST=https://t.unbrewed.xyz` in the build env. Als
 
 ## Wire: `analyticsId`
 Optional string on `CREATE_ROOM` / `JOIN_ROOM` / `RECONNECT` / `RESUME_ROOM`: the PostHog distinct id, added in
-`sendBind` only when analytics is active. The engine uses it as `distinct_id` (account id when logged in). The
+`sendBind` only when analytics is active. Before posthog-js has loaded (a direct `/pro/game` load), a visitor who
+accepted the notice sends the id PostHog persisted in localStorage (or the known account id), so the bind never waits. The engine uses it as `distinct_id` (account id when logged in). The
 field is protocol v39 (engine #894); `lib/pro/protocol.ts` is synced to it, so this needs an engine at v39.
 
 ## Taxonomy

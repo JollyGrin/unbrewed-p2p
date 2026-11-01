@@ -12,7 +12,8 @@ import NextLink from "next/link";
 import { useEffect, useState } from "react";
 
 import { GOLD, INK, INK_DEEP, INK_MUTED, PARCHMENT, RULE, TRACK, WASH } from "@/components/Stats/tokens";
-import { signInUrl, useAccount } from "@/lib/account/useAccount";
+import { useAccount } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { catalogEntry } from "@/lib/pro/mapCatalog";
 import { getToken } from "@/lib/pro/recentRooms";
 import { noticedReseatCooldown } from "@/lib/tournaments/api";
@@ -353,7 +354,7 @@ export const MatchBody = ({
           {!side && signedOut && (isPlayable(state) || state.kind === "in_play") && seated && (
             <Flex mx={{ base: "12px", md: "32px" }} mb="8px" p="16px" borderRadius="12px" bg={WASH} gap="12px" align="center" justify="space-between" flexWrap="wrap" data-testid="sign-in-prompt">
               <Text fontSize="14px">{state.kind === "in_play" ? "Playing this match? Sign in to get back to your game." : "Playing this match? Sign in to press Play."}</Text>
-              <Btn variant="discord" href={signInUrl(href)}>Sign in with Discord</Btn>
+              <Btn variant="discord" {...signInLink(href)}>Sign in with Discord</Btn>
             </Flex>
           )}
           {/* Only when it may be true: a game running this long, or one the api marks stalled (F5). */}
@@ -787,7 +788,7 @@ const PlayBox = ({
         {phase.reason === "unauthorized" && (
           // A dead session: the way back in, to this same match (UX B3).
           <Box mt="8px">
-            <Btn variant="discord" href={signInUrl(signInHref)} data-testid="play-sign-in">Sign in with Discord</Btn>
+            <Btn variant="discord" {...signInLink(signInHref)} data-testid="play-sign-in">Sign in with Discord</Btn>
           </Box>
         )}
       </>

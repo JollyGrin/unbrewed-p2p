@@ -16,10 +16,10 @@ import { useRouter } from "next/router";
 import { FaDiscord } from "react-icons/fa";
 import {
   refreshAccount,
-  signInUrl,
   signOut,
   useAccount,
 } from "@/lib/account/useAccount";
+import { signInLink } from "@/lib/account/signInLink";
 import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
 /**
@@ -135,7 +135,7 @@ export const AccountChip = () => {
         as="a"
         // A plain anchor, not next/link: this is a cross-origin OAuth handoff
         // that must be a real navigation so the API can set its cookie.
-        href={signInUrl(router?.asPath)}
+        {...signInLink(router?.asPath)}
         aria-label="Sign in with Discord"
         display="inline-flex"
         alignItems="center"
@@ -289,13 +289,12 @@ export const InGameAccountChip = ({
         <Flex
           {...hudChipStyles}
           as="a"
-          href={signInUrl("/pro")}
+          {...signInLink("/pro", onSignInClick)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Sign in with Discord"
           cursor="pointer"
           _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
-          onClick={onSignInClick}
         >
           <FaDiscord size="0.85rem" />
           <Text fontSize="0.65rem" fontFamily="SpaceGrotesk" whiteSpace="nowrap">
