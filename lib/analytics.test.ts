@@ -355,12 +355,63 @@ describe("init options", () => {
       capture_pageleave: false,
       disable_session_recording: true,
       disable_surveys: true,
-      advanced_disable_decide: true,
+      disable_product_tours: true,
+      disable_conversations: true,
+      advanced_disable_flags: true,
+      capture_exceptions: {
+        capture_unhandled_errors: true,
+        capture_unhandled_rejections: true,
+        capture_console_errors: false,
+      },
       capture_performance: false,
       capture_heatmaps: false,
       enable_heatmaps: false,
       capture_dead_clicks: false,
     });
+    expect(init.mock.calls[0][1]).not.toHaveProperty("advanced_disable_decide");
+    expect(init.mock.calls[0][1]).not.toHaveProperty("defaults");
+  });
+});
+
+describe("$exception scrubbing (#1526)", () => {
+  const sanitize = () => load({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test", NODE_ENV: "production" }).sanitizeEvent;
+  const exception = (properties: Record<string, unknown>) =>
+    ({ uuid: "u", event: "$exception", properties }) as unknown as Parameters<ReturnType<typeof sanitize>>[0];
+
+  it("scrubs each message in $exception_list, leaves types and frames alone", () => {
+    const frames = { type: "raw", frames: [{ filename: "/_next/a.js", lineno: 1 }] };
+    const out = sanitize()(
+      exception({
+        $exception_list: [
+          { type: "SyntaxError", value: `Unexpected token 'h', "hello my secret deck" is not valid JSON`, stacktrace: frames },
+          { type: "Error", value: "short" },
+        ],
+      }),
+    );
+    expect(out?.properties.$exception_list).toEqual([
+      { type: "SyntaxError", value: `Unexpected token 'h', "…" is not valid JSON`, stacktrace: frames },
+      { type: "Error", value: "short" },
+    ]);
+  });
+
+  it("survives a malformed $exception_list without throwing", () => {
+    const s = sanitize();
+    expect(s(exception({ $exception_list: null }))?.properties.$exception_list).toBeNull();
+    expect(s(exception({ $exception_list: "nope" }))?.properties.$exception_list).toBe("nope");
+    expect(s(exception({ $exception_list: [null, 3, { type: "Error" }, { value: 42 }] }))?.properties.$exception_list)
+      .toEqual([null, 3, { type: "Error" }, { value: 42 }]);
+    expect(s(exception({}))?.event).toBe("$exception");
+  });
+
+  it("drops an event it cannot sanitize instead of throwing", () => {
+    const evil = exception({});
+    Object.defineProperty(evil.properties, "$exception_list", { get: () => { throw new Error("x"); } });
+    expect(sanitize()(evil)).toBeNull();
+  });
+
+  it("drops autocaptured exceptions on silent dev routes", () => {
+    window.history.pushState({}, "", "/dev/map-editor");
+    expect(sanitize()(exception({ $exception_list: [] }))).toBeNull();
   });
 });
 
@@ -385,6 +436,8 @@ describe("URL sanitizer (#1520)", () => {
       $referrer: `${origin}/join?gid=g#x`,
       $initial_referrer: "https://www.google.com/search?q=unbrewed#top",
       $initial_person_info: { r: "$direct", u: `${origin}/game?name=Bob&utm_source=x` },
+      $session_entry_url: `${origin}/game?name=Bob#f`,
+      $session_entry_referrer: `${origin}/join?gid=g`,
     };
     sanitizeEventProperties(props, origin);
     expect(props).toEqual({
@@ -392,6 +445,8 @@ describe("URL sanitizer (#1520)", () => {
       $referrer: `${origin}/join`,
       $initial_referrer: "https://www.google.com/search?q=unbrewed",
       $initial_person_info: { r: "$direct", u: `${origin}/game?utm_source=x` },
+      $session_entry_url: `${origin}/game`,
+      $session_entry_referrer: `${origin}/join`,
     });
   });
 

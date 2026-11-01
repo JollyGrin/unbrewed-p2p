@@ -11,6 +11,7 @@
  */
 import type { CaptureResult, PostHog } from "posthog-js";
 import { APP_COMMIT, APP_VERSION } from "@/lib/pro/appVersion";
+import { scrubMessage } from "@/lib/analyticsScrub";
 
 const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 /** The first-party proxy (workers/posthog-proxy); EU ingest as the fallback. */
@@ -20,6 +21,8 @@ const CONSENT_KEY = "unbrewed-analytics-notice";
 
 /** Routes that never report: dev tooling and the debug page. */
 const SILENT_PREFIXES = ["/dev", "/debug"];
+const isSilentPath = (pathname: string): boolean =>
+  SILENT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 /**
  * Event names, in one place. Phase A only emits `$pageview`
@@ -95,12 +98,20 @@ export const sanitizeUrl = (raw: string): string => {
 const sanitizeReferrer = (raw: string, origin: string): string =>
   raw === origin || raw.startsWith(`${origin}/`) || raw.startsWith(`${origin}?`) ? sanitizeUrl(raw) : raw.split("#")[0];
 
-const OWN_URL_KEYS = ["$current_url", "$initial_current_url", "$pathname", "$initial_pathname"];
-const REFERRER_KEYS = ["$referrer", "$initial_referrer"];
+// `$session_entry_*` arrived with the posthog-js upgrade (#1526): same values, per session.
+const OWN_URL_KEYS = [
+  "$current_url",
+  "$initial_current_url",
+  "$session_entry_url",
+  "$pathname",
+  "$initial_pathname",
+  "$session_entry_pathname",
+];
+const REFERRER_KEYS = ["$referrer", "$initial_referrer", "$session_entry_referrer"];
 
 /**
  * Sanitize the URL-valued properties of one property bag, in place. Covers the
- * compact `$initial_person_info` ({ r: referrer, u: url }) that posthog-js 1.200
+ * compact `$initial_person_info` ({ r: referrer, u: url }) that posthog-js
  * sends on every event and expands into the `$initial_*` person properties.
  */
 export const sanitizeEventProperties = (props: Record<string, unknown> | undefined, origin: string): void => {
@@ -117,16 +128,43 @@ export const sanitizeEventProperties = (props: Record<string, unknown> | undefin
   }
 };
 
-/** `before_send` hook: drops `title`, sanitizes the event's properties plus every `$set` / `$set_once` bag. */
+/**
+ * `$exception` (#1526): each message in `$exception_list` goes through
+ * scrubMessage; types and stack frames are left alone. Malformed entries pass
+ * through untouched.
+ */
+const scrubExceptionList = (props: Record<string, unknown>): void => {
+  const list = props.$exception_list;
+  if (!Array.isArray(list)) return;
+  props.$exception_list = list.map((ex) =>
+    ex && typeof ex === "object" && typeof (ex as { value?: unknown }).value === "string"
+      ? { ...ex, value: scrubMessage((ex as { value: string }).value) }
+      : ex,
+  );
+};
+
+/**
+ * `before_send` hook: drops `title`, sanitizes the event's properties plus every
+ * `$set` / `$set_once` bag, scrubs `$exception` messages. Never throws: an
+ * event it cannot sanitize is dropped.
+ */
 export const sanitizeEvent = (cr: CaptureResult | null): CaptureResult | null => {
   if (!cr) return cr;
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const p = cr.properties as Record<string, unknown> | undefined;
-  // document.title can hold a user-named deck (IRL Mode) and is set on `$pageview`.
-  if (p) delete p.title;
-  for (const bag of [p, p?.$set, p?.$set_once, cr.$set, cr.$set_once])
-    sanitizeEventProperties(bag as Record<string, unknown> | undefined, origin);
-  return cr;
+  try {
+    const origin = typeof window === "undefined" ? "" : window.location.origin;
+    const p = cr.properties as Record<string, unknown> | undefined;
+    // Autocaptured errors on dev tooling stay silent like every other event there.
+    if (cr.event === "$exception" && typeof window !== "undefined" && isSilentPath(window.location.pathname))
+      return null;
+    // document.title can hold a user-named deck (IRL Mode) and is set on `$pageview`.
+    if (p) delete p.title;
+    for (const bag of [p, p?.$set, p?.$set_once, cr.$set, cr.$set_once])
+      sanitizeEventProperties(bag as Record<string, unknown> | undefined, origin);
+    if (p && cr.event === "$exception") scrubExceptionList(p);
+    return cr;
+  } catch {
+    return null;
+  }
 };
 
 // posthog-js is loaded by dynamic import() inside startAnalytics only, so
@@ -135,9 +173,6 @@ let ph: PostHog | null = null;
 let starting = false;
 /** Calls made between startAnalytics() and the import resolving. */
 let queue: Array<(p: PostHog) => void> = [];
-
-const isSilentPath = (pathname: string): boolean =>
-  SILENT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 /** Key present, a real browser, production build. Read per call so tests can flip it. */
 export const analyticsAvailable = (): boolean =>
@@ -209,11 +244,22 @@ export const startAnalytics = (): void => {
         capture_pageleave: false, // doubles volume against the free tier; nothing planned needs it
         disable_session_recording: true,
         disable_surveys: true,
-        // Pin every default capture off. posthog-js 1.200 has no client option for
-        // exception autocapture or web vitals: both are switched on by the project's
-        // remote config, so skipping that fetch (advanced_disable_decide) keeps them
-        // off; capture_performance:false covers web vitals + network timing too.
-        advanced_disable_decide: true,
+        disable_product_tours: true, // "on by default" since 1.346 (still gated on remote config; pinned anyway)
+        disable_conversations: true,
+        // Pin every other default capture off. Skipping the remote config / flags
+        // fetch keeps off everything the project switches on remotely (replay,
+        // heatmaps, web vitals, console logs, tours, chat); the pins here cover the
+        // client-side defaults. capture_performance:false covers web vitals +
+        // network timing too.
+        advanced_disable_flags: true,
+        // Error Tracking (#1526): the explicit object turns exception autocapture on
+        // without remote config. Uncaught errors + unhandled rejections only, never
+        // console.error. Messages are scrubbed in sanitizeEvent.
+        capture_exceptions: {
+          capture_unhandled_errors: true,
+          capture_unhandled_rejections: true,
+          capture_console_errors: false,
+        },
         capture_performance: false,
         capture_heatmaps: false,
         enable_heatmaps: false,
@@ -285,6 +331,18 @@ export const track = (
       ? p.capture(event, props, { transport: "sendBeacon", send_instantly: true })
       : p.capture(event, props),
   );
+};
+
+/**
+ * `$exception` for Error Tracking (handled, with the error's stack). For errors
+ * autocapture never sees, i.e. ones an error boundary caught. Returns whether
+ * it was captured or queued (false: dropped).
+ */
+export const captureException = (error: unknown, props?: AnalyticsProps): boolean => {
+  if (typeof window === "undefined" || isSilentPath(window.location.pathname)) return false;
+  return run((p) => {
+    p.captureException(error, props);
+  });
 };
 
 /**

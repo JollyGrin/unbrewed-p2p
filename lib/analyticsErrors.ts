@@ -1,12 +1,15 @@
 /**
  * Error events for the "Errors" dashboard (issue #1514, docs/analytics.md §4).
- * Named events only: `$exception` autocapture stays off and
- * `posthog.captureException` is never called (it bills Error Tracking).
+ * Boundary crashes also go to Error Tracking via `captureException` (#1526):
+ * React swallows them, so exception autocapture never sees them.
  *
  * Every event here fires at most once per key per page load, so a crash loop or
  * a redeploy reconnect storm costs one event, not hundreds.
  */
-import { AnalyticsEvent, AnalyticsProps, track } from "@/lib/analytics";
+import { AnalyticsEvent, AnalyticsProps, captureException, track } from "@/lib/analytics";
+import { scrubMessage } from "@/lib/analyticsScrub";
+
+export { scrubMessage };
 
 const sent = new Set<string>();
 
@@ -36,16 +39,10 @@ export interface ClientErrorContext {
   stateHash?: string | null;
 }
 
-const MESSAGE_MAX = 200;
-/** Quoted runs longer than this are likely input echoed back (e.g. JSON.parse errors). */
-const QUOTED_MAX = 16;
-const QUOTED = new RegExp(`"[^"]{${QUOTED_MAX + 1},}"|'[^']{${QUOTED_MAX + 1},}'`, "g");
-
-/** The message with long quoted segments redacted, cut to MESSAGE_MAX chars. */
-export const scrubMessage = (message: string): string =>
-  message.replace(QUOTED, (m) => `${m[0]}…${m[0]}`).slice(0, MESSAGE_MAX);
-
-/** `client_error` from an error boundary's componentDidCatch; one per boundary per page load. */
+/**
+ * `client_error` from an error boundary's componentDidCatch, plus a
+ * `$exception` (with stack) for Error Tracking; each one per boundary per page load.
+ */
 export const reportClientError = (
   boundary: ErrorBoundaryName,
   error: unknown,
@@ -61,4 +58,11 @@ export const reportClientError = (
     seat: ctx.seat ?? undefined,
     state_hash: ctx.stateHash ?? undefined,
   });
+  const key = `exception:${boundary}`;
+  if (sent.has(key)) return;
+  try {
+    if (captureException(error, { boundary })) sent.add(key);
+  } catch {
+    /* analytics must never break the boundary */
+  }
 };
