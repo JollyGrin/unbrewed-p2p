@@ -87,14 +87,20 @@ so it lights up automatically — just check it in Verification.
 
 - `lib/pro/protocol.ts` mirrors the engine's `protocol/protocol.ts` — sync
   procedure at `protocol.ts:9`. If the engine PR bumped `PROTOCOL_VERSION`
-  (now `38` — v38 added the secret fighter mark, Xenomorph #1453), MERGE the
-  engine's new hunks in; do NOT copy the file verbatim: the client copy keeps
-  deliberate client-only blocks (`REMATCH_PROTOCOL_VERSION`, the
-  `ReplayVerification` named type, the narrower `BotDifficulty` + jevx3 note)
-  that a verbatim copy clobbers — `diff` the two and bring over only the
-  engine's new hunks. Note the paired merge in both commit bodies ("PAIRED
-  with …"). The engine accepts a two-version window (`{37, 38}` today), so
-  deployed tabs survive one bump; still, neither PR lands alone.
+  (now `39`, `protocol.ts:999` — v39 added `analyticsId` on the room
+  requests, #894; v38 the secret fighter mark, #918), do NOT copy the file
+  verbatim: the client copy still keeps ONE client-only block, a doc comment
+  plus `export const REMATCH_PROTOCOL_VERSION = 35;` (`protocol.ts:939-945`
+  and `:1000`), which a verbatim copy clobbers. `diff` the two (engine file
+  from `git show origin/main:protocol/protocol.ts`) and bring the engine's
+  new hunks over, leaving only that block as the diff (and update the
+  accepted-window list in its comment). The former client-only
+  `ReplayVerification` named type and narrower `BotDifficulty` + jevx3 note
+  are gone from `protocol.ts` — they live in `lib/pro/replayVerification.ts`
+  and `lib/pro/botTiers.ts` now, so those hunks take the engine's text as-is.
+  Note the paired merge in both commit bodies ("PAIRED with …"). The engine
+  accepts a two-version window (`{38, 39}` today), so deployed tabs survive
+  one bump; still, neither PR lands alone.
 - Flag-driven public state (e.g. Thetis tide) = ONE entry in the
   `HERO_STATE_FLAGS` / `HERO_STATE_COUNTERS` registries in
   `lib/pro/heroStateFlags.ts:101` / `:358` (plus `BOUNTY_PILES` at `:347` for
