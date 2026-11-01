@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { isLabsDeckId } from "@/lib/labs";
+import { knownAddSource } from "@/lib/deckAnalytics";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 
 export type ClientGameMode = "sandbox" | "sandbox-table" | "irl";
@@ -21,13 +22,14 @@ const isProPath = () =>
     window.location.pathname.startsWith("/pro/"));
 
 /**
- * The decks ticket's (#1512) source name for a deck, only where its id says
- * where it came from (a Labs import); undefined otherwise (leave it out).
+ * The deck's source (#1512): the `addSource` the bag stored when it was added,
+ * else a Labs import by its id; undefined otherwise (leave it out).
  */
 export const deckSourceOf = (
-  deck: Pick<DeckImportType, "id"> | undefined,
+  deck: Pick<DeckImportType, "id" | "addSource"> | undefined,
 ): string | undefined =>
-  deck && isLabsDeckId(deck.id) ? "unmatched-labs" : undefined;
+  knownAddSource(deck as DeckImportType | undefined) ??
+  (deck && isLabsDeckId(deck.id) ? "unmatched-labs" : undefined);
 
 /**
  * One `game_started` the first time `active` is true, then exactly one

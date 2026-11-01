@@ -57,6 +57,12 @@ jest.mock("../../lib/account/useAccount", () => ({
   useAccount: () => ({ status: "guest", account: null }),
 }));
 
+const mockTrack = jest.fn();
+jest.mock("../../lib/analytics", () => ({
+  ...jest.requireActual("../../lib/analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
+
 const QUICK_STATS = { hp: 20, move: 2, reach: "MELEE" as const };
 
 const open = (heroId: string, heroName: string) => {
@@ -264,5 +270,13 @@ describe("HeroPreviewModal — sidekick section gate", () => {
     expect(screen.getByText("Sidekick")).toBeInTheDocument();
     expect(screen.getByText("Momo")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
+  });
+});
+
+describe("HeroPreviewModal — hero_preview_opened (#1512)", () => {
+  it("reports one open with the hero id", () => {
+    mockTrack.mockClear();
+    open("baba-yaga", "Baba Yaga");
+    expect(mockTrack.mock.calls).toEqual([["hero_preview_opened", { hero_id: "baba-yaga" }]]);
   });
 });

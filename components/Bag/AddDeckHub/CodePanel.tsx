@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Box, Button, Flex, HStack, Input, Link, Text } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { DECK_ID } from "@/lib/constants/unmatched-deckids";
@@ -5,6 +6,20 @@ import { useUnmatchedDeck } from "@/lib/hooks/useUnmatchedDeck";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
 import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { BagDeckView } from "@/lib/bag/useBag";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
+import { parseDeckLink } from "@/lib/deckLink";
+import { LabsImportError } from "@/lib/labs/errors";
+
+/**
+ * A code worth reporting a failed fetch for: a Labs character link, or a whole
+ * unmatched.cards code (4+ letters and digits). Anything shorter is the player
+ * still typing, and its 404 is not a failed add.
+ */
+const isCompleteCode = (raw: string | undefined): boolean => {
+  const link = raw ? parseDeckLink(raw) : null;
+  if (!link) return false;
+  return link.source === "labs" || /^[A-Za-z0-9]{4,}$/.test(link.id.trim());
+};
 
 /**
  * Paste a deck code from unmatched.cards, preview the fetched deck, then
@@ -19,13 +34,22 @@ export const CodePanel = ({
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
 }) => {
-  const { data, isLoading, setDeckId } = useUnmatchedDeck();
+  const { data, isLoading, error, deckId, setDeckId } = useUnmatchedDeck();
   const { confirmReplace, asking, prompt } = useReplaceConfirm();
+
+  // One report per complete code that fails; never a half-typed one.
+  const reportedFor = useRef<string>();
+  useEffect(() => {
+    if (!error || !isCompleteCode(deckId) || reportedFor.current === deckId) return;
+    if (error instanceof LabsImportError && error.code === "bad-input") return;
+    reportedFor.current = deckId;
+    trackDeckAddFailed("code", failureReason(error));
+  }, [error, deckId]);
 
   const save = async () => {
     if (!data) return;
     // storage full, or the player kept their edited copy — already toasted
-    if (!(await pushDeck(data, { confirmReplace }))) return;
+    if (!(await pushDeck(data, { confirmReplace, source: "code" }))) return;
     setStar(data.id);
     toast.success(`${data.name} saved & ready to play`);
     setDeckId(undefined);

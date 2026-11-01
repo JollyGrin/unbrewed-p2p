@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { useProDecks } from "@/lib/proDecks";
+import { trackDeckSelected } from "@/lib/deckAnalytics";
 import { SettingsModal } from "@/components/Settings/settings.modal";
 import { useLoadRouterDeck } from "@/lib/hooks";
 import { SiteNav } from "@/components/SiteNav";
@@ -220,7 +221,10 @@ export const ConnectPage = () => {
             starredDeck={starredDeck}
             decks={decks}
             proDecks={proDecks}
-            setStar={setStar}
+            setStar={(id) => {
+              setStar(id);
+              trackDeckSelected("sandbox", id, decks, proDecks);
+            }}
           />
         </VStack>
 

@@ -1,4 +1,5 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { BagDeckView } from "@/lib/bag/useBag";
 import { Box, Button, Flex, Spinner, Text } from "@chakra-ui/react";
 import { useStarterDecks } from "./useStarterDecks";
 
@@ -7,7 +8,7 @@ import { useStarterDecks } from "./useStarterDecks";
  * deck in mind yet. Rendered bare inside AddDeckHub's focused view.
  */
 export const StarterDeckContainer = (props: {
-  pushDeck: (data: DeckImportType) => Promise<boolean>;
+  pushDeck: BagDeckView["pushDeck"];
   deckIds?: string[];
 }) => {
   const results = useStarterDecks({ enabled: true });
@@ -39,7 +40,9 @@ export const StarterDeckContainer = (props: {
               borderColor="rgba(72, 40, 79, 0.3)"
               bg={added ? "rgba(72, 40, 79, 0.12)" : "white"}
               isDisabled={added}
-              onClick={() => void props.pushDeck(record.data as DeckImportType)}
+              onClick={() =>
+                void props.pushDeck(record.data as DeckImportType, { source: "starter" })
+              }
             >
               {added ? "✓ " : "+ "}
               {record.data.name}

@@ -79,6 +79,7 @@ import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 import { heroViewFigure } from "@/lib/pro/figures";
 import { useFigureManifests } from "@/lib/pro/useFigureManifest";
 import { HeroFigurine } from "./FigureCredits";
+import { track } from "@/lib/analytics";
 
 /**
  * Client-side registry of two-space (LARGE) HEROES — no pre-match field exposes
@@ -248,6 +249,12 @@ export const HeroPreviewModal = ({
   // a preference to carry into the next hero they inspect.
   useEffect(() => {
     if (isOpen) setShowUpgrades(true);
+  }, [isOpen, heroId]);
+  // One per open (#1512). A roster hero without a server id reports its deck id.
+  useEffect(() => {
+    const id = heroId ?? deckId;
+    if (isOpen && id) track("hero_preview_opened", { hero_id: id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, heroId]);
   const worn = showUpgrades ? loadout : null;
   const figure = heroViewFigure(useFigureManifests(isOpen), heroId);

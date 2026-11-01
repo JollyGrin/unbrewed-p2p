@@ -21,6 +21,7 @@ import {
   parseTtsDeck,
 } from "@/lib/tts/parse-tts";
 import { SubToggle } from "@/components/Bag/AddDeckHub/SubToggle";
+import { DeckSource, trackDeckAddFailed } from "@/lib/deckAnalytics";
 
 /**
  * "Bring any deck": build a deck from whole-card images. Two paths —
@@ -61,6 +62,9 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
   const { pushDeck, setStar } = useBagDecks();
 
   const [source, setSource] = useState<"tts" | "urls">("tts");
+  // Both The Unmatched Club and unmatched.cards export TTS, so the source is
+  // the format, not a site; a URL list is any images.
+  const deckSource: DeckSource = source === "tts" ? "tts" : "image";
   const [cards, setCards] = useState<ParsedTtsCard[]>([]);
   const [cardbackUrl, setCardbackUrl] = useState<string>();
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -82,6 +86,7 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       setWarnings(parsed.warnings);
       if (parsed.cards.length === 0) {
         toast.error(parsed.warnings[0] ?? "No cards found in that file");
+        trackDeckAddFailed("tts", "no_cards");
         return;
       }
       setCards(parsed.cards);
@@ -90,6 +95,7 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       toast.success(`Found ${parsed.cards.length} unique cards`);
     } catch {
       toast.error("That file isn't valid JSON");
+      trackDeckAddFailed("tts", "parse_error");
     }
   };
 
@@ -130,7 +136,8 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       cardbackUrl,
       cards,
     });
-    if (!(await pushDeck(deck))) return; // storage full — already toasted
+    // storage full — already toasted
+    if (!(await pushDeck(deck, { source: deckSource }))) return;
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
     onAdded?.(deck.id);

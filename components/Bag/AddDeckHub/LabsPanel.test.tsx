@@ -16,6 +16,12 @@ import { useBagDecks } from "@/lib/bag/useBag";
 import { toast } from "react-hot-toast";
 import { LabsPanel } from "./LabsPanel";
 
+const mockTrack = jest.fn();
+jest.mock("../../../lib/analytics", () => ({
+  ...jest.requireActual("../../../lib/analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
+
 jest.mock("react-hot-toast", () => {
   const toast: any = () => {};
   toast.success = jest.fn();
@@ -218,5 +224,39 @@ describe("LabsPanel re-import of an edited deck", () => {
     await save();
     expect(screen.queryByTestId("replace-deck-confirm")).not.toBeInTheDocument();
     expect(savedDecks()).toHaveLength(1);
+  });
+});
+
+describe("LabsPanel deck events (#1512)", () => {
+  beforeEach(() => mockTrack.mockClear());
+
+  it("saves with source unmatched-labs and the unsupported/skipped counts", async () => {
+    mockLabs(LUCY, lucySave);
+    const pushDeck = await openSet(LUCY);
+    await save();
+    const options = (pushDeck.mock.calls[0] as unknown[])[1] as Record<string, any>;
+    expect(options.source).toBe("unmatched-labs");
+    expect(options.addedProps).toEqual({
+      labs_unsupported_count: expect.any(Number),
+      labs_skipped_count: expect.any(Number),
+    });
+  });
+
+  it("reports a set that isn't found by its error code, not its message", async () => {
+    global.fetch = jest.fn(async () => json([])) as unknown as typeof fetch;
+    render(
+      <ChakraProvider>
+        <LabsPanel pushDeck={jest.fn()} setStar={() => {}} />
+      </ChakraProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("Unmatched Labs link"), {
+      target: { value: "https://www.unmatchedlabs.com/shared/nope" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await screen.findByRole("alert");
+    expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", {
+      source: "unmatched-labs",
+      reason: "not-found",
+    });
   });
 });

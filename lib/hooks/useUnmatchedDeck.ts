@@ -2,12 +2,13 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useDebounce } from "use-debounce";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { DEFAULT_DECK_API } from "@/lib/evergreenDecks";
 import { LinkedDeck, fetchLinkedDeck } from "@/lib/deckLink";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 
 const RELOADED_FOR_DECK_ID_KEY = "unbrewed:reloadedForDeckId";
 const NO_UNSUPPORTED: LinkedDeck["unsupported"] = [];
@@ -124,8 +125,13 @@ export const useLoadRouterDeck = () => {
     if (error) {
       setIsImporting(false);
       setImportFailed(true);
+      trackDeckAddFailed("deeplink", failureReason(error));
     }
   }, [error, deckId]);
+
+  // The link whose deck was already pushed: a react-query refetch (focus)
+  // hands back fresh `data` and re-pushes it, which is not another add (#1512).
+  const pushedFor = useRef<string>();
 
   useEffect(() => {
     if (!data) return;
@@ -133,8 +139,15 @@ export const useLoadRouterDeck = () => {
 
     // once the api data is available, put the deck in the bag and star it
     let cancelled = false;
+    const first = pushedFor.current !== deckId;
+    pushedFor.current = deckId;
     void (async () => {
-      if (!(await pushDeck(data))) return; // storage full — already toasted
+      // storage full — already toasted. Only the first push reports; a re-push
+      // still keeps the deck's add source.
+      const pushed = first
+        ? await pushDeck(data, { source: "deeplink" })
+        : await pushDeck({ ...data, addSource: "deeplink" });
+      if (!pushed) return;
       if (!cancelled) setStar(data.id);
     })();
     return () => {

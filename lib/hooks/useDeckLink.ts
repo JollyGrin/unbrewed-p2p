@@ -12,6 +12,7 @@ import {
   refreshedDeck,
 } from "@/lib/deckLink";
 import { DeckRefresh } from "@/lib/deckRefresh";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { LabsSkippedContent } from "@/lib/labs";
 
 export type HeldDeck = LinkedDeck & {
@@ -101,7 +102,10 @@ export const useDeckLink = (
       onError: (err) => {
         console.error(err);
         if (isRefresh) toast("Couldn't reach Unmatched Labs, so this is your saved copy");
-        else toast.error("Error fetching deck");
+        else {
+          toast.error("Error fetching deck");
+          trackDeckAddFailed("deeplink", failureReason(err));
+        }
       },
     },
   );
@@ -115,7 +119,7 @@ export const useDeckLink = (
     if (!request.saved) {
       // Only star what actually landed — a refused deck (blocked author,
       // device full) was already toasted and isn't in the bag to resolve.
-      void pushDeck(deck).then((added) => {
+      void pushDeck(deck, { source: "deeplink" }).then((added) => {
         if (added) setStar(deck.id);
       });
       return;

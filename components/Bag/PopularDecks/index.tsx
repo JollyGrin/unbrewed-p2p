@@ -20,6 +20,8 @@ import {
 // first; everything else stays live-API-first with snapshot fallback
 import { EVERGREEN_DECK_IDS, fetchDeckById } from "@/lib/evergreenDecks";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
+import { BagDeckView } from "@/lib/bag/useBag";
+import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 
 /**
  * One-click deck picker: the most-liked community decks on
@@ -29,7 +31,7 @@ import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 export const PopularDecks = (props: {
   deckIds?: string[];
   star?: string;
-  pushDeck: (deck: DeckImportType) => Promise<boolean>;
+  pushDeck: BagDeckView["pushDeck"];
   setStar: (id: string) => void;
 }) => {
   const [loadingId, setLoadingId] = useState<string>();
@@ -49,8 +51,12 @@ export const PopularDecks = (props: {
     }
     setLoadingId(meta.id);
     try {
-      const deck = await fetchDeckById(meta.id);
-      if (!(await props.pushDeck(deck))) return; // storage full — already toasted
+      const deck = await fetchDeckById(meta.id).catch((err) => {
+        trackDeckAddFailed("popular", failureReason(err));
+        throw err;
+      });
+      // storage full — already toasted
+      if (!(await props.pushDeck(deck, { source: "popular" }))) return;
       props.setStar(deck.id);
       toast.success(`${meta.name} saved & ready to play`);
     } catch (err) {

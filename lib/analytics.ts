@@ -40,6 +40,7 @@ export type AnalyticsEvent =
   | "deck_replaced"
   | "deck_selected_for_game"
   | "hero_picked"
+  | "hero_preview_opened"
   | "lobby_created"
   | "lobby_joined"
   | "game_started"

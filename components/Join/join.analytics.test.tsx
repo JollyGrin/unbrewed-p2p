@@ -73,11 +73,18 @@ beforeEach(() => {
 describe("/join — lobby analytics", () => {
   it("sends one lobby_joined, before the /game push", async () => {
     mockGet.mockResolvedValue({ data: {} });
-    push.mockImplementation(() => expect(track).toHaveBeenCalledTimes(1));
+    // The bag-deck pick also sends deck_selected_for_game (#1512); this pins the lobby event.
+    const lobbyCalls = () => track.mock.calls.filter(([event]) => event === "lobby_joined");
+    push.mockImplementation(() => expect(lobbyCalls()).toHaveLength(1));
     renderJoin();
     await jump();
     await waitFor(() => expect(push).toHaveBeenCalled());
-    expect(track.mock.calls).toEqual([["lobby_joined", { mode: "sandbox" }]]);
+    expect(lobbyCalls()).toEqual([["lobby_joined", { mode: "sandbox" }]]);
+    expect(track).toHaveBeenCalledWith("deck_selected_for_game", {
+      mode: "sandbox",
+      deck_id: "d1",
+      source: undefined,
+    });
   });
 
   it("sends nothing when the relay can't be reached", async () => {

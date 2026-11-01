@@ -54,8 +54,39 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
 
 1. **Growth:** `$pageview` (referrer/UTM), `landing_cta_clicked`, `share_link_opened`,
    `invite_link_copied`, `join_link_opened`, `login_started`, `login_completed` (+ `$identify`), `pwa_installed`, `app_first_open`.
-2. **Decks:** `deck_added` {source, deck_id, hero_name, card_count, success, …}, `deck_add_failed` {source, reason},
-   `deck_removed`, `deck_replaced`, `deck_selected_for_game`, `hero_picked`, `hero_preview_opened`.
+2. **Decks** (#1512, helpers in `lib/deckAnalytics.ts`):
+   - `deck_added` {source, deck_id, hero_name?, card_count, labs_unsupported_count?, labs_skipped_count?}: a new deck
+     landed in the bag (`pushDeck` with a `source`). No `success` prop: the event is the success. Bulk sends one
+     `deck_added` {source: `bulk`, deck_count} per import, not one per deck.
+   - `deck_add_failed` {source, reason}: `reason` is an HTTP status, a Labs error code (`bad-input`, `not-found`,
+     `character-not-found`, `choose-character`, `no-deck`, `no-heroes`, `network`), `parse_error`, `no_cards`,
+     `blocked_author`, `device_full` or `storage_refused`. Never message text. Keeping an edited saved copy is not a failure.
+   - `deck_replaced` {source}: a re-add of a deck already in the bag (sent instead of `deck_added`).
+   - `deck_removed` {source?}: tossed in /bag. `source` is the deck's stored `addSource`.
+   - `deck_selected_for_game` {mode, deck_id, source?}: a deck picked on /connect or /join (`sandbox`), /table
+     (`sandbox-table`) or the in-game change-deck modal (mode from the route).
+   - `hero_picked` {hero_id, tier, mode}: a Pro create/join naming a hero. `mode`: `bot` (any bot seat), `quickmatch`,
+     `ranked` (a tournament ticket), else `casual`. Resumes and reconnects send nothing.
+   - `hero_preview_opened` {hero_id}: the Pro hero preview modal opened (deck id when there is no server hero id).
+
+   | `source` | Trigger |
+   |---|---|
+   | `code` | /bag → Import from unmatched.cards (deck code, `CodePanel`) |
+   | `unmatched-labs` | /bag → Import from Unmatched Labs (`LabsPanel`), with the unsupported/skipped counts |
+   | `tts` | /bag → The Unmatched Club → Tabletop Simulator export (made by the club and unmatched.cards alike) |
+   | `image` | /bag → The Unmatched Club → Image URLs |
+   | `starter` | /bag → Starter decks |
+   | `popular` | /bag → Popular decks |
+   | `bulk` | /bag → Backup & Share → Import |
+   | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`) |
+   | `pro-hero` | `deck_selected_for_game` only: a Pro roster deck played without adding it to the bag (#1421) |
+   | `unmatched.cards`, `the-unmatched.club` | Reserved: no add path is distinct from `code` / `tts` today |
+
+   `hero_name` is the deck's catalog hero name and is omitted for `image` and `tts`, whose hero name
+   is typed by the player. `deck_id` is the source site's id. Never a deck name. Each added deck stores its
+   `source` as `addSource` (optional field on the deck) for `deck_removed` and `deck_selected_for_game`; a value that
+   isn't in the list above (e.g. from a backup file) is left out. A deep link's automatic re-push (react-query refetch)
+   sends nothing.
 3. **Games:** engine: `game_created`, `game_started`, `game_finished` {duration_s, end_reason, …}, `game_abandoned`,
    `rematch_offered/accepted`, `reconnect`. Client (no-engine modes): `lobby_created/joined`, `game_started`, `game_ended`,
    `irl_session_started`, `tableplace_handoff`. Tournaments: `tournament_created/joined/match_played`.
@@ -77,8 +108,8 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    replays the other seats' state. Room counts (`is_host = true`) stay right; per-player game counts go up by one per
    refresh.
 
-   `deck_source` uses the decks ticket's (#1512) source names, only when the deck records it: `unmatched-labs` (a Labs
-   deck id). Otherwise it is left out: a deck's `sourceUrl` is set on the curated popular decks whatever the add path, so it
+   `deck_source` uses the decks ticket's (#1512) source names, only when the deck records it: its stored `addSource`
+   (section 2), else `unmatched-labs` for a Labs deck id. Otherwise it is left out: a deck's `sourceUrl` is set on the curated popular decks whatever the add path, so it
    says nothing about the source. Budget: 3 events per player per
    sandbox or irl game, plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
    routes (`GAME_PREFIXES`): a first-time visitor who lands straight on one has not been started yet, so their events are

@@ -20,6 +20,8 @@ import { toast } from "react-hot-toast";
 
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useAccount } from "@/lib/account/useAccount";
+import { AnalyticsProps, track } from "@/lib/analytics";
+import { DeckSource, deckAddedProps, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { blockedAuthorMessage, isImportBlocked } from "@/lib/decks/blockedAuthors";
 import { MapData } from "@/lib/hooks/useLocalStorage";
 import { useProDeck } from "@/lib/proDecks";
@@ -110,6 +112,14 @@ export type PushDeckOptions = {
    * through (a deep link, an invite) never overwrites a player's changes.
    */
   confirmReplace?: (ask: ReplaceAsk) => Promise<boolean>;
+  /**
+   * Where the deck came from (#1512). Given, the deck is stored with it as
+   * `addSource` and the outcome is reported: `deck_added` (or `deck_replaced`
+   * for a re-add), or `deck_add_failed` when nothing was stored.
+   */
+  source?: DeckSource;
+  /** Extra `deck_added` properties (counts only), e.g. the Labs skip counts. */
+  addedProps?: AnalyticsProps;
 };
 
 export const useBagDecks = (): BagDeckView => {
@@ -132,11 +142,14 @@ export const useBagDecks = (): BagDeckView => {
   const setStar = useCallback((id: string) => writeStar(id), []);
 
   const pushDeck = useCallback(
-    async (deck: DeckImportType, options?: PushDeckOptions) => {
+    async (incoming: DeckImportType, options?: PushDeckOptions) => {
+      const source = options?.source;
+      const deck = source ? { ...incoming, addSource: source } : incoming;
       // An author who asked not to be importable (#790) is refused before
       // anything is written, whichever add path the deck came through.
       if (isImportBlocked(deck)) {
         toast.error(blockedAuthorMessage(deck.user));
+        if (source) trackDeckAddFailed(source, "blocked_author");
         return false;
       }
       // Re-adding a deck already in the bag replaces it in place (#1002, and
@@ -156,7 +169,14 @@ export const useBagDecks = (): BagDeckView => {
       const outcome = await addItem(store, deck);
       // A refusal that still landed on the device is a success for the user;
       // only "nothing was stored" is a failure the caller must not toast over.
-      if (!outcome.ok && outcome.reason === "device_full") return false;
+      if (!outcome.ok && outcome.reason === "device_full") {
+        if (source) trackDeckAddFailed(source, "device_full");
+        return false;
+      }
+      if (source) {
+        if (saved) track("deck_replaced", { source });
+        else track("deck_added", deckAddedProps(deck, source, options?.addedProps));
+      }
       // A deck you add should be ready to play: star it if nothing is starred.
       if (!loadStar()) writeStar(deck.id);
       return true;
