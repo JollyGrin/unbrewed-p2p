@@ -96,11 +96,19 @@ jobs:
         # of the changelog media CDN base. Unset/empty (the variable is passed
         # through as an empty string) falls back to the default,
         # https://cdn.unbrewed.xyz. See lib/changelog/media.ts.
+        #
+        # NEXT_PUBLIC_POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_HOST (issue #1438):
+        # product analytics. The key is PostHog's public project key, baked
+        # into the bundle — never a secret. The host is the first-party proxy
+        # (https://t.unbrewed.xyz). Unset/empty key = analytics fully off.
+        # See docs/analytics.md.
         env:
           NEXT_PUBLIC_PRO_WS_URL: ${{ vars.NEXT_PUBLIC_PRO_WS_URL }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_JEVX3_ALLOWLIST: ${{ vars.NEXT_PUBLIC_JEVX3_ALLOWLIST }}
           NEXT_PUBLIC_CHANGELOG_MEDIA_URL: ${{ vars.NEXT_PUBLIC_CHANGELOG_MEDIA_URL }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
           # Short commit hash surfaced in in-game bug reports (issue #87).
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: ${{ steps.detect-package-manager.outputs.runner }} next build

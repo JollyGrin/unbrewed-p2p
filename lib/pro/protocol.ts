@@ -938,7 +938,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -982,7 +982,21 @@
  * CLIENT SURFACE (unbrewed-p2p): an owner-only badge on the bearer from `marks`, a flip on
  * SECRET_MARK_REVEALED. A v37 client drops both events and the field and plays on.
  */
-export const PROTOCOL_VERSION = 38;
+/**
+ * v39 (engine #894 — product analytics, p2p#1438). ADDITIVE: one optional request field.
+ * Nothing that already exists moves, and the server never sends anything new.
+ *
+ * - `CREATE_ROOM.analyticsId?` / `JOIN_ROOM.analyticsId?` / `RECONNECT.analyticsId?` /
+ *   `RESUME_ROOM.analyticsId?` — the client's PostHog distinct id (its anonymous id, or the
+ *   Discord account id once it has identified). The server uses it as `distinct_id` for
+ *   the coarse lifecycle events it sends to PostHog (docs/ANALYTICS.md), so engine and
+ *   browser events join under one person. Opaque and unverified: bounded (200 chars, no
+ *   control characters — junk drops the field, never the join), never broadcast, never
+ *   logged, never in a resume token or telemetry. Omit it and the room still plays; its
+ *   events go out under an anonymous per-room id.
+ * - Gate on `PROTOCOL_VERSION >= 39`. A v38 client never sends the field and plays on.
+ */
+export const PROTOCOL_VERSION = 39;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -990,13 +1004,15 @@ export const REMATCH_PROTOCOL_VERSION = 35;
  * `expert` (v23) is offered per hero — see `HeroListing.botTiers` — and only
  * when the server's exposure switch is on.
  *
- * ## v36 (2026-09-27): the `jev` bot tier, behind a server flag
+ * ## v35 unchanged (2026-09-27): the `jev` bot tier, behind a server flag (#611)
  * `BotDifficulty` gains `"jev"` — the JEV API-powered bot, which calls the
  * public JEV API (thejevai.com) for structured probabilistic decisions.
  * Gated behind `EXPOSE_JEV=1` on the server (same dormancy pattern as
  * `expert` in v23). The jev bot is NOT a search bot — it calls an external
  * structured-decision API. The server offers it for every hero, same as
- * expert since #283.
+ * expert since #283. (`jev` itself is no longer listed in `botTiers` — see
+ * the `jevx3` note below, a #626 follow-up.) A purely additive string
+ * literal on an existing enum type — PROTOCOL_VERSION does not move.
  *
  * ### Client skew rules
  * - ABSENT `botTiers` (old server, or a dormant new one) → fall back to
@@ -1005,13 +1021,31 @@ export const REMATCH_PROTOCOL_VERSION = 35;
  * - PRESENT `botTiers` is authoritative. The client must render any tier
  *   the server lists without knowing what it does.
  *
- * ## jevx3 (client-only, unbrewed-p2p#933)
- * `jevx3` is advertised only behind the engine's `EXPOSE_JEV=1` switch. It is a
- * CLIENT-ONLY addition: purely additive, so `PROTOCOL_VERSION` does not move
- * for it. The client gates SELECTING it on the player's record vs
- * Expert (or a build-time allowlist) — see lib/pro/tierUnlock.ts. `jev` is not gated.
+ * ## v35 unchanged (2026-09-27): the experimental `jevx` tier (#612)
+ * `BotDifficulty` gains `"jevx"` — the expert ISMCTS search with JEV as a
+ * narrow tie-breaker. Additive, behind the same `EXPOSE_JEV=1` switch as
+ * `jev`, and NEVER listed in `botTiers` (a client only gets it by naming it),
+ * so no client needs to know it exists.
+ *
+ * ## v35 unchanged (2026-09-27): `jevx2` (#614)
+ * `BotDifficulty` gains `"jevx2"` — `jevx` with the search's own value/visit
+ * read surfaced in the JEV prompt. Same exposure rules as `jevx`.
+ *
+ * ## v35 unchanged (2026-09-27): `jevx3` (#616)
+ * `BotDifficulty` gains `"jevx3"` — `jevx2` plus per-option facts (certain
+ * kill, deck tail, boost reach) in the JEV prompt. Same exposure rules as `jevx`.
+ *
+ * ## v35 unchanged (2026-09-27): `jevx3` is the only jev-family tier advertised (#626)
+ * Unlike `jev`/`jevx`/`jevx2` above, `jevx3` IS listed in `botTiers` once
+ * `EXPOSE_JEV=1` — it's the tier the p2p client's win-gated unlock (15 wins
+ * vs `expert`, enforced client-side only) targets. #626 first added it after
+ * `jev` in the listing; a follow-up dropped `jev` from the listing entirely,
+ * so `jevx3` is now the sole advertised member of the family. `jev`/`jevx`/
+ * `jevx2` stay requestable while exposed and refused while dormant, same as
+ * always — only what gets ADVERTISED changed. No type or shape change here:
+ * `jevx3` was already a `BotDifficulty` member.
  */
-export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx3";
+export type BotDifficulty = "easy" | "medium" | "hard" | "expert" | "jev" | "jevx" | "jevx2" | "jevx3";
 
 export interface BotSeatFill {
   player: PlayerId;
@@ -1901,11 +1935,10 @@ export interface ReplayConfig {
   // mulligan window open, so its action log carries the window's own prompt
   // answers. Absent = the pre-v30 flow; every bundle from a mulligan-free game is
   // byte-identical to a pre-v30 one.
-  // `itemsDisabled` (engine #519, server/replay.ts buildReplayBundle): the game was
-  // played with the map's battlefield items turned OFF, so startGame must not spawn
-  // them on re-expansion. Like `mulligan` it rides only on its non-default side:
-  // absent = items on; every bundle from an items-on game is byte-identical to a
-  // pre-#519 one.
+  // `itemsDisabled` (engine #519): the game was played with the map's battlefield
+  // items turned OFF, so startGame must not spawn them on re-expansion. Absent =
+  // items on; every bundle from an items-on game is byte-identical to a pre-#519
+  // one.
   options?: { allowNonstandardDeck?: boolean; startingHandSize?: number; mulligan?: boolean; itemsDisabled?: boolean };
   players: { p1: ReplayPlayerSetup; p2: ReplayPlayerSetup } & Partial<Record<PlayerId, ReplayPlayerSetup>>;
   formatId?: string;
@@ -2001,15 +2034,18 @@ export interface ReplayExpansion {
   //    divergence is returned, because past it the frames are a different game.
   // ABSENT = a pre-#509 server, which only ever answered same-version bundles:
   // clients treat an absent field as "exact".
-  verification?: ReplayVerification;
+  verification?: "exact" | "digest-verified" | "diverged";
   divergedAtTurn?: number; // present only when verification === "diverged"
   // Echo of the bundle's own version block, so a viewer can say WHICH engine the
   // game was recorded on next to the one that replayed it (`engine`, above).
   recordedEngine?: { schemaVersion: number; dslVersion: string };
+  // Engine #908: set only when the latest engine could not reproduce the bundle and
+  // a frozen earlier engine build did (every per-turn digest matched), e.g.
+  // "legacy-epoch-1". Then verification === "digest-verified", the frames are full,
+  // and `engine` names the ARCHIVED build. ABSENT = served by this server's engine.
+  // Additive and optional: no PROTOCOL_VERSION bump; viewers may ignore it.
+  servedBy?: string;
 }
-
-// CLIENT-ONLY named export (lib/pro/replayVerification.ts imports it) — keep on re-sync.
-export type ReplayVerification = "exact" | "digest-verified" | "diverged";
 
 export type ReplayErrorCode =
   | "BAD_BUNDLE" // malformed JSON / missing required fields
@@ -2147,15 +2183,15 @@ export type ClientMsg =
   // BAD_MESSAGE (it is not truncated). Echoed verbatim into `ViewPlayer` and
   // frozen into replay bundles; never parsed, never logged, never sent to
   // telemetry, never visible to a bot. See the 2026-08-18 header note.
-  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; ticket?: string }
+  | { v: number; type: "CREATE_ROOM"; heroId: string; formatId?: string; seed?: number; bot?: { difficulty: BotDifficulty; heroId?: string }; botSeats?: BotSeatFill[]; customMap?: ProMapDef; debug?: boolean; turnTimerSeconds?: number; mulligan?: boolean; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; quickMatch?: boolean; itemsEnabled?: boolean; ticket?: string; analyticsId?: string }
   // `ticket` (v37, engine #755): a signed tournament join ticket — opaque to the client.
   // See the v37 header note.
-  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; ticket?: string }
+  | { v: number; type: "JOIN_ROOM"; roomId: string; heroId: string; pilot?: string; displayName?: string; badge?: string; badges?: string[]; playerId?: string; cosmetics?: string; ticket?: string; analyticsId?: string }
   | { v: number; type: "SET_VISIBILITY"; roomId: string; public: boolean }
-  | { v: number; type: "RECONNECT"; roomId: string; token: string }
+  | { v: number; type: "RECONNECT"; roomId: string; token: string; analyticsId?: string }
   // v7: revive an in-memory room lost to a redeploy/crash. `token` is the opaque
   // encrypted blob the server last pushed via RESUME_TOKEN (client localStorage).
-  | { v: number; type: "RESUME_ROOM"; token: string }
+  | { v: number; type: "RESUME_ROOM"; token: string; analyticsId?: string }
   // v11: pro undo. UNDO_REQUEST asks to undo your OWN last discrete move; the server
   // pushes UNDO_REQUESTED to the opponent. UNDO_RESPONSE carries the opponent's
   // accept/reject. Neither is an `Action` — undo never enters the replay log.

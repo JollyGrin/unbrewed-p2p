@@ -9,6 +9,7 @@
  * in localStorage (plus a recent-rooms index — see lib/pro/recentRooms.ts) and
  * replay RECONNECT on the next socket open for the same room.
  */
+import { getAnalyticsId } from "@/lib/analytics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   forgetRoom,
@@ -729,12 +730,14 @@ export function useProSocket(
   }, []);
 
   // Every message that binds a seat (CREATE/JOIN/RECONNECT/RESUME) goes out at
-  // `wireVersionFor` (lib/pro/wireVersion) — always PROTOCOL_VERSION (38 since engine #918) since
-  // #1201: prod engines accept a two-version window ({37, 38} since #918), so the old v34 fallback is gone.
+  // `wireVersionFor` (lib/pro/wireVersion) — always PROTOCOL_VERSION (39 since engine #894) since
+  // #1201: prod engines accept a two-version window ({38, 39} since #894), so the old v34 fallback is gone.
   const sendBind = useCallback(
     (msg: ClientMsg, version?: number) => {
       const v = version ?? (wsUrl ? wireVersionFor(wsUrl) : PROTOCOL_VERSION);
-      const out = { ...msg, v } as ClientMsg;
+      // Optional anonymous analytics id (#1438): absent when analytics is off/declined.
+      const analyticsId = getAnalyticsId();
+      const out = { ...msg, v, ...(analyticsId ? { analyticsId } : {}) } as ClientMsg;
       boundVersionRef.current = v;
       lastBindRef.current = out;
       setRematchNegotiable(v >= REMATCH_PROTOCOL_VERSION);

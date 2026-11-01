@@ -13,6 +13,8 @@ import {
 import "@/styles/fonts.css";
 import { Toaster } from "react-hot-toast";
 import { Global } from "@emotion/react";
+import { AnalyticsProvider } from "@/components/Analytics/AnalyticsProvider";
+import { AnalyticsNotice } from "@/components/Analytics/AnalyticsNotice";
 import { Space_Grotesk } from "next/font/google";
 
 // Self-hosted Space Grotesk via next/font — replaces the fonts.googleapis.com
@@ -57,6 +59,8 @@ export default function App({ Component, pageProps }: AppProps) {
                 },
               }}
             />
+            <AnalyticsProvider />
+            <AnalyticsNotice />
             {/* @ts-ignore */}
             <Component {...pageProps} />
           </ChakraProvider>
