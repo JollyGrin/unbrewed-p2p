@@ -61,17 +61,18 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    |---|---|---|
    | `landing_cta_clicked` | cta `<section>:<href>`, from_page | A click on a landing CTA (`components/LandingPage/`): `chooser` (Play now options), `tables` (the four table cards), `intent` ("I want to…" card), `pro` (Pro band buttons), `progression` (collection/leaderboard/tournaments), `decks` (2D/3D picks, "Open your bag"). In-page anchors, changelog, footer and nav are not CTAs. |
    | `share_link_opened` | kind `deck`\|`map`\|`replay`, source `share_page` | `/share/{deck,map,replay}/<id>` once the id is known (`ShareLanding`, `ReplaySharePage`; the routes and the 404.html rescue render the same components). |
-   | `share_link_opened` | kind `deck`, source `deeplink` | `?deckId=` present when `/irl`, `/offline` or `/table` first has its query (`lib/hooks/useDeckLink.ts`). A deckId `/irl` writes itself after an in-game deck switch is not counted. |
+   | `share_link_opened` | kind `deck`, source `deeplink` | `?deckId=` present when `/irl`, `/offline` or `/table` first has its query (`lib/hooks/useDeckLink.ts`), only when that is the URL the browser loaded (or the 404 page forwarded an old `/offline/<deckId>` link). In-app links (the bag's "Playtest in person") and the deckId `/irl` writes after an in-game deck switch are not counted. |
    | `invite_link_copied` | mode `sandbox`\|`sandbox-table`\|`pro` | The clipboard write succeeded: `/connect` "Copy Invite Link" (`InviteLink`), `/table` friend's seat "Copy" (`InviteScreen`), pro lobby "copy link", the in-game room chip (`ProHud`) and mobile menu "Copy join link". The native Share sheet and replay share links are not counted here. |
    | `join_link_opened` | mode `sandbox` | `/join` with `?gid=` once the router is ready (`components/Join`). |
-   | `join_link_opened` | mode `pro` | `/pro/game?room=` as the page opened, unless this browser already holds a seat token for the room (refresh, "back to your room") or the URL is a tournament ticket. |
-   | `pwa_installed` | – | The browser's `appinstalled` event on `/irl` (the only page linking `public/irl.webmanifest`). |
-   | `app_first_open` | display_mode | `/irl` launched outside a browser tab (`display-mode` standalone/fullscreen/minimal-ui, or iOS `navigator.standalone`) with no `unbrewed-irl-first-open` localStorage flag; the flag is set then. |
+   | `join_link_opened` | mode `pro` | `/pro/game?room=` as the browser loaded it, unless this browser already holds a seat token for the room (refresh, "back to your room") or the URL is a tournament ticket. Reached by an in-app link (`SeatHeldNote`, the "back to your room" fallback): not counted. |
+   | `pwa_installed` | – | The browser's `appinstalled` event on `/irl` (the only page linking `public/irl.webmanifest`). The notice never shows on `/irl`, so this only counts visitors who had already dismissed it elsewhere. |
+   | `app_first_open` | display_mode | `/irl` launched outside a browser tab (`display-mode` standalone/fullscreen/minimal-ui, or iOS `navigator.standalone`) with no `unbrewed-irl-first-open` localStorage flag, and only once the visitor has dismissed the notice (analytics can send it). The flag is set then, so a launch before the notice was dismissed leaves it unset and a later launch counts. |
 
    Page-load events (`share_link_opened`, `join_link_opened`, `app_first_open`) are sent one frame after mount, after the
-   notice has had its chance to start analytics. `/irl`, `/offline`, `/table` and `/pro/game` are game routes: a first-time
-   visitor who lands straight on one is not started, so their entry event is **dropped** (and its once-per-load / first-open
-   flag is still spent). This is accepted.
+   notice has had its chance to start analytics. "The URL the browser loaded" means no non-shallow client-side navigation
+   has started yet (`routeChangeStart`; `_app` loads the listener). `/irl`, `/offline`, `/table` and `/pro/game` are game
+   routes: a first-time visitor who lands straight on one is not started, so their entry event is **dropped** (and its
+   once-per-load slot is still spent; `app_first_open` keeps its flag unset instead). This is accepted.
 2. **Decks** (#1512, helpers in `lib/deckAnalytics.ts`):
    - `deck_added` {source, deck_id, hero_name?, card_count, labs_unsupported_count?, labs_skipped_count?}: a new deck
      landed in the bag (`pushDeck` with a `source`). No `success` prop: the event is the success. Bulk sends one

@@ -14,6 +14,7 @@ import Link from "next/link";
 import { ReplaySharePage } from "@/components/Pro/ReplayShareLanding";
 import { ShareLanding } from "@/components/Share/ShareLanding";
 import { parseSharePath } from "@/lib/share/sharedItem";
+import { keepLandingThroughRedirect } from "@/lib/growthAnalytics";
 
 type Props = Record<string, never>;
 
@@ -54,6 +55,7 @@ export default function Custom404() {
       // (`/offline/labs%3Achar_…`, #979) — unmatched.cards ids decode to themselves.
       const deckId = safeDecode(lobby);
 
+      keepLandingThroughRedirect();
       router.push({
         pathname: "offline",
         query: { deckId, name: "offline" },

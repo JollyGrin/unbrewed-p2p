@@ -69,11 +69,12 @@ export const useDeckLink = (
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const requestedFor = useRef<string>();
 
-  // Only the link the page opened with: /irl rewrites `?deckId=` itself when
-  // the deck is switched in-game.
+  // Only the link the browser opened: not the bag's "Playtest in person"
+  // (an in-app link), nor the `?deckId=` /irl writes after an in-game switch.
   useEntryEvent(
     "share_link_opened",
     !ready ? undefined : deckId ? { kind: "deck", source: "deeplink" } : null,
+    { landingOnly: true },
   );
 
   useEffect(() => {

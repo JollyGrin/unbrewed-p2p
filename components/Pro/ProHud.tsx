@@ -2041,7 +2041,8 @@ export const ProHud = ({
               onClick={() => {
                 void navigator.clipboard
                   ?.writeText(`${window.location.origin}/pro/game?room=${roomId}`)
-                  .then(() => trackInviteCopied("pro"));
+                  .then(() => trackInviteCopied("pro"))
+                  .catch(() => {});
                 toast.success("Join link copied!");
               }}
             >

@@ -15,6 +15,8 @@ import { Toaster } from "react-hot-toast";
 import { Global } from "@emotion/react";
 import { AnalyticsProvider } from "@/components/Analytics/AnalyticsProvider";
 import { AnalyticsNotice } from "@/components/Analytics/AnalyticsNotice";
+// Before any navigation: entry events tell a landing from an in-app link.
+import "@/lib/growthAnalytics";
 import { Space_Grotesk } from "next/font/google";
 
 // Self-hosted Space Grotesk via next/font — replaces the fonts.googleapis.com

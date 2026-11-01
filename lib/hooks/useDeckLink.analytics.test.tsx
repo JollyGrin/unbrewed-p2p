@@ -5,6 +5,7 @@
  */
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Router from "next/router";
 import type { ReactNode } from "react";
 import { useDeckLink } from "./useDeckLink";
 import { resetGrowthAnalytics } from "../growthAnalytics";
@@ -46,6 +47,13 @@ describe("share_link_opened (deeplink)", () => {
     await flush();
     expect(track).toHaveBeenCalledTimes(1);
     expect(track).toHaveBeenCalledWith("share_link_opened", { kind: "deck", source: "deeplink" });
+  });
+
+  it("ignores a ?deckId= reached by an in-app link (the bag's Playtest in person)", async () => {
+    Router.events.emit("routeChangeStart", "/irl?deckId=saved-deck", { shallow: false });
+    renderLink({ deckId: "saved-deck", ready: true });
+    await flush();
+    expect(track).not.toHaveBeenCalled();
   });
 
   it("ignores a deckId the page wrote after opening without one", async () => {

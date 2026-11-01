@@ -5,15 +5,51 @@
  * Every event here is sent at most once per page load: a re-render, a second
  * click or a URL rewrite in the same load sends nothing.
  */
+import Router from "next/router";
 import { useEffect, useRef } from "react";
-import { track, type AnalyticsEvent, type AnalyticsProps } from "@/lib/analytics";
+import {
+  analyticsAvailable,
+  getConsent,
+  track,
+  type AnalyticsEvent,
+  type AnalyticsProps,
+} from "@/lib/analytics";
 import { getToken } from "@/lib/pro/recentRooms";
 import { TICKET_QUERY_KEYS } from "@/lib/pro/tournamentTicket";
 
 const sent = new Set<AnalyticsEvent>();
 
-/** Tests only: forget what this page load already sent. */
-export const resetGrowthAnalytics = () => sent.clear();
+/**
+ * Set by the first client-side navigation. A link followed inside the app
+ * (the bag's "Playtest in person" to `/irl?deckId=`, "back to your room" to
+ * `/pro/game?room=`) is not a landing: only the URL the browser loaded is.
+ * Shallow rewrites (a page tidying its own query) don't count. _app imports
+ * this module, so the listener is on before any navigation can start.
+ */
+let navigated = false;
+let keepNextNavigation = false;
+const onRouteChangeStart = (_url: string, opts?: { shallow?: boolean }) => {
+  if (opts?.shallow) return;
+  if (keepNextNavigation) keepNextNavigation = false;
+  else navigated = true;
+};
+// `?.`: tests mock next/router without the singleton.
+Router?.events?.on("routeChangeStart", onRouteChangeStart);
+
+/**
+ * The 404 page forwards an old-style link (`/offline/<deckId>`) to its route
+ * with one push: that push still carries the URL the browser loaded.
+ */
+export const keepLandingThroughRedirect = () => {
+  if (!navigated) keepNextNavigation = true;
+};
+
+/** Tests only: forget what this page load already sent and where it went. */
+export const resetGrowthAnalytics = () => {
+  sent.clear();
+  navigated = false;
+  keepNextNavigation = false;
+};
 
 const claim = (event: AnalyticsEvent): boolean => {
   if (sent.has(event)) return false;
@@ -41,17 +77,20 @@ export const trackEntryOnce = (event: AnalyticsEvent, props?: AnalyticsProps): v
 /**
  * {@link trackEntryOnce} for the first render where `props` is known (not
  * `undefined`). `null` there means "landed, nothing to send": a later value
- * (a URL the page rewrites itself) never counts as a landing.
+ * (a URL the page rewrites itself) never counts as a landing. `landingOnly`:
+ * nothing either once the app has navigated client-side (a link followed
+ * inside the app, not one that brought the visitor here).
  */
 export const useEntryEvent = (
   event: AnalyticsEvent,
   props: AnalyticsProps | null | undefined,
+  { landingOnly = false }: { landingOnly?: boolean } = {},
 ): void => {
   const landed = useRef(false);
   useEffect(() => {
     if (landed.current || props === undefined) return;
     landed.current = true;
-    if (props) trackEntryOnce(event, props);
+    if (props && !(landingOnly && navigated)) trackEntryOnce(event, props);
   });
 };
 
@@ -100,7 +139,10 @@ export const useIrlInstallAnalytics = (): void => {
     window.addEventListener("appinstalled", onInstalled);
 
     const mode = displayMode();
-    if (mode !== "browser") {
+    // Only once analytics can send it: the flag stays unset for a visitor who
+    // hasn't dismissed the notice yet (it never shows on /irl), so a later
+    // launch still counts.
+    if (mode !== "browser" && analyticsAvailable() && getConsent() === "seen") {
       try {
         if (!window.localStorage.getItem(IRL_FIRST_OPEN_KEY)) {
           window.localStorage.setItem(IRL_FIRST_OPEN_KEY, "1");

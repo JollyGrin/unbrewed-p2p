@@ -1,6 +1,8 @@
 import { act, render } from "@testing-library/react";
+import Router from "next/router";
 import {
   IRL_FIRST_OPEN_KEY,
+  keepLandingThroughRedirect,
   proJoinLinkProps,
   resetGrowthAnalytics,
   trackEntryOnce,
@@ -11,15 +13,23 @@ import {
 import type { AnalyticsProps } from "./analytics";
 
 const track = jest.fn();
-jest.mock("./analytics", () => ({ track: (...args: unknown[]) => track(...args) }));
+let consent = "seen";
+jest.mock("./analytics", () => ({
+  track: (...args: unknown[]) => track(...args),
+  analyticsAvailable: () => true,
+  getConsent: () => consent,
+}));
 
 /** One frame plus the timeout queued after it. */
 const flush = () => act(async () => { jest.advanceTimersByTime(50); });
 
-const Entry = ({ props }: { props: AnalyticsProps | null | undefined }) => {
-  useEntryEvent("share_link_opened", props);
+const Entry = ({ props, landingOnly }: { props: AnalyticsProps | null | undefined; landingOnly?: boolean }) => {
+  useEntryEvent("share_link_opened", props, { landingOnly });
   return null;
 };
+
+const navigate = (shallow = false) =>
+  Router.events.emit("routeChangeStart", "/irl?deckId=x", { shallow });
 
 const Install = () => {
   useIrlInstallAnalytics();
@@ -39,6 +49,7 @@ beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   setDisplayMode(null);
+  consent = "seen";
 });
 afterEach(() => jest.useRealTimers());
 
@@ -85,6 +96,49 @@ describe("useEntryEvent", () => {
   });
 });
 
+describe("useEntryEvent landingOnly", () => {
+  const deeplink = { kind: "deck", source: "deeplink" };
+
+  it("skips a page reached by a client-side navigation", async () => {
+    navigate();
+    render(<Entry props={deeplink} landingOnly />);
+    await flush();
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("still counts after a shallow rewrite of the landing URL", async () => {
+    navigate(true);
+    render(<Entry props={deeplink} landingOnly />);
+    await flush();
+    expect(track).toHaveBeenCalledWith("share_link_opened", deeplink);
+  });
+
+  it("still counts after the 404 page forwards an old link", async () => {
+    keepLandingThroughRedirect();
+    navigate();
+    render(<Entry props={deeplink} landingOnly />);
+    await flush();
+    expect(track).toHaveBeenCalledWith("share_link_opened", deeplink);
+
+    // ...but not after a further navigation.
+    track.mockClear();
+    resetGrowthAnalytics();
+    keepLandingThroughRedirect();
+    navigate();
+    navigate();
+    render(<Entry props={deeplink} landingOnly />);
+    await flush();
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("without landingOnly, a navigated page still counts", async () => {
+    navigate();
+    render(<Entry props={{ kind: "map", source: "share_page" }} />);
+    await flush();
+    expect(track).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("proJoinLinkProps", () => {
   it("counts a ?room= invite", () => {
     expect(proJoinLinkProps("abc", { room: "abc" })).toEqual({ mode: "pro" });
@@ -121,6 +175,15 @@ describe("useIrlInstallAnalytics", () => {
     render(<Install />);
     await flush();
     expect(track).not.toHaveBeenCalled();
+  });
+
+  it("leaves the flag unset while the notice hasn't been dismissed", async () => {
+    setDisplayMode("standalone");
+    consent = "unseen";
+    render(<Install />);
+    await flush();
+    expect(track).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(IRL_FIRST_OPEN_KEY)).toBeNull();
   });
 
   it("sends nothing in a browser tab", async () => {
