@@ -16,7 +16,7 @@
  *
  * #1201: since engine #754 the server accepts only {35, 36} and answers v34 with
  * ERROR{VERSION}, so the v34 fallback is gone: every seat binds at
- * `PROTOCOL_VERSION` (38 since engine #918; the engine accepts {37, 38}), which is already rematch-capable. The learned version
+ * `PROTOCOL_VERSION` (39 since engine #894; the engine accepts {38, 39}), which is already rematch-capable. The learned version
  * still gates the rematch UI (`engineSpeaksRematch`).
  */
 import { PROTOCOL_VERSION, REMATCH_PROTOCOL_VERSION } from "./protocol";

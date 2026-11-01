@@ -70,7 +70,7 @@ const fakeRouter = (query: Query) =>
   }) as never;
 
 // `v` is what the ENGINE stamps on its frames. Since engine #754 an engine accepts only
-// the accepted window ({37, 38} since engine #918), so this client always binds at PROTOCOL_VERSION — #1201.
+// the accepted window ({38, 39} since engine #894), so this client always binds at PROTOCOL_VERSION — #1201.
 let ENGINE_V = PROTOCOL_VERSION;
 const deliver = async (msg: Record<string, unknown>) => {
   const socket = FakeWebSocket.latest();
@@ -285,10 +285,10 @@ describe("against an engine at the current PROTOCOL_VERSION", () => {
 });
 
 // A fake engine with a two-version window: every frame outside it is answered
-// ERROR{VERSION}, as the real engine does. The xenomorph engine takes {37, 38};
+// ERROR{VERSION}, as the real engine does. The current engine takes {38, 39};
 // main's takes {35, 36}, where this client would bind at 36.
 describe.each([
-  { window: [37, 38], bindV: PROTOCOL_VERSION },
+  { window: [38, 39], bindV: PROTOCOL_VERSION },
   { window: [35, 36], bindV: 36 },
 ])("rematch frames against an engine accepting $window", ({ window: accepted, bindV }) => {
   beforeEach(() => {

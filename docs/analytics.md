@@ -15,6 +15,8 @@ Replaces counter.dev (which stays until the ~2-week comparison ends). Game/balan
 | `NEXT_PUBLIC_POSTHOG_KEY` | EU project key (never committed). Unset = analytics fully off. |
 | `NEXT_PUBLIC_POSTHOG_HOST` | Proxy origin, e.g. `https://t.unbrewed.xyz`. Defaults to `https://eu.i.posthog.com`. |
 
+Both are set as GitHub Actions repository variables and passed to the build step in `.github/workflows/nextjs.yml`.
+
 Analytics are off in dev and test (`NODE_ENV !== "production"`), on `/dev/*` and `/debug`, and whenever the key is unset.
 Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, loaded by dynamic `import()` only once analytics starts, so nothing downloads when it is off/declined). The notice and first start are skipped on in-game routes (`/pro/game`, `/game`, `/irl`, `/offline`, `/table`): a new visitor starts on the first normal route. The account probe for identify mounts only when analytics is available.
 
@@ -36,7 +38,7 @@ then set `NEXT_PUBLIC_POSTHOG_HOST=https://t.unbrewed.xyz` in the build env. Als
 ## Wire: `analyticsId`
 Optional string on `CREATE_ROOM` / `JOIN_ROOM` / `RECONNECT` / `RESUME_ROOM`: the PostHog distinct id, added in
 `sendBind` only when analytics is active. The engine uses it as `distinct_id` (account id when logged in). The
-protocol version bump is owned by engine #894; the client constant is not bumped here.
+field is protocol v39 (engine #894); `lib/pro/protocol.ts` is synced to it, so this needs an engine at v39.
 
 ## Taxonomy
 Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table` (`/table`), `irl` (`/irl`, `/offline`), `pro` (`/pro/game`).

@@ -19,7 +19,10 @@
  * version mismatch was refused before it ever got here — so "absent" means
  * "exact" and old responses behave exactly as they did.
  */
-import type { ReplayExpansion, ReplayVerification } from "./protocol";
+import type { ReplayExpansion } from "./protocol";
+
+/** The engine inlines this union on `ReplayExpansion.verification`; name it here. */
+type ReplayVerification = NonNullable<ReplayExpansion["verification"]>;
 
 const KNOWN: readonly ReplayVerification[] = ["exact", "digest-verified", "diverged"];
 
