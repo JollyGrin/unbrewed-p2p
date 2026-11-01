@@ -13,6 +13,7 @@ import {
 } from "@/lib/deckLink";
 import { DeckRefresh } from "@/lib/deckRefresh";
 import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
+import { useEntryEvent } from "@/lib/growthAnalytics";
 import { LabsSkippedContent } from "@/lib/labs";
 
 export type HeldDeck = LinkedDeck & {
@@ -67,6 +68,14 @@ export const useDeckLink = (
   const [refresh, setRefresh] = useState<DeckRefresh>();
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const requestedFor = useRef<string>();
+
+  // Only the link the browser opened: not the bag's "Playtest in person"
+  // (an in-app link), nor the `?deckId=` /irl writes after an in-game switch.
+  useEntryEvent(
+    "share_link_opened",
+    !ready ? undefined : deckId ? { kind: "deck", source: "deeplink" } : null,
+    { landingOnly: true },
+  );
 
   useEffect(() => {
     if (!ready || !deckId || !decks) return;

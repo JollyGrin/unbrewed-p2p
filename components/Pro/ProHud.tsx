@@ -107,6 +107,7 @@ import { FIGURE_STYLE_LABEL, type FigureCredit, type FigureStyle } from "@/lib/p
 import { ZONE_DISCS_LABEL, zoneDiscsStateLabel } from "@/lib/pro/zoneDiscs";
 import { FigureCredits } from "./FigureCredits";
 import { FLAGS, useFlags } from "@/lib/flags";
+import { trackInviteCopied } from "@/lib/growthAnalytics";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
 // and stays distinct from the gold TURN chip and from every per-seat identity
@@ -2038,7 +2039,10 @@ export const ProHud = ({
               cursor="pointer"
               _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
               onClick={() => {
-                navigator.clipboard?.writeText(`${window.location.origin}/pro/game?room=${roomId}`);
+                void navigator.clipboard
+                  ?.writeText(`${window.location.origin}/pro/game?room=${roomId}`)
+                  .then(() => trackInviteCopied("pro"))
+                  .catch(() => {});
                 toast.success("Join link copied!");
               }}
             >

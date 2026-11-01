@@ -3,6 +3,7 @@ import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { H2, Section } from "./ui";
 import { INTENTS } from "./content";
+import { trackLandingCta } from "@/lib/growthAnalytics";
 
 /**
  * Section 4, "I want to…": six intents, one recommendation card. Toggle
@@ -76,6 +77,7 @@ export const IntentHelper = () => {
           <Box
             as={Link}
             href={intent.href}
+            onClick={() => trackLandingCta("intent", intent.href)}
             alignSelf={{ base: "flex-start", md: "center" }}
             flexShrink={0}
             bg="brand.accent"

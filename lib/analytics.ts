@@ -34,6 +34,8 @@ export type AnalyticsEvent =
   | "join_link_opened"
   | "login_started"
   | "login_completed"
+  | "pwa_installed"
+  | "app_first_open"
   | "deck_added"
   | "deck_add_failed"
   | "deck_removed"

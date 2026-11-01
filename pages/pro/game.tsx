@@ -258,6 +258,7 @@ import {
 } from "@/lib/pro/rematch";
 import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import { withoutTicketQuery } from "@/lib/pro/tournamentTicket";
+import { proJoinLinkProps, trackInviteCopied, useEntryEvent } from "@/lib/growthAnalytics";
 import { isTournamentRoom, TournamentGate, useTournamentGame, type GateTournament } from "@/components/Pro/TournamentGate";
 import { TournamentWaiting } from "@/components/Pro/TournamentGameNotes";
 import { useLobbyMatchCue } from "@/lib/pro/useLobbyMatchCue";
@@ -6048,7 +6049,15 @@ const LiveGame = ({
               <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
                 {joinUrl}
               </Tag>
-              <Button {...BTN_GOLD} onClick={() => navigator.clipboard?.writeText(joinUrl)}>
+              <Button
+                {...BTN_GOLD}
+                onClick={() =>
+                  void navigator.clipboard
+                    ?.writeText(joinUrl)
+                    .then(() => trackInviteCopied("pro"))
+                    .catch(() => {})
+                }
+              >
                 copy link
               </Button>
             </Flex>
@@ -8032,6 +8041,9 @@ const ProGamePage = () => {
   // CTA arriving: it highlights the Quick Match button on the picker. It never
   // auto-fires — the fighter pick is the one choice we can't make for them.
   const quickParam = router.query.quick !== undefined;
+  useEntryEvent("join_link_opened", router.isReady ? proJoinLinkProps(room, router.query) : undefined, {
+    landingOnly: true,
+  });
   return (
     <Box minH="100svh" bg={TABLE_BG} color="brand.parchment">
       {WS_URL ? (

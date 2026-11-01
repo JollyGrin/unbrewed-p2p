@@ -9,6 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import { trackInviteCopied } from "@/lib/growthAnalytics";
 import {
   EMPTY_LOBBY_REAP_MINUTES,
   type LobbyCreated,
@@ -109,8 +110,10 @@ export const InviteScreen = ({
           <HStack>
             <Button
               onClick={async () => {
-                if (await copy(theirs)) toast.success("Invite link copied");
-                else toast.error("Couldn't copy. Select the link instead.");
+                if (await copy(theirs)) {
+                  trackInviteCopied("sandbox-table");
+                  toast.success("Invite link copied");
+                } else toast.error("Couldn't copy. Select the link instead.");
               }}
             >
               Copy

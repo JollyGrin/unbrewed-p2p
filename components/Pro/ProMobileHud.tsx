@@ -68,6 +68,7 @@ import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro
 import { secretMarkedFighterIds } from "@/lib/pro/fighterStatuses";
 import { TableHudPlate } from "@/components/Pro/Table/Hud/TableHudPlate";
 import { SEAT_COLOR } from "@/lib/pro/seatColors";
+import { trackInviteCopied } from "@/lib/growthAnalytics";
 
 export const MOBILE_CHIPS_TEST_ID = "pro-mobile-chips";
 
@@ -346,7 +347,10 @@ export const ProMobileMenu = ({
               {...item}
               icon={<LinkIcon boxSize="0.7rem" />}
               onClick={() => {
-                navigator.clipboard?.writeText(`${window.location.origin}/pro/game?room=${roomId}`);
+                void navigator.clipboard
+                  ?.writeText(`${window.location.origin}/pro/game?room=${roomId}`)
+                  .then(() => trackInviteCopied("pro"))
+                  .catch(() => {});
                 toast.success("Join link copied!");
               }}
             >

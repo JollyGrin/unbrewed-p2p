@@ -2,6 +2,7 @@ import { Box, Flex, SimpleGrid, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { Chip, Eyebrow, H2, Section } from "./ui";
 import { TABLES, TableCard } from "./content";
+import { trackLandingCta } from "@/lib/growthAnalytics";
 
 /** Every still is captured at 16:10, 1280×800 (public/landing). */
 const THUMB_W = 1280;
@@ -49,6 +50,7 @@ const TableTile = ({ table }: { table: TableCard }) => (
   <Box
     as={Link}
     href={table.href}
+    onClick={() => trackLandingCta("tables", table.href)}
     display="grid"
     gridTemplateRows="auto 1fr"
     bg="brand.secondary"

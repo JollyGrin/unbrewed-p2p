@@ -29,6 +29,7 @@ import { PageSeo } from "@/components/Helmet/Head";
 import { persistAndStarDeck } from "@/lib/invite";
 import { useBagMaps } from "@/lib/bag/useBag";
 import { useAccount } from "@/lib/account/useAccount";
+import { useEntryEvent } from "@/lib/growthAnalytics";
 import {
   SharedDeckPreview,
   SharedLoad,
@@ -74,6 +75,10 @@ export const ShareLanding = ({
   id?: string;
 }) => {
   const { status, preview } = useSharedItem(route, id);
+  useEntryEvent(
+    "share_link_opened",
+    id === undefined ? undefined : { kind: route, source: "share_page" },
+  );
   const label = route === "deck" ? "deck" : "map";
 
   return (

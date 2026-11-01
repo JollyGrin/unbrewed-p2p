@@ -1,6 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { LobbyCreated } from "@/lib/tableplace/api";
 import { InviteScreen } from "./InviteScreen";
+import { resetGrowthAnalytics } from "@/lib/growthAnalytics";
+
+const track = jest.fn();
+jest.mock("../../lib/analytics", () => ({ track: (...args: unknown[]) => track(...args) }));
 
 jest.mock("react-hot-toast", () => ({
   toast: { success: jest.fn(), error: jest.fn() },
@@ -48,6 +52,20 @@ describe("InviteScreen (issue #1063)", () => {
     expect(screen.getByTestId("camera-hint").textContent).toContain(
       "Scroll out to see the whole table",
     );
+  });
+
+  it("reports invite_link_copied (#1513) when the friend's link is copied", async () => {
+    track.mockClear();
+    resetGrowthAnalytics();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: jest.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    });
+    render(<InviteScreen lobby={lobby} onReset={jest.fn()} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Copy"));
+    });
+    expect(track).toHaveBeenCalledWith("invite_link_copied", { mode: "sandbox-table" });
   });
 
   it("calls onReset from 'Make another table'", () => {

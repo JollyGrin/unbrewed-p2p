@@ -34,6 +34,7 @@ import {
 } from "@/lib/invite";
 import { useAccount } from "@/lib/account/useAccount";
 import { track } from "@/lib/analytics";
+import { useEntryEvent } from "@/lib/growthAnalytics";
 
 /** Sentinel values for the deck <Select>; local decks use their own id. */
 const CHOICE_REMOTE = "__remote";
@@ -53,6 +54,11 @@ export const JoinPage = () => {
   const { activeServer, setActiveServer } = useLocalServerStorage();
 
   const account = useAccount();
+
+  useEntryEvent(
+    "join_link_opened",
+    !router.isReady ? undefined : gid ? { mode: "sandbox" } : null,
+  );
 
   const [mounted, setMounted] = useState(false);
   const [name, setName] = useState("");

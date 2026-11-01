@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Eyebrow, Section } from "./ui";
 import { BOT_LADDER, VS_BOT_HREF, proFeatures } from "./content";
 import type { LandingFighter } from "./useLandingRoster";
+import { trackLandingCta } from "@/lib/growthAnalytics";
 
 /** /pro's skewed chip, so the hand-off to /pro looks like the same place. */
 const skew = { transform: "skewX(-8deg)", "& > *": { transform: "skewX(8deg)" } };
@@ -11,6 +12,7 @@ const ProLink = ({ href, children, gold }: { href: string; children: React.React
   <Box
     as={Link}
     href={href}
+    onClick={() => trackLandingCta("pro", href)}
     display="inline-flex"
     fontFamily="SpaceGrotesk"
     fontWeight={700}
