@@ -138,7 +138,8 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
 4. **Errors.** Two layers:
    - **Error Tracking** (`$exception`, #1526; bills the separate Error Tracking product): exception autocapture
      sends uncaught errors and unhandled promise rejections (not `console.error`) from event handlers, promises and
-     socket code. posthog-js rate-limits per exception type (10, then 1 per 10 s). Boundary-caught render crashes,
+     socket code. The client rate-limits exceptions to 10 per error type, then 1 per 10 s (posthog-js burst
+     protection, `error_tracking.exceptionRateLimiter*`). Boundary-caught render crashes,
      which React swallows so autocapture never sees them, are sent by `reportClientError` via
      `captureException(error, { boundary })`, once per boundary per page load. Messages are scrubbed (see the privacy
      model). Stack traces stay minified until source maps are uploaded (separate ticket); grouping by type and
