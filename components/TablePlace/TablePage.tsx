@@ -30,6 +30,8 @@ import {
 } from "@/lib/tableplace/api";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { useProDecks } from "@/lib/proDecks";
+import { track, type AnalyticsProps } from "@/lib/analytics";
+import { deckSourceOf } from "@/lib/gameAnalytics";
 import { useProFaces } from "@/lib/proFaces";
 import { plainSkipped, previewDeck, previewOf } from "@/lib/tableplace/preview";
 import { DeckGallery } from "./DeckGallery";
@@ -170,6 +172,10 @@ export const TablePage = () => {
   // The last table's links outlive "Make another table": a friend may not have
   // opened theirs yet.
   const [lastLobby, setLastLobby] = useState<LobbyCreated>();
+  // The table as it was created: the last table's links report it, not
+  // whatever is picked by the time they are clicked.
+  const handoffProps = useRef<AnalyticsProps>({});
+  const handoff = () => track("tableplace_handoff", handoffProps.current);
   // A different table has different problems: don't leave the last one up.
   // Keyed on values, not on `composed.body`, whose identity can change on
   // any render that hands us an equal-but-new object.
@@ -198,6 +204,13 @@ export const TablePage = () => {
     const real = await createLobby(body);
     setStatus("idle");
     if (!real.ok) return setApiError(real.error);
+    const deck_source = deckSourceOf(starredDeck);
+    track("lobby_created", { mode: "sandbox-table", deck_source });
+    handoffProps.current = {
+      from_mode: "sandbox-table",
+      deck_source,
+      deck_count: [starredDeck, opponent.deck].filter(Boolean).length,
+    };
     setLobby(real.data);
   };
 
@@ -235,6 +248,7 @@ export const TablePage = () => {
         >
           <InviteScreen
             lobby={lobby}
+            onOpenSeat={handoff}
             onReset={() => {
               setLastLobby(lobby);
               setLobby(undefined);
@@ -309,7 +323,12 @@ export const TablePage = () => {
                   {lastLobby.seats.map((s, i) => (
                     <span key={s.seat}>
                       {i > 0 && ", "}
-                      <Link href={s.url} isExternal textDecor="underline">
+                      <Link
+                        href={s.url}
+                        isExternal
+                        textDecor="underline"
+                        onClick={handoff}
+                      >
                         seat {s.seat + 1}
                       </Link>
                     </span>
@@ -319,6 +338,7 @@ export const TablePage = () => {
                       href={lastLobby.lobby_url}
                       isExternal
                       textDecor="underline"
+                      onClick={handoff}
                     >
                       open the lobby
                     </Link>

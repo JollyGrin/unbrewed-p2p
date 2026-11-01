@@ -37,6 +37,8 @@ import { MapPickerModal } from "@/components/Game/Header/map.modal";
 import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import { useBagMaps } from "@/lib/bag/useBag";
 import { MapData } from "@/lib/hooks";
+import { track } from "@/lib/analytics";
+import { deckSourceOf } from "@/lib/gameAnalytics";
 
 export const ConnectPage = () => {
   const router = useRouter();
@@ -49,6 +51,9 @@ export const ConnectPage = () => {
   const autoNameRef = useRef<string | null>(null);
 
   const [lobby, setLobby] = useState(gidRef?.current?.value ?? "");
+  // The lobby name WE last rolled. Connecting under it creates a lobby; a
+  // typed or invite-link name joins one (analytics, #1511).
+  const rolledLobbyRef = useRef<string | null>(null);
 
   // uses router props to load new decks
   const { isLoading: isDeckImporting, error: deckImportFailed } =
@@ -86,6 +91,16 @@ export const ConnectPage = () => {
     gidRef,
     nameRef,
     mapUrl,
+    onLobbyReady: () => {
+      if (gidRef.current?.value === rolledLobbyRef.current) {
+        track("lobby_created", {
+          mode: "sandbox",
+          deck_source: deckSourceOf(starredDeck),
+        });
+      } else {
+        track("lobby_joined", { mode: "sandbox" });
+      }
+    },
   });
 
   useEffect(() => {
@@ -103,6 +118,7 @@ export const ConnectPage = () => {
     if (gidRef.current && !gidRef.current.value) {
       const randomLobby = generateRandomName();
       gidRef.current.value = randomLobby;
+      rolledLobbyRef.current = randomLobby;
       setLobby(randomLobby);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,6 +150,7 @@ export const ConnectPage = () => {
     if (gidRef.current) {
       gidRef.current.value = randomLobby;
     }
+    rolledLobbyRef.current = randomLobby;
     setLobby(randomLobby);
   };
 

@@ -1,5 +1,6 @@
 import { WebGameProvider } from "@/lib/contexts/WebGameProvider";
 import { GameShell } from "@/components/Game/GameShell";
+import { SandboxGameAnalytics } from "@/components/Game/SandboxGameAnalytics";
 import { PageSeo } from "@/components/Helmet/Head";
 
 // Re-exported from its new home so the existing `@/pages/game` importers
@@ -13,6 +14,7 @@ const GamePage = () => {
       <PageSeo path="/game" title="Game — Unbrewed" noindex />
       <WebGameProvider>
         <GameShell />
+        <SandboxGameAnalytics />
       </WebGameProvider>
     </>
   );

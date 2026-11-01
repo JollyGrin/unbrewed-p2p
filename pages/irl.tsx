@@ -15,6 +15,7 @@ import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { deckMatchesLink } from "@/lib/deckLink";
 import { DeckLinkHold, DeckLinkNotice } from "@/components/DeckLink/DeckLinkHold";
 import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
+import { useIrlSession } from "@/lib/gameAnalytics";
 
 /**
  * IRL Mode (issue #798): playtest your deck in person before you print it.
@@ -76,6 +77,12 @@ const Irl = () => {
   }, [refresh]);
 
   const noDeck = isReady && !deckId && !isLoading && !!decks && !starredDeck;
+
+  useIrlSession({
+    offline: false,
+    hasDeck: !!deck && !!query.name,
+    settled: noDeck || failed,
+  });
 
   return (
     <>

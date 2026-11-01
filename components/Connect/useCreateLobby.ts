@@ -11,9 +11,16 @@ interface Props {
   nameRef: RefObject<HTMLInputElement>;
   /** Map picked on /connect; appended to the /game push only when set. */
   mapUrl?: string;
+  /** Runs once the relay answered, just before the /game push. */
+  onLobbyReady?: () => void;
 }
 
-export function useCreateLobby({ gidRef, nameRef, mapUrl }: Props) {
+export function useCreateLobby({
+  gidRef,
+  nameRef,
+  mapUrl,
+  onLobbyReady,
+}: Props) {
   const router = useRouter();
   const { activeServer } = useLocalServerStorage();
   const serverURL = new URL(activeServer);
@@ -47,6 +54,7 @@ export function useCreateLobby({ gidRef, nameRef, mapUrl }: Props) {
         // If the lobby was created, we can move to the game state and
         // connect to the websocket.
         if (!nameRef?.current || !gidRef?.current) return;
+        onLobbyReady?.();
         router.push(
           "/game?name=" +
             nameRef.current.value +

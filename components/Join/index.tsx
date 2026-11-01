@@ -32,6 +32,7 @@ import {
   randomPopularDeck,
 } from "@/lib/invite";
 import { useAccount } from "@/lib/account/useAccount";
+import { track } from "@/lib/analytics";
 
 /** Sentinel values for the deck <Select>; local decks use their own id. */
 const CHOICE_REMOTE = "__remote";
@@ -180,6 +181,7 @@ export const JoinPage = () => {
         setStar(deckChoice);
       }
 
+      track("lobby_joined", { mode: "sandbox" });
       router.push(
         `/game?name=${encodeURIComponent(trimmedName)}&gid=${encodeURIComponent(gid)}`,
       );

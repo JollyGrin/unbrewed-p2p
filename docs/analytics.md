@@ -59,6 +59,30 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
 3. **Games:** engine: `game_created`, `game_started`, `game_finished` {duration_s, end_reason, …}, `game_abandoned`,
    `rematch_offered/accepted`, `reconnect`. Client (no-engine modes): `lobby_created/joined`, `game_started`, `game_ended`,
    `irl_session_started`, `tableplace_handoff`. Tournaments: `tournament_created/joined/match_played`.
+
+   **Client mode triggers (#1511).** The client never sends `game_started` / `game_ended` for `pro` (the engine owns it;
+   `lib/gameAnalytics.ts` has no `pro` mode and refuses `/pro/*`). Game names and properties match the engine's where they
+   overlap. Count rooms with `is_host = true`; per-player funnels use every event.
+   | Event | Properties | Trigger |
+   |---|---|---|
+   | `lobby_created` | mode `sandbox`, deck_source? | `/connect`: the relay answered "Connect to Game" and the lobby name is still the one we rolled (`components/Connect/index.tsx`). |
+   | `lobby_joined` | mode `sandbox` | `/join` (the "Invite a friend" link): the relay answered and the deck is starred, just before the `/game` push (`components/Join/index.tsx`). Also `/connect` when the lobby name was typed rather than rolled; typing a fresh name to start a room counts as a join. |
+   | `lobby_created` | mode `sandbox-table`, deck_source? | `/table`: table.place created the lobby (after the dry run), `components/TablePlace/TablePage.tsx`. The friend's seat link goes straight to table.place, so `sandbox-table` has no `lobby_joined`. |
+   | `tableplace_handoff` | from_mode `sandbox-table`, deck_source?, deck_count | Each click that leaves for table.place: "Open your seat" (`InviteScreen.tsx`) and the "Your last table" seat links (`TablePage.tsx`). Properties describe the table as it was created. |
+   | `game_started` | mode, players, is_host | `sandbox`: the first room state arrives on `/game`; `players` counts the seats in it, and `is_host` is true when nobody else was in the room. `irl`: the deck is on the table on `/irl` or `/offline` (players 1, is_host always true). `sandbox-table` games run on table.place, so none are sent. |
+   | `game_ended` | mode, duration_s, players, is_host, end_reason | At most one per `game_started`. `left`: the page unmounts (in-app navigation). `closed`: `pagehide`, sent with `sendBeacon` (`track(…, { beacon: true })`). `players` is the most seats seen. A page restored from the back/forward cache sends a new `game_started`. No client mode has a game over, so `finished` is never sent today. A dropped socket does not end the game. |
+   | `irl_session_started` | offline, has_deck | Once per visit to `/irl` (offline false) or `/offline` (offline true), when the deck loads (has_deck true) or the page settles without one (no starred deck / couldn't load). |
+
+   A `/game` reload sends `game_ended` (`closed`), then a new `game_started` with `is_host: false`, because the relay
+   replays the other seats' state. Room counts (`is_host = true`) stay right; per-player game counts go up by one per
+   refresh.
+
+   `deck_source` uses the decks ticket's (#1512) source names, only when the deck records it: `unmatched-labs` (a Labs
+   deck id). Otherwise it is left out: a deck's `sourceUrl` is set on the curated popular decks whatever the add path, so it
+   says nothing about the source. Budget: 3 events per player per
+   sandbox or irl game, plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
+   routes (`GAME_PREFIXES`): a first-time visitor who lands straight on one has not been started yet, so their events are
+   dropped until they reach a normal route. This is accepted.
 4. **Errors:** `$exception`, `ws_connect_failed`, `ws_closed_unexpected`, `toast_error_shown`; engine `server_error`, `rate_limited`.
 5. **Funnels/paths:** built from the above (visitor → first game, deck-add per source, lobby funnel, retention).
 6. **Feature usage:** `cosmetics_equipped`, `collection_opened`, `stats_viewed`, `leaderboard_viewed`, `replay_opened`, settings toggles.

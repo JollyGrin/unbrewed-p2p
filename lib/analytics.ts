@@ -253,9 +253,21 @@ export const trackPageview = (): void => {
   run((p) => p.capture("$pageview"));
 };
 
-export const track = (event: AnalyticsEvent, props?: AnalyticsProps): void => {
+/**
+ * `beacon`: send now over `navigator.sendBeacon`, for a capture made while the
+ * page is going away (`pagehide`), where a batched or fetch send can be lost.
+ */
+export const track = (
+  event: AnalyticsEvent,
+  props?: AnalyticsProps,
+  opts?: { beacon?: boolean },
+): void => {
   if (typeof window === "undefined" || isSilentPath(window.location.pathname)) return;
-  run((p) => p.capture(event, props));
+  run((p) =>
+    opts?.beacon
+      ? p.capture(event, props, { transport: "sendBeacon", send_instantly: true })
+      : p.capture(event, props),
+  );
 };
 
 /**

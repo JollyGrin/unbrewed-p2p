@@ -10,6 +10,7 @@ import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { deckMatchesLink } from "@/lib/deckLink";
 import { DeckLinkHold, DeckLinkNotice } from "@/components/DeckLink/DeckLinkHold";
 import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
+import { useIrlSession } from "@/lib/gameAnalytics";
 
 /**
  * Solo offline table. Loads a deck entirely client-side and drops the player
@@ -28,7 +29,7 @@ const Offline = () => {
   const { query, isReady, replace } = useRouter();
   const deckId = query.deckId as string | undefined;
 
-  const { starredDeck } = useBagDecks();
+  const { decks, starredDeck, isLoading } = useBagDecks();
   const link = useDeckLink(deckId, { ready: isReady });
   const { failed } = link;
   const held = !!link.held && !link.held.refresh;
@@ -49,6 +50,16 @@ const Offline = () => {
     : !!starredDeck;
 
   const nameReady = !!query.name;
+
+  // No link and nothing starred: the spinner never resolves, but the
+  // session is settled (same rule as /irl).
+  const noDeck = isReady && !deckId && !isLoading && !!decks && !starredDeck;
+
+  useIrlSession({
+    offline: true,
+    hasDeck: deckReady && nameReady,
+    settled: failed || noDeck,
+  });
 
   return (
     <>

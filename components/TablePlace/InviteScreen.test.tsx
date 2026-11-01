@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { LobbyCreated } from "@/lib/tableplace/api";
 import { InviteScreen } from "./InviteScreen";
 
@@ -55,5 +55,14 @@ describe("InviteScreen (issue #1063)", () => {
     render(<InviteScreen lobby={lobby} onReset={onReset} />);
     screen.getByText("Make another table").click();
     expect(onReset).toHaveBeenCalled();
+  });
+
+  it("reports the click that opens your seat on table.place (#1511)", () => {
+    const onOpenSeat = jest.fn();
+    render(<InviteScreen lobby={lobby} onReset={jest.fn()} onOpenSeat={onOpenSeat} />);
+    fireEvent.click(screen.getByText("Copy"));
+    expect(onOpenSeat).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("seat-0"));
+    expect(onOpenSeat).toHaveBeenCalledTimes(1);
   });
 });
