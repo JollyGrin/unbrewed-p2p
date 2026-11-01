@@ -404,10 +404,19 @@ describe("URL sanitizer (#1520)", () => {
     const out = before_send({
       uuid: "u",
       event: "$pageview",
-      properties: { $current_url: `${origin}/game?name=Bob&gid=my-lobby&utm_source=x#frag`, $pathname: "/game" },
+      properties: {
+        $current_url: `${origin}/game?name=Bob&gid=my-lobby&utm_source=x#frag`,
+        $pathname: "/game",
+        title: "Bob's Secret Deck — IRL Mode",
+        $initial_person_info: { r: `${origin}/join?gid=g`, u: `${origin}/game?name=Bob` },
+        $set: { $current_url: `${origin}/game?name=Bob&tour=t1` },
+      },
       $set_once: { $initial_current_url: `${origin}/pro/game?ticket=t&deckId=d` },
     });
     expect(out.properties.$current_url).toBe(`${origin}/game?utm_source=x`);
+    expect(out.properties).not.toHaveProperty("title");
+    expect(out.properties.$initial_person_info).toEqual({ r: `${origin}/join`, u: `${origin}/game` });
+    expect(out.properties.$set.$current_url).toBe(`${origin}/game?tour=t1`);
     expect(out.$set_once.$initial_current_url).toBe(`${origin}/pro/game?deckId=d`);
     expect(before_send(null)).toBeNull();
   });

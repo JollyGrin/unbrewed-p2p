@@ -113,11 +113,13 @@ export const sanitizeEventProperties = (props: Record<string, unknown> | undefin
   }
 };
 
-/** `before_send` hook: the event's properties plus every `$set` / `$set_once` bag. */
+/** `before_send` hook: drops `title`, sanitizes the event's properties plus every `$set` / `$set_once` bag. */
 export const sanitizeEvent = (cr: CaptureResult | null): CaptureResult | null => {
   if (!cr) return cr;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const p = cr.properties as Record<string, unknown> | undefined;
+  // document.title can hold a user-named deck (IRL Mode) and is set on `$pageview`.
+  if (p) delete p.title;
   for (const bag of [p, p?.$set, p?.$set_once, cr.$set, cr.$set_once])
     sanitizeEventProperties(bag as Record<string, unknown> | undefined, origin);
   return cr;
