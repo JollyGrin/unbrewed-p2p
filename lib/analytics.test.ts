@@ -363,3 +363,52 @@ describe("init options", () => {
     });
   });
 });
+
+describe("URL sanitizer (#1520)", () => {
+  const a = () => load({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test", NODE_ENV: "production" });
+
+  it("drops the fragment and every non-allowlisted query param", () => {
+    const { sanitizeUrl } = a();
+    expect(sanitizeUrl("/game?name=Bob&gid=my-lobby&utm_source=x#frag")).toBe("/game?utm_source=x");
+    expect(sanitizeUrl("https://unbrewed.xyz/pro/game?ticket=s3cret&tour=spring-cup&match=m7&room=r1&lobby=l"))
+      .toBe("https://unbrewed.xyz/pro/game?tour=spring-cup&match=m7");
+    expect(sanitizeUrl("/bag?deckId=abc123&ref=discord&utm_campaign=launch")).toBe("/bag?deckId=abc123&ref=discord&utm_campaign=launch");
+    expect(sanitizeUrl("/game?name=Bob")).toBe("/game");
+    expect(sanitizeUrl("/pro/game#ticket=s3cret")).toBe("/pro/game");
+  });
+
+  it("sanitizes our own referrer, leaves other sites' query alone, strips every fragment", () => {
+    const { sanitizeEventProperties } = a();
+    const origin = window.location.origin;
+    const props: Record<string, unknown> = {
+      $current_url: `${origin}/game?name=Bob&gid=g`,
+      $referrer: `${origin}/join?gid=g#x`,
+      $initial_referrer: "https://www.google.com/search?q=unbrewed#top",
+      $initial_person_info: { r: "$direct", u: `${origin}/game?name=Bob&utm_source=x` },
+    };
+    sanitizeEventProperties(props, origin);
+    expect(props).toEqual({
+      $current_url: `${origin}/game`,
+      $referrer: `${origin}/join`,
+      $initial_referrer: "https://www.google.com/search?q=unbrewed",
+      $initial_person_info: { r: "$direct", u: `${origin}/game?utm_source=x` },
+    });
+  });
+
+  it("is wired into init as before_send: a captured event leaves with sanitized URLs", async () => {
+    const m = a();
+    m.acknowledgeNotice();
+    await flush();
+    const { before_send } = init.mock.calls[0][1];
+    const origin = window.location.origin;
+    const out = before_send({
+      uuid: "u",
+      event: "$pageview",
+      properties: { $current_url: `${origin}/game?name=Bob&gid=my-lobby&utm_source=x#frag`, $pathname: "/game" },
+      $set_once: { $initial_current_url: `${origin}/pro/game?ticket=t&deckId=d` },
+    });
+    expect(out.properties.$current_url).toBe(`${origin}/game?utm_source=x`);
+    expect(out.$set_once.$initial_current_url).toBe(`${origin}/pro/game?deckId=d`);
+    expect(before_send(null)).toBeNull();
+  });
+});
