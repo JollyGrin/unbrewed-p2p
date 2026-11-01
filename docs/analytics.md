@@ -36,6 +36,7 @@ Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, l
 - `capture_pageleave` is off (it doubles volume against the 1M/month free tier). Exception autocapture, web vitals, performance, heatmaps, dead clicks, surveys and replay are pinned off.
 - Super-properties on every event: `app_commit`, `app_version`.
 - No PII: no typed deck names, chat text or e-mails in properties.
+- URL sanitizer (`before_send: sanitizeEvent`): every URL property (`$current_url`, `$referrer` from our own origin, `$initial_*`, `$initial_person_info`) loses its fragment and keeps only `utm_*`, `ref`, `deckId`, `tour`, `match` query params, so `name` / `gid` / `ticket` never leave; external referrers only lose the fragment. It also deletes `title` (`document.title` can carry a user-named deck, e.g. IRL Mode).
 
 ## Proxy (Cloudflare Worker, `workers/posthog-proxy`)
 GitHub Pages cannot proxy, so a Worker on `t.unbrewed.xyz` forwards to `eu.i.posthog.com` (and `/static/*` to

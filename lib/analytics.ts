@@ -9,7 +9,7 @@
  *   `AnalyticsNotice`, never at import time) and never after the user declines.
  * - The app works with the env vars unset: every call is then a no-op.
  */
-import type { PostHog } from "posthog-js";
+import type { CaptureResult, PostHog } from "posthog-js";
 import { APP_COMMIT, APP_VERSION } from "@/lib/pro/appVersion";
 
 const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
@@ -61,6 +61,69 @@ export type ConsentState = "unseen" | "seen" | "declined";
 const GAME_PREFIXES = ["/pro/game", "/game", "/irl", "/offline", "/table"];
 export const isGameRoute = (pathname: string): boolean =>
   GAME_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+/**
+ * Query params a URL may keep on its way to PostHog: campaign tags plus public
+ * ids. Everything else (`name`, `gid`, `ticket`, `room`, `lobby`, ...) can be
+ * user-typed text or a secret, so it is dropped (issue #1520).
+ */
+const KEPT_PARAM = /^(utm_.+|ref|deckId|tour|match)$/;
+
+/** A URL (or a bare path) without its fragment and without non-allowlisted query params. */
+export const sanitizeUrl = (raw: string): string => {
+  const [beforeHash] = raw.split("#");
+  const q = beforeHash.indexOf("?");
+  if (q < 0) return beforeHash;
+  const kept = beforeHash
+    .slice(q + 1)
+    .split("&")
+    .filter((pair) => {
+      try {
+        return KEPT_PARAM.test(decodeURIComponent(pair.split("=")[0]));
+      } catch {
+        return false;
+      }
+    });
+  return beforeHash.slice(0, q) + (kept.length ? `?${kept.join("&")}` : "");
+};
+
+/** A referrer: our own pages are sanitized like any URL; other sites (and `$direct`) only lose the fragment. */
+const sanitizeReferrer = (raw: string, origin: string): string =>
+  raw === origin || raw.startsWith(`${origin}/`) || raw.startsWith(`${origin}?`) ? sanitizeUrl(raw) : raw.split("#")[0];
+
+const OWN_URL_KEYS = ["$current_url", "$initial_current_url", "$pathname", "$initial_pathname"];
+const REFERRER_KEYS = ["$referrer", "$initial_referrer"];
+
+/**
+ * Sanitize the URL-valued properties of one property bag, in place. Covers the
+ * compact `$initial_person_info` ({ r: referrer, u: url }) that posthog-js 1.200
+ * sends on every event and expands into the `$initial_*` person properties.
+ */
+export const sanitizeEventProperties = (props: Record<string, unknown> | undefined, origin: string): void => {
+  if (!props) return;
+  for (const k of OWN_URL_KEYS) if (typeof props[k] === "string") props[k] = sanitizeUrl(props[k] as string);
+  for (const k of REFERRER_KEYS) if (typeof props[k] === "string") props[k] = sanitizeReferrer(props[k] as string, origin);
+  const info = props.$initial_person_info as { r?: unknown; u?: unknown } | undefined;
+  if (info && typeof info === "object") {
+    props.$initial_person_info = {
+      ...info,
+      ...(typeof info.r === "string" ? { r: sanitizeReferrer(info.r, origin) } : {}),
+      ...(typeof info.u === "string" ? { u: sanitizeUrl(info.u) } : {}),
+    };
+  }
+};
+
+/** `before_send` hook: drops `title`, sanitizes the event's properties plus every `$set` / `$set_once` bag. */
+export const sanitizeEvent = (cr: CaptureResult | null): CaptureResult | null => {
+  if (!cr) return cr;
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const p = cr.properties as Record<string, unknown> | undefined;
+  // document.title can hold a user-named deck (IRL Mode) and is set on `$pageview`.
+  if (p) delete p.title;
+  for (const bag of [p, p?.$set, p?.$set_once, cr.$set, cr.$set_once])
+    sanitizeEventProperties(bag as Record<string, unknown> | undefined, origin);
+  return cr;
+};
 
 // posthog-js is loaded by dynamic import() inside startAnalytics only, so
 // nothing downloads when analytics is off, declined or unavailable.
@@ -139,6 +202,7 @@ export const startAnalytics = (): void => {
         capture_heatmaps: false,
         enable_heatmaps: false,
         capture_dead_clicks: false,
+        before_send: sanitizeEvent, // strip user-typed query params + fragments from URLs (#1520)
       });
       posthog.register({ app_commit: APP_COMMIT, app_version: APP_VERSION });
       if (readConsent() === "declined") posthog.opt_out_capturing();
