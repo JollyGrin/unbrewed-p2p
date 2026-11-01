@@ -1,0 +1,11 @@
+{
+  "id": "2026-10-24-superman",
+  "date": "2026-10-24",
+  "title": "Superman joins the lab",
+  "summary": "Up, up and away: Superman flies at the start of every turn, farther when he stands where zones meet, and his cards hit hardest right after he moves. Community deck by thesnarkknight1939.",
+  "tags": ["deck"],
+  "pro": true,
+  "highlight": false,
+  "video": { "slug": "superman" },
+  "cta": { "label": "Play Superman in Pro", "href": "/pro" }
+}

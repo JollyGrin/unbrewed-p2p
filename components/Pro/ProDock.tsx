@@ -26,7 +26,7 @@ import {
 import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
 import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
 import { touchCopy } from "@/lib/pro/touchCopy";
-import { Action, CardInstanceId, FighterId, PlayerView } from "@/lib/pro/protocol";
+import { Action, CardInstanceId, FighterId, GameEvent, PlayerView } from "@/lib/pro/protocol";
 import { seatOwesDecision, showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isGameOver } from "@/lib/pro/postGame";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
@@ -166,6 +166,9 @@ export interface DockStepping {
 
 export interface ProDockProps {
   view: PlayerView;
+  /** The events of the batch that produced `view` — lets `isNewCombat` tell a
+   *  `COMBAT_ATTACKER_CHANGED` takeover from a new combat. Optional: absent = none. */
+  batchEvents?: GameEvent[];
   /** ----- turn chrome ----- */
   myTurn: boolean;
   activeTurnLabel: string;
@@ -323,6 +326,7 @@ export interface ProDockProps {
 
 export const ProDock = ({
   view,
+  batchEvents,
   myTurn,
   activeTurnLabel,
   disconnectedLabel,
@@ -616,7 +620,7 @@ export const ProDock = ({
   // sees the combat it already counted.
   const combatSerial = useRef({ prev: null as PlayerView["combat"], n: 0 });
   if (combatSerial.current.prev !== view.combat) {
-    if (isNewCombat(combatSerial.current.prev, view.combat)) combatSerial.current.n += 1;
+    if (isNewCombat(combatSerial.current.prev, view.combat, batchEvents)) combatSerial.current.n += 1;
     combatSerial.current.prev = view.combat;
   }
   const forcedKey =

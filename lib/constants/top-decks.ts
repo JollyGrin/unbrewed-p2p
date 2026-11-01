@@ -947,4 +947,23 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     tier: "lab",
     cardbackUrl: "/evergreen-decks/art/superman/cardback.webp",
   },
+  {
+    // Xenomorph — the-unmatched.club deck 13536 by MrBrownieDL (issue #1453 ↔ engine
+    // E1/E2/E3 #918/#919/#920, feature/xenomorph; PAIRED, train PRs #917 ↔ #1451).
+    // Club-only, like Ripley: `original: true` suppresses the unmatched.cards deep-link
+    // and `sourceUrl` credits the club. Lab tier. The export's card border (#f6e8dd) is
+    // near-white, so the tile takes the cardback's dominant dark green instead.
+    id: "xenomorph",
+    name: "Xenomorph",
+    hero: "Xenomorph",
+    author: "MrBrownieDL",
+    likes: 0,
+    highlightColour: "#0b3210",
+    original: true,
+    lab: true,
+    tier: "lab",
+    // Repo-relative (Ripley precedent): the author's own cardback, mirrored off imgur.
+    cardbackUrl: "/evergreen-decks/art/xenomorph/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/xenomorph.13536",
+  },
 ];

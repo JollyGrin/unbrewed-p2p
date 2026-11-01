@@ -23,7 +23,7 @@
  * Adding a new status kind or marker name is ONE entry here — ProBoard maps every
  * `ViewFighter.statuses` entry through `fighterStatusBadgesFor` generically.
  */
-import { ViewFighter } from "./protocol";
+import type { FighterId, GameEvent, PlayerId, PlayerView, ViewPrompt, ViewFighter, ViewSecretMark } from "./protocol";
 
 /** Board-token rim badge presentation for one status (icon + label + colors). */
 export interface FighterStatusBadge {
@@ -41,6 +41,12 @@ export interface FighterStatusBadge {
    *  reads off the BOARD; absent/1 renders the icon alone (a lone mark needs no "1"). */
   count?: number;
 }
+
+/** Client-only status kinds for a v38 secret mark (see the registry rows). */
+export const SECRET_MARK_KIND = "SECRET_MARK";
+export const OPEN_SECRET_MARK_KIND = "SECRET_MARK_OPEN";
+/** A hidden mark on a hands-visible TEAMMATE's fighter (2v2): same badge, teammate copy. */
+export const TEAM_SECRET_MARK_KIND = "SECRET_MARK_TEAM";
 
 /**
  * Kind-keyed registry — statuses whose `kind` fully identifies the effect.
@@ -63,6 +69,40 @@ export const FIGHTER_STATUS_BADGES: Record<string, FighterStatusBadge> = {
     title: "Rooted — pinned in place, cannot move",
     bg: "#3A4A55",
     color: "#DCEBF2",
+  },
+  // Protocol v38 SECRET FIGHTER MARKS (issue #1453 ↔ engine #918; the Xenomorph's
+  // Marked Blip). CLIENT-ONLY kinds: the engine never puts a secret mark on
+  // `ViewFighter.statuses` (fighters are public) — it sends `marks?` on the seat
+  // views, already redacted per viewer, and `withSecretMarkStatuses` below folds
+  // what THIS viewer may see onto the bearer as one of these two kinds. So the
+  // badge is private exactly as far as the engine's redaction is: the owner's
+  // view carries the hidden mark, every other view carries only `open` ones.
+  [SECRET_MARK_KIND]: {
+    kind: SECRET_MARK_KIND,
+    key: SECRET_MARK_KIND,
+    icon: "◉",
+    label: "Marked",
+    title: "Marked — secret: only you can see which of your fighters bears it",
+    bg: "#14301F",
+    color: "#C9F2D5",
+  },
+  [TEAM_SECRET_MARK_KIND]: {
+    kind: TEAM_SECRET_MARK_KIND,
+    key: TEAM_SECRET_MARK_KIND,
+    icon: "◉",
+    label: "Marked",
+    title: "Marked — your teammate's Marked Blip — only your team can see it",
+    bg: "#14301F",
+    color: "#C9F2D5",
+  },
+  [OPEN_SECRET_MARK_KIND]: {
+    kind: OPEN_SECRET_MARK_KIND,
+    key: OPEN_SECRET_MARK_KIND,
+    icon: "◉",
+    label: "Marked",
+    title: "Marked — revealed: every seat can see this fighter bears it",
+    bg: "#6B1E14",
+    color: "#FDE5DF",
   },
 };
 
@@ -159,3 +199,120 @@ export const fighterStatusBadgesFor = (
       };
     })
     .filter((b): b is FighterStatusBadge => !!b);
+
+/**
+ * Every v38 secret mark this viewer may see (issue #1453): its own seat's
+ * `self.marks` plus whatever `players[].marks` carries (open marks of other seats,
+ * a hands-visible teammate's). The engine's `redactFor` already decided what each
+ * view holds, so this only unions and de-duplicates — it never infers a mark.
+ */
+export const visibleSecretMarks = (
+  view: Pick<PlayerView, "self" | "players">
+): ViewSecretMark[] => {
+  const seen = new Map<string, ViewSecretMark>();
+  for (const m of [...(view.self.marks ?? []), ...view.players.flatMap((p) => p.marks ?? [])]) {
+    const key = `${m.name}:${m.fighter}`;
+    // an open copy wins over a hidden one of the same mark
+    if (!seen.has(key) || m.open) seen.set(key, m);
+  }
+  return [...seen.values()];
+};
+
+/** The fighters this viewer sees a secret mark on (the HUD sidekick rows). */
+export const secretMarkedFighterIds = (view: Pick<PlayerView, "self" | "players">): Set<FighterId> =>
+  new Set(visibleSecretMarks(view).map((m) => m.fighter));
+
+/**
+ * Folds the viewer's visible secret marks onto their bearers as a client-only
+ * status, so the board (2D + 3D) badges them through `fighterStatusBadgesFor` with
+ * no component change. Returns `fighters` itself when there is nothing to fold —
+ * every deck without marks keeps its identity-stable array. Pass `you` so a hidden
+ * mark on a teammate's fighter gets the teammate tooltip; omitted = owner copy.
+ */
+export const withSecretMarkStatuses = (
+  fighters: ViewFighter[],
+  marks: ViewSecretMark[],
+  you?: PlayerId
+): ViewFighter[] => {
+  if (marks.length === 0) return fighters;
+  return fighters.map((f) => {
+    const mine = marks.filter((m) => m.fighter === f.id);
+    if (mine.length === 0) return f;
+    return {
+      ...f,
+      statuses: [
+        ...(f.statuses ?? []),
+        ...mine.map((m) => ({
+          kind: m.open ? OPEN_SECRET_MARK_KIND : you && f.owner !== you ? TEAM_SECRET_MARK_KIND : SECRET_MARK_KIND,
+          name: m.name,
+        })),
+      ],
+    };
+  });
+};
+
+/**
+ * Client label for a v38 secret mark NAME (the engine's own string). The Xenomorph's
+ * `MARK` is "the Marked Blip"; any future deck's name falls back to Title Case
+ * ("SHADOW_TAG" → "Shadow Tag").
+ */
+const SECRET_MARK_LABELS: Record<string, string> = { MARK: "the Marked Blip" };
+export const secretMarkLabel = (name: string): string =>
+  SECRET_MARK_LABELS[name] ??
+  name
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+
+const SECRET_MARK_PROMPT = /^(Secretly choose the fighter that bears )(.+)$/;
+/** Swaps the raw mark name in the engine's `assignSecretMark` prompt description for its label. */
+export const secretMarkPromptDescription = (description: string | undefined): string | undefined => {
+  const m = description?.match(SECRET_MARK_PROMPT);
+  return m ? `${m[1]}${secretMarkLabel(m[2])}` : description;
+};
+
+/**
+ * Events that mean "the fighter has already been put somewhere" — a reveal followed
+ * by one of these is an emergence that ALREADY happened, so a later CHOOSE_SPACE in
+ * the same batch is some other placement. PROMPT_RESOLVED covers the placement
+ * prompt itself being answered in-batch.
+ */
+const PLACED_AFTER_REVEAL: ReadonlySet<GameEvent["type"]> = new Set<GameEvent["type"]>([
+  "FIGHTER_MOVED",
+  "HERO_PLACED",
+  "SIDEKICK_PLACED",
+  "FIGHTER_REVIVED",
+  "POSITIONS_SWAPPED",
+  "PROMPT_RESOLVED",
+]);
+
+/**
+ * Caption for the Xenomorph's reveal placement. `ViewPrompt.source` does not name the
+ * trigger (it names the card whose effect killed the Blip, e.g. Thorns), so the cue is
+ * the batch itself: a SECRET_MARK_REVEALED for the prompted player with nothing placed
+ * since. The reveal is NOT the last event before the prompt — the deck's T-REVEAL runs
+ * `revealSecretMark → counter gain XENO_REVEALS → place`, so a live batch reads
+ * `… SECRET_MARK_REVEALED, COUNTER_CHANGED(XENO_REVEALS), PROMPT_OPENED` (issue #1492;
+ * EFFECT_RESOLVING markers can sit in there too), hence the walk back past bookkeeping
+ * rather than a last-event check. An OPEN pair (ASSIGNED immediately before REVEALED:
+ * ESCAPE, and engine E6's lone summoned Blip) is a face-up assignment, not an
+ * emergence, and ESCAPE opens its own CHOOSE_SPACE prompts around it, so it is skipped.
+ * null = keep the usual "Effect of <card>" attribution.
+ */
+export const emergenceCaption = (
+  prompt: Pick<ViewPrompt, "kind" | "player"> | null | undefined,
+  events: readonly GameEvent[] | undefined
+): string | null => {
+  if (prompt?.kind !== "CHOOSE_SPACE" || !events) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (PLACED_AFTER_REVEAL.has(e.type)) return null;
+    if (e.type !== "SECRET_MARK_REVEALED") continue;
+    if (e.player !== prompt.player) return null;
+    const prev = events[i - 1];
+    const open = prev?.type === "SECRET_MARK_ASSIGNED" && prev.player === e.player && prev.name === e.name;
+    return open ? null : "The Xenomorph emerges — choose its space";
+  }
+  return null;
+};
