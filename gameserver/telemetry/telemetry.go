@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -53,6 +54,8 @@ type Event struct {
 	PlayerHash      string `json:"playerHash,omitempty"`
 	Connections     *int   `json:"connections,omitempty"`
 	HeroName        string `json:"heroName,omitempty"`
+	DeckSource      string `json:"deckSource,omitempty"`
+	DeckURL         string `json:"deckUrl,omitempty"`
 	Reason          string `json:"reason,omitempty"`
 	LifetimeMs      *int64 `json:"lifetimeMs,omitempty"`
 	DistinctPlayers *int   `json:"distinctPlayers,omitempty"`
@@ -94,10 +97,52 @@ func PlayerLeft(roomID, playerHash string, connections int) Event {
 	return e
 }
 
-func HeroSeen(roomID, playerHash, heroName string) Event {
+// HeroSeen carries the hero's deck source and page when known. The pair is
+// re-checked here, so a bad one is dropped (hero_seen still goes out) instead
+// of getting the whole batch rejected by the schema.
+func HeroSeen(roomID, playerHash, heroName, deckSource, deckURL string) Event {
 	e := newEvent(TypeHeroSeen, roomID)
 	e.PlayerHash, e.HeroName = playerHash, TruncateHeroName(heroName)
+	e.DeckSource, e.DeckURL = CleanDeck(deckSource, deckURL)
 	return e
+}
+
+// maxDeckURL is the schema's maxLength for deckUrl.
+const maxDeckURL = 512
+
+// deckHosts lists the hosts a deckUrl may live on, per deckSource. The
+// telemetry validator holds the same table and rejects a mismatch.
+var deckHosts = map[string][]string{
+	"unmatched-club":  {"the-unmatched.club", "www.the-unmatched.club"},
+	"unmatched-cards": {"unmatched.cards", "www.unmatched.cards"},
+	"labs":            {"unmatchedlabs.com", "www.unmatchedlabs.com"},
+}
+
+// CleanDeck returns the (source, url) pair when it satisfies the telemetry
+// contract — a known source, an https url of at most 512 bytes on that
+// source's site — and ("", "") otherwise. Both or neither, never one.
+func CleanDeck(source, rawURL string) (string, string) {
+	hosts, ok := deckHosts[source]
+	if !ok || rawURL == "" || len(rawURL) > maxDeckURL {
+		return "", ""
+	}
+	// The schema's "uri" format is RFC 3986: printable ASCII, no spaces and
+	// none of < > " \ ^ ` { | }.
+	for i := 0; i < len(rawURL); i++ {
+		if c := rawURL[i]; c <= 0x20 || c >= 0x7f || strings.IndexByte("<>\"\\^`{|}", c) >= 0 {
+			return "", ""
+		}
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme != "https" || u.User != nil {
+		return "", ""
+	}
+	for _, h := range hosts {
+		if u.Hostname() == h {
+			return source, rawURL
+		}
+	}
+	return "", ""
 }
 
 func RoomClosed(roomID, reason string, lifetime time.Duration, distinctPlayers, peakConnections int, stateUpdates int64) Event {
