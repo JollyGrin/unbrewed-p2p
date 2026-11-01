@@ -10,6 +10,7 @@ import { useDeckLink } from "@/lib/hooks/useDeckLink";
 import { deckMatchesLink } from "@/lib/deckLink";
 import { DeckLinkHold, DeckLinkNotice } from "@/components/DeckLink/DeckLinkHold";
 import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
+import { useIrlSession } from "@/lib/gameAnalytics";
 
 /**
  * Solo offline table. Loads a deck entirely client-side and drops the player
@@ -49,6 +50,12 @@ const Offline = () => {
     : !!starredDeck;
 
   const nameReady = !!query.name;
+
+  useIrlSession({
+    offline: true,
+    hasDeck: deckReady && nameReady,
+    settled: failed,
+  });
 
   return (
     <>

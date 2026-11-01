@@ -21,9 +21,12 @@ const seatUrl = (lobby: LobbyCreated, seat: number) =>
 export const InviteScreen = ({
   lobby,
   onReset,
+  onOpenSeat,
 }: {
   lobby: LobbyCreated;
   onReset: () => void;
+  /** The click that leaves for table.place (analytics, #1511). */
+  onOpenSeat?: () => void;
 }) => {
   const [, copy] = useCopyToClipboard();
   const mine = seatUrl(lobby, 0);
@@ -79,6 +82,7 @@ export const InviteScreen = ({
           bg="brand.secondary"
           color="brand.highlight"
           _hover={{ opacity: 0.9 }}
+          onClick={onOpenSeat}
           data-testid="seat-0"
         >
           Open your seat

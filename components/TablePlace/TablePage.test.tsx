@@ -50,6 +50,11 @@ jest.mock("../../lib/tableplace/api", () => ({
   validateLobby: (...a: unknown[]) => mockValidate(...a),
   createLobby: (...a: unknown[]) => mockCreate(...a),
 }));
+const mockTrack = jest.fn();
+jest.mock("../../lib/analytics", () => ({
+  ...jest.requireActual("../../lib/analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
 const mockFetchLinked = jest.fn();
 jest.mock("../../lib/deckLink", () => ({
   ...jest.requireActual("../../lib/deckLink"),
@@ -243,6 +248,7 @@ const lobby = {
 
 describe("TablePage — create flow, reasons and accessibility (issue #1063)", () => {
   it("creates the table and shows the invite, then keeps the links after 'Make another table'", async () => {
+    mockTrack.mockClear();
     mockValidate.mockResolvedValue({ ok: true, data: {} });
     mockCreate.mockResolvedValue({ ok: true, data: lobby });
     const { mine, theirs } = setup();
@@ -259,11 +265,23 @@ describe("TablePage — create flow, reasons and accessibility (issue #1063)", (
     expect(packs.some((id: string) => id.endsWith("-seat0"))).toBe(true);
     expect(packs.some((id: string) => id.endsWith("-seat1"))).toBe(true);
     expect(mine.id).not.toBe(theirs.id);
+    // analytics (#1511): one lobby_created, a handoff per click off-site
+    const handoff = [
+      "tableplace_handoff",
+      expect.objectContaining({ from_mode: "sandbox-table", deck_count: 2 }),
+    ];
+    expect(mockTrack.mock.calls).toEqual([
+      ["lobby_created", expect.objectContaining({ mode: "sandbox-table" })],
+    ]);
+    fireEvent.click(screen.getByTestId("seat-0"));
+    expect(mockTrack.mock.calls.slice(1)).toEqual([handoff]);
     fireEvent.click(screen.getByText("Make another table"));
     const last = await screen.findByTestId("last-table");
     expect(
       [...last.querySelectorAll("a")].map((a) => a.getAttribute("href")),
     ).toEqual(lobby.seats.map((s) => s.url));
+    fireEvent.click(last.querySelector("a")!);
+    expect(mockTrack.mock.calls.slice(1)).toEqual([handoff, handoff]);
   });
 
   it("names the missing pieces until all three are picked, then says what's ready", () => {
@@ -647,7 +665,10 @@ describe("TablePage — Pro decks, no bag needed (issue #1421)", () => {
 
   it("lists a deck once when the bag holds the same id, as the bag's tile", () => {
     const mine = labsDeck();
-    mockPro.decks = [proDeck(mine.id, labsDeck()), proDeck("pro-b", elliotDeck())];
+    mockPro.decks = [
+      proDeck(mine.id, labsDeck()),
+      proDeck("pro-b", elliotDeck()),
+    ];
     bag([mine]);
     render(<TablePage />);
     expect(proIds()).toEqual(["pro-b"]);

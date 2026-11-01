@@ -421,3 +421,19 @@ describe("URL sanitizer (#1520)", () => {
     expect(before_send(null)).toBeNull();
   });
 });
+
+describe("track transport (#1511)", () => {
+  it("sends with sendBeacon only when asked", async () => {
+    window.localStorage.setItem("unbrewed-analytics-notice", "seen");
+    const a = load({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test", NODE_ENV: "production" });
+    a.startAnalytics();
+    await flush();
+    capture.mockClear();
+    a.track("game_started", { mode: "irl" });
+    a.track("game_ended", { mode: "irl" }, { beacon: true });
+    expect(capture.mock.calls).toEqual([
+      ["game_started", { mode: "irl" }],
+      ["game_ended", { mode: "irl" }, { transport: "sendBeacon", send_instantly: true }],
+    ]);
+  });
+});
