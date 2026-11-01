@@ -21,18 +21,13 @@ const isProPath = () =>
     window.location.pathname.startsWith("/pro/"));
 
 /**
- * The decks ticket's (#1512) source name for a deck, only where the deck
- * itself says where it came from; undefined otherwise (leave it out).
+ * The decks ticket's (#1512) source name for a deck, only where its id says
+ * where it came from (a Labs import); undefined otherwise (leave it out).
  */
 export const deckSourceOf = (
-  deck: Pick<DeckImportType, "id" | "sourceUrl"> | undefined,
-): string | undefined => {
-  if (!deck) return undefined;
-  if (isLabsDeckId(deck.id)) return "unmatched-labs";
-  if (deck.sourceUrl?.includes("the-unmatched.club"))
-    return "the-unmatched.club";
-  return undefined;
-};
+  deck: Pick<DeckImportType, "id"> | undefined,
+): string | undefined =>
+  deck && isLabsDeckId(deck.id) ? "unmatched-labs" : undefined;
 
 /**
  * One `game_started` the first time `active` is true, then exactly one

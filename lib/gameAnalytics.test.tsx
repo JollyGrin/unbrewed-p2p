@@ -156,7 +156,7 @@ describe("useIrlSession (#1511)", () => {
 });
 
 describe("deckSourceOf", () => {
-  it("names only the sources a deck records", () => {
+  it("names only a Labs deck, from its id", () => {
     expect(deckSourceOf(undefined)).toBeUndefined();
     expect(deckSourceOf({ id: "abc123" })).toBeUndefined();
     expect(
@@ -164,11 +164,11 @@ describe("deckSourceOf", () => {
         id: labsDeckId("char_0b1f6a3c-6f2e-4b7c-9a51-2d1e6f0c9a77"),
       }),
     ).toBe("unmatched-labs");
-    expect(
-      deckSourceOf({
-        id: "1",
-        sourceUrl: "https://www.the-unmatched.club/c/heroes/x.1",
-      }),
-    ).toBe("the-unmatched.club");
+    // A curated popular deck carries a club sourceUrl however it was added.
+    const curated = {
+      id: "1",
+      sourceUrl: "https://www.the-unmatched.club/c/heroes/x.1",
+    };
+    expect(deckSourceOf(curated)).toBeUndefined();
   });
 });

@@ -29,7 +29,7 @@ const Offline = () => {
   const { query, isReady, replace } = useRouter();
   const deckId = query.deckId as string | undefined;
 
-  const { starredDeck } = useBagDecks();
+  const { decks, starredDeck, isLoading } = useBagDecks();
   const link = useDeckLink(deckId, { ready: isReady });
   const { failed } = link;
   const held = !!link.held && !link.held.refresh;
@@ -51,10 +51,14 @@ const Offline = () => {
 
   const nameReady = !!query.name;
 
+  // No link and nothing starred: the spinner never resolves, but the
+  // session is settled (same rule as /irl).
+  const noDeck = isReady && !deckId && !isLoading && !!decks && !starredDeck;
+
   useIrlSession({
     offline: true,
     hasDeck: deckReady && nameReady,
-    settled: failed,
+    settled: failed || noDeck,
   });
 
   return (

@@ -1,6 +1,6 @@
 /**
  * /connect lobby events (#1511): connecting under the name we rolled creates
- * a lobby; a typed or invite-link name joins one. One event per connect.
+ * a lobby; a typed name joins one (invites join on /join). One event per connect.
  */
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
@@ -100,13 +100,6 @@ describe("/connect — lobby analytics", () => {
   it("a typed name joins", async () => {
     renderConnect();
     await connect("friends-room");
-    expect(track.mock.calls).toEqual([["lobby_joined", { mode: "sandbox" }]]);
-  });
-
-  it("an invite link's ?lobby= joins", async () => {
-    mockQuery = { lobby: "invited" };
-    renderConnect();
-    await connect();
     expect(track.mock.calls).toEqual([["lobby_joined", { mode: "sandbox" }]]);
   });
 });
