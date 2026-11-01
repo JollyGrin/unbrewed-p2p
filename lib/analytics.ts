@@ -208,7 +208,8 @@ export type AnalyticsAccount = {
 
 /** Last person properties sent for this browser, so a repeat page load sends nothing. */
 const PERSON_KEY = "unbrewed-analytics-person";
-type PersonFingerprint = { id: string; set?: string; roles?: boolean };
+/** `once` is the `createdAt` the last `$set_once` carried ("" = none yet), so it goes out once per value. */
+type PersonFingerprint = { id: string; set?: string; once?: string; roles?: boolean };
 
 const readPerson = (): PersonFingerprint | null => {
   try {
@@ -261,21 +262,32 @@ const applyIdentity = (p: PostHog): void => {
   const account = known;
   const set = personSet(account);
   const setKey = JSON.stringify(set);
+  const onceKey = account.createdAt ?? "";
+  const setOnce = {
+    ...(account.createdAt ? { account_created_at: account.createdAt } : {}),
+    first_identified_at: new Date().toISOString(),
+  };
+  const last = readPerson();
+  const kept = last?.id === account.id ? last : {};
   if (p.get_distinct_id() !== account.id) {
+    // posthog-js reads its persistence once per tab: if another tab on this
+    // device already identified this account (sign-in opened in a new tab),
+    // this tab still looks anonymous. Same sign-in, so no second login_completed.
+    const otherTab = last?.id === account.id;
     // A different account was signed in on this device: start it fresh.
     if (isIdentified(p)) resetPerson(p);
-    p.identify(account.id, set, {
-      ...(account.createdAt ? { account_created_at: account.createdAt } : {}),
-      first_identified_at: new Date().toISOString(),
-    });
-    writePerson({ id: account.id, set: setKey });
-    if (!isSilentPath(window.location.pathname)) p.capture("login_completed", { provider: "discord" });
+    p.identify(account.id, set, setOnce);
+    writePerson({ ...(otherTab ? kept : {}), id: account.id, set: setKey, once: onceKey });
+    if (!otherTab && !isSilentPath(window.location.pathname)) p.capture("login_completed", { provider: "discord" });
     return;
   }
-  const last = readPerson();
-  if (last?.id === account.id && last.set === setKey) return;
-  p.setPersonProperties(set);
-  writePerson({ ...(last?.id === account.id ? last : {}), id: account.id, set: setKey });
+  // Already identified (phase A, or before /me had createdAt): $set_once has to
+  // ride on setPersonProperties, once per createdAt value.
+  const needOnce = last?.id !== account.id || last.once !== onceKey;
+  if (!needOnce && last?.set === setKey) return;
+  if (needOnce) p.setPersonProperties(set, setOnce);
+  else p.setPersonProperties(set);
+  writePerson({ ...kept, id: account.id, set: setKey, once: onceKey });
 };
 
 /**
@@ -343,6 +355,9 @@ export const getAnalyticsId = (): string | undefined => {
   }
   if (readConsent() !== "seen") return undefined;
   if (known && known !== "guest") return known.id;
+  // Trade-off: before /me answers, a persisted account id whose session has
+  // since expired is still sent; withholding it would drop attribution on the
+  // (far more common) valid sessions.
   const persisted = readPersisted();
   if (known === "guest" && persisted.identified) return undefined;
   return persisted.distinctId;

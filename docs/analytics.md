@@ -31,7 +31,8 @@ Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, l
   `first_identified_at`}, plus `discord_roles_linked` from the /account page's Linked Roles read. Fields `/me` lacks are
   left out. A localStorage fingerprint (`unbrewed-analytics-person`) means an unchanged profile sends nothing on later
   loads. A guest `/me` answer resets a persisted identified id (session expired / signed out in another tab).
-  `login_completed` fires only when identify switches an anonymous id to the account.
+  `login_completed` fires only when identify switches an anonymous id to the account. The count is slightly inflated by
+  cleared browser storage and by players signed in before phase A, whose first load after deploy counts as one.
 - `capture_pageleave` is off (it doubles volume against the 1M/month free tier). Exception autocapture, web vitals, performance, heatmaps, dead clicks, surveys and replay are pinned off.
 - Super-properties on every event: `app_commit`, `app_version`.
 - No PII: no typed deck names, chat text or e-mails in properties.

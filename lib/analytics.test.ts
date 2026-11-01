@@ -193,6 +193,52 @@ describe("identity", () => {
     expect(events()).toEqual(["$pageview"]);
   });
 
+  it("already identified before createdAt existed: $set_once goes out exactly once when it appears", async () => {
+    seen();
+    distinctId = "acct-1"; // identified under phase A: no fingerprint, no $set_once yet
+    userState = "identified";
+    const { createdAt, ...noCreated } = dean;
+    const a = load(ON);
+    a.startAnalytics();
+    await flush();
+    a.identifyAccount(noCreated);
+    expect(setPersonProperties).toHaveBeenCalledTimes(1);
+    expect(Object.keys(setPersonProperties.mock.calls[0][1])).toEqual(["first_identified_at"]);
+    setPersonProperties.mockClear();
+    const b = load(ON); // later load, API now returns createdAt
+    b.startAnalytics();
+    await flush();
+    b.identifyAccount(dean);
+    b.identifyAccount({ ...dean });
+    expect(setPersonProperties).toHaveBeenCalledTimes(1);
+    expect(setPersonProperties.mock.calls[0][1]).toEqual({ account_created_at: createdAt, first_identified_at: expect.any(String) });
+    setPersonProperties.mockClear();
+    const c = load(ON);
+    c.startAnalytics();
+    await flush();
+    c.identifyAccount(dean);
+    expect(setPersonProperties).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+  });
+
+  it("sign-in in a new tab: the stale original tab does not send a second login_completed", async () => {
+    seen();
+    const original = load(ON); // game tab, loaded while anonymous
+    original.startAnalytics();
+    await flush();
+    const signInTab = load(ON); // new tab back from Discord identifies
+    signInTab.startAnalytics();
+    await flush();
+    signInTab.identifyAccount(dean);
+    expect(events().filter((e) => e === "login_completed")).toHaveLength(1);
+    // The original tab's posthog-js still holds its in-memory anonymous id.
+    distinctId = "anon-1";
+    userState = "anonymous";
+    original.identifyAccount(dean); // account refreshed on focus
+    expect(events().filter((e) => e === "login_completed")).toHaveLength(1);
+    expect(reset).not.toHaveBeenCalled();
+  });
+
   it("a changed profile sends $set once", async () => {
     seen();
     const a = load(ON);
