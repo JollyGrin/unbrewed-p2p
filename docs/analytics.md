@@ -108,8 +108,8 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    replays the other seats' state. Room counts (`is_host = true`) stay right; per-player game counts go up by one per
    refresh.
 
-   `deck_source` uses the decks ticket's (#1512) source names, only when the deck records it: `unmatched-labs` (a Labs
-   deck id). Otherwise it is left out: a deck's `sourceUrl` is set on the curated popular decks whatever the add path, so it
+   `deck_source` uses the decks ticket's (#1512) source names, only when the deck records it: its stored `addSource`
+   (section 2), else `unmatched-labs` for a Labs deck id. Otherwise it is left out: a deck's `sourceUrl` is set on the curated popular decks whatever the add path, so it
    says nothing about the source. Budget: 3 events per player per
    sandbox or irl game, plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
    routes (`GAME_PREFIXES`): a first-time visitor who lands straight on one has not been started yet, so their events are
