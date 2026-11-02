@@ -37,6 +37,12 @@ export interface ClientErrorContext {
   roomId?: string | null;
   seat?: string | null;
   stateHash?: string | null;
+  /**
+   * The boundary remounted its children instead of showing the panel (#1528).
+   * Reported under its own once-per-page key, so a later real crash on the
+   * same boundary is still reported.
+   */
+  autoRecovered?: boolean;
 }
 
 /**
@@ -49,7 +55,8 @@ export const reportClientError = (
   ctx: ClientErrorContext = {}
 ): void => {
   const err = error instanceof Error ? error : null;
-  trackOncePerPageLoad(`client_error:${boundary}`, "client_error", {
+  const suffix = ctx.autoRecovered ? ":auto_recovered" : "";
+  trackOncePerPageLoad(`client_error:${boundary}${suffix}`, "client_error", {
     boundary,
     route: typeof window === "undefined" ? undefined : window.location.pathname,
     error_name: err?.name || typeof error,
@@ -57,11 +64,13 @@ export const reportClientError = (
     room_id: ctx.roomId ?? undefined,
     seat: ctx.seat ?? undefined,
     state_hash: ctx.stateHash ?? undefined,
+    auto_recovered: ctx.autoRecovered || undefined,
   });
-  const key = `exception:${boundary}`;
+  const key = `exception:${boundary}${suffix}`;
   if (sent.has(key)) return;
   try {
-    if (captureException(error, { boundary })) sent.add(key);
+    const props = ctx.autoRecovered ? { boundary, auto_recovered: true } : { boundary };
+    if (captureException(error, props)) sent.add(key);
   } catch {
     /* analytics must never break the boundary */
   }

@@ -312,7 +312,9 @@ export const ConnectPage = () => {
                 color="brand.secondary"
                 data-testid="connect-map-title"
               >
-                {mapUrl ? (chosenMap?.meta?.title ?? "Custom map") : "Default"}
+                <span key={mapUrl ?? "default"}>
+                  {mapUrl ? (chosenMap?.meta?.title ?? "Custom map") : "Default"}
+                </span>
               </Text>
               <Button
                 size="sm"
@@ -346,8 +348,13 @@ export const ConnectPage = () => {
               refetch();
             }}
           >
+            {/* Label in its own keyed element (#1528): browser translation
+                swaps bare text nodes for <font>, and React then throws when
+                it inserts the spinner before the vanished node. */}
             {(loading || isDeckImporting) && <Spinner size="sm" mr={2} />}
-            {isDeckImporting ? "Importing your deck…" : "Connect to Game"}
+            <span key={isDeckImporting ? "importing" : "connect"}>
+              {isDeckImporting ? "Importing your deck…" : "Connect to Game"}
+            </span>
           </Button>
           {isDeckImporting ? (
             <Text fontSize="0.8rem" color="brand.secondary" opacity={0.7} textAlign="center">

@@ -5,7 +5,8 @@
 import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import axios from "axios";
 import { ConnectPage } from "./index";
 import { __resetBagStoresForTests } from "@/lib/bag/bagStore";
 
@@ -101,5 +102,52 @@ describe("/connect — lobby analytics", () => {
     renderConnect();
     await connect("friends-room");
     expect(track.mock.calls).toEqual([["lobby_joined", { mode: "sandbox" }]]);
+  });
+});
+
+describe("/connect — a lobby answer for a lobby the page no longer shows (#1528)", () => {
+  /** The relay call hangs until the test answers it. */
+  const holdRelay = () => {
+    let answer!: () => void;
+    (axios.get as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve({ data: "ok" }))),
+    );
+    return () => act(async () => answer());
+  };
+
+  it("the lobby field edited mid-request: no push, no lobby event, button usable again", async () => {
+    const answer = holdRelay();
+    renderConnect();
+    fireEvent.change(screen.getByPlaceholderText("lobby name"), { target: { value: "lobby-a" } });
+    fireEvent.click(screen.getByText("Connect to Game"));
+    fireEvent.change(screen.getByPlaceholderText("lobby name"), { target: { value: "lobby-b" } });
+
+    await answer();
+
+    expect(push).not.toHaveBeenCalled();
+    expect(track).not.toHaveBeenCalled();
+    expect(screen.getByText("Connect to Game").closest("button")).toBeEnabled();
+  });
+
+  it("a remount mid-request (GameErrorBoundary's silent recovery) doesn't push to the re-rolled lobby", async () => {
+    const answer = holdRelay();
+    const client = new QueryClient();
+    const page = () => (
+      <QueryClientProvider client={client}>
+        <ChakraProvider>
+          <ConnectPage />
+        </ChakraProvider>
+      </QueryClientProvider>
+    );
+    const first = render(page());
+    fireEvent.change(screen.getByPlaceholderText("lobby name"), { target: { value: "lobby-a" } });
+    fireEvent.click(screen.getByText("Connect to Game"));
+    first.unmount();
+    render(page()); // fresh mount, random lobby name, same in-flight query
+
+    await answer();
+
+    expect(push).not.toHaveBeenCalled();
+    expect(track).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { GameErrorBoundary } from "./GameErrorBoundary";
 import { ProErrorBoundary } from "../Pro/ProErrorBoundary";
@@ -70,5 +71,96 @@ describe("client_error from error boundaries (issue #1514)", () => {
     );
     expect(clientErrors().map(([, p]) => p!.boundary)).toEqual(["sandbox", "irl"]);
     expect(mockCaptureException.mock.calls.map(([, p]) => p!.boundary)).toEqual(["sandbox", "irl"]);
+  });
+});
+
+/** What Chrome throws when a translated page trips React's commit phase. */
+const domError = (op: "insertBefore" | "removeChild") => {
+  const e = new Error(
+    op === "insertBefore"
+      ? "Failed to execute 'insertBefore' on 'Node': The node before which the new node is to be inserted is not a child of this node."
+      : "Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node."
+  );
+  e.name = "NotFoundError";
+  return e;
+};
+
+describe("GameErrorBoundary auto-recovers from DOM reconcile errors (#1528)", () => {
+  beforeEach(() => {
+    mockTrack.mockReset().mockImplementation(() => true);
+    mockCaptureException.mockReset().mockImplementation(() => true);
+    resetOncePerPageLoad();
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each(["insertBefore", "removeChild"] as const)("%s: one silent remount, reported as auto_recovered", (op) => {
+    // Commit phase, like React's insertBefore against a translated DOM.
+    let throwsLeft = 1;
+    const Flaky = (): JSX.Element => {
+      useLayoutEffect(() => {
+        if (throwsLeft > 0) {
+          throwsLeft--;
+          throw domError(op);
+        }
+      }, []);
+      return <p>board</p>;
+    };
+    render(
+      <GameErrorBoundary boundary="sandbox">
+        <Flaky />
+      </GameErrorBoundary>
+    );
+
+    expect(screen.getByText("board")).toBeTruthy();
+    expect(screen.queryByTestId("game-error-boundary-fallback")).toBeNull();
+    expect(clientErrors()).toHaveLength(1);
+    expect(clientErrors()[0][1]).toMatchObject({ boundary: "sandbox", error_name: "NotFoundError", auto_recovered: true });
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
+    expect(mockCaptureException.mock.calls[0][1]).toEqual({ boundary: "sandbox", auto_recovered: true });
+  });
+
+  it("a repeat shows the panel instead of looping, and is still reported", () => {
+    const AlwaysBroken = (): JSX.Element => {
+      throw domError("insertBefore");
+    };
+    const catches = () =>
+      [...(console.warn as jest.Mock).mock.calls, ...(console.error as jest.Mock).mock.calls].filter(
+        ([msg]) => typeof msg === "string" && msg.startsWith("[sandbox]")
+      ).length;
+    render(
+      <GameErrorBoundary boundary="sandbox">
+        <AlwaysBroken />
+      </GameErrorBoundary>
+    );
+
+    expect(screen.getByTestId("game-error-boundary-fallback")).toBeTruthy();
+    // The remount is spent: Try again is a manual retry, never another silent one.
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(screen.getByTestId("game-error-boundary-fallback")).toBeTruthy();
+    // auto-remount, panel, Try again → panel: three catches, then it rests.
+    expect(catches()).toBe(3);
+
+    expect(clientErrors().map(([, p]) => p!.auto_recovered)).toEqual([true, undefined]);
+    expect(mockCaptureException.mock.calls.map(([, p]) => p)).toEqual([
+      { boundary: "sandbox", auto_recovered: true },
+      { boundary: "sandbox" },
+    ]);
+  });
+
+  it("other errors, and NotFoundErrors from elsewhere, show the panel as before", () => {
+    const notDom = new Error("The object can not be found here.");
+    notDom.name = "NotFoundError";
+    const Other = (): JSX.Element => {
+      throw notDom;
+    };
+    render(
+      <GameErrorBoundary boundary="sandbox">
+        <Other />
+      </GameErrorBoundary>
+    );
+    expect(screen.getByTestId("game-error-boundary-fallback")).toBeTruthy();
+    expect(clientErrors()[0][1]!.auto_recovered).toBeUndefined();
   });
 });

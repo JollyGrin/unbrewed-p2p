@@ -33,14 +33,14 @@ export function useCreateLobby({
   const { refetch } = useQuery(
     ["create-lobby"],
     async () => {
-      if (!gidRef?.current?.value) return;
-      const createLobbyURL = new URL(
-        `/lobby/${gidRef.current.value}`,
-        serverURL,
-      );
+      const gid = gidRef?.current?.value;
+      if (!gid) return;
+      const createLobbyURL = new URL(`/lobby/${gid}`, serverURL);
       try {
-        const result = await axios.get(createLobbyURL.toString());
-        return result.data;
+        await axios.get(createLobbyURL.toString());
+        // Which lobby this answer is for: the field can change while the
+        // request is in flight (#1528), and onSuccess must not push to that.
+        return { gid };
       } catch (err) {
         console.error(err);
         throw err;
@@ -50,10 +50,17 @@ export function useCreateLobby({
       // We manually call refetch.
       enabled: false,
       refetchOnWindowFocus: false,
-      onSuccess: () => {
+      onSuccess: (res) => {
         // If the lobby was created, we can move to the game state and
         // connect to the websocket.
         if (!nameRef?.current || !gidRef?.current) return;
+        // The lobby field changed while the request was in flight: edited, or
+        // re-rolled by a fresh mount after GameErrorBoundary's silent remount
+        // (#1528). Don't take the player into a lobby they never asked for.
+        if (res?.gid !== gidRef.current.value) {
+          setLoading(false);
+          return;
+        }
         onLobbyReady?.();
         router.push(
           "/game?name=" +

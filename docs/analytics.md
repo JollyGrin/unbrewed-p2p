@@ -148,7 +148,10 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    - **Named events** for the "Errors" dashboard. They fire at most once per key per page load
      (`lib/analyticsErrors.ts`), so a crash loop or a redeploy reconnect storm costs one event.
    - `client_error` {boundary: `pro` | `sandbox` | `table` | `irl`, route, error_name, message (first 200 chars),
-     room_id?, seat?, state_hash?}: a render error caught by an error boundary; one per boundary per page load.
+     room_id?, seat?, state_hash?, auto_recovered?}: a render error caught by an error boundary; one per boundary per page load.
+     `auto_recovered: true` (#1528): a DOM-reconciliation `NotFoundError` (`insertBefore`/`removeChild`, usually
+     browser translation rewriting text nodes) that `GameErrorBoundary` fixed by remounting once, with no panel shown.
+     It has its own once-per-page key, and the `$exception` copy carries the same flag.
      `pro` is `ProErrorBoundary` on `/pro/game` (carries room_id/seat/state_hash); `GameErrorBoundary` wraps
      `/game` + `/connect` (`sandbox`), `/table` (`table`), `/irl` + `/offline` (`irl`).
    - `ws_connect_failed` {mode: `pro`}: a `/pro/game` socket closed without ever opening.
