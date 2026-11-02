@@ -59,9 +59,12 @@ export const InviteLink = ({
           isDisabled={lobby === ""}
           onClick={() => setShowInvite(true)}
         >
-          {lobby === ""
-            ? "Name a lobby above to invite a friend"
-            : "＋ Invite a friend with a link"}
+          {/* Keyed element, not a bare text node (#1528): see Connect button. */}
+          <span key={lobby === "" ? "no-lobby" : "invite"}>
+            {lobby === ""
+              ? "Name a lobby above to invite a friend"
+              : "＋ Invite a friend with a link"}
+          </span>
         </Button>
       ) : (
         <Collapse in={showInvite} animateOpacity>
