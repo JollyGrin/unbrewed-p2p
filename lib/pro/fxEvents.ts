@@ -28,6 +28,11 @@ export type FxEvent =
    *  and its neutral steel colour are shared. */
   | { type: "blocked"; space: SpaceId | null; noWinner: boolean }
   | { type: "defeated"; fighter: FighterId; space: SpaceId | null; mine: boolean }
+  /** a HERO's defeat was REPLACED by a revive (William Afton → Springtrap, engine
+   *  #1018): the same living fighter, renamed, on a new dial in the same space. Its
+   *  own beat — never the K.O. — and it stands in for that batch's heal/damage numbers,
+   *  which would compare the old dial with the new one. */
+  | { type: "revived"; fighter: FighterId; space: SpaceId | null; name: string; mine: boolean }
   /** it just became your turn */
   | { type: "turn" }
   /** the live combat just asked YOU to commit a defense. Its own beat, not a
@@ -135,6 +140,11 @@ export function diffFxEvents(
     if (!was) continue;
     const space = f.space ?? was.space;
     const mine = f.owner === next.you;
+    if (f.kind === "HERO" && !f.defeated && !was.defeated && f.name !== was.name && f.maxHp !== was.maxHp) {
+      anyHpDrop = true; // the blow landed — never read this batch as a block
+      events.push({ type: "revived", fighter: f.id, space, name: f.name, mine });
+      continue;
+    }
     if (f.hp < was.hp && !swept.has(f.id)) {
       anyHpDrop = true;
       events.push({

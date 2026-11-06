@@ -463,7 +463,16 @@ export function diffViews(
         who: whoOf(f.owner),
       });
     }
-    if (f.hp < was.hp && !swept.has(f.id)) {
+    // A HERO's defeat REPLACED by a revive (William Afton → Springtrap, engine #1018):
+    // the SAME living fighter comes back renamed on a new dial in the same space — no
+    // FIGHTER_DEFEATED, so none of the defeat lines below fire. Keyed on a living HERO
+    // whose name AND dial max changed between views (the revive writes both); the hp lines are skipped for this batch, since
+    // comparing the old dial with the new one would print a bogus "healed 10" (2 → 12)
+    // or "took N damage". A SIDEKICK revive (Robin Hood) keeps its plain "appears at".
+    const revived = f.kind === "HERO" && !f.defeated && !was.defeated && f.name !== was.name && f.maxHp !== was.maxHp;
+    if (revived) {
+      lines.push({ text: `${was.name} is revived as ${f.name} — ${f.hp}/${f.maxHp}`, who: whoOf(f.owner) });
+    } else if (f.hp < was.hp && !swept.has(f.id)) {
       lines.push({
         text: `${f.name} took ${was.hp - f.hp} damage (${f.hp}/${f.maxHp})`,
         who: whoOf(f.owner),

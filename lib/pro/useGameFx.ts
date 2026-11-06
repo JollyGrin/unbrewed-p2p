@@ -232,6 +232,13 @@ export function useGameFx(
           if (sound) sfx.play("blocked");
           emitBoardFx(e.space, "blocked", combatZeroDamageCallout(e.noWinner));
           break;
+        case "revived":
+          // A replaced defeat (William Afton → Springtrap, engine #1018): never the K.O.
+          // beat. Reuses the heal clip and the heal-styled board callout (no new asset or
+          // overlay kind) — the fighter is back, on a fresh dial.
+          if (sound) sfx.play("heal");
+          emitBoardFx(e.space, "heal", `REVIVED: ${e.name.toUpperCase()}`);
+          break;
         case "defeated":
           // your own fighter falling tolls lower
           if (sound) sfx.play("defeat", e.mine ? { rate: 0.8 } : undefined);

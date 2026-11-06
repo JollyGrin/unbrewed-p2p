@@ -60,6 +60,7 @@ export const PUBLIC_ROSTER: readonly RosterHero[] = [
   { heroId: "thrall", name: "Thrall" },
   { heroId: "triceratops", name: "Triceratops" },
   { heroId: "xenomorph", name: "Xenomorph" },
+  { heroId: "william-afton", name: "William Afton" },
 ];
 
 /** The "of N" denominator. */

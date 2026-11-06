@@ -966,4 +966,21 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/xenomorph/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/xenomorph.13536",
   },
+  {
+    // William Afton / Springtrap — the-unmatched.club deck 14750 by bobafettIG88 (issue
+    // #1530 ↔ engine #1018/#1019, William Afton train). Club-only: `original: true`
+    // suppresses the unmatched.cards deep-link and `sourceUrl` credits the club. Lab tier.
+    // Tile colour = the cardback's dominant purple (#5e255f).
+    id: "william-afton",
+    name: "William Afton",
+    hero: "William Afton",
+    author: "bobafettIG88",
+    likes: 0,
+    highlightColour: "#5e255f",
+    original: true,
+    lab: true,
+    tier: "lab",
+    cardbackUrl: "/evergreen-decks/art/william-afton/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/william-afton.14750",
+  },
 ];

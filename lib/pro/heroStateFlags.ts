@@ -120,6 +120,20 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     },
     hideBadgeWhenArt: true,
   },
+  // William Afton (the-unmatched.club 14750, issue #1530 ↔ engine #1018/#1019, William
+  // Afton train). ONE-SIDED, like EQUILIBRIUM: the engine sets SPRINGTRAP permanently the
+  // moment William's first death is replaced by the revive (the same fighter keeps its
+  // space, renamed "Springtrap" on a 12-HP dial). Absent = William, which needs no pill.
+  // The portrait swaps to Springtrap on BOTH surfaces (board + replay) by this row alone —
+  // the nameplate name and the HP dial already read the live fighter.
+  {
+    flag: "SPRINGTRAP",
+    heroes: ["william-afton"],
+    nameplate: { onLabel: "SPRINGTRAP", offLabel: "", showWhenAbsent: false },
+    token: { on: { icon: "🐰", label: "Springtrap", title: "Revived as Springtrap", bg: "#4A4A2A", color: "#F2EBC9" } },
+    tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/william-afton/token-springtrap.webp" },
+    hideBadgeWhenArt: true,
+  },
   {
     flag: "DRUID_FORM_BEAR",
     heroes: ["malfurion-stormrage"],
@@ -597,6 +611,17 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     heroes: ["leon-s-kennedy"],
     nameplate: { labelTemplate: "🦺 {n}", longLabelTemplate: "EQUIPPED: {n}" },
     token: { icon: "🦺", title: "EQUIPPED", bg: "#4A3B22", color: "#F0E9DA" },
+  },
+  // William Afton's set-aside SPRINGTRAP pile (engine `startsInPile:'SPRINGTRAP'`): the 10
+  // Springtrap cards sit outside the deck from setup until the revive shuffles the whole
+  // pile in, after which the engine prunes the key and the chip disappears. Public, so the
+  // opponent can inspect what Springtrap will bring.
+  {
+    pile: "SPRINGTRAP",
+    heroes: ["william-afton"],
+    pileLabel: "Springtrap cards",
+    nameplate: { labelTemplate: "🐰 {n}", longLabelTemplate: "SPRINGTRAP CARDS: {n}" },
+    token: { icon: "🐰", title: "SPRINGTRAP CARDS", bg: "#4A4A2A", color: "#F2EBC9" },
   },
 ];
 

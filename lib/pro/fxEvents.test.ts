@@ -329,3 +329,22 @@ describe("diffFxEvents", () => {
   });
 
 });
+
+describe("diffFxEvents — a HERO revive (William Afton → Springtrap, issue #1530)", () => {
+  const william = fighter({ name: "William Afton", hp: 2, maxHp: 7 });
+  const opp = fighter({ id: "p2/hero", owner: "p2", name: "Baba Yaga", space: "s2" });
+
+  it("emits ONE revived beat — no heal number, no damage, never the K.O.", () => {
+    const fx = diffFxEvents(view({ fighters: [william, opp] }), view({ fighters: [{ ...william, name: "Springtrap", hp: 12, maxHp: 12 }, opp] }));
+    expect(fx).toEqual([{ type: "revived", fighter: "p1/hero", space: "s1", name: "Springtrap", mine: true }]);
+  });
+
+  it("a revive inside a resolved combat is not read as a block", () => {
+    const prev = view({ fighters: [william, opp], combat: combat({ target: "p1/hero" }) });
+    const next = view({ fighters: [{ ...william, name: "Springtrap", hp: 12, maxHp: 12 }, opp], combat: null });
+    const fx = diffFxEvents(prev, next, [{ type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" } as GameEvent]);
+    expect(fx.map((e) => e.type)).toContain("revived");
+    expect(fx.map((e) => e.type)).not.toContain("blocked");
+    expect(fx.map((e) => e.type)).not.toContain("defeated");
+  });
+});
