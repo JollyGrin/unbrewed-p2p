@@ -2280,3 +2280,38 @@ describe("range purchases in the activity feed", () => {
     expect(lines.map((l) => l.text)).toContain("spent 2 RAGE (1 remaining)");
   });
 });
+
+describe("diffViews — a HERO revive (William Afton → Springtrap, issue #1530)", () => {
+  const william = fighter({ id: "p1/hero", kind: "HERO", name: "William Afton", space: "s3", hp: 2, maxHp: 7 });
+  const springtrap = { ...william, name: "Springtrap", hp: 12, maxHp: 12 };
+
+  it("prints the revive line on the owner and no heal, damage or defeat line", () => {
+    const lines = diffViews(view({ fighters: [william] }), view({ fighters: [springtrap] }), label);
+    expect(lines).toContainEqual({ text: "William Afton is revived as Springtrap — 12/12", who: "you" });
+    expect(lines.some((l) => /healed|took|defeated|appears/.test(l.text))).toBe(false);
+  });
+
+  it("later damage reads against the new dial", () => {
+    const lines = diffViews(view({ fighters: [springtrap] }), view({ fighters: [{ ...springtrap, hp: 10 }] }), label);
+    expect(lines).toContainEqual({ text: "Springtrap took 2 damage (10/12)", who: "you" });
+  });
+
+  it("a second death is an ordinary defeat", () => {
+    const lines = diffViews(
+      view({ fighters: [springtrap] }),
+      view({ fighters: [{ ...springtrap, hp: 0, space: null, defeated: true }] }),
+      label
+    );
+    expect(lines.map((l) => l.text)).toContain("Springtrap was defeated!");
+  });
+
+  it("a SIDEKICK revive still prints only 'appears at'", () => {
+    const merry = fighter({ id: "p1/sidekick-1", kind: "SIDEKICK", name: "Merry Man", space: null, hp: 0, defeated: true });
+    const lines = diffViews(
+      view({ fighters: [merry] }),
+      view({ fighters: [{ ...merry, space: "s2", hp: 1, defeated: false }] }),
+      label
+    );
+    expect(lines.some((l) => l.text.includes("revived"))).toBe(false);
+  });
+});

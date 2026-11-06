@@ -1321,3 +1321,29 @@ describe("off-the-board pill (pose-derived, xenomorph N6)", () => {
     expect(offBoardChipsFor({ space: null, defeated: false }, { SLAVE_I: true })).toEqual([]);
   });
 });
+
+describe("William Afton — SPRINGTRAP (issue #1530 ↔ engine #1018/#1019)", () => {
+  it("one-sided nameplate pill: SPRINGTRAP while the flag is set, nothing before the revive", () => {
+    const chips = flagChipsFor("william-afton", { SPRINGTRAP: true });
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toMatchObject({ on: true, chip: expect.objectContaining({ flag: "SPRINGTRAP" }) });
+    expect(flagChipsFor("william-afton", undefined)).toEqual([]);
+    expect(flagChipsFor("william-afton", { SPRINGTRAP: false })).toEqual([]);
+  });
+
+  it("swaps the board/replay portrait to Springtrap on the flag, and only for william-afton", () => {
+    expect(fighterTokenArtFor("william-afton", { SPRINGTRAP: true })).toMatch(/art\/william-afton\/token-springtrap\.webp$/);
+    expect(fighterTokenArtFor("william-afton", undefined)).toBeNull();
+    expect(fighterTokenArtFor("william-afton", {})).toBeNull();
+    expect(fighterTokenArtFor("king-kong", { SPRINGTRAP: true })).toBeNull();
+  });
+
+  it("the SPRINGTRAP pile chip counts the set-aside cards and disappears once the engine prunes the pile", () => {
+    const ten = Array.from({ length: 10 }, (_, i) => `william-afton/die#${i}`);
+    const chips = counterChipsFor("william-afton", {}, { SPRINGTRAP: ten });
+    expect(chips).toEqual([expect.objectContaining({ on: true })]);
+    expect(chips[0].chip.onLabel).toBe("🐰 10");
+    expect(counterChipsFor("william-afton", {}, {})).toEqual([]);
+    expect(pileDisplayName("SPRINGTRAP")).toBe("Springtrap cards");
+  });
+});

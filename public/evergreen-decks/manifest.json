@@ -479,6 +479,18 @@
         "file": "data/heroes/xenomorph.rules.ts",
         "commit": "77cd7f882f278fc88a4df618f48b57a302aaea94"
       }
+    },
+    {
+      "heroId": "william-afton",
+      "deckId": "william-afton",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-11-06",
+      "digest": "sha256:d859ca8db86a512aac6a9b2490b616082c6be41a28707d11ccf297b8cb42e367",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/william-afton.rules.ts",
+        "commit": "0e45346e1cd08ace931cae254d7633edf9ff54a0"
+      }
     }
   ]
 }
