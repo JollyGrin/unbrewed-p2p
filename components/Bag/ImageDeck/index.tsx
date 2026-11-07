@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -32,8 +32,11 @@ import { DeckSource, trackDeckAddFailed } from "@/lib/deckAnalytics";
  */
 export const AddImageDeck = ({
   onAdded,
+  initialTts,
 }: {
   onAdded?: (deckId: string) => void;
+  /** a TTS export the paste bar already recognised (#1538): loaded on mount */
+  initialTts?: string;
 }) => {
   return (
     <Flex direction="column" color="brand.secondary">
@@ -41,7 +44,7 @@ export const AddImageDeck = ({
         For decks the card generator can&apos;t express — like The Unmatched
         Club&apos;s. Import a Tabletop Simulator export, or list image URLs.
       </Text>
-      <Builder onAdded={onAdded} />
+      <Builder onAdded={onAdded} initialTts={initialTts} />
     </Flex>
   );
 };
@@ -58,7 +61,13 @@ type DeckMeta = {
   sidekickIsRanged: boolean;
 };
 
-const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
+const Builder = ({
+  onAdded,
+  initialTts,
+}: {
+  onAdded?: (deckId: string) => void;
+  initialTts?: string;
+}) => {
   const { pushDeck, setStar } = useBagDecks();
 
   const [source, setSource] = useState<"tts" | "urls">("tts");
@@ -98,6 +107,14 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
       trackDeckAddFailed("tts", "parse_error");
     }
   };
+
+  const loadedInitial = useRef<string>();
+  useEffect(() => {
+    if (!initialTts || loadedInitial.current === initialTts) return;
+    loadedInitial.current = initialTts;
+    loadTtsJson(initialTts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTts]);
 
   const onTtsFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

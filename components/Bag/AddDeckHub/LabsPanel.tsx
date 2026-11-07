@@ -1,27 +1,20 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  Button,
-  Checkbox,
-  Flex,
-  HStack,
-  Input,
-  Link,
-  Text,
-  Wrap,
-} from "@chakra-ui/react";
+import { useEffect, useMemo, useState } from "react";
+import { Box, Button, Checkbox, Flex, Text } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
 import { BagDeckView, useBagMaps } from "@/lib/bag/useBag";
 import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { DeckCards } from "@/components/Bag/Deck/DeckCards";
 import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
+import { DeckPreview } from "./DeckPreview";
+import { FoundLine } from "./FoundLine";
 import { LabsSkippedSummary } from "./LabsSkipped";
-import { LabsTtsSteps, LabsUnsupportedWarning } from "./LabsUnsupported";
+import { LabsUnsupportedWarning } from "./LabsUnsupported";
 import {
   LABS_ERROR_MESSAGES,
   LabsImport,
   LabsImportError,
   LabsLoadedSet,
+  LabsUnsupportedFeature,
   addLabsMap,
   buildLabsImport,
   defaultLabsCharacter,
@@ -31,26 +24,29 @@ import {
   withoutSkippedMap,
 } from "@/lib/labs";
 
-const LABS_URL = "https://www.unmatchedlabs.com";
-
 /**
- * Paste an Unmatched Labs set or character link, preview the mapped deck, then
- * save it to the bag. Fetches only when the player presses Import. Rendered
- * bare inside AddDeckHub's focused view, like CodePanel.
+ * An Unmatched Labs set or character link from the paste bar (#1538): fetch
+ * it at once, preview the mapped deck (with hero pills when the set has
+ * several), and end in a table — Solo table, Invite a friend, or Save for
+ * later. The map checkbox (#1002), the skipped summary (#1000) and the
+ * replace-confirm step (#1033) are unchanged; the unsupported-card warning
+ * (#978) is a non-blocking note under the buttons.
  */
 export const LabsPanel = ({
+  link,
   pushDeck,
   setStar,
   onAdded,
   onOpenImages,
 }: {
+  /** the pasted link; fetched whenever it changes */
+  link: string;
   pushDeck: BagDeckView["pushDeck"];
   setStar: (id: string) => void;
   onAdded?: (deckId: string) => void;
   /** switch the hub to the card-image import (the TTS-export fallback) */
   onOpenImages?: () => void;
 }) => {
-  const [link, setLink] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [loaded, setLoaded] = useState<LabsLoadedSet>();
@@ -78,31 +74,38 @@ export const LabsPanel = ({
   const result = built && "deck" in built ? built : undefined;
   const shownError = error ?? (built && "error" in built ? built.error : undefined);
 
-  const reset = () => {
+  useEffect(() => {
+    let cancelled = false;
     setLoaded(undefined);
     setCharacterId(undefined);
     setError(undefined);
     setAddMap(false);
-  };
-
-  const fetchSet = async (e?: FormEvent) => {
-    e?.preventDefault();
-    reset();
+    if (!link.trim()) return;
     setIsLoading(true);
-    try {
-      const next = await fetchLabsSet(link);
-      setLoaded(next);
-      setCharacterId(defaultLabsCharacter(next));
-    } catch (err) {
-      setError(messageOf(err));
-      trackDeckAddFailed("unmatched-labs", failureReason(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    void (async () => {
+      try {
+        const next = await fetchLabsSet(link);
+        if (cancelled) return;
+        setLoaded(next);
+        // A set with several heroes previews its first; the pills swap it.
+        setCharacterId(
+          defaultLabsCharacter(next) ?? listLabsHeroes(next.row.document.set)[0]?.id,
+        );
+      } catch (err) {
+        if (cancelled) return;
+        setError(messageOf(err));
+        trackDeckAddFailed("unmatched-labs", failureReason(err));
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [link]);
 
-  const save = async () => {
-    if (!result) return;
+  const save = async (): Promise<string | undefined> => {
+    if (!result) return undefined;
     const { deck } = result;
     // blocked author, storage full, or the player kept their edited copy — already toasted
     const skipped = addMap && result.map ? withoutSkippedMap(result.skipped) : result.skipped;
@@ -114,7 +117,7 @@ export const LabsPanel = ({
         labs_skipped_count: skipped.reduce((n, s) => n + s.count, 0),
       },
     });
-    if (!saved) return;
+    if (!saved) return undefined;
     setStar(deck.id);
     toast.success(`${deck.name} saved & ready to play`);
     if (addMap && result.map) {
@@ -123,55 +126,23 @@ export const LabsPanel = ({
         toast.success(`${result.map.map.meta?.title ?? "Map"} added to your maps`);
       }
     }
-    reset();
-    setLink("");
     onAdded?.(deck.id);
+    return deck.id;
   };
+
+  const setName = loaded?.row.name;
+  const author = result?.author ?? loaded?.author;
 
   return (
     <Flex direction="column" color="brand.secondary">
-      <Text fontSize="0.9rem" opacity={0.85} mb="0.75rem">
-        Open a set on{" "}
-        <Link href={LABS_URL} isExternal textDecoration="underline">
-          Unmatched Labs
-        </Link>
-        , copy its share link — or the link to one character — and paste it
-        here. Only published sets can be imported.
-      </Text>
-
-      <form onSubmit={fetchSet}>
-        <Text as="label" htmlFor="labs-link" fontWeight={700} fontSize="0.85rem">
-          Unmatched Labs link
-        </Text>
-        <HStack my="0.4rem" maxW="560px">
-          <Input
-            id="labs-link"
-            bg="white"
-            placeholder="https://www.unmatchedlabs.com/shared/…"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-          />
-          <Button
-            type="submit"
-            bg="brand.secondary"
-            color="brand.parchment"
-            _hover={{ opacity: 0.9 }}
-            isLoading={isLoading}
-            loadingText="Fetching"
-            isDisabled={!link.trim()}
-            flexShrink={0}
-          >
-            Import
-          </Button>
-        </HStack>
-      </form>
-
-      {isLoading && (
-        <Text fontSize="0.85rem" opacity={0.7} mt="0.25rem">
-          Fetching from Unmatched Labs…
-        </Text>
+      {isLoading && <FoundLine tone="working">Fetching from Unmatched Labs…</FoundLine>}
+      {loaded && (
+        <FoundLine>
+          Unmatched Labs {heroes.length > 1 ? "set" : "deck"}
+          {heroes.length > 1 ? ` · ${heroes.length} heroes` : ""}
+          {author ? ` · by ${author}` : ""}
+        </FoundLine>
       )}
-
       {shownError && (
         <Box
           role="alert"
@@ -189,96 +160,123 @@ export const LabsPanel = ({
         </Box>
       )}
 
-      {loaded && heroes.length > 1 && (
-        <Box mt="0.75rem">
-          <Text fontSize="0.9rem" mb="0.4rem">
-            <b>{loaded.row.name}</b> has {heroes.length} heroes —{" "}
-            {characterId ? "showing" : "pick one to import"}:
-          </Text>
-          <Wrap spacing="0.4rem">
-            {heroes.map((hero) => (
-              <Button
-                key={hero.id}
-                size="sm"
-                variant={hero.id === characterId ? "solid" : "outline"}
-                colorScheme="purple"
-                onClick={() => setCharacterId(hero.id)}
-              >
-                {hero.name}
-              </Button>
-            ))}
-          </Wrap>
-        </Box>
+      {loaded && heroes.length > 1 && !result && !shownError && (
+        <Text fontSize="0.9rem" mt="0.5rem">
+          <b>{setName}</b> has {heroes.length} heroes — pick one:
+        </Text>
       )}
 
       {result && (
         <Box mt="0.75rem">
-          {result.unsupported.length > 0 && (
-            <LabsUnsupportedWarning
-              deckName={result.deck.name}
-              unsupported={result.unsupported}
-              onOpenImages={onOpenImages}
-            />
-          )}
-          <Text fontSize="0.85rem" opacity={0.8} mb="0.4rem">
-            From “{result.setName}”{result.author ? ` by ${result.author}` : ""}
-          </Text>
-          <HStack mb="0.5rem">
-            <Button
-              bg="brand.accent"
-              color="brand.surfaceDim"
-              _hover={{ bg: "brand.accentDeep" }}
-              isDisabled={asking}
-              onClick={save}
-            >
-              ★ {result.unsupported.length ? "Save anyway" : "Save & use"} “
-              {result.deck.name}”
-            </Button>
-            <Button variant="ghost" onClick={reset}>
-              Clear
-            </Button>
-          </HStack>
-          {prompt}
-          <DeckCards decks={[result.deck]} selectedDeckId={result.deck.id} />
-          {result.map && (
-            <Checkbox
-              mt="0.75rem"
-              colorScheme="purple"
-              isChecked={addMap}
-              onChange={(e) => setAddMap(e.target.checked)}
-            >
-              <Text fontSize="0.9rem">
-                Also add this set&apos;s map ({result.map.name}) to my maps
-              </Text>
-            </Checkbox>
-          )}
-          <Box mt="0.75rem" maxW="620px">
-            <LabsSkippedSummary
-              skipped={addMap && result.map ? withoutSkippedMap(result.skipped) : result.skipped}
-              imported={labsImportedText(result.deck, addMap && !!result.map)}
-              sourceUrl={result.deck.sourceUrl}
-            />
+          <DeckPreview
+            deck={result.deck}
+            source={`Unmatched Labs · ${result.setName}`}
+            heroes={heroes}
+            characterId={characterId}
+            onPickHero={setCharacterId}
+            onSave={save}
+            isDisabled={asking}
+            prompt={prompt}
+            note={
+              result.unsupported.length > 0 ? (
+                <UnsupportedNote
+                  deckName={result.deck.name}
+                  unsupported={result.unsupported}
+                  onOpenImages={onOpenImages}
+                />
+              ) : undefined
+            }
+          >
+            {result.map && (
+              <Checkbox
+                mt="0.75rem"
+                colorScheme="purple"
+                isChecked={addMap}
+                onChange={(e) => setAddMap(e.target.checked)}
+              >
+                <Text fontSize="0.9rem">
+                  Also add this set&apos;s map ({result.map.name}) to my maps
+                </Text>
+              </Checkbox>
+            )}
+            <Box mt="0.75rem" maxW="620px">
+              <LabsSkippedSummary
+                skipped={addMap && result.map ? withoutSkippedMap(result.skipped) : result.skipped}
+                imported={labsImportedText(result.deck, addMap && !!result.map)}
+                sourceUrl={result.deck.sourceUrl}
+              />
+            </Box>
+          </DeckPreview>
+          <Box mt="0.75rem">
+            <DeckCards decks={[result.deck]} selectedDeckId={result.deck.id} />
           </Box>
         </Box>
       )}
-
-      {!result && (
-        <Box mt="1.25rem" fontSize="0.85rem" opacity={0.85} maxW="620px">
-          <Text mb="0.25rem">
-            Cards come in as the finished art Unmatched Labs publishes. Any
-            card Labs hasn&apos;t rendered falls back to our card template,
-            which draws standard cards only.
-          </Text>
-          <Text fontWeight={700} mb="0.25rem">
-            Some cards still missing their art?
-          </Text>
-          <Text mb="0.25rem">
-            Bring the deck in as full card art through Labs&apos; export:
-          </Text>
-          <LabsTtsSteps onOpenImages={onOpenImages} />
-        </Box>
+      {loaded && heroes.length > 1 && !result && (
+        <Flex gap="0.4rem" flexWrap="wrap" mt="0.4rem">
+          {heroes.map((hero) => (
+            <Button
+              key={hero.id}
+              size="sm"
+              variant="outline"
+              colorScheme="purple"
+              onClick={() => setCharacterId(hero.id)}
+            >
+              {hero.name}
+            </Button>
+          ))}
+        </Flex>
       )}
     </Flex>
+  );
+};
+
+/**
+ * "Heads up: 2 cards use effects our template can't draw. They'll show as
+ * text, and you can still play." — with the full warning (#978) behind a
+ * details toggle, for the TTS-export route to real card art.
+ */
+const UnsupportedNote = ({
+  deckName,
+  unsupported,
+  onOpenImages,
+}: {
+  deckName: string;
+  unsupported: LabsUnsupportedFeature[];
+  onOpenImages?: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const cards = new Set(unsupported.flatMap((f) => f.cards)).size;
+  const count = cards > 0 ? `${cards} ${cards === 1 ? "card uses" : "cards use"}` : "Some cards use";
+  return (
+    <Box data-testid="labs-unsupported-note">
+      <Text>
+        <Text as="b" color="#A8720A">
+          Heads up:
+        </Text>{" "}
+        {count} effects our template can&apos;t draw. They&apos;ll show as
+        text, and you can still play.{" "}
+        <Button
+          variant="link"
+          size="sm"
+          fontSize="0.82rem"
+          color="brand.secondary"
+          textDecoration="underline"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Hide details" : "Details"}
+        </Button>
+      </Text>
+      {open && (
+        <Box mt="0.5rem">
+          <LabsUnsupportedWarning
+            deckName={deckName}
+            unsupported={unsupported}
+            onOpenImages={onOpenImages}
+          />
+        </Box>
+      )}
+    </Box>
   );
 };
 

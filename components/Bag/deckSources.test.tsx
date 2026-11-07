@@ -9,6 +9,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { ReactNode } from "react";
 
 import { CodePanel } from "./AddDeckHub/CodePanel";
+import { AddJson } from "./Deck/AddJson";
 import { StarterDeckContainer } from "./StarterDecks";
 import { PopularDecks } from "./PopularDecks";
 import { AddImageDeck } from "./ImageDeck";
@@ -28,7 +29,7 @@ jest.mock("react-hot-toast", () => {
   return { toast };
 });
 
-jest.mock("next/router", () => ({ useRouter: () => ({ query: {} }) }));
+jest.mock("next/router", () => ({ useRouter: () => ({ query: {}, push: jest.fn() }) }));
 
 // Card art is beside the point here.
 jest.mock("./Deck/DeckCards", () => ({ DeckCards: () => null }));
@@ -89,9 +90,10 @@ beforeEach(() => {
 describe("CodePanel", () => {
   it("saves with source code", async () => {
     mockUnmatched.data = DECK;
+    mockUnmatched.deckId = "abc";
     const pushDeck = jest.fn(async (..._a: unknown[]) => true);
-    wrap(<CodePanel pushDeck={pushDeck} setStar={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
+    wrap(<CodePanel code="abc" pushDeck={pushDeck} setStar={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Save for later" }));
     await waitFor(() => expect(pushDeck).toHaveBeenCalled());
     expect(pushDeck.mock.calls[0][1]).toMatchObject({ source: "code" });
   });
@@ -101,10 +103,10 @@ describe("CodePanel", () => {
   it("reports a complete code that fails, once, by HTTP status", () => {
     mockUnmatched.error = NOT_FOUND;
     mockUnmatched.deckId = "zzzz";
-    const { rerender } = wrap(<CodePanel pushDeck={jest.fn()} setStar={() => {}} />);
+    const { rerender } = wrap(<CodePanel code="zzzz" pushDeck={jest.fn()} setStar={() => {}} />);
     rerender(
       <ChakraProvider>
-        <CodePanel pushDeck={jest.fn()} setStar={() => {}} />
+        <CodePanel code="zzzz" pushDeck={jest.fn()} setStar={() => {}} />
       </ChakraProvider>,
     );
     expect(mockTrack.mock.calls).toEqual([["deck_add_failed", { source: "code", reason: 404 }]]);
@@ -114,7 +116,7 @@ describe("CodePanel", () => {
     mockUnmatched.error = NOT_FOUND;
     const panel = () => (
       <ChakraProvider>
-        <CodePanel pushDeck={jest.fn()} setStar={() => {}} />
+        <CodePanel code={mockUnmatched.deckId ?? ""} pushDeck={jest.fn()} setStar={() => {}} />
       </ChakraProvider>
     );
     mockUnmatched.deckId = "p";
@@ -124,6 +126,24 @@ describe("CodePanel", () => {
       rerender(panel());
     }
     expect(mockTrack).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddJson (#1538)", () => {
+  it("saves a single pasted deck with source json", async () => {
+    wrap(<AddJson bundle={{ decks: [DECK as any], maps: [] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Save for later" }));
+    await waitFor(() => expect(mockPushDeck).toHaveBeenCalled());
+    expect(mockPushDeck.mock.calls[0][1]).toMatchObject({ source: "json" });
+  });
+
+  it("imports a multi-deck bundle as one bulk deck_added", async () => {
+    const decks = [1, 2].map((n) => ({ id: `d${n}`, name: `Mine ${n}`, deck_data: {} })) as any[];
+    wrap(<AddJson bundle={{ decks, maps: [] }} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Import 2 new items/ }));
+    });
+    expect(mockTrack.mock.calls).toEqual([["deck_added", { source: "bulk", deck_count: 2 }]]);
   });
 });
 
