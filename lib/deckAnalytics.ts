@@ -17,6 +17,7 @@ export const DECK_SOURCES = [
   "code",
   "image",
   "bulk",
+  "json",
   "deeplink",
   "pro-hero",
 ] as const;
@@ -76,6 +77,19 @@ export const failureReason = (err: unknown): string | number => {
 
 export const trackDeckAddFailed = (source: DeckSource, reason: string | number): void => {
   track("deck_add_failed", { source, reason });
+};
+
+export type TableDestination = "offline" | "connect" | "irl";
+
+/**
+ * A table opened from /bag (#1538): the Solo table / Invite a friend /
+ * In person buttons, from a fetched deck's preview or the Up next card.
+ */
+export const trackBagTableOpened = (
+  destination: TableDestination,
+  from: "preview" | "upnext",
+): void => {
+  track("bag_table_opened", { destination, from });
 };
 
 /**

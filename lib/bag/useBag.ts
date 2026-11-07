@@ -100,6 +100,8 @@ export type BagDeckView = {
   updateDeck: (deck: DeckImportType) => Promise<void>;
   importDecks: (decks: DeckImportType[]) => Promise<number>;
   clearDecks: () => Promise<void>;
+  /** unstar without tossing: the Up next deck was just tossed */
+  clearStar: () => void;
 };
 
 /** A re-add that would overwrite the player's changes (#1033). */
@@ -238,6 +240,7 @@ export const useBagDecks = (): BagDeckView => {
       await clearBag(store);
       clearStar();
     }, [store]),
+    clearStar: useCallback(() => clearStar(), []),
   };
 };
 

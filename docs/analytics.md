@@ -89,6 +89,9 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    - `hero_picked` {hero_id, tier, mode}: a Pro create/join naming a hero. `mode`: `bot` (any bot seat), `quickmatch`,
      `ranked` (a tournament ticket), else `casual`. Resumes and reconnects send nothing.
    - `hero_preview_opened` {hero_id}: the Pro hero preview modal opened (deck id when there is no server hero id).
+   - `bag_table_opened` {destination `offline`|`connect`|`irl`, from `preview`|`upnext`}: a table opened from /bag
+     (#1538) — Solo table / Invite a friend / In person on a just-fetched deck's preview or on the Up next card. The
+     deck is saved and starred first; a refused save (storage full, kept an edited copy) sends nothing.
 
    | `source` | Trigger |
    |---|---|
@@ -98,10 +101,12 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    | `image` | /bag → The Unmatched Club → Image URLs |
    | `starter` | /bag → Starter decks |
    | `popular` | /bag → Popular decks |
-   | `bulk` | /bag → Backup & Share → Import |
+   | `bulk` | /bag → Backup & Share → Import, or a backup bundle / deck array dropped on the Decks tab's paste bar |
+   | `json` | /bag → a single deck's JSON pasted or dropped on the paste bar (`AddJson`) |
    | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`) |
    | `pro-hero` | `deck_selected_for_game` only: a Pro roster deck played without adding it to the bag (#1421) |
-   | `unmatched.cards`, `the-unmatched.club` | Reserved: no add path is distinct from `code` / `tts` today |
+   | `the-unmatched.club` | /bag → a club hero page link pasted on the paste bar, fetched through the API's `/club/heroes/<id>` proxy (#1538). `reason` on failure: the proxy's HTTP status, `network`, `parse_error`, or `unavailable` (an API without the proxy route) |
+   | `unmatched.cards` | Reserved: no add path is distinct from `code` today |
 
    `hero_name` is the deck's catalog hero name and is omitted for `image` and `tts`, whose hero name
    is typed by the player. `deck_id` is the source site's id. Never a deck name. Each added deck stores its

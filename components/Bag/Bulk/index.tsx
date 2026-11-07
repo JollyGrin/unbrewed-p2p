@@ -1,4 +1,5 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { normalizeBundle, parseJson } from "@/lib/bag/bundle";
 import { AccountBagPanel } from "@/components/Bag/Account";
 import { MapData } from "@/lib/hooks";
 import { useBagDecks, useBagMaps } from "@/lib/bag/useBag";
@@ -24,40 +25,6 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useDebounce } from "use-debounce";
 import { FaDownload, FaFileImport, FaLink, FaRegCopy } from "react-icons/fa";
-
-type BulkBundle = { decks: DeckImportType[]; maps: MapData[] };
-
-/**
- * Accept a full backup bundle ({decks, maps}), a bare array of decks,
- * or a single deck object — people share all three shapes.
- */
-const normalizeBundle = (parsed: unknown): BulkBundle | undefined => {
-  if (!parsed || typeof parsed !== "object") return undefined;
-  if (Array.isArray(parsed)) {
-    const decks = parsed.filter((d) => d?.deck_data && d?.id);
-    return decks.length ? { decks, maps: [] } : undefined;
-  }
-  const obj = parsed as Record<string, any>;
-  if (obj.deck_data && obj.id) {
-    return { decks: [obj as DeckImportType], maps: [] };
-  }
-  const decks = Array.isArray(obj.decks)
-    ? obj.decks.filter((d: any) => d?.deck_data && d?.id)
-    : [];
-  const maps = Array.isArray(obj.maps)
-    ? obj.maps.filter((m: any) => typeof m?.imgUrl === "string")
-    : [];
-  if (!decks.length && !maps.length) return undefined;
-  return { decks, maps };
-};
-
-const parseJson = (text: string): unknown => {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-};
 
 export const BagBulkContainer = () => {
   const { decks, star, importDecks } = useBagDecks();
