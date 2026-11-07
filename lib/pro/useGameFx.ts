@@ -17,7 +17,9 @@ import { combatZeroDamageCallout } from "./combatOutcome";
 export interface BoardFxItem {
   key: string;
   space: SpaceId;
-  kind: "damage" | "heal" | "blocked" | "defeat";
+  /** `revive` is a heal-coloured TEXT callout ("REVIVED: SPRINGTRAP"), drawn at the
+   *  word size of BLOCKED / K.O. rather than the big-number size of `heal`. */
+  kind: "damage" | "heal" | "blocked" | "defeat" | "revive";
   label: string;
 }
 
@@ -48,6 +50,11 @@ export interface DamageArc {
  *  slower pace that stretched the arc's flight but left this fixed would have the
  *  "−N" vanish before the (now slower) arc even finished landing it. */
 const BOARD_FX_TTL_MS = 1600;
+
+/** A revive batch is a sequence — the hit that emptied the old dial, the revive, then
+ *  (if the new form fell in the same window) the K.O. Each step trails the one before
+ *  by this much (pace-scaled) so the three read in order instead of on top of each other. */
+const REVIVE_STEP_MS = 400;
 
 /* The arc's clock lives in combatTiming.ts alongside the panel-linger TTL that must
  * outlast it — see the note there (issue #517). The board damage beat is delayed by
@@ -186,6 +193,18 @@ export function useGameFx(
     const refsNow = refsRef.current;
     const reduced = prefersReducedMotion();
     let arcConsumed = false;
+    // Revive sequencing (see REVIVE_STEP_MS): when a fighter's damage beat is carried
+    // by the arc, the revive waits for the landing; a K.O. after a revive waits for it;
+    // and a game-ending fanfare waits for the whole sequence (`reviveEndMs`, 0 = no
+    // revive this batch, so every other batch keeps its timing).
+    const arcedFighter = new Set<FighterId>();
+    const reviveAtMs = new Map<FighterId, number>();
+    let reviveEndMs = 0;
+    const reviveStepMs = Math.round(REVIVE_STEP_MS * paceRef.current);
+    const later = (delayMs: number, run: () => void) => {
+      if (delayMs <= 0) run();
+      else timersRef.current.push(setTimeout(run, delayMs));
+    };
 
     for (const e of events) {
       switch (e.type) {
@@ -215,6 +234,7 @@ export function useGameFx(
           const willArc = isDefenderHit && visual && !reduced && !!defEl && !!refsNow?.clashRef;
           if (willArc) {
             arcConsumed = true;
+            arcedFighter.add(e.fighter);
             launchArc(e, defenderId!);
           } else {
             emitDamageBeat(e);
@@ -232,18 +252,33 @@ export function useGameFx(
           if (sound) sfx.play("blocked");
           emitBoardFx(e.space, "blocked", combatZeroDamageCallout(e.noWinner));
           break;
-        case "revived":
+        case "revived": {
           // A replaced defeat (William Afton → Springtrap, engine #1018): never the K.O.
-          // beat. Reuses the heal clip and the heal-styled board callout (no new asset or
-          // overlay kind) — the fighter is back, on a fresh dial.
-          if (sound) sfx.play("heal");
-          emitBoardFx(e.space, "heal", `REVIVED: ${e.name.toUpperCase()}`);
+          // beat for the first form. diffFxEvents put the lethal hit's `damage` ahead of
+          // this, so the revive follows it — after the arc lands when the hit is arced.
+          // Reuses the heal clip; the callout is its own text-sized `revive` kind.
+          const atMs =
+            (arcedFighter.has(e.fighter) ? timing.arcLaunchMs + timing.arcFlightMs : 0) + reviveStepMs;
+          reviveAtMs.set(e.fighter, atMs);
+          reviveEndMs = Math.max(reviveEndMs, atMs);
+          later(atMs, () => {
+            if (sound) sfx.play("heal");
+            emitBoardFx(e.space, "revive", `REVIVED: ${e.name.toUpperCase()}`);
+          });
           break;
-        case "defeated":
-          // your own fighter falling tolls lower
-          if (sound) sfx.play("defeat", e.mine ? { rate: 0.8 } : undefined);
-          emitBoardFx(e.space, "defeat", "K.O.");
+        }
+        case "defeated": {
+          // A K.O. after a same-window revive comes after the revive callout.
+          const revivedAt = reviveAtMs.get(e.fighter);
+          const koAtMs = revivedAt === undefined ? 0 : revivedAt + reviveStepMs;
+          reviveEndMs = Math.max(reviveEndMs, koAtMs);
+          later(koAtMs, () => {
+            // your own fighter falling tolls lower
+            if (sound) sfx.play("defeat", e.mine ? { rate: 0.8 } : undefined);
+            emitBoardFx(e.space, "defeat", "K.O.");
+          });
           break;
+        }
         case "turn":
           if (sound) sfx.play("turn");
           break;
@@ -256,11 +291,18 @@ export function useGameFx(
           // "The Snuff" (#346) — the fuse-fizzle punctuating a cancelled card.
           if (sound) sfx.play("snuff");
           break;
+        // diffFxEvents emits these last, so a revive sequence in the same batch (a
+        // revive + same-window K.O. that ends the game) is fully scheduled by now:
+        // the fanfare trails it — hit → revive → K.O. → fanfare.
         case "victory":
-          if (sound) sfx.play("victory");
+          later(reviveEndMs > 0 ? reviveEndMs + reviveStepMs : 0, () => {
+            if (sound) sfx.play("victory");
+          });
           break;
         case "loss":
-          if (sound) sfx.play("loss");
+          later(reviveEndMs > 0 ? reviveEndMs + reviveStepMs : 0, () => {
+            if (sound) sfx.play("loss");
+          });
           break;
       }
     }

@@ -12,6 +12,11 @@ describe("public roster", () => {
     expect(new Set(roster).size).toBe(roster.length);
   });
 
+  it("is listed in hero-id order", () => {
+    const roster = PUBLIC_ROSTER.map((h) => h.heroId);
+    expect(roster).toEqual([...roster].sort());
+  });
+
   it("names heroes, falling back to the sent name then the id", () => {
     expect(heroDisplayName("thetis-spice")).toBe("Thetis");
     expect(heroDisplayName("thetis")).toBe("Thetis");
