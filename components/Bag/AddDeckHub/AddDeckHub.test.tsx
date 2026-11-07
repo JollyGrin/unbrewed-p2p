@@ -9,6 +9,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import ttsSave from "@/lib/labs/fixtures/tts-save.pink-panther.json";
 import ripley from "@/lib/labs/fixtures/club-export.ellen-ripley.json";
+import dope from "@/public/evergreen-decks/DOPE.json";
 import { AddDeckHub } from "./index";
 
 const mockTrack = jest.fn();
@@ -140,6 +141,80 @@ describe("AddDeckHub paste bar · the-unmatched.club", () => {
       reason: "unavailable",
     });
   });
+
+  it("a non-JSON answer at any status is the club being unavailable, not a missing deck (review)", async () => {
+    for (const status of [200, 404]) {
+      mockFetch.mockImplementation(async () =>
+        Promise.resolve({
+          ok: status < 400,
+          status,
+          json: async () => {
+            throw new SyntaxError("Unexpected token <");
+          },
+        } as unknown as Response),
+      );
+      mockTrack.mockClear();
+      const { unmount } = renderHub();
+      paste("https://the-unmatched.club/c/heroes/x.2304");
+      expect(await screen.findByRole("alert")).toHaveTextContent(/Couldn't reach the club right now/);
+      expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", {
+        source: "the-unmatched.club",
+        reason: "unavailable",
+      });
+      unmount();
+    }
+  });
+
+  it("a malformed club body is a parse error shown as 'no deck', never a crash (review)", async () => {
+    const body = JSON.parse(JSON.stringify(ripley)) as typeof ripley;
+    const data = body.nodes[0].data as unknown[];
+    const root = data[0] as { cards: number };
+    data[root.cards] = { not: "an array" };
+    mockFetch.mockImplementation(async () => json(body));
+    renderHub();
+    paste("https://the-unmatched.club/c/heroes/x.2304");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/No deck 2304 on the-unmatched\.club/);
+    expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", {
+      source: "the-unmatched.club",
+      reason: "parse_error",
+    });
+  });
+});
+
+/** The old "From URL" import (review): a link on no known site is fetched. */
+describe("AddDeckHub paste bar · a link that serves deck JSON", () => {
+  const text = (body: string, status = 200) =>
+    Promise.resolve({ ok: status < 400, status, text: async () => body } as unknown as Response);
+
+  it("deck JSON at a URL opens the JSON panel on the body", async () => {
+    mockFetch.mockImplementation(async () => text(JSON.stringify(dope)));
+    renderHub();
+    paste("https://example.com/decks/jason.json");
+    expect(screen.getByRole("status")).toHaveTextContent(/Fetching that link/);
+    await waitFor(() => expect(screen.getByText("json panel: Jason Voorhees")).toBeInTheDocument());
+    expect(mockFetch).toHaveBeenCalledWith("https://example.com/decks/jason.json");
+  });
+
+  it("a TTS export at a URL opens the image panel loaded", async () => {
+    mockFetch.mockImplementation(async () => text(JSON.stringify(ttsSave)));
+    renderHub();
+    paste("https://example.com/export.json");
+    await waitFor(() => expect(screen.getByText("image panel: tts loaded")).toBeInTheDocument());
+  });
+
+  it("a page that isn't deck JSON is 'not a deck we recognise'; a failed fetch says so", async () => {
+    mockFetch.mockImplementation(async () => text("<!doctype html><p>hi</p>"));
+    const { unmount } = renderHub();
+    paste("https://example.com/whatever");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Not a deck we recognise");
+    unmount();
+
+    mockFetch.mockImplementation(async () => text("nope", 404));
+    renderHub();
+    paste("https://example.com/missing.json");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Couldn't fetch that link \(404\)/);
+    expect(screen.queryByText(/panel:/)).not.toBeInTheDocument();
+  });
 });
 
 describe("AddDeckHub paste bar", () => {
@@ -190,6 +265,11 @@ describe("AddDeckHub paste bar", () => {
 
   it("garbage: 'not a deck we recognise' naming the three sites, no panel, no fetch", () => {
     renderHub();
+    for (const word of ["hello", "Medusa", "garbage"]) {
+      paste(word);
+      expect(screen.getByRole("alert")).toHaveTextContent("Not a deck we recognise");
+      expect(screen.queryByText(/panel:/)).not.toBeInTheDocument();
+    }
     paste("definitely not a deck");
     const line = screen.getByRole("alert");
     expect(line).toHaveTextContent("Not a deck we recognise");

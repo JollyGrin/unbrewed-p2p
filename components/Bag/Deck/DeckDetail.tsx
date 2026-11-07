@@ -26,6 +26,7 @@ import { ShareItemButton } from "@/components/Bag/Account";
 import { shareUrl } from "@/lib/account/bagCloud";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
+import { DangerConfirm } from "./DangerConfirm";
 import { DeckCards } from "./DeckCards";
 import { EditHeroInfo, EditHeroModal } from "./EditHeroInfo";
 import { EditCardback, EditCardbackModal } from "./EditCardback";
@@ -66,6 +67,7 @@ export const DeckDetail = ({
   // The mobile menu's edit modals live out here, not inside the menu, so
   // closing the menu on click doesn't take the modal down with it.
   const [editing, setEditing] = useState<EditKind | null>(null);
+  const [confirmingToss, setConfirmingToss] = useState(false);
   const isImageDeck = !!deck.tags?.includes("image-deck");
   const tokenCount = deck.savedTokens?.length ?? 0;
   const closeEdit = () => setEditing(null);
@@ -173,7 +175,12 @@ export const DeckDetail = ({
               Copy JSON
             </MenuItem>
             <MenuDivider borderColor="whiteAlpha.300" />
-            <MenuItem {...menuItemStyles} color="brand.danger" icon={<FaTrash />} onClick={onToss}>
+            <MenuItem
+              {...menuItemStyles}
+              color="brand.danger"
+              icon={<FaTrash />}
+              onClick={() => setConfirmingToss(true)}
+            >
               Toss from bag
             </MenuItem>
           </MenuList>
@@ -242,10 +249,49 @@ export const DeckDetail = ({
         >
           Copy JSON
         </Button>
-        <Button size="sm" bg="brand.danger" color="white" _hover={{ opacity: 0.9 }} onClick={onToss}>
-          Toss
-        </Button>
+        <DangerConfirm
+          label="Toss"
+          question={`Toss ${deck.name}?`}
+          onConfirm={onToss}
+          trigger={{
+            variant: "solid",
+            bg: "brand.danger",
+            color: "white",
+            textDecoration: "none",
+            px: "0.75rem",
+            _hover: { opacity: 0.9 },
+          }}
+        />
       </Flex>
+      {/* The menu's "Toss from bag" asks here, where there is room for the answer. */}
+      {confirmingToss && (
+        <Flex
+          p="0.75rem"
+          gap="0.5rem"
+          align="center"
+          flexWrap="wrap"
+          bg="rgba(255, 99, 71, 0.12)"
+          borderBottom="1px solid rgba(72, 40, 79, 0.12)"
+          fontSize="0.9rem"
+        >
+          <Text fontWeight={700}>Toss {deck.name} from your bag?</Text>
+          <Button
+            size="sm"
+            bg="brand.danger"
+            color="white"
+            _hover={{ opacity: 0.9 }}
+            onClick={() => {
+              setConfirmingToss(false);
+              onToss();
+            }}
+          >
+            Yes, toss it
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmingToss(false)}>
+            Cancel
+          </Button>
+        </Flex>
+      )}
 
       <DeckCards
         decks={[deck]}

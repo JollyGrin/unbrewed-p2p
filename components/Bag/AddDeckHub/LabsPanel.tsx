@@ -7,6 +7,7 @@ import { DeckCards } from "@/components/Bag/Deck/DeckCards";
 import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { DeckPreview } from "./DeckPreview";
 import { FoundLine } from "./FoundLine";
+import { useDebounce } from "use-debounce";
 import { LabsSkippedSummary } from "./LabsSkipped";
 import { LabsUnsupportedWarning } from "./LabsUnsupported";
 import {
@@ -74,17 +75,20 @@ export const LabsPanel = ({
   const result = built && "deck" in built ? built : undefined;
   const shownError = error ?? (built && "error" in built ? built.error : undefined);
 
+  // One fetch per settled link, not one per keystroke (as CodePanel gets
+  // through useUnmatchedDeck's debounce).
+  const [settledLink] = useDebounce(link, 300);
   useEffect(() => {
     let cancelled = false;
     setLoaded(undefined);
     setCharacterId(undefined);
     setError(undefined);
     setAddMap(false);
-    if (!link.trim()) return;
+    if (!settledLink.trim()) return;
     setIsLoading(true);
     void (async () => {
       try {
-        const next = await fetchLabsSet(link);
+        const next = await fetchLabsSet(settledLink);
         if (cancelled) return;
         setLoaded(next);
         // A set with several heroes previews its first; the pills swap it.
@@ -102,7 +106,7 @@ export const LabsPanel = ({
     return () => {
       cancelled = true;
     };
-  }, [link]);
+  }, [settledLink]);
 
   const save = async (): Promise<string | undefined> => {
     if (!result) return undefined;

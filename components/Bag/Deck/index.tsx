@@ -14,6 +14,7 @@ import { AddDeckHub } from "@/components/Bag/AddDeckHub";
 import { MapModal } from "@/components/Bag/Map/MapModal";
 import DEFAULT_MAPS from "@/components/Bag/Map/MapModal/defaultMaps.json";
 import { DeckStats } from "./Stats";
+import { DangerConfirm } from "./DangerConfirm";
 import { DeckDetail } from "./DeckDetail";
 import { AddTile, DeckTile, UpNextCard } from "./UpNext";
 
@@ -38,6 +39,8 @@ export const BagDecks = () => {
     isLoading,
     sourceOf,
     cloudIdOf,
+    clearDecks,
+    clearStar,
   } = useBagDecks();
   const { data: bagMaps } = useBagMaps();
   const storage = useStorageBreakdown();
@@ -71,8 +74,21 @@ export const BagDecks = () => {
     const deck = decks?.find((d) => d.id === id);
     setEditingId(undefined);
     removeDeckbyId(id);
+    // Tossing the Up next deck: the star moves to the next deck, so the page
+    // keeps its table buttons and never points at a deck that is gone.
+    if (id === star) {
+      const next = decks?.find((d) => d.id !== id);
+      if (next) setStar(next.id);
+      else clearStar();
+    }
     track("deck_removed", { source: knownAddSource(deck) });
     toast.success(`Tossed ${deck?.name} from your bag`);
+  };
+
+  const clearAll = async () => {
+    setEditingId(undefined);
+    await clearDecks();
+    toast.success("Cleared your bag");
   };
 
   const makeUpNext = (id: string) => {
@@ -193,6 +209,15 @@ export const BagDecks = () => {
                   ))}
                   <AddTile onClick={focusPaste} />
                 </Grid>
+                <Flex justify="flex-end" mt="1rem" opacity={0.75} _hover={{ opacity: 1 }}>
+                  <DangerConfirm
+                    label="Clear bag"
+                    question={`Toss all ${count} ${count === 1 ? "deck" : "decks"}?`}
+                    confirmLabel={`Clear all ${count}`}
+                    onConfirm={() => void clearAll()}
+                    size="xs"
+                  />
+                </Flex>
               </>
             )}
           </Box>

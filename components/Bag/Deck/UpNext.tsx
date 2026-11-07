@@ -11,6 +11,7 @@ import {
 } from "@/components/Bag/AddDeckHub/DeckPreview";
 import { useTableActions } from "@/components/Bag/AddDeckHub/useTableActions";
 import { BagSource } from "@/lib/bag/bagStore";
+import { DangerConfirm } from "./DangerConfirm";
 import { deckSourceLabel } from "./deckSource";
 
 const textLink = {
@@ -64,7 +65,9 @@ export const UpNextCard = ({
       p={{ base: "0.75rem", md: "0.9rem" }}
       color="brand.secondary"
     >
-      <Cardback deck={deck} w="100%" h={{ base: "90px", md: "118px" }} />
+      <Box gridRow={{ md: "1 / span 3" }} alignSelf="center">
+        <Cardback deck={deck} w="100%" h={{ base: "90px", md: "118px" }} />
+      </Box>
       <Box minW={0}>
         <Flex align="center" gap="0.5rem">
           <Text
@@ -95,16 +98,20 @@ export const UpNextCard = ({
           {deck.name}
         </Text>
         <DeckStatLine deck={deck} prefix={source?.label} fontSize="0.85rem" />
+      </Box>
 
-        <Flex
-          mt="0.6rem"
-          gap="0.5rem"
-          direction={{ base: "column", md: "row" }}
-          align={{ base: "stretch", md: "center" }}
-          flexWrap="wrap"
-          // the buttons sit under the cardback on a phone, full width
-          gridColumn={{ base: "1 / -1", md: "auto" }}
-        >
+      {/*
+        Direct grid children, so on a phone they span both columns under the
+        cardback at full width; on md they sit in the right-hand column.
+      */}
+      <Flex
+        mt={{ base: "0.1rem", md: "0" }}
+        gap="0.5rem"
+        direction={{ base: "column", md: "row" }}
+        align={{ base: "stretch", md: "center" }}
+        flexWrap="wrap"
+        gridColumn={{ base: "1 / -1", md: "2" }}
+      >
           <Button
             {...goldButton}
             as={NextLink}
@@ -131,15 +138,14 @@ export const UpNextCard = ({
           </Button>
         </Flex>
 
-        <Flex
-          mt="0.5rem"
-          fontSize="0.82rem"
-          opacity={0.9}
-          gap="0.35rem"
-          flexWrap="wrap"
-          align="center"
-          gridColumn={{ base: "1 / -1", md: "auto" }}
-        >
+      <Flex
+        fontSize="0.82rem"
+        opacity={0.9}
+        gap="0.35rem"
+        flexWrap="wrap"
+        align="center"
+        gridColumn={{ base: "1 / -1", md: "2" }}
+      >
           <Text as="span">
             Map: <b>{mapTitle}</b>
           </Text>
@@ -160,12 +166,9 @@ export const UpNextCard = ({
               </Button>
             </>
           )}
-          <span>·</span>
-          <Button {...textLink} color="brand.danger" onClick={onToss}>
-            Toss
-          </Button>
-        </Flex>
-      </Box>
+        <span>·</span>
+        <DangerConfirm label="Toss" question={`Toss ${deck.name}?`} onConfirm={onToss} />
+      </Flex>
     </Grid>
   );
 };

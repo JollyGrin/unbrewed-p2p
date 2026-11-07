@@ -86,6 +86,79 @@ describe("decodeClubExport", () => {
     expect(relative?.cardImage?.url).toMatch(/^https:\/\/www\.the-unmatched\.club\/drive\/files\//);
   });
 
+  /** Edit one slot of the flattened body and decode it. */
+  const mutated = (edit: (data: unknown[], root: Record<string, number>) => void) => {
+    const body = JSON.parse(JSON.stringify(ripley)) as typeof ripley;
+    const data = body.nodes[0].data as unknown[];
+    edit(data, data[0] as Record<string, number>);
+    return body;
+  };
+  const hero = (data: unknown[], root: Record<string, number>) => data[root.hero] as Record<string, number>;
+
+  it("count: 0 is a card taken out of the deck, not one copy (review)", () => {
+    const body = mutated((data, root) => {
+      const cards = data[root.cards] as number[];
+      const first = data[cards[0]] as Record<string, number>;
+      // give the first card its own `count` slot holding 0
+      data.push(0);
+      data[cards[0]] = { ...first, count: data.length - 1 };
+    });
+    const { deck: trimmed } = decodeClubExport(body, "2304");
+    const draw = trimmed.deck_data.cards.filter((c) => !c.isCharacterCard);
+    expect(draw).toHaveLength(11);
+    expect(draw.reduce((n, c) => n + c.quantity, 0)).toBe(28);
+  });
+
+  it("malformed bodies are parse errors, never TypeErrors (review)", () => {
+    const cases: Array<[string, (data: unknown[], root: Record<string, number>) => void]> = [
+      ["cards as an object", (data, root) => { data[root.cards] = { a: 1 }; }],
+      ["cards as a string", (data, root) => { data[root.cards] = "lots"; }],
+      ["a -1 entry in cards", (data, root) => { (data[root.cards] as number[]).push(-1); }],
+      ["an out-of-range entry in cards", (data, root) => { (data[root.cards] as number[]).push(99999); }],
+      ["a numeric title", (data, root) => { hero(data, root).title = root.hero; data[root.hero] = { ...hero(data, root), title: 999 }; }],
+      ["non-array tiptap content", (data, root) => {
+        const cards = data[root.cards] as number[];
+        const first = data[cards[0]] as Record<string, number>;
+        data[first.description] = { type: "doc", content: 12 };
+      }],
+      ["characters as a string", (data, root) => { data[root.hero] = { ...hero(data, root), characters: 3 }; }],
+    ];
+    for (const [label, edit] of cases) {
+      const body = mutated(edit);
+      let threw: unknown;
+      let decoded: ReturnType<typeof decodeClubExport> | undefined;
+      try {
+        decoded = decodeClubExport(body, "2304");
+      } catch (err) {
+        threw = err;
+      }
+      // either a clean decode or a ClubImportError — never a TypeError
+      if (threw) {
+        expect([label, (threw as Error).name]).toEqual([label, "ClubImportError"]);
+        expect((threw as ClubImportError).status).toBe("parse_error");
+      } else {
+        expect([label, decoded?.deck.name]).toEqual([label, expect.any(String)]);
+      }
+    }
+    // the ones that must refuse outright
+    expect(() => decodeClubExport(mutated((d, r) => { d[r.cards] = { a: 1 }; }))).toThrow(ClubImportError);
+    expect(() => decodeClubExport(mutated((d, r) => { d[r.cards] = "lots"; }))).toThrow(ClubImportError);
+  });
+
+  it("shared references rehydrate once each, so a body full of them stays fast (review)", () => {
+    // one object referenced from 20 nested levels, each level referencing it 20 times
+    const data: unknown[] = [{ hero: 1, cards: 2 }, { title: 3, characters: 4, cardsBack: 5 }, [], "Shared", [], ""];
+    let prev = 3;
+    for (let i = 0; i < 20; i++) {
+      data.push(Array.from({ length: 20 }, () => prev));
+      prev = data.length - 1;
+    }
+    (data[1] as Record<string, number>).characters = prev;
+    const start = Date.now();
+    expect(() => decodeClubExport({ nodes: [{ data }] })).toThrow(ClubImportError); // no cards
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
+
   it("a body without a deck node is a parse error, never a crash", () => {
     expect(() => decodeClubExport({ type: "data", nodes: [] })).toThrow(ClubImportError);
     expect(() => decodeClubExport(null)).toThrow(ClubImportError);
@@ -129,9 +202,23 @@ describe("fetchClubDeck", () => {
       throw new TypeError("Failed to fetch");
     }) as unknown as typeof fetch;
     await expect(fetchClubDeck("1")).rejects.toMatchObject({ status: "network" });
-    global.fetch = jest.fn(async () =>
-      Promise.resolve({ ok: true, status: 200, json: async () => { throw new SyntaxError("x"); } } as unknown as Response),
-    ) as unknown as typeof fetch;
-    await expect(fetchClubDeck("1")).rejects.toMatchObject({ status: "parse_error" });
+    // not JSON at any status (HTML from an edge, a wrong API_URL): unavailable, not "no deck"
+    for (const status of [200, 404, 502]) {
+      global.fetch = jest.fn(async () =>
+        Promise.resolve({ ok: status < 400, status, json: async () => { throw new SyntaxError("x"); } } as unknown as Response),
+      ) as unknown as typeof fetch;
+      await expect(fetchClubDeck("1")).rejects.toMatchObject({ status: "unavailable" });
+    }
+  });
+
+  it("a body the decoder can't read is a parse_error, whatever it threw (review)", async () => {
+    const body = JSON.parse(JSON.stringify(ripley)) as typeof ripley;
+    const data = body.nodes[0].data as unknown[];
+    (data[(data[0] as { cards: number }).cards] as number[]).push(-1);
+    global.fetch = jest.fn(async () => json(body)) as unknown as typeof fetch;
+    const { deck } = await fetchClubDeck("2304");
+    expect(deck.name).toBe("Ellen Ripley"); // a -1 card entry is simply skipped
+    data[(data[0] as { cards: number }).cards] = { nope: 1 };
+    await expect(fetchClubDeck("2304")).rejects.toMatchObject({ status: "parse_error" });
   });
 });

@@ -154,6 +154,7 @@ export const DeckPreview = ({
   const [busy, setBusy] = useState<TableDestination | "save">();
 
   const go = async (destination?: TableDestination) => {
+    if (busy) return;
     setBusy(destination ?? "save");
     try {
       const id = await onSave();
@@ -250,7 +251,7 @@ export const DeckPreview = ({
       >
         <Button
           {...goldButton}
-          isDisabled={isDisabled}
+          isDisabled={isDisabled || !!busy}
           isLoading={busy === "offline"}
           onClick={() => go("offline")}
         >
@@ -258,7 +259,7 @@ export const DeckPreview = ({
         </Button>
         <Button
           {...purpleButton}
-          isDisabled={isDisabled}
+          isDisabled={isDisabled || !!busy}
           isLoading={busy === "connect"}
           onClick={() => go("connect")}
         >
@@ -273,7 +274,7 @@ export const DeckPreview = ({
           textUnderlineOffset="3px"
           h={{ base: "2.5rem", md: "auto" }}
           px={{ base: 0, md: "0.5rem" }}
-          isDisabled={isDisabled}
+          isDisabled={isDisabled || !!busy}
           isLoading={busy === "save"}
           onClick={() => go()}
         >

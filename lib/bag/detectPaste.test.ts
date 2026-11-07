@@ -36,6 +36,30 @@ describe("detectDeckPaste", () => {
     expect(detectDeckPaste("pk1x")).toEqual({ kind: "code", code: "pk1x" });
     expect(detectDeckPaste("x2_V")).toEqual({ kind: "code", code: "x2_V" });
     expect(detectDeckPaste("lB-k")).toEqual({ kind: "code", code: "lB-k" });
+    expect(detectDeckPaste("DOPE")).toEqual({ kind: "code", code: "DOPE" });
+    expect(detectDeckPaste("NQ5XP")).toEqual({ kind: "code", code: "NQ5XP" });
+  });
+
+  it("a plain word is not a code: no fetch, no failed add (review)", () => {
+    for (const word of ["hello", "Medusa", "garbage", "medusa", "deck", "abcdef"]) {
+      expect(detectDeckPaste(word)).toEqual({ kind: "unknown", looksLikeJson: false });
+    }
+  });
+
+  it("`shared/` counts as Labs only on the Labs host (review)", () => {
+    expect(detectDeckPaste("https://drive.google.com/drive/shared/abc")).toEqual({
+      kind: "url",
+      url: "https://drive.google.com/drive/shared/abc",
+    });
+    expect(detectDeckPaste("https://www.unmatchedlabs.com/shared/abc")).toMatchObject({ kind: "labs" });
+  });
+
+  it("any other http(s) link is fetched in case it serves deck JSON (the old From URL import)", () => {
+    expect(detectDeckPaste("https://example.com/decks/mine.json")).toEqual({
+      kind: "url",
+      url: "https://example.com/decks/mine.json",
+    });
+    expect(detectDeckPaste("example.com/mine.json")).toEqual({ kind: "unknown", looksLikeJson: false });
   });
 
   it("JSON: single deck, deck array, backup bundle", () => {
@@ -82,7 +106,7 @@ describe("detectDeckPaste", () => {
     expect(detectDeckPaste("not a deck at all")).toEqual({ kind: "unknown", looksLikeJson: false });
     expect(detectDeckPaste("{not json")).toEqual({ kind: "unknown", looksLikeJson: true });
     expect(detectDeckPaste('{"hello":"world"}')).toEqual({ kind: "unknown", looksLikeJson: true });
-    expect(detectDeckPaste("https://example.com/whatever")).toEqual({
+    expect(detectDeckPaste("ftp://example.com/whatever")).toEqual({
       kind: "unknown",
       looksLikeJson: false,
     });

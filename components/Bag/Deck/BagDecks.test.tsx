@@ -62,7 +62,8 @@ const bag = (decks: DeckImportType[], extra: Record<string, unknown> = {}) => {
     updateDeck: jest.fn(),
     setStar: jest.fn(),
     star: decks[0]?.id,
-    clearDecks: jest.fn(),
+    clearDecks: jest.fn(async () => undefined),
+    clearStar: jest.fn(),
     isLoading: false,
     sourceOf: () => "device",
     cloudIdOf: () => undefined,
@@ -194,24 +195,63 @@ describe("BagDecks", () => {
     ]);
   });
 
-  it("tossing from the detail menu drops the deck and returns to the shelf", () => {
+  it("tossing from the detail menu asks first, then drops the deck and returns to the shelf", () => {
     const { removeDeckbyId } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
     renderBag();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
     fireEvent.click(screen.getByRole("button", { name: "More deck actions" }));
     fireEvent.click(menuItem("Toss from bag"));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss Alpha from your bag?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, toss it" }));
 
     expect(removeDeckbyId).toHaveBeenCalledWith("a");
     expect(mockTrack).toHaveBeenCalledWith("deck_removed", { source: undefined });
     expect(pasteBar()).toBeVisible();
   });
 
-  it("Toss on the Up next card tosses without opening the detail", () => {
+  it("Toss on the Up next card is two taps: Cancel keeps the deck, Yes tosses it (review)", () => {
     const { removeDeckbyId } = bag([deck("a", "Alpha")]);
     renderBag();
     fireEvent.click(screen.getByRole("button", { name: "Toss" }));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss Alpha?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Toss" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
     expect(removeDeckbyId).toHaveBeenCalledWith("a");
+  });
+
+  it("tossing the Up next deck stars the next one, or clears the star when the bag empties (review)", () => {
+    const { setStar } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Toss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    expect(setStar).toHaveBeenCalledWith("b");
+
+    const { clearStar, setStar: setStar2 } = bag([deck("a", "Alpha")]);
+    renderBag();
+    fireEvent.click(screen.getAllByRole("button", { name: "Toss" }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Yes" }).at(-1)!);
+    expect(clearStar).toHaveBeenCalled();
+    expect(setStar2).not.toHaveBeenCalled();
+  });
+
+  it("Clear bag is back, low-key under the tiles, with the same confirm (review)", () => {
+    const { clearDecks } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Clear bag" }));
+    expect(clearDecks).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss all 2 decks?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(clearDecks).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Clear bag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all 2" }));
+    expect(clearDecks).toHaveBeenCalled();
   });
 
   it("keeps a still-loading account bag on a spinner, never a flash of empty", () => {

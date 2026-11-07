@@ -16,6 +16,7 @@ import { AddImageDeck } from "@/components/Bag/ImageDeck";
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { AddJson } from "@/components/Bag/Deck/AddJson";
 import { ClubPanel } from "./ClubPanel";
+import { UrlPanel } from "./UrlPanel";
 import { CodePanel } from "./CodePanel";
 import { FoundLine } from "./FoundLine";
 import { LabsPanel } from "./LabsPanel";
@@ -213,7 +214,6 @@ export const AddDeckHub = ({
       <Box mt={detected.kind === "empty" ? 0 : "0.25rem"}>
         {detected.kind === "labs" && (
           <LabsPanel
-            key={detected.link}
             link={detected.link}
             pushDeck={pushDeck}
             setStar={setStar}
@@ -241,21 +241,24 @@ export const AddDeckHub = ({
         {detected.kind === "club" && (
           <ClubPanel id={detected.id} pushDeck={pushDeck} setStar={setStar} onAdded={added} />
         )}
-        {detected.kind === "unknown" && (
-          <FoundLine tone="problem">
-            Not a deck we recognise.{" "}
-            {detected.looksLikeJson
-              ? "That JSON isn't a deck, a backup or a Tabletop Simulator export. "
-              : ""}
-            Paste a link from {siteLink("https://unmatched.cards/decks", "unmatched.cards")},{" "}
-            {siteLink("https://www.unmatchedlabs.com", "Unmatched Labs")} or{" "}
-            {siteLink("https://the-unmatched.club", "the-unmatched.club")}.
-          </FoundLine>
+        {detected.kind === "url" && (
+          <UrlPanel url={detected.url} onAdded={added} notRecognised={<NotRecognised looksLikeJson />} />
         )}
+        {detected.kind === "unknown" && <NotRecognised looksLikeJson={detected.looksLikeJson} />}
       </Box>
     </Box>
   );
 };
+
+const NotRecognised = ({ looksLikeJson }: { looksLikeJson: boolean }) => (
+  <FoundLine tone="problem">
+    Not a deck we recognise.{" "}
+    {looksLikeJson ? "That JSON isn't a deck, a backup or a Tabletop Simulator export. " : ""}
+    Paste a link from {siteLink("https://unmatched.cards/decks", "unmatched.cards")},{" "}
+    {siteLink("https://www.unmatchedlabs.com", "Unmatched Labs")} or{" "}
+    {siteLink("https://the-unmatched.club", "the-unmatched.club")}.
+  </FoundLine>
+);
 
 const TextLink = ({
   children,

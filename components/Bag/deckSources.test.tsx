@@ -196,9 +196,13 @@ describe("AddImageDeck", () => {
     });
     const name = screen.getByText("Deck name").parentElement!.querySelector("input")!;
     fireEvent.change(name, { target: { value: "My Secret Brew" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save & use this deck/ }));
+    // the same three actions as a fetched deck (#1538 review)
+    expect(screen.getByRole("button", { name: "▶ Solo table" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "⚔ Invite a friend" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Save for later/ }));
     await waitFor(() => expect(mockPushDeck).toHaveBeenCalled());
     expect(mockPushDeck.mock.calls[0][1]).toEqual({ source: "image" });
+    expect((mockPushDeck.mock.calls[0][0] as { name: string }).name).toBe("My Secret Brew");
   });
 });
 

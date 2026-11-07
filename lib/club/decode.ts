@@ -60,18 +60,36 @@ export type ClubDeck = {
 
 type Flat = unknown[];
 
-const rehydrate = (data: Flat, index: unknown, depth = 0): unknown => {
-  if (typeof index !== "number" || index < 0 || depth > 64) return undefined;
-  const value = data[index];
-  if (Array.isArray(value)) return value.map((i) => rehydrate(data, i, depth + 1));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([k, i]) => [
-        k,
-        rehydrate(data, i, depth + 1),
-      ]),
-    );
+/**
+ * Rehydrate by index, memoised: devalue shares one entry between every
+ * reference to the same value (an empty `i18n`, a repeated string), so an
+ * unmemoised walk is exponential in the number of shared references.
+ * Cycles (which devalue can encode) rehydrate as `undefined` at the back
+ * edge rather than recursing forever.
+ */
+const rehydrate = (data: Flat, index: unknown, seen = new Map<number, unknown>()): unknown => {
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= data.length) {
+    return undefined;
   }
+  if (seen.has(index)) return seen.get(index);
+  const value = data[index];
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    seen.set(index, undefined);
+    for (const i of value) out.push(rehydrate(data, i, seen));
+    seen.set(index, out);
+    return out;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    seen.set(index, undefined);
+    for (const [k, i] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = rehydrate(data, i, seen);
+    }
+    seen.set(index, out);
+    return out;
+  }
+  seen.set(index, value);
   return value;
 };
 
@@ -148,10 +166,14 @@ export type ClubExport = {
 
 /* ------------------------------------------------------------------- text */
 
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v.trim() || undefined : undefined);
+
+const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
 const textOf = (node: TiptapNode | undefined): string => {
-  if (!node) return "";
+  if (!node || typeof node !== "object") return "";
   if (typeof node.text === "string") return node.text;
-  const parts = (node.content ?? []).map(textOf).filter(Boolean);
+  const parts = list<TiptapNode>(node.content).map(textOf).filter(Boolean);
   // paragraphs inside a block read as lines
   return node.type === "paragraph" || node.type === "heading"
     ? parts.join("")
@@ -160,10 +182,10 @@ const textOf = (node: TiptapNode | undefined): string => {
 
 /** `{ title, basic, immediate, during, after }` from a club card description. */
 const cardText = (doc: TiptapNode | undefined) => {
-  const blocks = doc?.content ?? [];
+  const blocks = doc && typeof doc === "object" ? list<TiptapNode>(doc.content) : [];
   const pick = (type: string) =>
     blocks
-      .filter((b) => b.type === type)
+      .filter((b) => b && typeof b === "object" && b.type === type)
       .map(textOf)
       .join("\n")
       .trim();
@@ -178,8 +200,8 @@ const cardText = (doc: TiptapNode | undefined) => {
 };
 
 /** Some club art is site-relative (`/drive/files/<id>/raw`). */
-export const absoluteClubUrl = (url: string | undefined): string | undefined => {
-  const trimmed = url?.trim();
+export const absoluteClubUrl = (url: unknown): string | undefined => {
+  const trimmed = str(url);
   if (!trimmed) return undefined;
   return trimmed.startsWith("/") ? `${CLUB_ORIGIN}${trimmed}` : trimmed;
 };
@@ -208,35 +230,53 @@ const num = (v: unknown, fallback: number): number => {
 export const decodeClubExport = (body: unknown, id?: string): ClubDeck => {
   const root = rehydrateClubExport(body);
   const hero = root?.hero;
-  if (!root || !hero) throw new ClubImportError("parse_error", "That isn't a club deck page");
+  if (!root || !hero || typeof hero !== "object") {
+    throw new ClubImportError("parse_error", "That isn't a club deck page");
+  }
+  // Every club field is read defensively: a body this far off the recorded
+  // shape is a parse error, never a thrown TypeError.
+  if (!Array.isArray(root.cards)) {
+    throw new ClubImportError("parse_error", "That club deck page carries no card list");
+  }
 
   const warnings: string[] = [];
-  const character = hero.characters?.[0];
-  const heroName = character?.name?.trim() || hero.title?.trim() || "Club deck";
-  const deckName = hero.title?.trim() || heroName;
-  const sidekick = hero.sidekicks?.[0];
-  const previews = root.cardPreviewUrls ?? {};
+  const character = list<ClubCharacter>(hero.characters).find((c) => c && typeof c === "object");
+  const heroName = str(character?.name) ?? str(hero.title) ?? "Club deck";
+  const deckName = str(hero.title) ?? heroName;
+  const sidekick = list<ClubSidekick>(hero.sidekicks).find((c) => c && typeof c === "object");
+  const previews =
+    root.cardPreviewUrls && typeof root.cardPreviewUrls === "object" ? root.cardPreviewUrls : {};
+  const actionPreviews =
+    previews.action && typeof previews.action === "object" ? previews.action : {};
+  const characterPreviews =
+    previews.character && typeof previews.character === "object" ? previews.character : {};
   const cardbackUrl = absoluteClubUrl(hero.cardsBack) ?? absoluteClubUrl(root.coverPreviewUrl);
 
   const cards: ParsedTtsCard[] = [];
-  const heroCardUrl = character?.id ? absoluteClubUrl(previews.character?.[character.id]) : undefined;
+  const characterId = str(character?.id);
+  const heroCardUrl = characterId ? absoluteClubUrl(characterPreviews[characterId]) : undefined;
   if (heroCardUrl) {
     cards.push({ title: heroName, quantity: 1, image: { url: heroCardUrl }, isCharacterCard: true });
   }
   const texts: ReturnType<typeof cardText>[] = [];
-  const raw = root.cards ?? [];
+  // Only well-formed cards with at least one copy; `count: 0` is a card the
+  // author took out of the deck, not one copy.
+  const raw = root.cards.filter(
+    (card): card is ClubCard => !!card && typeof card === "object" && num(card.count, 1) > 0,
+  );
   for (const card of raw) {
     const text = cardText(card.description);
+    const key = typeof card.id === "number" || typeof card.id === "string" ? String(card.id) : undefined;
     const url =
-      absoluteClubUrl(card.id !== undefined ? previews.action?.[String(card.id)] : undefined) ??
+      absoluteClubUrl(key !== undefined ? actionPreviews[key] : undefined) ??
       absoluteClubUrl(card.replacementImage) ??
       absoluteClubUrl(card.art);
-    const title = text.title || card.bannerName || "Card";
+    const title = text.title || str(card.bannerName) || "Card";
     if (!url) warnings.push(`${title} has no card image on the club; it shows as text`);
     texts.push(text);
     cards.push({
       title,
-      quantity: Math.max(1, num(card.count, 1)),
+      quantity: num(card.count, 1),
       image: { url: url ?? "" },
     });
   }
@@ -271,7 +311,7 @@ export const decodeClubExport = (body: unknown, id?: string): ClubDeck => {
       type: CARD_TYPES[source.type ?? ""] ?? "versatile",
       value: typeof source.value === "number" ? source.value : null,
       boost: num(source.boostValue, 0),
-      characterName: source.bannerName?.trim() || heroName,
+      characterName: str(source.bannerName) ?? heroName,
       basicText: [text.basic, text.ongoing].filter(Boolean).join("\n"),
       immediateText: text.immediate,
       duringText: text.during,
@@ -279,15 +319,18 @@ export const decodeClubExport = (body: unknown, id?: string): ClubDeck => {
     };
   });
 
-  const clubId = id ?? (hero.id !== undefined ? String(hero.id) : undefined);
+  const clubId =
+    id ?? (typeof hero.id === "number" || typeof hero.id === "string" ? String(hero.id) : undefined);
   deck.id = clubId ? `club-${clubId}` : deck.id;
   deck.family_id = deck.id;
-  deck.user = hero.author?.nickname?.trim() || deck.user;
-  deck.note = `Imported from the-unmatched.club${hero.author?.nickname ? ` — by ${hero.author.nickname}` : ""}`;
+  const author =
+    hero.author && typeof hero.author === "object" ? str(hero.author.nickname) : undefined;
+  deck.user = author ?? deck.user;
+  deck.note = `Imported from the-unmatched.club${author ? ` — by ${author}` : ""}`;
   deck.tags = ["image-deck", "the-unmatched.club"];
   if (clubId) deck.sourceUrl = clubPageUrl(clubId);
 
-  return { deck, author: hero.author?.nickname?.trim() || undefined, warnings };
+  return { deck, author, warnings };
 };
 
 /** Fetch a club deck through the API proxy. Throws ClubImportError. */
@@ -302,13 +345,19 @@ export const fetchClubDeck = async (id: string): Promise<ClubDeck> => {
   try {
     body = await res.json();
   } catch {
-    if (!res.ok) throw new ClubImportError(res.status, `Club proxy answered ${res.status}`);
-    throw new ClubImportError("parse_error", "The club answered with something that isn't JSON");
+    // Not JSON at any status — HTML from an edge, a wrong API_URL — is not
+    // the proxy answering, so it is "unavailable", not "no such deck".
+    throw new ClubImportError("unavailable", `The club proxy answered ${res.status} with something that isn't JSON`);
   }
   if (res.status === 404 && (body as { error?: unknown } | null)?.error !== "not_found") {
     // the API's generic router 404: the proxy route isn't deployed there
     throw new ClubImportError("unavailable", "The club proxy isn't available on this API");
   }
   if (!res.ok) throw new ClubImportError(res.status, `Club proxy answered ${res.status}`);
-  return decodeClubExport(body, id);
+  try {
+    return decodeClubExport(body, id);
+  } catch (err) {
+    if (err instanceof ClubImportError) throw err;
+    throw new ClubImportError("parse_error", `That club deck can't be read: ${(err as Error)?.message ?? err}`);
+  }
 };
