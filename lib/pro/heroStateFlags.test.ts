@@ -11,6 +11,7 @@ import {
   HERO_STATE_FLAGS,
   HERO_STATE_COUNTERS,
   flagChipsFor,
+  flagStatOverridesFor,
   offBoardChipsFor,
   isHeroOffBoard,
   counterChipsFor,
@@ -1319,5 +1320,76 @@ describe("off-the-board pill (pose-derived, xenomorph N6)", () => {
   it("does not double up beside a flag pill that already says it (Jason, Boba)", () => {
     expect(offBoardChipsFor({ space: null, defeated: false }, { JASON_RETURN: true })).toEqual([]);
     expect(offBoardChipsFor({ space: null, defeated: false }, { SLAVE_I: true })).toEqual([]);
+  });
+});
+
+describe("William Afton — SPRINGTRAP (issue #1530 ↔ engine #1018/#1019)", () => {
+  it("one-sided nameplate pill: SPRINGTRAP while the flag is set, nothing before the revive", () => {
+    const chips = flagChipsFor("william-afton", { SPRINGTRAP: true });
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toMatchObject({ on: true, chip: expect.objectContaining({ flag: "SPRINGTRAP" }) });
+    expect(flagChipsFor("william-afton", undefined)).toEqual([]);
+    expect(flagChipsFor("william-afton", { SPRINGTRAP: false })).toEqual([]);
+  });
+
+  it("swaps the board/replay portrait to Springtrap on the flag, and only for william-afton", () => {
+    expect(fighterTokenArtFor("william-afton", { SPRINGTRAP: true })).toMatch(/art\/william-afton\/token-springtrap\.webp$/);
+    expect(fighterTokenArtFor("william-afton", undefined)).toBeNull();
+    expect(fighterTokenArtFor("william-afton", {})).toBeNull();
+    expect(fighterTokenArtFor("king-kong", { SPRINGTRAP: true })).toBeNull();
+  });
+
+  it("the SPRINGTRAP pile chip counts the set-aside cards and disappears once the engine prunes the pile", () => {
+    const ten = Array.from({ length: 10 }, (_, i) => `william-afton/die#${i}`);
+    const chips = counterChipsFor("william-afton", {}, { SPRINGTRAP: ten });
+    expect(chips).toEqual([expect.objectContaining({ on: true })]);
+    expect(chips[0].chip.onLabel).toBe("🐰 10");
+    expect(counterChipsFor("william-afton", {}, {})).toEqual([]);
+    expect(pileDisplayName("SPRINGTRAP")).toBe("Springtrap cards");
+  });
+  it("overrides the nameplate move to Springtrap's 2 only while the flag is set (issue #1535)", () => {
+    expect(flagStatOverridesFor("william-afton", { SPRINGTRAP: true })).toEqual({ move: 2 });
+    expect(flagStatOverridesFor("william-afton", undefined)).toEqual({});
+    expect(flagStatOverridesFor("william-afton", { SPRINGTRAP: false })).toEqual({});
+    expect(flagStatOverridesFor("king-kong", { SPRINGTRAP: true })).toEqual({});
+  });
+});
+
+describe("flagStatOverridesFor — generic over the registry (issue #1535)", () => {
+  const withRows = (rows: typeof HERO_STATE_FLAGS, fn: () => void) => {
+    const saved = HERO_STATE_FLAGS.splice(0, HERO_STATE_FLAGS.length, ...rows);
+    try {
+      fn();
+    } finally {
+      HERO_STATE_FLAGS.splice(0, HERO_STATE_FLAGS.length, ...saved);
+    }
+  };
+
+  it("applies an exclusive group's ACTIVE member, its isDefault included", () => {
+    withRows(
+      [
+        { flag: "FORM_A", heroes: ["h"], group: "g", isDefault: true, stats: { move: 4 } },
+        { flag: "FORM_B", heroes: ["h"], group: "g", stats: { move: 1 } },
+      ],
+      () => {
+        expect(flagStatOverridesFor("h", {})).toEqual({ move: 4 });
+        expect(flagStatOverridesFor("h", { FORM_B: true })).toEqual({ move: 1 });
+      }
+    );
+  });
+
+  it("the first active row in registry order wins, and rows without stats are ignored", () => {
+    withRows(
+      [
+        { flag: "PLAIN", heroes: ["h"] },
+        { flag: "SLOW", heroes: ["h"], stats: { move: 1 } },
+        { flag: "FAST", heroes: ["h"], stats: { move: 5 } },
+      ],
+      () => {
+        expect(flagStatOverridesFor("h", { PLAIN: true })).toEqual({});
+        expect(flagStatOverridesFor("h", { SLOW: true, FAST: true })).toEqual({ move: 1 });
+        expect(flagStatOverridesFor("h", { FAST: true })).toEqual({ move: 5 });
+      }
+    );
   });
 });

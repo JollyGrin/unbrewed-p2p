@@ -59,6 +59,7 @@ export const PUBLIC_ROSTER: readonly RosterHero[] = [
   { heroId: "thetis-spice", name: "Thetis" },
   { heroId: "thrall", name: "Thrall" },
   { heroId: "triceratops", name: "Triceratops" },
+  { heroId: "william-afton", name: "William Afton" },
   { heroId: "xenomorph", name: "Xenomorph" },
 ];
 

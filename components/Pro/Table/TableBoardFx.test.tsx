@@ -70,10 +70,20 @@ describe("TableBoardFx", () => {
       fx({ key: "b", kind: "heal", label: "+2" }),
       fx({ key: "c", kind: "blocked", label: "BLOCKED" }),
       fx({ key: "d", kind: "defeat", label: "K.O." }),
+      fx({ key: "e", kind: "revive", label: "REVIVED: SPRINGTRAP" }),
     ];
     const { container } = renderFx(items);
-    expect(container.querySelectorAll("[data-table-fx-label]")).toHaveLength(4);
+    expect(container.querySelectorAll("[data-table-fx-label]")).toHaveLength(5);
     expect(screen.getByText("K.O.")).toBeTruthy();
+  });
+
+  it("sets the revive callout at the word size, and plain heal numbers at the number size", () => {
+    renderFx([
+      fx({ key: "a", kind: "heal", label: "+2" }),
+      fx({ key: "b", kind: "revive", label: "REVIVED: SPRINGTRAP" }),
+    ]);
+    expect(getComputedStyle(screen.getByText("+2")).fontSize).toBe("1.6rem");
+    expect(getComputedStyle(screen.getByText("REVIVED: SPRINGTRAP")).fontSize).toBe("1.1rem");
   });
 
   it("still shows the beat under reduced motion, just without the travel", () => {

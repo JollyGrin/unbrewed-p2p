@@ -91,6 +91,7 @@ import { ResolveCard, ResolveHero, ResolveRuleCards } from "@/lib/pro/useProCard
 import {
   FlagHudChip,
   flagChipsFor,
+  flagStatOverridesFor,
   offBoardChipsFor,
   counterChipsFor,
   pileDisplayName,
@@ -1060,8 +1061,8 @@ export const SeatPlate = ({
       </StatLine>
       <MoveChip>
         <GiFootprint size="13px" />
-        <Text fontSize="0.8rem" fontWeight="bold">
-          {hero?.move ?? "–"}
+        <Text fontSize="0.8rem" fontWeight="bold" data-testid="plate-move">
+          {flagStatOverridesFor(heroId, flags).move ?? hero?.move ?? "–"}
         </Text>
       </MoveChip>
     </StatsPanel>

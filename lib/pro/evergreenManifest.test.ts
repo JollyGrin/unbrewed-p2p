@@ -1458,3 +1458,83 @@ describe("Xenomorph snapshot agrees with xenomorph.rules.ts (E3, PR #927)", () =
     expect(deck.deck_data.sidekick).toMatchObject({ name: "Blip", hp: 1, quantity: 3, isRanged: false });
   });
 });
+
+// William Afton / Springtrap (issue #1530 ↔ engine #1018 HeroDef.revive / #1019 deck, William
+// Afton train). the-unmatched.club deck 14750 by bobafettIG88, the requester. Club-only, so
+// the id is unbrewed-minted. Springtrap is the SAME fighter renamed by the engine on revive;
+// the snapshot's one hero slot carries both character cards' ability text.
+describe("William Afton (william-afton) deck data", () => {
+  const deck = readDeck("william-afton");
+  type Card = { title: string; type: string; value: number | null; boost: number; quantity: number; characterName: string; imageUrl: string; cardImage?: { url: string } };
+  const cards = deck.deck_data.cards as Card[];
+  const SOURCE = "https://www.the-unmatched.club/c/heroes/william-afton.14750";
+  // [title, type, value, boost, quantity, characterName] — transcribed from the engine's
+  // data/heroes/william-afton.rules.ts (#1019); usableBy HERO → "Springtrap", ANY → "Any".
+  const ENGINE: [string, string, number, number, number, string][] = [
+    ["slip away", "defense", 3, 2, 3, "Any"],
+    ["Jump Scare", "versatile", 3, 2, 2, "Springtrap"],
+    ["Die!", "attack", 5, 3, 2, "Springtrap"],
+    ["Man Behind The Slaughter", "scheme", 0, 3, 2, "Any"],
+    ["A Monster", "scheme", 0, 2, 2, "Springtrap"],
+    ["i'd do it again", "attack", 2, 3, 2, "Any"],
+    ["You will not be saved", "attack", 1, 1, 2, "Springtrap"],
+    ["I Will Never Die", "defense", 2, 1, 2, "Springtrap"],
+    ["Regroup", "versatile", 1, 2, 2, "Any"],
+    ["Spring-lock suit", "versatile", 2, 2, 2, "Any"],
+    ["Feint", "versatile", 2, 2, 3, "Any"],
+    ["Skirmish", "versatile", 4, 1, 3, "Any"],
+    ["You will not be spared", "attack", 4, 3, 3, "Any"],
+  ];
+
+  it("is wired: HERO_DECK_IDS, a lab-tier club tile, a manifest lock", () => {
+    expect(HERO_DECK_IDS["william-afton"]).toBe("william-afton");
+    expect(EVERGREEN_MANIFEST.find((e) => e.deckId === "william-afton")?.heroId).toBe("william-afton");
+    expect(POPULAR_DECKS.find((d) => d.id === "william-afton")).toMatchObject({
+      author: "bobafettIG88",
+      lab: true,
+      tier: "lab",
+      original: true,
+      sourceUrl: SOURCE,
+      cardbackUrl: "/evergreen-decks/art/william-afton/cardback.webp",
+    });
+  });
+
+  it("matches the engine card for card (verbatim titles, the printed 30)", () => {
+    expect(cards).toHaveLength(ENGINE.length);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+    cards.forEach((card, i) => {
+      const [title, type, value, boost, quantity, characterName] = ENGINE[i];
+      expect(card.title).toBe(title);
+      expect(normalizeType(card.type)).toBe(normalizeType(type));
+      expect(card.value ?? 0).toBe(value);
+      expect(card.boost).toBe(boost);
+      expect(card.quantity).toBe(quantity);
+      expect(card.characterName).toBe(characterName);
+    });
+  });
+
+  it("is William Afton 7/3 melee with no sidekick, and carries Springtrap's text", () => {
+    expect(deck.deck_data.hero).toMatchObject({ name: "William Afton", hp: 7, move: 3, isRanged: false });
+    expect(deck.deck_data.sidekick.quantity).toBe(0);
+    expect(deck.deck_data.hero.specialAbility).toContain("revive him as Springtrap");
+    expect(deck.deck_data.hero.specialAbility).toContain("Add +1 to the attack value of all of Springtrap's attacks.");
+  });
+
+  it("ships 13 LOCAL full-card faces, the cardback and the William token", () => {
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/william-afton\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(13);
+    for (const url of [deck.deck_data.appearance.cardbackUrl as string, deck.deck_data.hero.tokenImageUrl as string, "/evergreen-decks/art/william-afton/token-springtrap.webp"]) {
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("leaves NO remote URL in the shipped data but the attribution link", () => {
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) => u.replace(/\\/g, ""));
+    expect([...new Set(urls)]).toEqual([SOURCE]);
+    expect(deck.user).toBe("bobafettIG88");
+  });
+});
