@@ -5,6 +5,7 @@
 import type { ReplayExpansion, ReplayStep, ReplayStepPlayer } from "./protocol";
 import { opponentHand, opponentSeats, seatIds, stepIndexForTurn, toPlayerView, turnMarkers } from "./godView";
 import { deriveTeams } from "./teams";
+import { fighterTokenStateByOwner, flagChipsFor } from "./heroStateFlags";
 
 const step = (index: number, turnNumber: number): ReplayStep => ({
   index,
@@ -143,6 +144,61 @@ describe("teams (2v2 god-view)", () => {
     const v = toPlayerView(step(0, 1), exp, "p1");
     expect(v.players.every((p) => p.team === undefined)).toBe(true);
     expect(deriveTeams(v.players, v.you).active).toBe(false);
+  });
+});
+
+// #1534: per-step flags. William Afton (p1) after the revive vs King Kong (p2).
+const SPRINGTRAP_ART = "https://unbrewed.xyz/evergreen-decks/art/william-afton/token-springtrap.webp";
+const aftonStep = (p1Flags?: Record<string, boolean>): ReplayStep => ({
+  ...step(5, 3),
+  players: {
+    p1: { ...seat("william-afton", []), ...(p1Flags ? { flags: p1Flags } : {}) },
+    p2: seat("king-kong", []),
+  },
+});
+
+describe("per-step flags (#1534)", () => {
+  it.each(["p1", "p2"] as const)(
+    "carries the step's flags onto William's seat with focus %s (every surface of the view)",
+    (focus) => {
+      const v = toPlayerView(aftonStep({ SPRINGTRAP: true }), exp, focus);
+      const afton = focus === "p1" ? v.self : v.opponent!;
+      expect(afton.flags).toEqual({ SPRINGTRAP: true });
+      const other = focus === "p1" ? v.opponent! : v.self;
+      expect(other.flags).toEqual({});
+      expect(v.players.find((p) => p.id === "p1")?.flags).toEqual({ SPRINGTRAP: true });
+      expect(v.players.find((p) => p.id === "p2")?.flags).toEqual({});
+    },
+  );
+
+  it.each(["p1", "p2"] as const)(
+    "yields the Springtrap portrait + SPRINGTRAP pill for William's seat with focus %s",
+    (focus) => {
+      const v = toPlayerView(aftonStep({ SPRINGTRAP: true }), exp, focus);
+      // The scrubber feeds the board exactly this map (ReplayScrubber ownerTokenState).
+      expect(fighterTokenStateByOwner(v.players).p1?.heroArtUrl).toBe(SPRINGTRAP_ART);
+      // ...and the plate's pill row reads the seat's flags.
+      const afton = v.players.find((p) => p.id === "p1")!;
+      expect(flagChipsFor(afton.heroId, afton.flags)).toEqual([
+        expect.objectContaining({ on: true, chip: expect.objectContaining({ flag: "SPRINGTRAP", onLabel: "SPRINGTRAP" }) }),
+      ]);
+    },
+  );
+
+  it("a step without `flags` behaves exactly as before: empty maps, William's portrait, no pill", () => {
+    const v = toPlayerView(aftonStep(), exp, "p1");
+    expect(v.self.flags).toEqual({});
+    expect(v.opponent?.flags).toEqual({});
+    for (const p of v.players) expect(p.flags).toEqual({});
+    expect(fighterTokenStateByOwner(v.players).p1).toBeUndefined();
+    expect(flagChipsFor("william-afton", v.self.flags)).toEqual([]);
+  });
+
+  it("reads flags for every seat in a multiplayer step", () => {
+    const s = ffa3();
+    s.players.p3 = { ...s.players.p3!, flags: { SOME_FLAG: true } };
+    const v = toPlayerView(s, exp, "p1");
+    expect(v.players.map((p) => p.flags)).toEqual([{}, {}, { SOME_FLAG: true }]);
   });
 });
 
