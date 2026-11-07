@@ -11,9 +11,12 @@
  *   3. JSON — a backup bundle / deck array / single deck
  *      ({@link normalizeBundle}), else a Tabletop Simulator export
  *      ({@link parseTtsDeck}; that's how the-unmatched.club decks arrive).
- *   4. A the-unmatched.club page link: nothing to fetch there, say so.
+ *   4. the-unmatched.club — a hero page link (`/c/heroes/<slug>.<id>`),
+ *      fetched through the API proxy ({@link parseClubLink}); any other
+ *      club link has no deck id to fetch, so the panel says what to paste.
  *   5. Anything else is not a deck we recognise.
  */
+import { parseClubLink } from "@/lib/club/decode";
 import { LabsInput, parseLabsInput } from "@/lib/labs/parse";
 import { parseTtsDeck } from "@/lib/tts/parse-tts";
 import { BulkBundle, normalizeBundle, parseJson } from "./bundle";
@@ -24,7 +27,7 @@ export type PasteDetection =
   | { kind: "code"; code: string }
   | { kind: "bundle"; text: string; bundle: BulkBundle }
   | { kind: "tts"; text: string; cardCount: number; name?: string }
-  | { kind: "club" }
+  | { kind: "club"; id?: string }
   | { kind: "unknown"; looksLikeJson: boolean };
 
 const LABS_HOST = /unmatchedlabs\.com/i;
@@ -64,7 +67,7 @@ export const detectDeckPaste = (raw: string): PasteDetection => {
 
   const cardsUrl = CARDS_URL.exec(text);
   if (cardsUrl) return { kind: "code", code: cardsUrl[1] };
-  if (CLUB_HOST.test(text)) return { kind: "club" };
+  if (CLUB_HOST.test(text)) return { kind: "club", id: parseClubLink(text) };
   if (isBareWord) return { kind: "code", code: text };
 
   return { kind: "unknown", looksLikeJson: false };

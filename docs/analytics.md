@@ -105,7 +105,8 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    | `json` | /bag → a single deck's JSON pasted or dropped on the paste bar (`AddJson`) |
    | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`) |
    | `pro-hero` | `deck_selected_for_game` only: a Pro roster deck played without adding it to the bag (#1421) |
-   | `unmatched.cards`, `the-unmatched.club` | Reserved: no add path is distinct from `code` / `tts` today |
+   | `the-unmatched.club` | /bag → a club hero page link pasted on the paste bar, fetched through the API's `/club/heroes/<id>` proxy (#1538). `reason` on failure: the proxy's HTTP status, `network`, `parse_error`, or `unavailable` (an API without the proxy route) |
+   | `unmatched.cards` | Reserved: no add path is distinct from `code` today |
 
    `hero_name` is the deck's catalog hero name and is omitted for `image` and `tts`, whose hero name
    is typed by the player. `deck_id` is the source site's id. Never a deck name. Each added deck stores its

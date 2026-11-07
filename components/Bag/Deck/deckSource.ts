@@ -11,9 +11,10 @@ export const deckSourceLabel = (
     return { chip: "labs", label: "Unmatched Labs" };
   }
   switch (source) {
-    case "tts":
     case "the-unmatched.club":
-      return { chip: "club", label: "Tabletop Simulator export" };
+      return { chip: "club", label: "the-unmatched.club" };
+    case "tts":
+      return { chip: "tts", label: "Tabletop Simulator export" };
     case "image":
       return { chip: "images", label: "Card images" };
     case "starter":
@@ -30,6 +31,7 @@ export const deckSourceLabel = (
     case "unmatched.cards":
       return { chip: "cards", label: "unmatched.cards" };
   }
+  if (deck.tags?.includes("the-unmatched.club")) return { chip: "club", label: "the-unmatched.club" };
   if (deck.tags?.includes("image-deck")) return { chip: "images", label: "Card images" };
   if (/^[A-Za-z0-9_-]{4,8}$/.test(deck.id)) return { chip: "cards", label: "unmatched.cards" };
   return undefined;

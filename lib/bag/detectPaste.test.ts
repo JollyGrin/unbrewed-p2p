@@ -58,8 +58,23 @@ describe("detectDeckPaste", () => {
     expect((found as { cardCount: number }).cardCount).toBeGreaterThan(0);
   });
 
-  it("a the-unmatched.club page link explains the TTS export", () => {
-    expect(detectDeckPaste("https://the-unmatched.club/decks/123")).toEqual({ kind: "club" });
+  it("a the-unmatched.club hero link carries its id; any slug, www or not, /export/ too", () => {
+    expect(detectDeckPaste("https://www.the-unmatched.club/c/heroes/ellen-ripley.2304")).toEqual({
+      kind: "club",
+      id: "2304",
+    });
+    expect(detectDeckPaste("the-unmatched.club/c/heroes/x.2304/")).toEqual({ kind: "club", id: "2304" });
+    expect(
+      detectDeckPaste("https://www.the-unmatched.club/c/heroes/ellen-ripley.2304/export/__data.json"),
+    ).toEqual({ kind: "club", id: "2304" });
+    expect(detectDeckPaste("https://the-unmatched.club/c/heroes/2304?x=1")).toEqual({
+      kind: "club",
+      id: "2304",
+    });
+  });
+
+  it("another the-unmatched.club link has no deck id", () => {
+    expect(detectDeckPaste("https://the-unmatched.club/decks/123")).toEqual({ kind: "club", id: undefined });
   });
 
   it("garbage is not a deck", () => {

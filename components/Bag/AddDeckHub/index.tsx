@@ -15,6 +15,7 @@ import { PopularDecks } from "@/components/Bag/PopularDecks";
 import { AddImageDeck } from "@/components/Bag/ImageDeck";
 import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { AddJson } from "@/components/Bag/Deck/AddJson";
+import { ClubPanel } from "./ClubPanel";
 import { CodePanel } from "./CodePanel";
 import { FoundLine } from "./FoundLine";
 import { LabsPanel } from "./LabsPanel";
@@ -238,11 +239,7 @@ export const AddDeckHub = ({
           </>
         )}
         {detected.kind === "club" && (
-          <FoundLine tone="problem">
-            A the-unmatched.club page can&apos;t be fetched from here. On the
-            club page, export the deck for Tabletop Simulator and drop that
-            file on this bar.
-          </FoundLine>
+          <ClubPanel id={detected.id} pushDeck={pushDeck} setStar={setStar} onAdded={added} />
         )}
         {detected.kind === "unknown" && (
           <FoundLine tone="problem">
@@ -251,8 +248,7 @@ export const AddDeckHub = ({
               ? "That JSON isn't a deck, a backup or a Tabletop Simulator export. "
               : ""}
             Paste a link from {siteLink("https://unmatched.cards/decks", "unmatched.cards")},{" "}
-            {siteLink("https://www.unmatchedlabs.com", "Unmatched Labs")} or a Tabletop
-            Simulator export from{" "}
+            {siteLink("https://www.unmatchedlabs.com", "Unmatched Labs")} or{" "}
             {siteLink("https://the-unmatched.club", "the-unmatched.club")}.
           </FoundLine>
         )}

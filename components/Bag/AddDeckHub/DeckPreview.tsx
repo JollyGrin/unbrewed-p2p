@@ -20,8 +20,9 @@ export const DeckStatLine = ({
 }) => {
   const hero = deck.deck_data?.hero;
   const sidekick = deck.deck_data?.sidekick;
+  // the draw pile: hero/rule cards ride along as reference tokens, not cards
   const cards = (deck.deck_data?.cards ?? []).reduce(
-    (n, card) => n + (Number(card.quantity) || 0),
+    (n, card) => n + (card.isCharacterCard ? 0 : Number(card.quantity) || 0),
     0,
   );
   const parts: ReactNode[] = [];
