@@ -194,9 +194,12 @@ export function useGameFx(
     const reduced = prefersReducedMotion();
     let arcConsumed = false;
     // Revive sequencing (see REVIVE_STEP_MS): when a fighter's damage beat is carried
-    // by the arc, the revive waits for the landing; a K.O. after a revive waits for it.
+    // by the arc, the revive waits for the landing; a K.O. after a revive waits for it;
+    // and a game-ending fanfare waits for the whole sequence (`reviveEndMs`, 0 = no
+    // revive this batch, so every other batch keeps its timing).
     const arcedFighter = new Set<FighterId>();
     const reviveAtMs = new Map<FighterId, number>();
+    let reviveEndMs = 0;
     const reviveStepMs = Math.round(REVIVE_STEP_MS * paceRef.current);
     const later = (delayMs: number, run: () => void) => {
       if (delayMs <= 0) run();
@@ -257,6 +260,7 @@ export function useGameFx(
           const atMs =
             (arcedFighter.has(e.fighter) ? timing.arcLaunchMs + timing.arcFlightMs : 0) + reviveStepMs;
           reviveAtMs.set(e.fighter, atMs);
+          reviveEndMs = Math.max(reviveEndMs, atMs);
           later(atMs, () => {
             if (sound) sfx.play("heal");
             emitBoardFx(e.space, "revive", `REVIVED: ${e.name.toUpperCase()}`);
@@ -266,7 +270,9 @@ export function useGameFx(
         case "defeated": {
           // A K.O. after a same-window revive comes after the revive callout.
           const revivedAt = reviveAtMs.get(e.fighter);
-          later(revivedAt === undefined ? 0 : revivedAt + reviveStepMs, () => {
+          const koAtMs = revivedAt === undefined ? 0 : revivedAt + reviveStepMs;
+          reviveEndMs = Math.max(reviveEndMs, koAtMs);
+          later(koAtMs, () => {
             // your own fighter falling tolls lower
             if (sound) sfx.play("defeat", e.mine ? { rate: 0.8 } : undefined);
             emitBoardFx(e.space, "defeat", "K.O.");
@@ -285,11 +291,18 @@ export function useGameFx(
           // "The Snuff" (#346) — the fuse-fizzle punctuating a cancelled card.
           if (sound) sfx.play("snuff");
           break;
+        // diffFxEvents emits these last, so a revive sequence in the same batch (a
+        // revive + same-window K.O. that ends the game) is fully scheduled by now:
+        // the fanfare trails it — hit → revive → K.O. → fanfare.
         case "victory":
-          if (sound) sfx.play("victory");
+          later(reviveEndMs > 0 ? reviveEndMs + reviveStepMs : 0, () => {
+            if (sound) sfx.play("victory");
+          });
           break;
         case "loss":
-          if (sound) sfx.play("loss");
+          later(reviveEndMs > 0 ? reviveEndMs + reviveStepMs : 0, () => {
+            if (sound) sfx.play("loss");
+          });
           break;
       }
     }
