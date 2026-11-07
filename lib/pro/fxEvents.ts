@@ -9,6 +9,7 @@
 import { FighterId, GameEvent, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
 import { isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
+import { isHeroRevive } from "./heroRevive";
 import { isNoWinner } from "./combatOutcome";
 import { faceUpCommitter, isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { mustDefend } from "./defenseTurn";
@@ -147,7 +148,7 @@ export function diffFxEvents(
     // further damage in the same window defeats it before the next view). The hp
     // numbers would compare two different dials, so the batch narrates the blow that
     // emptied the OLD dial (prev hp → 0), the revive, then — if it fell again — the K.O.
-    if (f.kind === "HERO" && !was.defeated && f.name !== was.name && f.maxHp !== was.maxHp) {
+    if (isHeroRevive(was, f)) {
       anyHpDrop = true; // the blow landed — never read this batch as a block
       if (was.hp > 0) {
         events.push({ type: "damage", fighter: f.id, space, amount: was.hp, mine, heroHit: true });

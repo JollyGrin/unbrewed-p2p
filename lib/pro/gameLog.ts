@@ -19,6 +19,7 @@ import { boardObjectOriginFighter, boardObjectVisualFor } from "./boardObjects";
 import { FIGHTER_MARKER_BADGES } from "./fighterStatuses";
 import { deriveTeams, isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
+import { isHeroRevive } from "./heroRevive";
 import { swappedFighters } from "./positionSwap";
 import { attackerSwapText, defenderChangeKind, defenderChanges, defenderSwapText } from "./combatDefender";
 import { combatOutcomeLogText } from "./combatOutcome";
@@ -469,17 +470,23 @@ export function diffViews(
     // whose name AND dial max changed (the revive writes both), whether or not the new
     // form is still standing: enough further damage in the same window can defeat it
     // before the next view, and then the defeat line below follows the revive line.
-    // The hp lines are skipped for this batch either way, since comparing the old dial
-    // with the new one would print a bogus "healed 10" (2 → 12) or "took N damage".
+    // The old-vs-new hp comparison is skipped for this batch either way, since comparing
+    // the old dial with the new one would print a bogus "healed 10" (2 → 12); damage the
+    // new form already took is read against its own dial (maxHp → hp) instead.
     // A SIDEKICK revive (Robin Hood) keeps its plain "appears at".
-    const revived = f.kind === "HERO" && !was.defeated && f.name !== was.name && f.maxHp !== was.maxHp;
-    if (revived) {
+    if (isHeroRevive(was, f)) {
       // A new form that already fell has no dial worth quoting ("— 0/12" beside the
       // defeat line reads as a contradiction): name the revive, let the defeat follow.
+      // A new form that is standing but already hurt (an end-of-turn tick landing in the
+      // same update) quotes the FRESH dial, then the damage on it — otherwise the revive
+      // line's "11/12" swallows the hit and the feed never says it happened.
       lines.push({
-        text: f.defeated ? `${was.name} is revived as ${f.name}` : `${was.name} is revived as ${f.name} — ${f.hp}/${f.maxHp}`,
+        text: f.defeated ? `${was.name} is revived as ${f.name}` : `${was.name} is revived as ${f.name} — ${f.maxHp}/${f.maxHp}`,
         who: whoOf(f.owner),
       });
+      if (!f.defeated && f.hp < f.maxHp) {
+        lines.push({ text: `${f.name} took ${f.maxHp - f.hp} damage (${f.hp}/${f.maxHp})`, who: whoOf(f.owner) });
+      }
     } else if (f.hp < was.hp && !swept.has(f.id)) {
       lines.push({
         text: `${f.name} took ${was.hp - f.hp} damage (${f.hp}/${f.maxHp})`,

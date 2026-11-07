@@ -297,3 +297,40 @@ describe("ProHud title bar — chip wrap guard + compact pills (issue #786)", ()
     });
   });
 });
+
+describe("ProHud nameplate move chip — flag stat override (issue #1535)", () => {
+  // The deck JSON prints William Afton's move 3; the view carries no move field.
+  const hero = { name: "William Afton", hp: 7, move: 3, isRanged: false } as unknown as ReturnType<
+    React.ComponentProps<typeof ProHud>["resolveHero"]
+  >;
+  const renderAfton = (flags: Record<string, boolean>) =>
+    render(
+      <ChakraProvider>
+        <ProHud
+          view={makeView(
+            [seat("p1", true, "Dean", { heroId: "william-afton", flags }), seat("p2", false, "Ana")],
+            "p1",
+          )}
+          status="open"
+          roomId="room-1"
+          resolveCard={() => null}
+          resolveHero={(id) => (id === "william-afton" ? hero : null)}
+          labelFor={() => ""}
+        />
+      </ChakraProvider>,
+    );
+
+  it("reads the deck's printed move before the revive", () => {
+    renderAfton({});
+    const moves = screen.getAllByTestId("plate-move").map((el) => el.textContent);
+    expect(moves).toContain("3");
+    expect(moves).not.toContain("2");
+  });
+
+  it("reads Springtrap's move 2 while the SPRINGTRAP flag is set", () => {
+    renderAfton({ SPRINGTRAP: true });
+    const moves = screen.getAllByTestId("plate-move").map((el) => el.textContent);
+    expect(moves).toContain("2");
+    expect(moves).not.toContain("3");
+  });
+});
