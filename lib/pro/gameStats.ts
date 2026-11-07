@@ -22,13 +22,22 @@
  * (your own empty deck) therefore reads as damage the opponent dealt; that is
  * the price of the two routes matching, and it is rare.
  *
+ * A HERO revive (William Afton → Springtrap) is the one place hp goes UP on a
+ * lethal blow: the same fighter comes back on a fresh dial. Both routes detect
+ * it with `isHeroRevive` (the feed's test: a living HERO whose name AND max HP
+ * both changed) and count it the same way — the old dial's remaining hp as one
+ * hit (`before` → 0), then anything the new form lost in the same update as a
+ * second hit read against its new dial (`maxHp` → hp), and every later hit
+ * against the new dial as usual.
+ *
  * Edge cases the routes may disagree on, all rare and all accepted: an hp
  * floor ("cannot be reduced below N") that the reducer only learns after the
  * batch, a `defeat` op (hp → 0 with no DAMAGE_APPLIED) that only the
  * expansion sees, and two hits on one fighter inside one action, which the
  * reducer counts as two hits and the expansion as one.
  */
-import type { Action, FighterId, GameEvent, PlayerId, PlayerView, ReplayBundle, ReplayExpansion } from "./protocol";
+import type { Action, FighterId, GameEvent, PlayerId, PlayerView, ReplayBundle, ReplayExpansion, ViewFighter } from "./protocol";
+import { isHeroRevive } from "./heroRevive";
 
 /** A single hit: how much, and on which turn. */
 export interface Hit {
@@ -82,7 +91,12 @@ export interface GameStatsAccumulator {
   /** Each fighter's hp after the last STATE, to clamp a raw `amount` to the hp actually lost. */
   hp: Record<FighterId, number>;
   owners: Record<FighterId, PlayerId>;
+  /** Each fighter's name / dial / kind / defeated after the last STATE — what a HERO revive is detected against. */
+  forms: Record<FighterId, FighterForm>;
 }
+
+/** The fields `isHeroRevive` compares between two snapshots of a fighter. */
+type FighterForm = Pick<ViewFighter, "kind" | "name" | "maxHp" | "defeated">;
 
 export const EMPTY_GAME_STATS_ACCUMULATOR: GameStatsAccumulator = {
   stats: EMPTY_GAME_STATS,
@@ -90,6 +104,7 @@ export const EMPTY_GAME_STATS_ACCUMULATOR: GameStatsAccumulator = {
   turn: 0,
   hp: {},
   owners: {},
+  forms: {},
 };
 
 /**
@@ -110,11 +125,35 @@ export function reduceGameStats(
   let turn = acc.turn > 0 ? acc.turn : view.turnNumber;
   const ownerOf = (id: FighterId): PlayerId | undefined =>
     acc.owners[id] ?? view.fighters.find((f) => f.id === id)?.owner;
+  // Heroes this batch revived, keyed to their NEW dial. The lethal hit clamps against
+  // the old dial as usual; the moment that dial is empty (or the revive event lands
+  // first — a `defeat` op has no damage event) the tracked hp jumps to the new dial,
+  // so further damage in the same batch counts against the new form.
+  const revivedTo = new Map<FighterId, number>();
+  for (const f of view.fighters) {
+    const was = acc.forms[f.id];
+    if (was && isHeroRevive(was, f)) revivedTo.set(f.id, f.maxHp);
+  }
+  const reviveIfDue = (id: FighterId) => {
+    const to = revivedTo.get(id);
+    if (to === undefined) return;
+    hp[id] = to;
+    revivedTo.delete(id);
+  };
 
   for (const e of events) {
     if (e.type === "TURN_STARTED") {
       turn = e.turnNumber;
       if (e.turnNumber === 1 && !stats.firstPlayer) stats.firstPlayer = e.player;
+      continue;
+    }
+    if (e.type === "FIGHTER_REVIVED" && revivedTo.has(e.fighter)) {
+      // A revive with hp still on the old dial (no lethal damage event): that hp is
+      // the old dial's loss, exactly as the expansion reads it.
+      const victim = ownerOf(e.fighter);
+      const before = hp[e.fighter];
+      if (victim && before !== undefined) recordHit(stats, victim, Math.max(0, before), turn);
+      reviveIfDue(e.fighter);
       continue;
     }
     if (e.type !== "DAMAGE_APPLIED") continue;
@@ -124,13 +163,16 @@ export function reduceGameStats(
     const lost = before === undefined ? e.amount : Math.min(e.amount, Math.max(0, before));
     if (before !== undefined) hp[e.fighter] = Math.max(0, before - lost);
     recordHit(stats, victim, lost, turn);
+    if (hp[e.fighter] === 0) reviveIfDue(e.fighter);
   }
 
   const owners: Record<FighterId, PlayerId> = {};
   const hpAfter: Record<FighterId, number> = {};
+  const forms: Record<FighterId, FighterForm> = {};
   for (const f of view.fighters) {
     owners[f.id] = f.owner;
     hpAfter[f.id] = f.hp;
+    forms[f.id] = { kind: f.kind, name: f.name, maxHp: f.maxHp, defeated: f.defeated };
   }
   return {
     stats,
@@ -138,6 +180,7 @@ export function reduceGameStats(
     turn: view.turnNumber > 0 ? view.turnNumber : turn,
     hp: hpAfter,
     owners,
+    forms,
   };
 }
 
@@ -147,7 +190,8 @@ export function reduceGameStats(
 
 /**
  * The same stats read off a `POST /replay` expansion: every per-step hp drop is
- * a hit on that fighter's owner, on the step's turn. Null when the expansion
+ * a hit on that fighter's owner, on the step's turn (a HERO revive step: two
+ * hits, see the file header). Null when the expansion
  * cannot vouch for the whole game — no steps, or a `diverged` re-simulation
  * whose steps stop early — so the caller keeps whatever it already has.
  */
@@ -157,11 +201,19 @@ export function statsFromExpansion(expansion: Pick<ReplayExpansion, "steps" | "v
   const stats = cloneStats(EMPTY_GAME_STATS);
   stats.firstPlayer = steps[0].activePlayer ?? null;
   for (let k = 1; k < steps.length; k++) {
-    const prev = new Map(steps[k - 1].fighters.map((f) => [f.id, f.hp] as const));
+    const prev = new Map(steps[k - 1].fighters.map((f) => [f.id, f] as const));
     for (const f of steps[k].fighters) {
-      const before = prev.get(f.id);
-      if (before === undefined) continue;
-      const lost = before - f.hp;
+      const was = prev.get(f.id);
+      if (!was) continue;
+      if (isHeroRevive(was, f)) {
+        // hp went UP (3 → 12) because the lethal blow was replaced by a revive: the old
+        // dial emptied (`before` → 0), then the new form lost whatever it lost on its own
+        // dial in the same step (12 → hp). Two hits, as the reducer counts them.
+        recordHit(stats, f.owner, was.hp, steps[k].turnNumber);
+        recordHit(stats, f.owner, f.maxHp - f.hp, steps[k].turnNumber);
+        continue;
+      }
+      const lost = was.hp - f.hp;
       if (lost > 0) recordHit(stats, f.owner, lost, steps[k].turnNumber);
     }
   }

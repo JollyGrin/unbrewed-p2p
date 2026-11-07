@@ -85,7 +85,7 @@ describe("reduceGameStats (live events)", () => {
     const frozen = JSON.stringify(start);
     reduceGameStats(start, [dmg("p2/hero", 4)], view(1, [fighter("p1/hero", "p1", 16), fighter("p2/hero", "p2", 11)]));
     expect(JSON.stringify(start)).toBe(frozen);
-    expect(JSON.stringify(EMPTY_GAME_STATS_ACCUMULATOR)).toBe(JSON.stringify({ stats: EMPTY_GAME_STATS, observed: false, turn: 0, hp: {}, owners: {} }));
+    expect(JSON.stringify(EMPTY_GAME_STATS_ACCUMULATOR)).toBe(JSON.stringify({ stats: EMPTY_GAME_STATS, observed: false, turn: 0, hp: {}, owners: {}, forms: {} }));
   });
 });
 
@@ -129,6 +129,84 @@ describe("statsFromExpansion (replay steps)", () => {
     expect(statsFromExpansion(expansion({ verification: "diverged", divergedAtTurn: 2 }))).toBeNull();
     expect(statsFromExpansion(expansion({ steps: [] }))).toBeNull();
     expect(statsFromExpansion(expansion({ verification: "digest-verified" }))).not.toBeNull();
+  });
+});
+
+describe("a HERO revive (William Afton → Springtrap, issue #1535): both routes agree", () => {
+  // William Afton (p1, 7 hp) is revived as Springtrap on a fresh 12-hp dial. The lethal
+  // blow counts the old dial's remaining hp, then anything Springtrap loses after.
+  const william = (hp: number) => fighter("p1/hero", "p1", hp, { name: "William Afton", maxHp: 7 });
+  const springtrap = (hp: number) => fighter("p1/hero", "p1", hp, { name: "Springtrap", maxHp: 12 });
+  const kenshiro = (hp: number) => fighter("p2/hero", "p2", hp, { name: "Kenshiro", maxHp: 16 });
+  const revived: GameEvent = { type: "FIGHTER_REVIVED", fighter: "p1/hero", space: "a1" };
+  const flag: GameEvent = { type: "FLAG_SET", player: "p1", flag: "SPRINGTRAP" } as GameEvent;
+
+  // Each fold: [events, turn, fighters]. Steps of the matching expansion are the fighters per fold.
+  const play = (folds: Array<[GameEvent[], number, ViewFighter[]]>) => {
+    let acc = reduceGameStats(EMPTY_GAME_STATS_ACCUMULATOR, [], view(0, folds[0][2]));
+    for (const [events, turn, fighters] of folds.slice(1)) acc = reduceGameStats(acc, events, view(turn, fighters));
+    const steps = folds.map(([, turn, fighters], i) => step(i, turn, "p2", fighters));
+    return { live: acc.stats, replay: statsFromExpansion(expansion({ steps })) };
+  };
+
+  it("a plain revive: the lethal hit counts the old dial's 3, not 0 (hp went 3 → 12)", () => {
+    const { live, replay } = play([
+      [[], 0, [william(7), kenshiro(16)]],
+      [[turnStarted("p2", 1), dmg("p1/hero", 4)], 1, [william(3), kenshiro(16)]],
+      [[dmg("p1/hero", 5), revived, flag], 1, [springtrap(12), kenshiro(16)]],
+      [[turnStarted("p1", 2), dmg("p2/hero", 2)], 2, [springtrap(12), kenshiro(14)]],
+      [[turnStarted("p2", 3), dmg("p1/hero", 4)], 3, [springtrap(8), kenshiro(14)]],
+    ]);
+    expect(live.turns).toEqual([{ p1: 7 }, { p2: 2 }, { p1: 4 }]);
+    expect(sideSummary(live, "p1", ["p1", "p2"]).taken).toBe(11);
+    expect(sideSummary(live, "p2", ["p1", "p2"]).dealt).toBe(11);
+    expect(live).toEqual(replay);
+  });
+
+  it("a revive plus more damage in the same update: old dial's 3, then 1 on the new dial", () => {
+    const { live, replay } = play([
+      [[], 0, [william(7), kenshiro(16)]],
+      [[turnStarted("p2", 1), dmg("p1/hero", 4)], 1, [william(3), kenshiro(16)]],
+      // the lethal blow, the revive, then an end-of-turn tick on Springtrap — one update
+      [[dmg("p1/hero", 6), revived, flag, dmg("p1/hero", 1, "EFFECT")], 1, [springtrap(11), kenshiro(16)]],
+      [[turnStarted("p1", 2), dmg("p2/hero", 3)], 2, [springtrap(11), kenshiro(13)]],
+    ]);
+    expect(live.turns).toEqual([{ p1: 8 }, { p2: 3 }]);
+    expect(live.biggestHitOn.p1).toEqual({ amount: 4, turn: 1 });
+    expect(live).toEqual(replay);
+  });
+
+  it("a revive and a same-update defeat: old dial's 3, then the new form's full 12", () => {
+    const { live, replay } = play([
+      [[], 0, [william(7), kenshiro(16)]],
+      [[turnStarted("p2", 1), dmg("p1/hero", 4)], 1, [william(3), kenshiro(16)]],
+      [
+        [dmg("p1/hero", 3), revived, flag, dmg("p1/hero", 14), { type: "FIGHTER_DEFEATED", fighter: "p1/hero" }],
+        1,
+        [{ ...springtrap(0), space: null }, kenshiro(16)],
+      ],
+    ]);
+    expect(live.turns).toEqual([{ p1: 19 }]);
+    expect(live.biggestHitOn.p1).toEqual({ amount: 12, turn: 1 });
+    expect(live).toEqual(replay);
+  });
+
+  it("an off-board revive (no FIGHTER_REVIVED event) still moves the tracked hp to the new dial", () => {
+    const { live, replay } = play([
+      [[], 0, [william(2), kenshiro(16)]],
+      [[turnStarted("p2", 1), dmg("p1/hero", 2, "EXHAUSTION"), flag, dmg("p1/hero", 2, "EXHAUSTION")], 1, [{ ...springtrap(10), space: null }, kenshiro(16)]],
+    ]);
+    expect(live.turns).toEqual([{ p1: 4 }]);
+    expect(live).toEqual(replay);
+  });
+
+  it("a revive with no lethal damage event (an instant defeat): the revive event counts the old dial", () => {
+    const { live, replay } = play([
+      [[], 0, [william(5), kenshiro(16)]],
+      [[turnStarted("p2", 1), revived, flag], 1, [springtrap(12), kenshiro(16)]],
+    ]);
+    expect(live.turns).toEqual([{ p1: 5 }]);
+    expect(live).toEqual(replay);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   HERO_STATE_FLAGS,
   HERO_STATE_COUNTERS,
   flagChipsFor,
+  flagStatOverridesFor,
   offBoardChipsFor,
   isHeroOffBoard,
   counterChipsFor,
@@ -1345,5 +1346,50 @@ describe("William Afton — SPRINGTRAP (issue #1530 ↔ engine #1018/#1019)", ()
     expect(chips[0].chip.onLabel).toBe("🐰 10");
     expect(counterChipsFor("william-afton", {}, {})).toEqual([]);
     expect(pileDisplayName("SPRINGTRAP")).toBe("Springtrap cards");
+  });
+  it("overrides the nameplate move to Springtrap's 2 only while the flag is set (issue #1535)", () => {
+    expect(flagStatOverridesFor("william-afton", { SPRINGTRAP: true })).toEqual({ move: 2 });
+    expect(flagStatOverridesFor("william-afton", undefined)).toEqual({});
+    expect(flagStatOverridesFor("william-afton", { SPRINGTRAP: false })).toEqual({});
+    expect(flagStatOverridesFor("king-kong", { SPRINGTRAP: true })).toEqual({});
+  });
+});
+
+describe("flagStatOverridesFor — generic over the registry (issue #1535)", () => {
+  const withRows = (rows: typeof HERO_STATE_FLAGS, fn: () => void) => {
+    const saved = HERO_STATE_FLAGS.splice(0, HERO_STATE_FLAGS.length, ...rows);
+    try {
+      fn();
+    } finally {
+      HERO_STATE_FLAGS.splice(0, HERO_STATE_FLAGS.length, ...saved);
+    }
+  };
+
+  it("applies an exclusive group's ACTIVE member, its isDefault included", () => {
+    withRows(
+      [
+        { flag: "FORM_A", heroes: ["h"], group: "g", isDefault: true, stats: { move: 4 } },
+        { flag: "FORM_B", heroes: ["h"], group: "g", stats: { move: 1 } },
+      ],
+      () => {
+        expect(flagStatOverridesFor("h", {})).toEqual({ move: 4 });
+        expect(flagStatOverridesFor("h", { FORM_B: true })).toEqual({ move: 1 });
+      }
+    );
+  });
+
+  it("the first active row in registry order wins, and rows without stats are ignored", () => {
+    withRows(
+      [
+        { flag: "PLAIN", heroes: ["h"] },
+        { flag: "SLOW", heroes: ["h"], stats: { move: 1 } },
+        { flag: "FAST", heroes: ["h"], stats: { move: 5 } },
+      ],
+      () => {
+        expect(flagStatOverridesFor("h", { PLAIN: true })).toEqual({});
+        expect(flagStatOverridesFor("h", { SLOW: true, FAST: true })).toEqual({ move: 1 });
+        expect(flagStatOverridesFor("h", { FAST: true })).toEqual({ move: 5 });
+      }
+    );
   });
 });
