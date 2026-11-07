@@ -2291,6 +2291,15 @@ describe("diffViews — a HERO revive (William Afton → Springtrap, issue #1530
     expect(lines.some((l) => /healed|took|defeated|appears/.test(l.text))).toBe(false);
   });
 
+  it("a revive and a same-window defeat: the revive line, then the defeat — no cross-dial damage line", () => {
+    const lines = diffViews(
+      view({ fighters: [william] }),
+      view({ fighters: [{ ...springtrap, hp: 0, space: null, defeated: true }] }),
+      label
+    );
+    expect(lines.map((l) => l.text)).toEqual(["William Afton is revived as Springtrap", "Springtrap was defeated!"]);
+  });
+
   it("later damage reads against the new dial", () => {
     const lines = diffViews(view({ fighters: [springtrap] }), view({ fighters: [{ ...springtrap, hp: 10 }] }), label);
     expect(lines).toContainEqual({ text: "Springtrap took 2 damage (10/12)", who: "you" });

@@ -464,14 +464,22 @@ export function diffViews(
       });
     }
     // A HERO's defeat REPLACED by a revive (William Afton → Springtrap, engine #1018):
-    // the SAME living fighter comes back renamed on a new dial in the same space — no
-    // FIGHTER_DEFEATED, so none of the defeat lines below fire. Keyed on a living HERO
-    // whose name AND dial max changed between views (the revive writes both); the hp lines are skipped for this batch, since
-    // comparing the old dial with the new one would print a bogus "healed 10" (2 → 12)
-    // or "took N damage". A SIDEKICK revive (Robin Hood) keeps its plain "appears at".
-    const revived = f.kind === "HERO" && !f.defeated && !was.defeated && f.name !== was.name && f.maxHp !== was.maxHp;
+    // the SAME fighter comes back renamed on a new dial in the same space — no
+    // FIGHTER_DEFEATED for the first form. Keyed on a HERO alive in the previous view
+    // whose name AND dial max changed (the revive writes both), whether or not the new
+    // form is still standing: enough further damage in the same window can defeat it
+    // before the next view, and then the defeat line below follows the revive line.
+    // The hp lines are skipped for this batch either way, since comparing the old dial
+    // with the new one would print a bogus "healed 10" (2 → 12) or "took N damage".
+    // A SIDEKICK revive (Robin Hood) keeps its plain "appears at".
+    const revived = f.kind === "HERO" && !was.defeated && f.name !== was.name && f.maxHp !== was.maxHp;
     if (revived) {
-      lines.push({ text: `${was.name} is revived as ${f.name} — ${f.hp}/${f.maxHp}`, who: whoOf(f.owner) });
+      // A new form that already fell has no dial worth quoting ("— 0/12" beside the
+      // defeat line reads as a contradiction): name the revive, let the defeat follow.
+      lines.push({
+        text: f.defeated ? `${was.name} is revived as ${f.name}` : `${was.name} is revived as ${f.name} — ${f.hp}/${f.maxHp}`,
+        who: whoOf(f.owner),
+      });
     } else if (f.hp < was.hp && !swept.has(f.id)) {
       lines.push({
         text: `${f.name} took ${was.hp - f.hp} damage (${f.hp}/${f.maxHp})`,

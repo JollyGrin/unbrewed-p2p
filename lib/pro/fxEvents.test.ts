@@ -334,16 +334,41 @@ describe("diffFxEvents — a HERO revive (William Afton → Springtrap, issue #1
   const william = fighter({ name: "William Afton", hp: 2, maxHp: 7 });
   const opp = fighter({ id: "p2/hero", owner: "p2", name: "Baba Yaga", space: "s2" });
 
-  it("emits ONE revived beat — no heal number, no damage, never the K.O.", () => {
+  it("emits the lethal hit on the OLD dial, then the revived beat — no heal number, never the K.O.", () => {
     const fx = diffFxEvents(view({ fighters: [william, opp] }), view({ fighters: [{ ...william, name: "Springtrap", hp: 12, maxHp: 12 }, opp] }));
-    expect(fx).toEqual([{ type: "revived", fighter: "p1/hero", space: "s1", name: "Springtrap", mine: true }]);
+    expect(fx).toEqual([
+      { type: "damage", fighter: "p1/hero", space: "s1", amount: 2, mine: true, heroHit: true },
+      { type: "revived", fighter: "p1/hero", space: "s1", name: "Springtrap", mine: true },
+    ]);
+  });
+
+  it("a revive and a same-window defeat: hit, revived, then the K.O. — no cross-dial number", () => {
+    const fx = diffFxEvents(
+      view({ fighters: [william, opp] }),
+      view({ fighters: [{ ...william, name: "Springtrap", hp: 0, maxHp: 12, space: null, defeated: true }, opp] })
+    );
+    expect(fx).toEqual([
+      { type: "damage", fighter: "p1/hero", space: "s1", amount: 2, mine: true, heroHit: true },
+      { type: "revived", fighter: "p1/hero", space: "s1", name: "Springtrap", mine: true },
+      { type: "defeated", fighter: "p1/hero", space: "s1", mine: true },
+    ]);
+  });
+
+  it("a SIDEKICK revive (Robin Hood style) is a plain heal, never a revived beat", () => {
+    const merry = fighter({ id: "p1/sidekick-1", kind: "SIDEKICK", name: "Merry Man", space: null, hp: 0, maxHp: 1, defeated: true });
+    const fx = diffFxEvents(
+      view({ fighters: [merry, opp] }),
+      view({ fighters: [{ ...merry, space: "s3", hp: 1, defeated: false }, opp] })
+    );
+    expect(fx.map((e) => e.type)).not.toContain("revived");
+    expect(fx.map((e) => e.type)).not.toContain("damage");
   });
 
   it("a revive inside a resolved combat is not read as a block", () => {
     const prev = view({ fighters: [william, opp], combat: combat({ target: "p1/hero" }) });
     const next = view({ fighters: [{ ...william, name: "Springtrap", hp: 12, maxHp: 12 }, opp], combat: null });
     const fx = diffFxEvents(prev, next, [{ type: "COMBAT_RESOLVED", outcome: "ATTACKER_WON" } as GameEvent]);
-    expect(fx.map((e) => e.type)).toContain("revived");
+    expect(fx.map((e) => e.type)).toEqual(["damage", "revived"]);
     expect(fx.map((e) => e.type)).not.toContain("blocked");
     expect(fx.map((e) => e.type)).not.toContain("defeated");
   });
