@@ -163,16 +163,18 @@ describe("a HERO revive (William Afton → Springtrap, issue #1535): both routes
     expect(live).toEqual(replay);
   });
 
-  it("a revive plus more damage in the same update: old dial's 3, then 1 on the new dial", () => {
+  it("a revive plus more damage in the same update: old dial's 5, then 1 on the new dial — two hits, not one merged 6", () => {
     const { live, replay } = play([
       [[], 0, [william(7), kenshiro(16)]],
-      [[turnStarted("p2", 1), dmg("p1/hero", 4)], 1, [william(3), kenshiro(16)]],
+      [[turnStarted("p2", 1), dmg("p1/hero", 2)], 1, [william(5), kenshiro(16)]],
       // the lethal blow, the revive, then an end-of-turn tick on Springtrap — one update
       [[dmg("p1/hero", 6), revived, flag, dmg("p1/hero", 1, "EFFECT")], 1, [springtrap(11), kenshiro(16)]],
       [[turnStarted("p1", 2), dmg("p2/hero", 3)], 2, [springtrap(11), kenshiro(13)]],
     ]);
     expect(live.turns).toEqual([{ p1: 8 }, { p2: 3 }]);
-    expect(live.biggestHitOn.p1).toEqual({ amount: 4, turn: 1 });
+    // The lethal 5 is the biggest hit; a route that merged it with the tick would say 6.
+    expect(live.biggestHitOn.p1).toEqual({ amount: 5, turn: 1 });
+    expect(replay!.biggestHitOn.p1).toEqual({ amount: 5, turn: 1 });
     expect(live).toEqual(replay);
   });
 
@@ -191,6 +193,9 @@ describe("a HERO revive (William Afton → Springtrap, issue #1535): both routes
     expect(live).toEqual(replay);
   });
 
+  // The one case that exercises the reducer's zero-crossing reset: on the board the
+  // revive event always sits between the lethal hit and any later damage, so it
+  // performs the same reset at the same point (see the comment in reduceGameStats).
   it("an off-board revive (no FIGHTER_REVIVED event) still moves the tracked hp to the new dial", () => {
     const { live, replay } = play([
       [[], 0, [william(2), kenshiro(16)]],

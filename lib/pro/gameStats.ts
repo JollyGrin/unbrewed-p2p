@@ -163,6 +163,11 @@ export function reduceGameStats(
     const lost = before === undefined ? e.amount : Math.min(e.amount, Math.max(0, before));
     if (before !== undefined) hp[e.fighter] = Math.max(0, before - lost);
     recordHit(stats, victim, lost, turn);
+    // The empty old dial is the reset point when no FIGHTER_REVIVED arrives — a hero
+    // revived while off the board gets no revive event. On the board this line is
+    // indistinguishable from the FIGHTER_REVIVED branch above: the revive event always
+    // comes right after the lethal damage event and before any later damage, so either
+    // path resets the tracked hp at the same point. Only the off-board test pins it.
     if (hp[e.fighter] === 0) reviveIfDue(e.fighter);
   }
 
