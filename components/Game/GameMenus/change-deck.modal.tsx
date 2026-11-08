@@ -16,6 +16,7 @@ import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { gameModeOfPath, trackDeckSelected } from "@/lib/deckAnalytics";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
+import { SOLO_SEAT, heroOf, useHotseat } from "@/lib/hotseat/useHotseat";
 import { colors, fonts } from "@/styles/style";
 
 /**
@@ -37,22 +38,46 @@ export const ChangeDeckModal = (props: {
    * (issue #821).
    */
   linkToBag?: boolean;
+  /**
+   * `opponent` (hotseat, issue #1564): pick the deck the second seat plays.
+   * Seats it via `hotseat.addSeat` and leaves the star and my own deck alone.
+   */
+  mode?: "self" | "opponent";
 }) => {
   const { decks, starredDeck, setStar } = useBagDecks();
-  const { switchDeck } = useWebGame();
+  const { switchDeck, deckFor } = useWebGame();
+  const hotseat = useHotseat();
+  const isOpponent = props.mode === "opponent";
   const [selectedId, setSelectedId] = useState<string>();
 
-  // Open on whatever is starred right now; the picker's own state drives the
-  // preview until the switch is confirmed.
-  useEffect(() => {
-    if (props.isOpen) setSelectedId(starredDeck?.id);
-  }, [props.isOpen, starredDeck?.id]);
+  // The opponent picks from the rest of the bag: everything but the deck the
+  // first seat is playing.
+  const mine = isOpponent ? (deckFor?.(SOLO_SEAT) ?? starredDeck) : undefined;
+  const choices = isOpponent
+    ? decks?.filter((deck) => deck.id !== mine?.id)
+    : decks;
+  const firstChoice = choices?.[0]?.id;
 
-  const selected = decks?.find((deck) => deck.id === selectedId);
-  const isCurrent = !!selected && selected.id === starredDeck?.id;
+  // Open on whatever is starred right now (the first other deck, picking an
+  // opponent); the picker's own state drives the preview until the switch is
+  // confirmed.
+  useEffect(() => {
+    if (props.isOpen) setSelectedId(isOpponent ? firstChoice : starredDeck?.id);
+  }, [props.isOpen, starredDeck?.id, isOpponent, firstChoice]);
+
+  const selected = choices?.find((deck) => deck.id === selectedId);
+  const isCurrent =
+    !isOpponent && !!selected && selected.id === starredDeck?.id;
 
   const confirm = () => {
     if (!selected) return;
+    if (isOpponent) {
+      if (!hotseat) return;
+      hotseat.addSeat(selected);
+      toast.success(`${heroOf(selected)} joins as your opponent`);
+      props.onClose();
+      return;
+    }
     setStar(selected.id);
     trackDeckSelected(gameModeOfPath(window.location.pathname), selected.id, decks);
     switchDeck(selected);
@@ -70,22 +95,34 @@ export const ChangeDeckModal = (props: {
         border="1px solid rgba(72, 40, 79, 0.35)"
       >
         <ModalHeader fontFamily={fonts.SpaceGrotesk} fontWeight={700}>
-          Change my deck
+          {isOpponent ? "Choose the opposing deck" : "Change my deck"}
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <SelectedDeckContainer
-            decks={decks}
+            decks={choices}
             starredDeck={selected}
             setStar={setSelectedId}
             linkToBag={props.linkToBag ?? false}
           />
           <Box mt="1rem" fontSize="0.85rem" opacity={0.8}>
-            <Text>
-              Switching replaces your deck, hand and discard, and clears your
-              cards off the table. Your opponent keeps playing — only your side
-              of the board changes.
-            </Text>
+            {!isOpponent ? (
+              <Text>
+                Switching replaces your deck, hand and discard, and clears
+                your cards off the table. Your opponent keeps playing — only
+                your side of the board changes.
+              </Text>
+            ) : choices?.length ? (
+              <Text>
+                Both sides play on this device: use Switch seat to hand it
+                over. Your own deck and table stay as they are.
+              </Text>
+            ) : (
+              <Text>
+                Your bag has no other deck yet. Add one to your bag, then come
+                back to seat it as the opponent.
+              </Text>
+            )}
           </Box>
         </ModalBody>
         <ModalFooter>
@@ -100,7 +137,11 @@ export const ChangeDeckModal = (props: {
             _hover={{ bg: colors.brand.accentDeep }}
             onClick={confirm}
           >
-            {isCurrent ? "Already playing this" : "Switch deck"}
+            {isOpponent
+              ? "Add opponent"
+              : isCurrent
+                ? "Already playing this"
+                : "Switch deck"}
           </Button>
         </ModalFooter>
       </ModalContent>

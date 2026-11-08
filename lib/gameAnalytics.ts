@@ -10,6 +10,7 @@ import { track } from "@/lib/analytics";
 import { isLabsDeckId } from "@/lib/labs";
 import { knownAddSource } from "@/lib/deckAnalytics";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import type { HotseatControls } from "@/lib/contexts/WebGameProvider";
 
 export type ClientGameMode = "sandbox" | "sandbox-table" | "irl";
 
@@ -116,16 +117,29 @@ export const useIrlSession = ({
   offline,
   hasDeck,
   settled,
+  hotseat,
 }: {
   offline: boolean;
   hasDeck: boolean;
   settled: boolean;
+  /**
+   * /offline's local seats (issue #1564). An added opponent raises the
+   * game's `players`, so `game_ended` reports the peak.
+   */
+  hotseat?: Pick<HotseatControls, "seats">;
 }) => {
   const sent = useRef(false);
+  const seats = hotseat?.seats.length ?? 1;
   useEffect(() => {
     if (sent.current || !(hasDeck || settled) || isProPath()) return;
     sent.current = true;
-    track("irl_session_started", { offline, has_deck: hasDeck });
+    track("irl_session_started", {
+      offline,
+      has_deck: hasDeck,
+      hotseat: seats > 1,
+    });
+    // `seats` is read at send time; it must not re-arm the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offline, hasDeck, settled]);
-  useGameSession({ mode: "irl", active: hasDeck, players: 1, isHost: true });
+  useGameSession({ mode: "irl", active: hasDeck, players: seats, isHost: true });
 };
