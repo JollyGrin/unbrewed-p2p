@@ -3964,7 +3964,7 @@ const HeroSelectLobby = ({
             <Box data-testid="pair-board-note">
               <Text {...STRIP_LBL}>STAGE</Text>
               <Text fontFamily="SpaceGrotesk" fontSize="0.75rem" color="whiteAlpha.700" mt="0.35rem">
-                {pairMode.partner.name} picks the board — you'll see it when the table opens.
+                {`${pairMode.partner.name} picks the board — you’ll see it when the table opens.`}
               </Text>
             </Box>
           )}
