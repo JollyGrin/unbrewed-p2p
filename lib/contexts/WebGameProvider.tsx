@@ -136,6 +136,25 @@ interface WebGameProviderValue {
    * `deck` and re-spawn its loadout. The opponent just sees the log line.
    */
   switchDeck: (deck: DeckImportType) => void;
+  // ---- Hotseat (issue #1562). Set by OfflineGameProvider only; the online
+  // provider leaves both undefined. ----
+  /** Local seats on this device, and which one the writers act for. */
+  hotseat?: HotseatControls;
+  /** The deck a seat was seeded from. */
+  deckFor?: (name: string) => DeckImportType | undefined;
+}
+
+/**
+ * Several players sharing one device (issue #1562). `seats` is ordered and
+ * always starts with the first seat; `active` is the seat `setPlayerState`,
+ * `setPlayerPosition` and `logAction` write for.
+ */
+export interface HotseatControls {
+  seats: string[];
+  active: string;
+  setActive(name: string): void;
+  addSeat(deck: DeckImportType): void;
+  removeSeat(name: string): void;
 }
 
 // Claims the owner never answers (offline) expire after this long.
