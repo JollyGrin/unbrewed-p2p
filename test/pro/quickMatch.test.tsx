@@ -362,9 +362,9 @@ describe("the Here now ribbon (#1542)", () => {
     expect(screen.queryByTestId("bonus-summary")).not.toBeInTheDocument();
     // No presence socket answered: the pill reads "looking" alone.
     const pill = screen.getByTestId("presence-pill");
-    expect(pill).toHaveTextContent("1 looking");
+    expect(pill).toHaveTextContent("1 waiting");
     expect(pill).not.toHaveTextContent("here");
-    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("1 looking right now");
+    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("1 waiting right now");
     // The old strip under the picker is gone.
     expect(screen.queryByText(/Open lobbies — join someone waiting/)).not.toBeInTheDocument();
   });
@@ -442,7 +442,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     const sock = await openLobby();
     expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 2, type: "HELLO", state: "picking", heroId: HERO })]);
     await snapshot(sock);
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · 1 looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · 1 waiting");
     expect(screen.getAllByTestId("ribbon-lobby")).toHaveLength(1);
     const player = screen.getByTestId("ribbon-player");
     expect(player).toHaveTextContent("Sam_B");
@@ -497,7 +497,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
       ],
       lobbies: [lobby("aaa", 60_000), lobby("MINE", 1_000)],
     });
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · you + 1 looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · you + 1 waiting");
   });
 });
 
@@ -523,7 +523,7 @@ describe("show me in the lobby (visibility toggle)", () => {
     expect(screen.getByTestId("lobby-visibility")).toHaveAttribute("aria-checked", "false");
     expect(screen.getByTestId("lobby-visibility")).toHaveTextContent("Hidden");
     // Open lobbies still come off the poll: the pill keeps its "looking" count.
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("waiting");
     expect(screen.getByTestId("presence-pill")).not.toHaveTextContent("here");
   });
 

@@ -3229,7 +3229,7 @@ const HeroSelectLobby = ({
   presencePill?: ReactNode;
   /** the "Here now" ribbon between the roster header and the tiles */
   ribbon?: ReactNode;
-  /** the Quick Match button's second line ("3 looking right now") */
+  /** the Quick Match button's second line ("3 waiting right now") */
   quickMatchSubline?: string | null;
   /** "2×" while the Quick Play bonus runs: the button's tag (and armed style) */
   quickMatchBonusLabel?: string | null;

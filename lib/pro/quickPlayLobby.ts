@@ -252,7 +252,7 @@ export const tablesInPlayLabel = (n: number): string => `${n} table${n === 1 ? "
 // ---------------------------------------------------------------------------
 
 export interface PresencePillModel {
-  /** null = the lobby socket has no presence for us (render "N looking" alone) */
+  /** null = the lobby socket has no presence for us (render "N waiting" alone) */
   here: number | null;
   looking: number;
   /** we are in the Quick Match pool ourselves (our own room is never in `looking`) */
@@ -305,12 +305,14 @@ export const presencePillModel = ({
 
 /**
  * The pill's two counts, always telling "you" apart from everyone else (Dean,
- * 2026-11-08: "2 looking" read as two OTHER people when one was him). `here`
+ * 2026-11-08: "2 looking" (now "waiting") read as two OTHER people when one was him). `here`
  * includes us (we are a watcher); `looking` never does (our own room is dropped).
  */
 export const hereLabel = (here: number): string => (here <= 1 ? "just you here" : `you + ${here - 1} here`);
+// Copy says "waiting" (Dean, 2026-11-08): these are people sitting in Quick Match
+// for an opponent. Code keeps the `looking` name the protocol uses.
 export const lookingLabel = (looking: number, youLooking: boolean): string =>
-  youLooking ? (looking === 0 ? "you're looking" : `you + ${looking} looking`) : `${looking} looking`;
+  youLooking ? (looking === 0 ? "you're waiting" : `you + ${looking} waiting`) : `${looking} waiting`;
 
 /** "looking" = open duel lobbies other than ours (the Quick Match pool). */
 export const lookingCount = (
@@ -329,7 +331,7 @@ export const lookingCount = (
 export const quickMatchSubline = (looking: number): string =>
   looking === 0
     ? "no one waiting — your table goes public"
-    : `${looking} looking right now`;
+    : `${looking} waiting right now`;
 
 /**
  * Roster pips: hero id → the host avatar of the OLDEST open lobby holding that

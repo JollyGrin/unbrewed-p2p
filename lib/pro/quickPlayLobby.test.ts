@@ -75,7 +75,7 @@ describe("labels", () => {
     expect(avatarInitial(null)).toBe("?");
   });
   it("labels Quick Match with the live count", () => {
-    expect(quickMatchSubline(3)).toBe("3 looking right now");
+    expect(quickMatchSubline(3)).toBe("3 waiting right now");
     expect(quickMatchSubline(0)).toMatch(/no one waiting/);
   });
 });
@@ -149,10 +149,10 @@ describe("pill labels tell you apart", () => {
     expect(hereLabel(1)).toBe("just you here");
     expect(hereLabel(3)).toBe("you + 2 here");
   });
-  it("looking never counts you, and says so when you're searching", () => {
-    expect(lookingLabel(2, false)).toBe("2 looking");
-    expect(lookingLabel(0, true)).toBe("you're looking");
-    expect(lookingLabel(1, true)).toBe("you + 1 looking");
+  it("waiting never counts you, and says so when you're searching", () => {
+    expect(lookingLabel(2, false)).toBe("2 waiting");
+    expect(lookingLabel(0, true)).toBe("you're waiting");
+    expect(lookingLabel(1, true)).toBe("you + 1 waiting");
   });
 });
 

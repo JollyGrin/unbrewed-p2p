@@ -1,7 +1,7 @@
 /**
  * The presence pill at the right end of `/pro/game`'s rules strip (issue #1542):
- * "you + 6 here · 3 looking" with a stacked avatar row and a live dot. Without lobby
- * presence it reads "3 looking" alone. The page mounts it only when
+ * "you + 6 here · 3 waiting" with a stacked avatar row and a live dot. Without lobby
+ * presence it reads "3 waiting" alone. The page mounts it only when
  * `presencePillModel` returns a model (never an empty box).
  */
 import { Box, Flex, keyframes, Text, Tooltip } from "@chakra-ui/react";
