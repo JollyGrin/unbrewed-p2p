@@ -270,6 +270,7 @@ import {
   botFallbackHref,
   isQuickMatchRetryable,
   isQuickMatchWaiting,
+  QUICK_PLAY_TIMER_SECONDS,
   quickMatchStep,
   startQuickMatch,
 } from "@/lib/pro/quickMatch";
@@ -4060,6 +4061,12 @@ const HeroSelectLobby = ({
               {quickMatchButton("quick-match")}
               <Text textAlign="center" fontSize="0.72rem" color="whiteAlpha.600" fontFamily="SpaceGrotesk">
                 {summary}
+                {(!fixedSetup || pairMode) && (
+                  <Box as="span" display="block" data-testid="quick-play-rules">
+                    {pairMode ? "Quick Play duel" : "Quick Match"}: ⏱ {QUICK_PLAY_TIMER_SECONDS}s timer
+                    {pairMode ? "" : " · random board"}
+                  </Box>
+                )}
                 {bonusSummary && !fixedSetup && (
                   <Box as="span" display="block" data-testid="bonus-summary">
                     <Box as="span" color="brand.accent">
@@ -5705,7 +5712,7 @@ const LiveGame = ({
     } else {
       // A matchmade room is a standard duel: it ignores the picker's format and
       // timer deliberately, so the room the next searcher joins is always the
-      // plain thing. The BOARD is rolled, not fixed — #685 made Random the
+      // same thing — a duel on the Quick Play timer (QUICK_PLAY_TIMER_SECONDS). The BOARD is rolled, not fixed — #685 made Random the
       // default precisely so every lobby stops opening on The Mended Drum, and a
       // Quick Match room is the one nobody hand-picks a board for. Same
       // `rollRandomMap` + `customMapForEntry` pair the Create path uses, so the
@@ -5718,7 +5725,7 @@ const LiveGame = ({
         customMapForEntry(rolledEntry),
         "duel",
         [],
-        0,
+        QUICK_PLAY_TIMER_SECONDS,
         mulligan,
         true,
       );
@@ -5893,7 +5900,7 @@ const LiveGame = ({
         setSelectedFormat("duel");
         tournament.seatedUntagged();
         pairCreatedFromRef.current = roomId;
-        createRoom(heroId, undefined, customMapForEntry(boardEntry), "duel", [], 0, mulligan, true);
+        createRoom(heroId, undefined, customMapForEntry(boardEntry), "duel", [], QUICK_PLAY_TIMER_SECONDS, mulligan, true);
         trackHeroPicked(heroId, "quickmatch");
         setJoined(true);
         return;

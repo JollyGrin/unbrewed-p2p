@@ -25,6 +25,7 @@ const lobby = (roomId: string, ageMs: number, extra: Partial<LobbyListing> = {})
   heroId: "king-kong",
   heroName: "King Kong",
   ageMs,
+  turnTimerSeconds: 60, // a Quick Play room (QUICK_PLAY_TIMER_SECONDS)
   ...extra,
 });
 const player = (id: string, extra: Partial<PresenceEntry> = {}): PresenceEntry => ({
@@ -93,7 +94,7 @@ describe("ribbonItems", () => {
   });
 
   it("renders a bare listing (today's engine) as Anonymous with no timer", () => {
-    const [chip] = ribbonItems({ lobbies: [lobby("a", 31_000)] });
+    const [chip] = ribbonItems({ lobbies: [lobby("a", 31_000, { turnTimerSeconds: undefined })] });
     expect(chip).toMatchObject({ kind: "lobby", name: "Anonymous", heroName: "King Kong", age: "0m 31s", timer: null, badge: null });
     if (chip.kind === "lobby") expect(chip.avatar.initial).toBe("?");
   });

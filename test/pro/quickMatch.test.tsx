@@ -53,6 +53,7 @@ const lobby = (roomId: string, ageMs: number): LobbyListing => ({
   heroId: HERO,
   heroName: "King Kong",
   ageMs,
+  turnTimerSeconds: 60, // a Quick Play room (QUICK_PLAY_TIMER_SECONDS)
 });
 
 let SENT: string[] = [];
@@ -207,11 +208,11 @@ describe("Quick Match on the pre-join picker", () => {
     expect(created).toEqual([
       expect.objectContaining({ type: "CREATE_ROOM", heroId: HERO, quickMatch: true }),
     ]);
-    // A matchmade room is the plainest possible duel: no timer, and duel is the
-    // omitted default. The BOARD is the one thing it does roll (#685) — here the
-    // roll landed on the server-default board, which sends no customMap at all.
+    // A matchmade room is a plain duel (the omitted default) on the Quick Play
+    // 60 s timer, whatever the picker says. The BOARD is the one thing it rolls
+    // (#685) — here the server-default board, which sends no customMap at all.
     expect(created[0]).not.toHaveProperty("customMap");
-    expect(created[0]).not.toHaveProperty("turnTimerSeconds");
+    expect(created[0]).toMatchObject({ turnTimerSeconds: 60 });
     expect(created[0]).not.toHaveProperty("formatId");
   });
 
@@ -240,6 +241,17 @@ describe("Quick Match on the pre-join picker", () => {
     expect(frames("SET_VISIBILITY")).toEqual([
       expect.objectContaining({ type: "SET_VISIBILITY", roomId: "MINE", public: true }),
     ]);
+  });
+
+  it("skips lobbies off the Quick Play timer: an untimed Create room is not joined", async () => {
+    await mountPicker([{ ...lobby("untimed", 120_000), turnTimerSeconds: undefined }, lobby("qp", 30_000)]);
+    await clickQuickMatch();
+    expect(frames("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "qp" })]);
+  });
+
+  it("says the Quick Play rules under the summary", async () => {
+    await mountPicker([]);
+    expect(screen.getAllByTestId("quick-play-rules")[0]).toHaveTextContent("Quick Match: ⏱ 60s timer · random board");
   });
 
   it("Cancel unlists the room it published before leaving (no ghost lobby)", async () => {
@@ -640,7 +652,7 @@ describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
     expect(screen.queryByRole("button", { name: "Custom board — paste map JSON" })).not.toBeInTheDocument();
     await click(screen.getAllByTestId("pair-go")[0]);
     const [create] = frames("CREATE_ROOM");
-    expect(create).toMatchObject({ type: "CREATE_ROOM", quickMatch: true });
+    expect(create).toMatchObject({ type: "CREATE_ROOM", quickMatch: true, turnTimerSeconds: 60 });
     expect(JSON.stringify(create.customMap)).toMatch(/Island of Despair/i);
   });
 
