@@ -11,7 +11,7 @@
  *   verified without the backend. Clicking a fighter shows its movement
  *   out-edges (adjacentTo ∪ oneWayTo) — reading MAP data for display, not rules.
  */
-import { CSSProperties, FocusEvent as ReactFocusEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ComponentProps, CSSProperties, FocusEvent as ReactFocusEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/router";
 import { LockIcon } from "@chakra-ui/icons";
@@ -285,6 +285,8 @@ import {
   heroPips as lobbyHeroPips,
   lookingCount,
   multiplierLabel,
+  presenceAvatar,
+  presenceName,
   presencePillModel,
   presentCount,
   quickMatchSubline as quickMatchSublineFor,
@@ -294,7 +296,24 @@ import {
 } from "@/lib/pro/quickPlayLobby";
 import { AvatarDisc, LobbyRibbon } from "@/components/Pro/LobbyRibbon";
 import { PresencePill } from "@/components/Pro/PresencePill";
+import { PairActions, PartnerCard, type PartnerModel } from "@/components/Pro/PairPanel";
+import {
+  livePartner,
+  NUDGE_REPLY_WINDOW_MS,
+  NUDGE_TOAST_MS,
+  nudgeReplyFailMessage,
+  pairEndedMessage,
+  pairPartnerName,
+  partnerReady,
+  reducePair,
+  type LobbyPair,
+  type PairEffect,
+  type PairEvent,
+} from "@/lib/pro/lobbyPair";
 import { FoundPanel, QuickMatchLabel, SearchingPanel } from "@/components/Pro/QuickMatchDock";
+
+/** sessionStorage key for a toast that has to survive a full navigation (#1556). */
+const PRO_FLASH_KEY = "pro-game-flash";
 
 /** How long the "Match found" panel holds before the table opens (#1542). */
 const QUICK_FOUND_MS = 3_000;
@@ -3120,6 +3139,7 @@ const HeroSelectLobby = ({
   dockPanel = null,
   p1HeroName,
   p2Status = null,
+  pairMode = null,
 }: {
   room: string | null;
   /**
@@ -3193,10 +3213,23 @@ const HeroSelectLobby = ({
   p1HeroName?: string | null;
   /** the duel P2 plate while a search runs ("Searching…") or lands (the opponent) */
   p2Status?: SeatPlateStatus | null;
+  /**
+   * Matched mode (#1556): a 👋 was accepted. The partner card takes the header,
+   * Go / Cancel take Create / Quick Match, and every setup control `fixedSetup`
+   * hides goes too — the room is a standard Quick Match duel.
+   */
+  pairMode?: {
+    partner: PartnerModel;
+    /** guest pressed Go and waits for the host's room */
+    waiting: boolean;
+    bonusLabel: string | null;
+    onGo: (heroId: string) => void;
+    onCancel: () => void;
+  } | null;
 }) => {
   // A `?room=` join and a tournament game both arrive with the room's setup
-  // decided elsewhere: only the fighter is picked here.
-  const fixedSetup = room !== null || tournament !== null;
+  // decided elsewhere: only the fighter is picked here. So does a pair (#1556).
+  const fixedSetup = room !== null || tournament !== null || pairMode !== null;
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
@@ -3524,6 +3557,23 @@ const HeroSelectLobby = ({
       </Button>
     );
 
+  // Matched mode (#1556): Go needs a REAL fighter — a Random pick isn't rolled
+  // for a pair, same guard as Quick Match's "Pick a fighter first".
+  const pairActions = (compact: boolean) =>
+    pairMode ? (
+      <PairActions
+        partnerName={pairMode.partner.name}
+        canGo={status === "open" && !!effective && !randomPicked}
+        waiting={pairMode.waiting}
+        bonusLabel={pairMode.bonusLabel}
+        onGo={() => {
+          if (effective && !randomPicked) pairMode.onGo(effective);
+        }}
+        onCancel={pairMode.onCancel}
+        compact={compact}
+      />
+    ) : null;
+
   // Player plates for the current format. Duel opponent + multiplayer seats share
   // the same Human/AI chips (SeatPlate); they just write to different parent
   // state (`opponent` vs `botSlotPlan`), preserving the existing create-time wire.
@@ -3567,6 +3617,20 @@ const HeroSelectLobby = ({
   );
 
   const renderPlates = () => {
+    if (pairMode) {
+      const { partner } = pairMode;
+      return (
+        <>
+          <SeatPlate tag="P1" role="You" you heroName={lockedName} />
+          <VsBadge />
+          <SeatPlate
+            tag="P2"
+            role={partner.name}
+            status={{ role: partner.name, title: partner.heroName ?? "Picking…", found: partner.ready }}
+          />
+        </>
+      );
+    }
     if (fixedSetup) {
       return <SeatPlate tag="P1" role="You" you heroName={lockedName} />;
     }
@@ -3674,9 +3738,13 @@ const HeroSelectLobby = ({
         border="1px solid"
         borderColor="whiteAlpha.200"
       >
-        <Text fontFamily="LeagueGothic" fontSize="1.35rem" letterSpacing="0.08em">
-          {tournament ? `TOURNAMENT · ${tournament.label}` : room ? `JOIN ROOM ${room}` : "CREATE A ROOM"}
-        </Text>
+        {pairMode ? (
+          <PartnerCard partner={pairMode.partner} />
+        ) : (
+          <Text fontFamily="LeagueGothic" fontSize="1.35rem" letterSpacing="0.08em">
+            {tournament ? `TOURNAMENT · ${tournament.label}` : room ? `JOIN ROOM ${room}` : "CREATE A ROOM"}
+          </Text>
+        )}
         {!fixedSetup && (
           <>
             <Flex align="center" gap="0.5rem">
@@ -3941,6 +4009,8 @@ const HeroSelectLobby = ({
           {/* #1542: a running / landed Quick Match replaces ONLY these buttons. */}
           {dockPanel ? (
             <Box display={{ base: "none", lg: "block" }}>{dockPanel}</Box>
+          ) : pairMode ? (
+            <Box display={{ base: "none", lg: "block" }}>{pairActions(false)}</Box>
           ) : (
             <Flex direction="column" gap="0.4rem" display={{ base: "none", lg: "flex" }}>
               {createButton}
@@ -4092,7 +4162,8 @@ const HeroSelectLobby = ({
           </Flex>
 
           {/* #1542: the "Here now" ribbon — one row, the roster gives up its height. */}
-          {!fixedSetup && ribbon}
+          {/* …kept while paired (#1556); the page disables its Join / 👋. */}
+          {(!fixedSetup || pairMode) && ribbon}
 
           {/* The roster is its own scroll region on desktop — the page behind it
               stays put, so Create/seats/stage never move. The fade at the foot
@@ -4447,6 +4518,8 @@ const HeroSelectLobby = ({
           <Box flex="1" minW="0">
             {dockPanel}
           </Box>
+        ) : pairMode ? (
+          pairActions(true)
         ) : (
           <>
             <Text flex="1" fontSize="0.72rem" color="whiteAlpha.700" fontFamily="SpaceGrotesk" noOfLines={2}>
@@ -5410,49 +5483,114 @@ const LiveGame = ({
   // shows who is here, so the socket stays up (as `searching`) until the game's
   // first STATE lands. It waits for the game socket so an engine that is down
   // costs one failed connect, not two.
-  const nudgeQuickMatchRef = useRef<() => void>(() => {});
+  // #1556: our 👋s awaiting an answer. Each greys its chip ("waiting…") until the
+  // target declines, the server refuses it, or the 60 s invitation runs out.
   const [waved, setWaved] = useState<ReadonlySet<string>>(() => new Set());
+  const waveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const unwave = useCallback((id: string) => {
+    const timer = waveTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    waveTimersRef.current.delete(id);
+    setWaved((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    const timers = waveTimersRef.current;
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, []);
+  // Matched mode (#1556): a 👋 was accepted and the two pickers are paired. The
+  // transitions live in lib/pro/lobbyPair.ts; `stepPair` (below) runs them. The
+  // ref is what the lobby callbacks read, so two frames in one tick see each other.
+  const [pair, setPair] = useState<LobbyPair | null>(null);
+  const pairRef = useRef<LobbyPair | null>(null);
+  // The fighter our Go committed (the host's create / the guest's join fall back to it).
+  const pairGoHeroRef = useRef<string | null>(null);
+  // Who 👋'd us, by presence id — the NUDGE_REPLY_RESULT toast names them.
+  const nudgerNamesRef = useRef(new Map<string, string>());
   // Not before the router is ready: the static export's first render has no
   // query yet, and a `?room=` link would open (and at once close) the socket.
   const routerReady = useRouter().isReady;
   const lobbySocket = useLobbySocket({
     wsUrl: WS_URL,
+    // #1556: a pair keeps it up past the seat too, like a search — the host's
+    // private room waits on it, and the first game STATE closes it.
     enabled:
       routerReady &&
       status === "open" &&
       !tournamentRoom &&
-      ((!joined && !room) || (quickSearch !== null && !snapshot)),
+      ((!joined && !room) || (quickSearch !== null && !snapshot) || (pair !== null && !snapshot)),
     state: quickSearch !== null ? "searching" : "picking",
     heroId: selectedHeroId && selectedHeroId !== RANDOM_HERO_ID ? selectedHeroId : null,
     onNudged: (from: PresenceEntry) => {
+      // The server never nudges a paired watcher; if one slips through, ignore it.
+      // A searcher is off the ribbon (no 👋 to aim at it), so the same goes there.
+      if (pairRef.current || quickSearch !== null) return;
       const name = from.displayName?.trim() || "Someone";
+      nudgerNamesRef.current.set(from.id, name);
+      const btn = { marginLeft: 6, padding: "4px 10px", borderRadius: 5, fontWeight: 600, minHeight: 32 } as const;
       toast(
         (t) => (
           <span data-testid="lobby-nudged-toast">
-            <b>{name}</b> wants to play — Quick Match?{" "}
+            <b>{name}</b> wants to play{" "}
             <button
               type="button"
-              style={{ marginLeft: 6, padding: "4px 10px", borderRadius: 5, background: "#E0A82E", color: "#2C1831", fontWeight: 600, minHeight: 32 }}
+              data-testid="lobby-nudge-accept"
+              style={{ ...btn, background: "#E0A82E", color: "#2C1831" }}
               onClick={() => {
                 toast.dismiss(t.id);
-                nudgeQuickMatchRef.current();
+                lobbySocket.reply(from.id, true);
               }}
             >
-              ⚡ Quick Match
+              Accept
+            </button>
+            <button
+              type="button"
+              data-testid="lobby-nudge-decline"
+              style={{ ...btn, background: "transparent", color: "inherit", border: "1px solid rgba(255,255,255,0.3)" }}
+              onClick={() => {
+                toast.dismiss(t.id);
+                lobbySocket.reply(from.id, false);
+              }}
+            >
+              Decline
             </button>
           </span>
         ),
-        { id: `lobby-nudged-${from.id}`, icon: "👋", duration: 10_000 },
+        { id: `lobby-nudged-${from.id}`, icon: "👋", duration: NUDGE_TOAST_MS },
       );
     },
     onNudgeResult: (result) => {
       if (result.ok) return;
-      setWaved((prev) => {
-        const next = new Set(prev);
-        next.delete(result.to);
-        return next;
-      });
+      unwave(result.to);
       if (result.reason === "rate_limited") toast("Easy on the waves — try again in a moment.", { id: "lobby-nudge-limit", icon: "👋" });
+      if (result.reason === "busy") toast(`${presenceNameOf(result.to)} is already matched`, { id: `lobby-nudge-busy-${result.to}`, icon: "👋" });
+    },
+    onNudgeReplyResult: (result) => {
+      if (result.ok) return;
+      const name = nudgerNamesRef.current.get(result.to) ?? presenceNameOf(result.to);
+      toast(nudgeReplyFailMessage(result.reason, name), { id: `lobby-nudge-reply-${result.to}`, icon: "👋" });
+    },
+    onNudgeDeclined: (from) => {
+      unwave(from.id);
+      toast(`${pairPartnerName(from)} can't play right now`, { id: `lobby-nudge-declined-${from.id}`, icon: "👋" });
+    },
+    onPaired: ({ pairId, role, with: partner }) => {
+      toast.dismiss(`lobby-nudged-${partner.id}`);
+      toast.dismiss(`lobby-nudge-declined-${partner.id}`);
+      unwave(partner.id);
+      stepPair({ type: "paired", pairId, role, with: partner });
+    },
+    onPairRoom: ({ pairId, roomId: pairRoomId }) => {
+      stepPair({ type: "room", pairId, roomId: pairRoomId, seated: joined });
+    },
+    onPairEnded: ({ pairId, reason }) => {
+      const current = pairRef.current;
+      if (!current || current.pairId !== pairId) return;
+      stepPair({ type: "ended", pairId, seated: joined }, pairEndedMessage(reason, pairPartnerName(current.with)));
     },
   });
   const lobbySnapshot = lobbySocket.snapshot;
@@ -5594,15 +5732,6 @@ const LiveGame = ({
     // One `hero_picked` per search, however many lobbies it walks (#1512).
     trackHeroPicked(heroId, "quickmatch");
   };
-  // The 👋 toast's button: the same Quick Match, with the fighter on the picker.
-  nudgeQuickMatchRef.current = () => {
-    const heroId = selectedHeroId;
-    if (joined || room || status !== "open" || !heroId || heroId === RANDOM_HERO_ID) {
-      toast("Pick a fighter, then hit Quick Match.", { id: "lobby-nudge-pick", icon: "⚡" });
-      return;
-    }
-    beginQuickMatch(heroId);
-  };
   const quickOpponent = quickSearch ? foundOpponent(roomInfo?.roster, roomInfo?.you) : null;
   const quickLanded = !!quickSearch && (!!snapshot || !!quickOpponent);
   useEffect(() => {
@@ -5626,14 +5755,23 @@ const LiveGame = ({
   // the socket closes, the server drops the seat, and the URL lands back on the
   // picker with the fighter still locked (`?hero=`), or in the chosen room.
   const pickedHero = selectedHeroId && selectedHeroId !== RANDOM_HERO_ID ? selectedHeroId : null;
-  const cancelQuickMatch = () => {
-    const heroId = pickedHero ?? quickSearch?.heroId ?? null;
+  // `flash` (#1556) is a toast for the page we land on: the navigation would
+  // otherwise swallow "Sam cancelled" before anyone could read it.
+  const leaveToPicker = (heroId: string | null, flash?: string) => {
+    if (flash) {
+      try {
+        window.sessionStorage.setItem(PRO_FLASH_KEY, flash);
+      } catch {
+        /* private mode: the toast is lost, the navigation is not */
+      }
+    }
     const params = new URLSearchParams();
     if (heroId) params.set("hero", heroId);
     if (debug) params.set("debug", "1");
     const qs = params.toString();
     window.location.href = `/pro/game${qs ? `?${qs}` : ""}`;
   };
+  const cancelQuickMatch = () => leaveToPicker(pickedHero ?? quickSearch?.heroId ?? null);
   const joinFromRibbon = (lobbyRoomId: string) => {
     if (quickSearch) {
       const params = new URLSearchParams({ room: lobbyRoomId });
@@ -5651,9 +5789,141 @@ const LiveGame = ({
     );
   };
   const onNudge = (presenceId: string) => {
+    if (pairRef.current) return;
     setWaved((prev) => new Set(prev).add(presenceId));
+    const timers = waveTimersRef.current;
+    const prior = timers.get(presenceId);
+    if (prior) clearTimeout(prior);
+    // No answer inside the server's invitation window: the chip re-enables.
+    timers.set(presenceId, setTimeout(() => unwave(presenceId), NUDGE_REPLY_WINDOW_MS));
     lobbySocket.nudge(presenceId);
   };
+
+  // ---- Matched mode (#1556) --------------------------------------------------
+  // The name a presence id goes by in the latest SNAPSHOT, for toasts.
+  function presenceNameOf(id: string): string {
+    const entry = lobbySocket.snapshot?.players.find((p) => p.id === id);
+    return (entry && presenceName(entry)) ?? "That player";
+  }
+  // Host: the room id we held when the pair's CREATE_ROOM went out (`undefined`
+  // = nothing armed), so ROOM_CREATED for OUR room is what triggers PAIR_ROOM.
+  const pairCreatedFromRef = useRef<string | null | undefined>(undefined);
+  // Guest: the pair room we sent JOIN_ROOM for, so its ROOM_NOT_FOUND/ROOM_FULL
+  // reads as "their table closed" rather than a bad link.
+  const pairJoinRef = useRef<string | null>(null);
+  const runPairEffect = (effect: PairEffect, flash?: string) => {
+    switch (effect.type) {
+      case "create": {
+        // The Quick Match create step's call shape: a standard duel on a rolled
+        // board, `quickMatch: true` so it pays the bonus. Deliberately NOT armed
+        // for the auto-publish (`quickCreatedFromRef`): a pair room stays private.
+        const heroId = pairGoHeroRef.current;
+        if (!heroId) return;
+        const rolledEntry = rollRandomMap("duel");
+        setRolledMapId(rolledEntry.id);
+        setSelectedFormat("duel");
+        tournament.seatedUntagged();
+        pairCreatedFromRef.current = roomId;
+        createRoom(heroId, undefined, customMapForEntry(rolledEntry), "duel", [], 0, mulligan, true);
+        trackHeroPicked(heroId, "quickmatch");
+        setJoined(true);
+        return;
+      }
+      case "join": {
+        // The latest pick wins: a guest may change fighter while it waits.
+        const heroId = pickedHero ?? pairGoHeroRef.current;
+        if (!heroId) return;
+        pairJoinRef.current = effect.roomId;
+        setSelectedHeroId(heroId);
+        setSelectedFormat("duel");
+        tournament.seatedUntagged();
+        joinRoom(effect.roomId, heroId, undefined, true);
+        trackHeroPicked(heroId, "quickmatch");
+        setJoined(true);
+        return;
+      }
+      case "pairRoom":
+        lobbySocket.pairRoom(effect.pairId, effect.roomId);
+        return;
+      case "cancelPair":
+        lobbySocket.cancelPair(effect.pairId);
+        return;
+      case "leave":
+        leaveToPicker(pickedHero ?? pairGoHeroRef.current, flash);
+        return;
+    }
+  };
+  /** Advance the pair; `flash` is the toast to show (carried across a "leave"). */
+  function stepPair(event: PairEvent, flash?: string) {
+    const { pair: next, effects } = reducePair(pairRef.current, event);
+    pairRef.current = next;
+    setPair(next);
+    for (const effect of effects) runPairEffect(effect, flash);
+    if (flash && !effects.some((e) => e.type === "leave")) toast(flash, { id: "lobby-pair-notice", icon: "👋" });
+  }
+  const pairGo = (heroId: string) => {
+    pairGoHeroRef.current = heroId;
+    setSelectedHeroId(heroId);
+    setRolledHero(false);
+    rememberHero(heroId); // "Recently played" row (#768)
+    stepPair({ type: "go" });
+  };
+  const cancelPair = () => stepPair({ type: "cancel", seated: joined });
+  // Host: ROOM_CREATED for the pair's room ⇒ relay it to the guest.
+  useEffect(() => {
+    const armedFrom = pairCreatedFromRef.current;
+    if (armedFrom === undefined || !roomId || roomId === armedFrom) return;
+    pairCreatedFromRef.current = undefined;
+    stepPair({ type: "created", roomId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+  // The game's first STATE: the pair is handed off (both seats taken). Forget it.
+  useEffect(() => {
+    if (!snapshot || !pairRef.current) return;
+    pairRef.current = null;
+    setPair(null);
+  }, [snapshot]);
+  // The lobby socket dropped while paired: a reconnect is a new socket id, so the
+  // server has already ended the pair. Once the room has been relayed the pair is
+  // handed off and survives a drop (the server forgets it silently too).
+  const lobbyWasLiveRef = useRef(false);
+  useEffect(() => {
+    const was = lobbyWasLiveRef.current;
+    lobbyWasLiveRef.current = lobbyLive;
+    const current = pairRef.current;
+    if (!was || lobbyLive || !current || current.roomId !== null || snapshot) return;
+    stepPair({ type: "clear", seated: joined }, "Lost the lobby connection — wave again");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lobbyLive]);
+  // Game-side answers to the pair's own frames.
+  useEffect(() => {
+    const current = pairRef.current;
+    if (!current || !error) return;
+    // Guest: the host's table is gone (or already full) — back to the picker.
+    if (pairJoinRef.current && (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_FULL")) {
+      pairJoinRef.current = null;
+      stepPair({ type: "cancel", seated: true }, `${pairPartnerName(current.with)}'s table closed`);
+      return;
+    }
+    // Host: the create bounced back to the picker (ROOM_LIMIT and friends; see the
+    // error effect below) — let Go try again.
+    if (current.role === "host" && current.ready && current.roomId === null) {
+      pairCreatedFromRef.current = undefined;
+      stepPair({ type: "unready" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+  // A toast a full navigation carried over (see leaveToPicker).
+  useEffect(() => {
+    try {
+      const flash = window.sessionStorage.getItem(PRO_FLASH_KEY);
+      if (!flash) return;
+      window.sessionStorage.removeItem(PRO_FLASH_KEY);
+      toast(flash, { id: "pro-flash", icon: "👋" });
+    } catch {
+      /* no storage */
+    }
+  }, []);
 
   // Preselect a hero once the server roster arrives: honor a valid `?hero=`
   // (invalid ids are ignored → manual pick), and auto-select when only one
@@ -5882,8 +6152,27 @@ const LiveGame = ({
         onJoin={joinFromRibbon}
         onNudge={lobbyLive ? onNudge : undefined}
         waved={waved}
+        disabled={pair !== null}
       />
     ) : null;
+    // Matched mode (#1556): the partner as the latest SNAPSHOT shows them.
+    let pairMode: ComponentProps<typeof HeroSelectLobby>["pairMode"] = null;
+    if (pair) {
+      const partner = livePartner(pair, lobbySnapshot?.players);
+      pairMode = {
+        partner: {
+          avatar: presenceAvatar(partner),
+          name: pairPartnerName(partner),
+          badge: partner.badges?.[0] ?? partner.badge ?? null,
+          heroName: partner.heroName ?? (partner.heroId ? heroNameOf(heroes, partner.heroId) : null),
+          ready: partnerReady(pair),
+        },
+        waiting: pair.role === "guest" && pair.ready,
+        bonusLabel,
+        onGo: pairGo,
+        onCancel: cancelPair,
+      };
+    }
     const quickHeroName = quickSearch ? heroNameOf(heroes, quickSearch.heroId) : null;
     const opponentName = quickOpponent?.displayName?.trim() || "Anonymous";
     const opponentHero = quickOpponent ? heroNameOf(heroes, quickOpponent.heroId) : null;
@@ -6016,6 +6305,7 @@ const LiveGame = ({
           bonusSummary={bonusLabel}
           heroPips={lobbyHeroPips(shownLobbies, roomId)}
           dockPanel={dockPanel}
+          pairMode={pairMode}
           p1HeroName={showQuickDock ? quickHeroName : undefined}
           p2Status={
             !showQuickDock
@@ -6203,8 +6493,8 @@ const LiveGame = ({
       const boardUnknown = (reconnectedRef.current || tournament.boardUnknown) && !rolledMapId;
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
-          <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em">
-            {tournament.at ? "YOUR MATCH ROOM" : `ROOM ${roomId}`}
+          <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em" data-testid="waiting-title">
+            {pair ? `Waiting for ${pairPartnerName(pair.with)}…` : tournament.at ? "YOUR MATCH ROOM" : `ROOM ${roomId}`}
           </Text>
           {myWaitingHeroName && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
@@ -6331,8 +6621,14 @@ const LiveGame = ({
           })()}
 
           {tournament.at && <TournamentWaiting at={tournament.at} roomId={roomId} boardUnknown={boardUnknown} onNotice={tournament.onNotice} />}
+          {/* #1556: a pair's room is theirs alone — no invite, no publish; just a way out. */}
+          {pair && (
+            <Button {...BTN} data-testid="pair-cancel" onClick={cancelPair}>
+              Cancel
+            </Button>
+          )}
           {/* discoverability: invite privately or list publicly */}
-          {!tournament.at && (
+          {!tournament.at && !pair && (
             <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
               <Tag fontFamily="mono" px="0.75rem" py="0.4rem">
                 {joinUrl}
@@ -6351,7 +6647,7 @@ const LiveGame = ({
             </Flex>
           )}
           <Flex gap="0.5rem" alignItems="center" flexWrap="wrap" justifyContent="center">
-            {!tournament.at && (
+            {!tournament.at && !pair && (
               <Button
                 {...(roomPublic ? BTN_GOLD : BTN)}
                 onClick={() => setVisibility(!roomPublic)}
@@ -6375,7 +6671,7 @@ const LiveGame = ({
           <Text fontSize="0.8rem" opacity={0.6} textAlign="center">
             Go do something else — this tab chimes and renames itself the moment the game starts.
           </Text>
-          <Text fontSize="0.8rem" opacity={0.5} display={tournament.at ? "none" : undefined}>
+          <Text fontSize="0.8rem" opacity={0.5} display={tournament.at || pair ? "none" : undefined}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
           {mapSubmit && (

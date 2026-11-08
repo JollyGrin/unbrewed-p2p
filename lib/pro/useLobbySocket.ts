@@ -2,7 +2,7 @@
  * The `/pro/game` picker's presence socket (issue #1542 ↔ engine #1034).
  *
  * A second, thin websocket at `<PRO_WS_URL>/lobby` speaking `lib/pro/lobbyProtocol.ts`
- * (v1) — NOT the game protocol. It is open only while the player sits on the hero
+ * (v2 since #1556) — NOT the game protocol. It is open only while the player sits on the hero
  * picker: the page passes `enabled: false` the moment it takes a seat on the game
  * socket (CREATE_ROOM / JOIN_ROOM / RECONNECT / RESUME_ROOM) and `true` again on
  * the way back. A Quick Match search is the exception: it stays open as
@@ -15,6 +15,12 @@
  * - STATE whenever the presence state or hero changes. A hidden tab reads as
  *   `idle` (the "away" dot on the ribbon), a visible one as the page asked.
  * - Reconnects with the same full-jitter backoff as useProSocket.
+ * - v2 (#1556 ↔ engine #1041): a 👋 is a request the target answers (`reply`);
+ *   an accept pairs the two sockets (PAIRED), the host relays its private room
+ *   (`pairRoom` → the guest's PAIR_ROOM), and either side can `cancelPair`. The
+ *   page's pair state machine is `lib/pro/lobbyPair.ts`; this hook only carries
+ *   the frames. Every frame carries `v: 2`, so an engine still on v1 answers the
+ *   HELLO with `ERROR VERSION` and the page falls back to the poll (below).
  *
  * An engine without `/lobby` routes the upgrade to its GAME socket, which answers
  * our HELLO with a game-protocol ERROR. Any ERROR before the first SNAPSHOT marks
@@ -35,6 +41,10 @@ import {
 
 export type LobbySnapshot = Extract<LobbyServerMsg, { type: "SNAPSHOT" }>;
 export type LobbyNudgeResult = Extract<LobbyServerMsg, { type: "NUDGE_RESULT" }>;
+export type LobbyNudgeReplyResult = Extract<LobbyServerMsg, { type: "NUDGE_REPLY_RESULT" }>;
+export type LobbyPaired = Omit<Extract<LobbyServerMsg, { type: "PAIRED" }>, "v" | "type">;
+export type LobbyPairRoom = Omit<Extract<LobbyServerMsg, { type: "PAIR_ROOM" }>, "v" | "type">;
+export type LobbyPairEnded = Omit<Extract<LobbyServerMsg, { type: "PAIR_ENDED" }>, "v" | "type">;
 
 /** Same cap as useProSocket's reconnect loop. */
 const MAX_RETRY_DELAY_MS = 10_000;
@@ -55,6 +65,16 @@ export interface UseLobbySocketOptions {
   onNudged?: (from: PresenceEntry) => void;
   /** the server's answer to our own 👋 */
   onNudgeResult?: (result: LobbyNudgeResult) => void;
+  /** the server's answer to our Accept / Decline */
+  onNudgeReplyResult?: (result: LobbyNudgeReplyResult) => void;
+  /** the player we waved at declined */
+  onNudgeDeclined?: (from: PresenceEntry) => void;
+  /** a wave was accepted (ours or theirs): we are in a pair */
+  onPaired?: (paired: LobbyPaired) => void;
+  /** guest: the host's private room id */
+  onPairRoom?: (room: LobbyPairRoom) => void;
+  /** the other side cancelled, left, or the pair expired */
+  onPairEnded?: (ended: LobbyPairEnded) => void;
 }
 
 export interface UseLobbySocketReturn {
@@ -62,6 +82,12 @@ export interface UseLobbySocketReturn {
   snapshot: LobbySnapshot | null;
   /** send 👋 to a `PresenceEntry.id` from the last snapshot */
   nudge: (to: string) => void;
+  /** answer the 👋 from `to`: accept pairs us, decline tells them */
+  reply: (to: string, accept: boolean) => void;
+  /** host: relay our private room to the guest */
+  pairRoom: (pairId: string, roomId: string) => void;
+  /** end the pair for both sides */
+  cancelPair: (pairId: string) => void;
 }
 
 const useDocumentHidden = (): boolean => {
@@ -83,6 +109,11 @@ export function useLobbySocket({
   heroId = null,
   onNudged,
   onNudgeResult,
+  onNudgeReplyResult,
+  onNudgeDeclined,
+  onPaired,
+  onPairRoom,
+  onPairEnded,
 }: UseLobbySocketOptions): UseLobbySocketReturn {
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null);
   const hidden = useDocumentHidden();
@@ -102,6 +133,16 @@ export function useLobbySocket({
   onNudgedRef.current = onNudged;
   const onNudgeResultRef = useRef(onNudgeResult);
   onNudgeResultRef.current = onNudgeResult;
+  const onNudgeReplyResultRef = useRef(onNudgeReplyResult);
+  onNudgeReplyResultRef.current = onNudgeReplyResult;
+  const onNudgeDeclinedRef = useRef(onNudgeDeclined);
+  onNudgeDeclinedRef.current = onNudgeDeclined;
+  const onPairedRef = useRef(onPaired);
+  onPairedRef.current = onPaired;
+  const onPairRoomRef = useRef(onPairRoom);
+  onPairRoomRef.current = onPairRoom;
+  const onPairEndedRef = useRef(onPairEnded);
+  onPairEndedRef.current = onPairEnded;
 
   const wsRef = useRef<WebSocket | null>(null);
   const helloedRef = useRef(false);
@@ -165,6 +206,21 @@ export function useLobbySocket({
           case "NUDGE_RESULT":
             onNudgeResultRef.current?.(msg);
             break;
+          case "NUDGE_REPLY_RESULT":
+            onNudgeReplyResultRef.current?.(msg);
+            break;
+          case "NUDGE_DECLINED":
+            onNudgeDeclinedRef.current?.(msg.from);
+            break;
+          case "PAIRED":
+            onPairedRef.current?.({ pairId: msg.pairId, role: msg.role, with: msg.with });
+            break;
+          case "PAIR_ROOM":
+            onPairRoomRef.current?.({ pairId: msg.pairId, roomId: msg.roomId });
+            break;
+          case "PAIR_ENDED":
+            onPairEndedRef.current?.({ pairId: msg.pairId, reason: msg.reason });
+            break;
           case "ERROR":
             if (!gotSnapshot) {
               // Not a lobby socket (see the header). Stop for this page load.
@@ -219,5 +275,18 @@ export function useLobbySocket({
     [send],
   );
 
-  return { snapshot, nudge };
+  const reply = useCallback(
+    (to: string, accept: boolean) => send({ v: LOBBY_PROTOCOL_VERSION, type: "NUDGE_REPLY", to, accept }),
+    [send],
+  );
+  const pairRoom = useCallback(
+    (pairId: string, roomId: string) => send({ v: LOBBY_PROTOCOL_VERSION, type: "PAIR_ROOM", pairId, roomId }),
+    [send],
+  );
+  const cancelPair = useCallback(
+    (pairId: string) => send({ v: LOBBY_PROTOCOL_VERSION, type: "PAIR_CANCEL", pairId }),
+    [send],
+  );
+
+  return { snapshot, nudge, reply, pairRoom, cancelPair };
 }

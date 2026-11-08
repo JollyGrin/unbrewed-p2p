@@ -93,9 +93,9 @@ const lobbyAvatar = (l: LobbyListing): Avatar => {
   return { key: `l-${l.roomId}`, initial: avatarInitial(name), colour: avatarColour(l.heroId), title: name ?? "Anonymous" };
 };
 
-const presenceName = (p: PresenceEntry): string | null => p.displayName?.trim() || null;
+export const presenceName = (p: PresenceEntry): string | null => p.displayName?.trim() || null;
 
-const presenceAvatar = (p: PresenceEntry): Avatar => {
+export const presenceAvatar = (p: PresenceEntry): Avatar => {
   const name = presenceName(p);
   return {
     key: `p-${p.id}`,
@@ -155,6 +155,8 @@ export type RibbonItem =
       heroName: string | null;
       state: LobbyPresenceState;
       stateLine: string;
+      /** v2 (#1556): in a pair already — no 👋 */
+      paired: boolean;
     }
   | { kind: "tail"; key: string; tablesInPlay: number };
 
@@ -242,7 +244,8 @@ export const ribbonItems = ({
       badge: p.badges?.[0] ?? p.badge ?? null,
       heroName: p.heroName ?? null,
       state: p.state,
-      stateLine: presenceStateLabel(p.state, p.sinceMs),
+      stateLine: p.paired ? "matched" : presenceStateLabel(p.state, p.sinceMs),
+      paired: !!p.paired,
     });
   }
   if (tablesInPlay && tablesInPlay > 0) items.push({ kind: "tail", key: "tail", tablesInPlay });
