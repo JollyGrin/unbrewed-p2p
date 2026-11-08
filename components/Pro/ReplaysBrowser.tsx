@@ -33,9 +33,9 @@ import {
   deleteReplay,
   listReplays,
   loadReplay,
-  purgeExpired,
   RETENTION_DAYS,
   saveReplay,
+  takePurgedReplays,
   storageMeter,
   toggleStar,
 } from "@/lib/pro/replayStore";
@@ -321,9 +321,9 @@ export const ReplaysBrowser = () => {
     setMeter(storageMeter());
   }, []);
 
-  // Lazy retention sweep on mount (no background timer in a static client).
+  // Report the app-wide load sweep (pages/_app.tsx) plus a fresh one on mount.
   useEffect(() => {
-    const purged = purgeExpired();
+    const purged = takePurgedReplays();
     if (purged.length) {
       toast({ description: `Cleaned up ${purged.length} unstarred replay${purged.length === 1 ? "" : "s"} older than ${RETENTION_DAYS} days.`, status: "info", duration: 4000 });
     }

@@ -4792,6 +4792,9 @@ const LiveGame = ({
         ),
         { duration: 6000 }
       );
+    } else {
+      // Silent failure used to lose the match with no hint why (#1551).
+      toast.error("Couldn't save this replay — storage is full", { id: "replay-save-failed", duration: 7000 });
     }
   }, [replayBundle]);
 

@@ -6,6 +6,10 @@
 import type { ReplayBundle } from "./protocol";
 import {
   RETENTION_DAYS,
+  STORAGE_BUDGET_BYTES,
+  purgeExpiredOnLoad,
+  resetLoadSweepForTests,
+  takePurgedReplays,
   deleteReplay,
   listReplays,
   loadReplay,
@@ -36,7 +40,10 @@ function bundle(overrides: { seed?: number; heroes?: [string, string]; winner?: 
   };
 }
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+  resetLoadSweepForTests();
+});
 
 describe("saveReplay / listReplays", () => {
   it("saves and lists a replay with denormalized metadata", () => {
@@ -82,6 +89,73 @@ describe("retention", () => {
     expect(ids).toContain(fresh.id);
     expect(ids).not.toContain(old.id);
     expect(loadReplay(old.id)).toBeNull();
+  });
+});
+
+describe("load-time purge (#1551)", () => {
+  const now = 100 * DAY;
+  const stale = now - (RETENTION_DAYS + 1) * DAY;
+
+  it("purgeExpiredOnLoad sweeps once per page load, starred survive", () => {
+    const old = saveReplay(bundle({ seed: 1 }), stale);
+    const oldStarred = saveReplay(bundle({ seed: 2 }), stale);
+    toggleStar(oldStarred.id, true);
+
+    purgeExpiredOnLoad(now);
+    expect(listReplays().map((e) => e.id)).toEqual([oldStarred.id]);
+    expect(loadReplay(old.id)).toBeNull();
+
+    // A second call in the same page load is a no-op.
+    const later = saveReplay(bundle({ seed: 3 }), stale);
+    purgeExpiredOnLoad(now);
+    expect(listReplays().map((e) => e.id)).toContain(later.id);
+  });
+
+  it("the Replays page still reports what the app-wide sweep purged, once", () => {
+    const old = saveReplay(bundle({ seed: 1 }), stale);
+    purgeExpiredOnLoad(now); // _app ran first
+    expect(takePurgedReplays(now)).toEqual([old.id]);
+    expect(takePurgedReplays(now)).toEqual([]); // reported once
+  });
+
+  it("takePurgedReplays sweeps on its own if the load sweep hasn't run", () => {
+    const old = saveReplay(bundle({ seed: 1 }), stale);
+    expect(takePurgedReplays(now)).toEqual([old.id]);
+    expect(listReplays()).toHaveLength(0);
+  });
+
+  it("never throws when storage is blocked", () => {
+    const spy = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    try {
+      expect(() => purgeExpiredOnLoad(now)).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("budget (#1551)", () => {
+  it("leaves half the ~5 MiB origin quota for everything else", () => {
+    expect(STORAGE_BUDGET_BYTES).toBe(2.5 * 1024 * 1024);
+    expect(storageMeter().budgetBytes).toBe(STORAGE_BUDGET_BYTES);
+  });
+
+  it("saveReplay defaults to the new budget: evicts oldest unstarred past 2.5 MiB, never starred", () => {
+    const pad = 900 * 1024; // ~0.9 MiB each: two fit, a third crosses 2.5 MiB
+    const a = saveReplay(bundle({ seed: 1, pad }), 10);
+    const b = saveReplay(bundle({ seed: 2, pad }), 20);
+    toggleStar(a.id, true);
+    expect(a.evicted).toEqual([]);
+    expect(b.evicted).toEqual([]);
+
+    // Under the old 5 MiB budget this would have fit with no eviction.
+    const c = saveReplay(bundle({ seed: 3, pad }), 30);
+    expect(c.ok).toBe(true);
+    expect(c.evicted).toEqual([b.id]);
+    expect(listReplays().map((e) => e.id).sort()).toEqual([a.id, c.id].sort());
+    expect(storageMeter().usedBytes).toBeLessThanOrEqual(STORAGE_BUDGET_BYTES);
   });
 });
 

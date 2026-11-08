@@ -9,7 +9,8 @@
  * keeps the list render cheap and lets eviction drop a bundle body while the
  * meter stays exact (it sums real serialized bytes).
  *
- * Retention (evaluated lazily on load — a static client has no background timer):
+ * Retention (evaluated lazily once per page load — a static client has no
+ * background timer; see purgeExpiredOnLoad):
  *  - starred replays are pinned (never auto-deleted, never evicted),
  *  - unstarred replays auto-delete after RETENTION_DAYS,
  *  - near the byte cap, saveReplay evicts oldest UNSTARRED first to make room.
@@ -21,8 +22,18 @@ import { replayHeroList } from "./replayHeroes";
 const INDEX_KEY = "unbrewed:pro:replays:index";
 const REPLAY_PREFIX = "unbrewed:pro:replay:";
 
-/** localStorage is ~5 MB per origin in practice; budget against that. */
-export const STORAGE_BUDGET_BYTES = 5 * 1024 * 1024;
+/**
+ * Replays' share of the origin's localStorage (#1551). Browsers cap the WHOLE
+ * origin at ~5 M characters (Chrome/Firefox: 5 MiB of key+value UTF-16 code
+ * units; Safari about the same). Replay JSON is ASCII, so the UTF-8 byte count
+ * here equals the character count the quota charges. A 5 MiB budget therefore
+ * let replays alone fill the origin, leaving no room for the bag (DECKS +
+ * MAP_LIST), the refresh-resume blob, flags and prefs — and every later write,
+ * including the next replay, threw QuotaExceeded. Half the quota keeps the
+ * other ~2.5 MiB for everything else (a full bag of image-URL decks is a few
+ * hundred KB) while still holding dozens of frame-stripped replays.
+ */
+export const STORAGE_BUDGET_BYTES = 2.5 * 1024 * 1024;
 export const STORAGE_WARN_RATIO = 0.8;
 export const RETENTION_DAYS = 7;
 const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
@@ -115,6 +126,41 @@ export function purgeExpired(now: number = Date.now()): string[] {
   return purged;
 }
 
+// Load-time sweep (#1551): run once per page load app-wide (pages/_app.tsx), so
+// players who never open the Replays page still get the 7-day cleanup. What it
+// purged is held until the Replays page reports it.
+let loadSweepDone = false;
+let unreportedPurges: string[] = [];
+
+/** Run purgeExpired at most once per page load. Never throws. */
+export function purgeExpiredOnLoad(now: number = Date.now()): void {
+  if (loadSweepDone) return;
+  loadSweepDone = true;
+  try {
+    unreportedPurges.push(...purgeExpired(now));
+  } catch {
+    // Storage blocked (privacy mode, sandboxed iframe) — nothing to clean.
+  }
+}
+
+/**
+ * For the Replays page: make sure the load sweep ran, sweep again (a long-lived
+ * tab can cross a cutoff), and return every purged id not yet reported — so its
+ * "N old replays cleaned up" message still fires after the app-wide sweep.
+ */
+export function takePurgedReplays(now: number = Date.now()): string[] {
+  purgeExpiredOnLoad(now);
+  const purged = [...unreportedPurges, ...purgeExpired(now)];
+  unreportedPurges = [];
+  return purged;
+}
+
+/** Test-only: forget that this "page load" already swept. */
+export function resetLoadSweepForTests(): void {
+  loadSweepDone = false;
+  unreportedPurges = [];
+}
+
 // ---- meter ------------------------------------------------------------------
 
 export function storageMeter(): StorageMeter {
@@ -164,7 +210,7 @@ export function saveReplay(
 ): SaveResult {
   if (!hasWindow()) return { ok: false, id: "", evicted: [], error: "no storage" };
   // A bundle read back from a share link carries the expansion frozen in at
-  // upload time (#701) — hundreds of KB against a 5 MB budget, and pointless
+  // upload time (#701) — hundreds of KB against a 2.5 MiB budget, and pointless
   // locally, where the live engine can always re-expand the action log. Strip it
   // here so no path into localStorage can smuggle frames in.
   const bundle = stripFrames(input);
