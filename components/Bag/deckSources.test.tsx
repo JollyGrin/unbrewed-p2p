@@ -10,11 +10,11 @@ import { ReactNode } from "react";
 
 import { CodePanel } from "./AddDeckHub/CodePanel";
 import { AddJson } from "./Deck/AddJson";
-import { StarterDeckContainer } from "./StarterDecks";
 import { PopularDecks } from "./PopularDecks";
 import { AddImageDeck } from "./ImageDeck";
 import { BagBulkContainer } from "./Bulk";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
+import { EVERGREEN_DECK_IDS } from "@/lib/evergreenDecks";
 
 const mockTrack = jest.fn();
 jest.mock("../../lib/analytics", () => ({
@@ -50,9 +50,6 @@ jest.mock("../../lib/hooks/useUnmatchedDeck", () => ({
   }),
 }));
 
-jest.mock("./StarterDecks/useStarterDecks", () => ({
-  useStarterDecks: () => [{ status: "success", data: { id: "s1", name: "Thrall" } }],
-}));
 
 const mockFetchDeck = jest.fn();
 jest.mock("../../lib/evergreenDecks", () => ({
@@ -147,13 +144,6 @@ describe("AddJson (#1538)", () => {
   });
 });
 
-it("StarterDeckContainer adds with source starter", () => {
-  const pushDeck = jest.fn(async () => true);
-  wrap(<StarterDeckContainer pushDeck={pushDeck} />);
-  fireEvent.click(screen.getByRole("button", { name: /Thrall/ }));
-  expect(pushDeck).toHaveBeenCalledWith({ id: "s1", name: "Thrall" }, { source: "starter" });
-});
-
 describe("PopularDecks", () => {
   const first = POPULAR_DECKS.find((d) => d.tier !== "reflavored" && d.tier !== "lab")!;
   const tile = () => screen.getByText(first.name);
@@ -173,6 +163,64 @@ describe("PopularDecks", () => {
     await waitFor(() =>
       expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", { source: "popular", reason: 503 }),
     );
+  });
+
+  /** #1538 round 4: one browser for every Pro deck plus the community's most-liked. */
+  describe("the one deck browser", () => {
+    const tiles = () => Array.from(document.querySelectorAll<HTMLElement>("[data-testid='deck-browser'] [data-deck-id]"));
+    const ids = () => tiles().map((el) => el.getAttribute("data-deck-id")!);
+    const labels = () => tiles().map((el) => el.getAttribute("aria-label"));
+    const byId = (id: string) => POPULAR_DECKS.find((d) => d.id === id)!;
+
+    it("shows lab decks with the Lab badge, hides reflavored ones without ?debug", () => {
+      wrap(<PopularDecks pushDeck={jest.fn()} setStar={() => {}} />);
+      const lab = POPULAR_DECKS.filter((d) => d.tier === "lab");
+      expect(lab.length).toBeGreaterThanOrEqual(7);
+      for (const deck of lab) {
+        expect(screen.getByRole("button", { name: `${deck.name} (Pro) (Lab)` })).toBeInTheDocument();
+      }
+      // reflavored decks (the spice remix replaced them) stay out; two of them share a
+      // name with their remix, so check by id
+      for (const deck of POPULAR_DECKS.filter((d) => d.tier === "reflavored")) {
+        expect(ids()).not.toContain(deck.id);
+      }
+      expect(screen.queryByRole("button", { name: /Starter/ })).toBeNull();
+    });
+
+    it("Pro decks are badged and come first, then the rest by likes", () => {
+      wrap(<PopularDecks pushDeck={jest.fn()} setStar={() => {}} />);
+      const all = labels();
+      const proCount = POPULAR_DECKS.filter((d) => EVERGREEN_DECK_IDS.has(d.id) && d.tier !== "reflavored").length;
+      expect(all.slice(0, proCount).every((l) => l?.includes("(Pro)"))).toBe(true);
+      expect(all.slice(proCount).some((l) => l?.includes("(Pro)"))).toBe(false);
+      const rest = ids().slice(proCount).map((id) => byId(id).likes);
+      expect(rest).toEqual([...rest].sort((a, b) => b - a));
+      expect(ids().slice(0, proCount).every((id) => EVERGREEN_DECK_IDS.has(id))).toBe(true);
+      // the old starter decks are all here
+      for (const id of ["pk1x", "LWNZ", "LmYw", "lDOM", "lQz7"]) expect(ids()).toContain(id);
+    });
+
+    it("the Pro chip keeps only Pro decks; the search narrows by name or author", () => {
+      wrap(<PopularDecks pushDeck={jest.fn()} setStar={() => {}} />);
+      fireEvent.click(screen.getByRole("radio", { name: /^Pro/ }));
+      expect(labels().every((l) => l?.includes("(Pro)"))).toBe(true);
+      fireEvent.click(screen.getByRole("radio", { name: "All" }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Search decks" }), { target: { value: "wick" } });
+      expect(ids()).toEqual(["LmYw"]);
+      fireEvent.change(screen.getByRole("textbox", { name: "Search decks" }), { target: { value: "zzzz" } });
+      expect(screen.getByText(/No deck matches/)).toBeInTheDocument();
+    });
+
+    it("picking a lab deck still pushes and stars it with source popular", async () => {
+      const lab = POPULAR_DECKS.find((d) => d.tier === "lab")!;
+      mockFetchDeck.mockResolvedValueOnce({ ...DECK, id: lab.id });
+      const pushDeck = jest.fn(async () => true);
+      const setStar = jest.fn();
+      wrap(<PopularDecks pushDeck={pushDeck} setStar={setStar} />);
+      fireEvent.click(screen.getByRole("button", { name: `${lab.name} (Pro) (Lab)` }));
+      await waitFor(() => expect(pushDeck).toHaveBeenCalledWith({ ...DECK, id: lab.id }, { source: "popular" }));
+      expect(setStar).toHaveBeenCalledWith(lab.id);
+    });
   });
 });
 

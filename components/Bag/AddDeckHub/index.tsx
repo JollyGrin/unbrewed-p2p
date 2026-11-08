@@ -13,7 +13,6 @@ import { BagDeckView } from "@/lib/bag/useBag";
 import { PasteDetection, detectDeckPaste } from "@/lib/bag/detectPaste";
 import { PopularDecks } from "@/components/Bag/PopularDecks";
 import { AddImageDeck } from "@/components/Bag/ImageDeck";
-import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { AddJson } from "@/components/Bag/Deck/AddJson";
 import { ClubPanel } from "./ClubPanel";
 import { UrlPanel } from "./UrlPanel";
@@ -21,7 +20,7 @@ import { CodePanel } from "./CodePanel";
 import { FoundLine } from "./FoundLine";
 import { LabsPanel } from "./LabsPanel";
 
-type Browse = "popular" | "starters" | "images";
+type Browse = "popular" | "images";
 
 const siteLink = (href: string, label: string) => (
   <Link href={href} isExternal textDecoration="underline" fontWeight={700}>
@@ -33,7 +32,7 @@ const siteLink = (href: string, label: string) => (
  * The universal paste bar (#1538): one input for a link, a code, deck JSON
  * or a dropped `.json` file. `detectDeckPaste` says what it is, and the
  * matching panel opens underneath with it filled in — no method to choose.
- * Popular and Starter decks are text links that open inline.
+ * "Browse decks" (every Pro deck plus the community's most-liked) opens inline.
  */
 export const AddDeckHub = ({
   pushDeck,
@@ -183,11 +182,7 @@ export const AddDeckHub = ({
         align="center"
       >
         <TextLink active={browse === "popular"} onClick={() => toggle("popular")}>
-          Browse popular decks
-        </TextLink>
-        <span>·</span>
-        <TextLink active={browse === "starters"} onClick={() => toggle("starters")}>
-          Starter decks
+          Browse decks
         </TextLink>
         <span>·</span>
         <TextLink onClick={() => fileRef.current?.click()}>Drop a file</TextLink>
@@ -203,9 +198,6 @@ export const AddDeckHub = ({
         >
           {browse === "popular" && (
             <PopularDecks deckIds={deckIds} pushDeck={pushDeck} setStar={setStar} star={star} />
-          )}
-          {browse === "starters" && (
-            <StarterDeckContainer deckIds={deckIds} pushDeck={pushDeck} />
           )}
           {browse === "images" && <AddImageDeck onAdded={added} />}
         </Box>

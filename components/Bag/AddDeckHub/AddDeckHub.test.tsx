@@ -37,7 +37,6 @@ jest.mock("../ImageDeck", () => ({
   ),
 }));
 jest.mock("../PopularDecks", () => ({ PopularDecks: () => <p>popular decks list</p> }));
-jest.mock("../StarterDecks", () => ({ StarterDeckContainer: () => <p>starter decks list</p> }));
 
 const mockFetch = jest.fn();
 beforeEach(() => {
@@ -283,12 +282,13 @@ describe("AddDeckHub paste bar", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("Popular and Starter decks open inline from the text links", () => {
+  it("one 'Browse decks' link opens the deck browser inline; the Starter decks link is gone (round 4)", () => {
     renderHub();
-    fireEvent.click(screen.getByRole("button", { name: "Browse popular decks" }));
+    expect(screen.queryByRole("button", { name: /Starter decks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Browse popular decks/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Browse decks" }));
     expect(screen.getByText("popular decks list")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Starter decks" }));
-    expect(screen.getByText("starter decks list")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Browse decks" }));
     expect(screen.queryByText("popular decks list")).not.toBeInTheDocument();
   });
 });
