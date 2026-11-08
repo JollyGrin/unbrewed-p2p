@@ -79,6 +79,12 @@ export interface ProPostGameContext {
   clockMs?: number | null;
   /** Who took turn 1, when derivable; null = omitted. */
   firstPlayer?: PlayerId | null;
+  /**
+   * The XP multiplier the room locked in at start (ROOM_STATUS.xpMultiplier,
+   * engine #1035); absent / 1 = an ordinary game. Only a Quick Play game (Quick
+   * Match or a public table joined from the list) ever carries one (#1542).
+   */
+  xpMultiplier?: number | null;
 }
 
 export interface ProPostGameProps extends ProPostGameContext {
@@ -383,6 +389,7 @@ export const ProPostGame = ({
   clockMs = null,
   firstPlayer = null,
   earned,
+  xpMultiplier = null,
 }: ProPostGameProps) => {
   const result = gameResultOf(view) ?? "no-winner";
   const victory = result === "victory";
@@ -487,7 +494,7 @@ export const ProPostGame = ({
     accountStatus === "guest" ? (
       <GuestLine compact={!panel} />
     ) : earned ? (
-      <ProPostGameEarned view={earned} heroName={earnedHeroName} compact={!panel} />
+      <ProPostGameEarned view={earned} heroName={earnedHeroName} compact={!panel} xpMultiplier={xpMultiplier} />
     ) : null;
   // The grid stays in the tree even while both slots are empty, so parts 2 and
   // 3 drop into a layout that is already there.

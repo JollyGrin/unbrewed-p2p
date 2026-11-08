@@ -3,6 +3,7 @@ import {
   advanceQuickMatch,
   botFallbackHref,
   isQuickMatchCandidate,
+  QUICK_PLAY_TIMER_SECONDS,
   isQuickMatchRetryable,
   isQuickMatchWaiting,
   lobbyHostName,
@@ -20,6 +21,17 @@ const bare = (roomId: string, ageMs: number): LobbyListing => ({
   heroId: "king-kong",
   heroName: "King Kong",
   ageMs,
+  turnTimerSeconds: 60, // a Quick Play room (QUICK_PLAY_TIMER_SECONDS)
+});
+
+describe("Quick Play timer", () => {
+  it("only 60 s duels are Quick Match candidates", () => {
+    expect(isQuickMatchCandidate(bare("a", 1))).toBe(true);
+    expect(isQuickMatchCandidate({ ...bare("a", 1), turnTimerSeconds: undefined })).toBe(false);
+    expect(isQuickMatchCandidate({ ...bare("a", 1), turnTimerSeconds: 30 })).toBe(false);
+    expect(isQuickMatchCandidate({ ...bare("a", 1), formatId: "ffa-3" })).toBe(false);
+    expect(QUICK_PLAY_TIMER_SECONDS).toBe(60);
+  });
 });
 
 describe("quickMatchCandidates", () => {
@@ -141,7 +153,7 @@ describe("botFallbackHref", () => {
 
 describe("enriched-listing helpers (all fields optional)", () => {
   it("returns nothing for a listing from today's engine", () => {
-    const l = bare("aaa", 10);
+    const { turnTimerSeconds: _t, ...l } = bare("aaa", 10);
     expect(lobbyHostName(l)).toBeNull();
     expect(lobbyTimerLabel(l)).toBeNull();
   });

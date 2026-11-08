@@ -16,6 +16,7 @@
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
+import { Toaster, toast } from "react-hot-toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
 import { theme } from "@/styles/style";
@@ -52,9 +53,11 @@ const lobby = (roomId: string, ageMs: number): LobbyListing => ({
   heroId: HERO,
   heroName: "King Kong",
   ageMs,
+  turnTimerSeconds: 60, // a Quick Play room (QUICK_PLAY_TIMER_SECONDS)
 });
 
 let SENT: string[] = [];
+const mockReplace = jest.fn(async (..._a: unknown[]) => true);
 
 const frames = (type: string): Record<string, unknown>[] =>
   SENT.map((raw) => JSON.parse(raw)).filter((m) => m.type === type);
@@ -75,7 +78,7 @@ const fakeRouter = () =>
     isLocaleDomain: false,
     events: { on() {}, off() {}, emit() {} },
     push: async () => true,
-    replace: async () => true,
+    replace: (...a: unknown[]) => mockReplace(...a),
     reload() {},
     back() {},
     forward() {},
@@ -92,6 +95,7 @@ const mountPicker = async (lobbies: LobbyListing[]) => {
       <RouterContext.Provider value={fakeRouter()}>
         <ChakraProvider theme={theme}>
           <ProGamePage />
+          <Toaster />
         </ChakraProvider>
       </RouterContext.Provider>
     </QueryClientProvider>,
@@ -118,6 +122,9 @@ const deliver = async (msg: Record<string, unknown>) => {
 const raceAway = (code: "ROOM_FULL" | "ROOM_NOT_FOUND") =>
   deliver({ type: "ERROR", code, message: "gone" });
 
+/** The dock panel mounts twice (desktop rail + mobile bar; CSS shows one), like Create. */
+const dock = (testId: string) => screen.getAllByTestId(testId)[0];
+
 const clickQuickMatch = async () => {
   const button = await screen.findByTestId("quick-match");
   await act(async () => {
@@ -136,6 +143,7 @@ beforeAll(() => {
 beforeEach(() => {
   FakeWebSocket.reset();
   SENT = [];
+  mockReplace.mockClear();
 });
 
 afterEach(() => {
@@ -143,6 +151,7 @@ afterEach(() => {
 });
 
 afterEach(() => {
+  act(() => toast.remove()); // react-hot-toast's store is module-level
   window.sessionStorage.clear();
   window.localStorage.clear();
 });
@@ -199,11 +208,11 @@ describe("Quick Match on the pre-join picker", () => {
     expect(created).toEqual([
       expect.objectContaining({ type: "CREATE_ROOM", heroId: HERO, quickMatch: true }),
     ]);
-    // A matchmade room is the plainest possible duel: no timer, and duel is the
-    // omitted default. The BOARD is the one thing it does roll (#685) — here the
-    // roll landed on the server-default board, which sends no customMap at all.
+    // A matchmade room is a plain duel (the omitted default) on the Quick Play
+    // 60 s timer, whatever the picker says. The BOARD is the one thing it rolls
+    // (#685) — here the server-default board, which sends no customMap at all.
     expect(created[0]).not.toHaveProperty("customMap");
-    expect(created[0]).not.toHaveProperty("turnTimerSeconds");
+    expect(created[0]).toMatchObject({ turnTimerSeconds: 60 });
     expect(created[0]).not.toHaveProperty("formatId");
   });
 
@@ -234,18 +243,81 @@ describe("Quick Match on the pre-join picker", () => {
     ]);
   });
 
-  it("shows the waiting room — not 'trying lobby 1 of 1' — once a join LANDS", async () => {
-    // Caught in a real browser: a join can succeed into a room that is still
-    // waiting (a reconnect to our own room, or a format needing a third seat).
-    // No STATE is coming until it fills, so gating the search screen on the
-    // candidate list alone parks the player on "searching" forever.
+  it("skips lobbies off the Quick Play timer: an untimed Create room is not joined", async () => {
+    await mountPicker([{ ...lobby("untimed", 120_000), turnTimerSeconds: undefined }, lobby("qp", 30_000)]);
+    await clickQuickMatch();
+    expect(frames("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "qp" })]);
+  });
+
+  it("says the Quick Play rules under the summary", async () => {
+    await mountPicker([]);
+    expect(screen.getAllByTestId("quick-play-rules")[0]).toHaveTextContent("Quick Match: ⏱ 60s timer · random board");
+  });
+
+  it("Cancel unlists the room it published before leaving (no ghost lobby)", async () => {
+    await mountPicker([]);
+    await clickQuickMatch();
+    await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
+    await deliver({ type: "VISIBILITY", roomId: "MINE", public: true });
+    SENT = [];
+    await act(async () => {
+      fireEvent.click(dock("quick-match-cancel"));
+    });
+    expect(frames("SET_VISIBILITY")).toEqual([expect.objectContaining({ type: "SET_VISIBILITY", roomId: "MINE", public: false })]);
+  });
+
+  it("keeps the picker up while searching, then fills the P2 plate when the match lands (#1542)", async () => {
+    // A join can succeed into a room that is still waiting, so ROOM_JOINED alone
+    // is not "found": the opponent has to show up on the live roster.
     await mountPicker([lobby("a", 120_000)]);
     await clickQuickMatch();
-    expect(screen.getByText(/SEARCHING FOR AN OPPONENT/i)).toBeInTheDocument();
+    expect(dock("quick-match-searching")).toBeInTheDocument();
+    expect(screen.getByTestId("p2-plate-status")).toHaveTextContent("Searching…");
+    // The roster is still there to browse — only the dock buttons were swapped.
+    expect(screen.getByTestId("pro-roster-scroll")).toBeInTheDocument();
+    expect(screen.queryByTestId("quick-match")).not.toBeInTheDocument();
+
     await deliver({ type: "ROOM_JOINED", roomId: "a", token: "tok", you: "p2" });
-    expect(screen.queryByText(/SEARCHING FOR AN OPPONENT/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/ROOM a/i)).toBeInTheDocument();
-    expect(screen.getByTestId("quick-match-bot")).toBeInTheDocument();
+    expect(dock("quick-match-searching")).toBeInTheDocument();
+
+    await deliver({
+      type: "ROOM_STATUS",
+      roomId: "a",
+      formatId: "duel",
+      requiredPlayers: 2,
+      matchedVia: "lobby",
+      xpMultiplier: 2,
+      seats: [
+        { player: "p1", heroId: HERO, connected: true, bot: null, displayName: "Moritz" },
+        { player: "p2", heroId: HERO, connected: true, bot: null },
+      ],
+    });
+    expect(screen.queryByTestId("quick-match-searching")).not.toBeInTheDocument();
+    const found = dock("quick-match-found");
+    expect(found).toHaveTextContent("Match found · Moritz");
+    expect(found).toHaveTextContent("King Kong");
+    expect(dock("quick-match-found-xp")).toHaveTextContent("2× XP match");
+    const p2 = screen.getByTestId("p2-plate-status");
+    expect(p2).toHaveTextContent("King Kong");
+    expect(p2).toHaveAttribute("data-found", "true");
+  });
+
+  it("says nothing about a multiplier when the room locked none in", async () => {
+    await mountPicker([lobby("a", 120_000)]);
+    await clickQuickMatch();
+    await deliver({ type: "ROOM_JOINED", roomId: "a", token: "tok", you: "p2" });
+    await deliver({
+      type: "ROOM_STATUS",
+      roomId: "a",
+      formatId: "duel",
+      requiredPlayers: 2,
+      seats: [
+        { player: "p1", heroId: HERO, connected: true, bot: null },
+        { player: "p2", heroId: HERO, connected: true, bot: null },
+      ],
+    });
+    expect(dock("quick-match-found")).toHaveTextContent("Match found · Anonymous");
+    expect(dock("quick-match-found-xp")).toBeEmptyDOMElement();
   });
 
   it("stops the search on an error that is NOT a race", async () => {
@@ -258,50 +330,453 @@ describe("Quick Match on the pre-join picker", () => {
   });
 });
 
-describe("the Quick Match waiting screen", () => {
-  const reachWaitingRoom = async (lobbies: LobbyListing[] = []) => {
+describe("the Quick Match searching panel (#1542)", () => {
+  const reachOwnTable = async (lobbies: LobbyListing[] = []) => {
     await mountPicker(lobbies);
     await clickQuickMatch();
     await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
   };
 
-  it("says it is searching, and offers the invite link and the bot fallback", async () => {
-    await reachWaitingRoom();
-    expect(screen.getByTestId("quick-match-searching")).toBeInTheDocument();
-    expect(screen.getByText(/Waiting\? Invite a friend directly/i)).toBeInTheDocument();
-    expect(screen.getByText("copy link")).toBeInTheDocument();
-    expect(screen.getByTestId("quick-match-bot")).toBeInTheDocument();
+  it("replaces only the dock buttons, and offers invite, chime, bot and cancel", async () => {
+    await reachOwnTable();
+    expect(dock("quick-match-searching")).toHaveTextContent("Finding a match");
+    expect(screen.queryByTestId("pro-create-button")).not.toBeInTheDocument();
+    expect(dock("quick-match-invite")).toBeInTheDocument();
+    expect(dock("lobby-sound-toggle")).toBeInTheDocument();
+    expect(dock("quick-match-bot")).toBeInTheDocument();
+    expect(dock("quick-match-cancel")).toBeInTheDocument();
+    // The old full-screen waiting room is gone for Quick Match.
+    expect(screen.queryByText(/ROOM MINE/)).not.toBeInTheDocument();
   });
 
   it("counts the other people searching, excluding our own room", async () => {
-    await reachWaitingRoom();
-    expect(screen.getByText(/no one else is searching right now/i)).toBeInTheDocument();
-    // Our own room is listed publicly now; only the other two count.
+    await reachOwnTable();
+    expect(dock("quick-match-searching")).toHaveTextContent(/No one else is searching right now/);
     await deliver({
       type: "LOBBIES",
       lobbies: [lobby("MINE", 1_000), lobby("someone", 2_000), lobby("else", 3_000)],
     });
-    expect(screen.getByText(/2 other players are waiting/i)).toBeInTheDocument();
+    expect(dock("quick-match-searching")).toHaveTextContent("2 others are waiting too.");
+    // …and the ribbon never offers our own table back to us.
+    expect(screen.getAllByTestId("ribbon-lobby").map((c) => c.getAttribute("data-room"))).toEqual(["else", "someone"]);
   });
 });
 
-describe("the open-lobbies strip", () => {
-  it("renders a bare listing exactly as it always has", async () => {
+describe("the Here now ribbon (#1542)", () => {
+  it("renders a bare listing (today's engine) as an Anonymous gold chip, no 2× anywhere", async () => {
     await mountPicker([lobby("aaa", 60_000)]);
-    expect(await screen.findByText(/vs King Kong · room aaa/)).toBeInTheDocument();
+    const chip = await screen.findByTestId("ribbon-lobby");
+    expect(chip).toHaveTextContent("Anonymous");
+    expect(chip).toHaveTextContent("King Kong · 1m 00s");
+    expect(chip).not.toHaveTextContent("XP");
+    expect(screen.queryByTestId("ribbon-bonus")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("quick-match-bonus")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bonus-summary")).not.toBeInTheDocument();
+    // No presence socket answered: the pill reads "looking" alone.
+    const pill = screen.getByTestId("presence-pill");
+    expect(pill).toHaveTextContent("1 waiting");
+    expect(pill).not.toHaveTextContent("here");
+    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("1 waiting right now");
+    // The old strip under the picker is gone.
+    expect(screen.queryByText(/Open lobbies — join someone waiting/)).not.toBeInTheDocument();
   });
 
   it("renders the #391 enrichments when the server sends them", async () => {
     await mountPicker([
-      {
-        ...lobby("bbb", 60_000),
-        formatId: "team-2v2",
-        turnTimerSeconds: 45,
-        host: { displayName: "Dean" },
-      },
+      { ...lobby("bbb", 60_000), turnTimerSeconds: 45, host: { displayName: "Dean" } },
     ]);
-    const row = await screen.findByText(/Dean · vs King Kong/);
-    expect(row).toHaveTextContent("2v2");
-    expect(row).toHaveTextContent("⏱ 45s");
+    const chip = await screen.findByTestId("ribbon-lobby");
+    expect(chip).toHaveTextContent("Dean");
+    expect(chip).toHaveTextContent("⏱ 45s");
+  });
+
+  it("is absent, not an empty box, with nothing to show", async () => {
+    await mountPicker([]);
+    expect(screen.queryByTestId("lobby-ribbon")).not.toBeInTheDocument();
+    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("no one waiting");
+  });
+
+  it("Join routes through ?room= with the current fighter kept", async () => {
+    await mountPicker([lobby("aaa", 60_000)]);
+    const join = await screen.findByRole("button", { name: /Join Anonymous/ });
+    await act(async () => {
+      fireEvent.click(join);
+    });
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.objectContaining({ room: "aaa", hero: HERO }) }),
+      undefined,
+      { shallow: true },
+    );
+  });
+
+  it("marks the roster tile a lobby host is playing with their pip", async () => {
+    await mountPicker([{ ...lobby("aaa", 60_000), host: { displayName: "Kay" } }]);
+    expect(await screen.findByTestId("roster-pip")).toHaveTextContent("K");
+  });
+});
+
+describe("the lobby socket (#1542 ↔ engine #1034)", () => {
+  const lobbySocket = () => {
+    const sock = FakeWebSocket.instances.find((w) => w.url.endsWith("/lobby"));
+    if (!sock) throw new Error("the picker never opened the lobby socket");
+    return sock;
+  };
+  const openLobby = async () => {
+    const sock = lobbySocket();
+    await act(async () => {
+      sock.readyState = FakeWebSocket.OPEN;
+      sock.onopen?.({});
+    });
+    return sock;
+  };
+  const snapshot = (sock: FakeWebSocket, extra: Record<string, unknown> = {}) =>
+    act(async () => {
+      sock.onmessage?.({
+        data: JSON.stringify({
+          v: 2,
+          type: "SNAPSHOT",
+          you: "me",
+          here: 3,
+          looking: 1,
+          players: [
+            { id: "me", state: "picking", sinceMs: 1_000 },
+            { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" },
+          ],
+          lobbies: [lobby("aaa", 60_000)],
+          tablesInPlay: 1,
+          ...extra,
+        }),
+      });
+    });
+
+  it("says HELLO once the game socket is up, and fills the pill and ribbon from SNAPSHOT", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 2, type: "HELLO", state: "picking", heroId: HERO })]);
+    await snapshot(sock);
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · 1 waiting");
+    expect(screen.getAllByTestId("ribbon-lobby")).toHaveLength(1);
+    const player = screen.getByTestId("ribbon-player");
+    expect(player).toHaveTextContent("Sam_B");
+    expect(player).toHaveTextContent("picking a fighter…");
+    expect(screen.getByTestId("ribbon-tail")).toHaveTextContent("1 table in play");
+    // Our own presence entry is never a chip.
+    expect(screen.getAllByTestId("ribbon-player")).toHaveLength(1);
+  });
+
+  it("sends NUDGE on 👋", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Wave at Sam_B" }));
+    });
+    expect(frames("NUDGE")).toEqual([{ v: 2, type: "NUDGE", to: "sam" }]);
+  });
+
+  it("puts 2× on the ribbon, Quick Match, every Join and the summary during the bonus", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock, { bonus: { multiplier: 2, endsAt: new Date(Date.now() + 86_400_000).toISOString() } });
+    expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("2×");
+    expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("Limited-time offer");
+    expect(screen.getByTestId("ribbon-bonus")).not.toHaveTextContent(/ends/);
+    expect(screen.getByTestId("quick-match-bonus")).toHaveTextContent("2× XP");
+    expect(screen.getByRole("button", { name: /Join Anonymous/ })).toHaveTextContent("2× XP");
+    expect(screen.getByTestId("bonus-summary")).toHaveTextContent("Quick Match pays 2× XP · Create room is 1×");
+  });
+
+  it("ignores an expired bonus", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock, { bonus: { multiplier: 2, endsAt: new Date(Date.now() - 1_000).toISOString() } });
+    expect(screen.queryByTestId("quick-match-bonus")).not.toBeInTheDocument();
+  });
+
+  it("stays up through a Quick Match search, as `searching`, so the dock keeps its counts", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock);
+    await clickQuickMatch();
+    expect(sock.readyState).toBe(FakeWebSocket.OPEN);
+    expect(frames("STATE").at(-1)).toMatchObject({ v: 2, type: "STATE", state: "searching" });
+    // The server now counts us as a watcher AND as our own listed lobby: once here.
+    await snapshot(sock, {
+      here: 4,
+      players: [
+        { id: "me", state: "searching", sinceMs: 1_000 },
+        { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" },
+      ],
+      lobbies: [lobby("aaa", 60_000), lobby("MINE", 1_000)],
+    });
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · you + 1 waiting");
+  });
+});
+
+describe("show me in the lobby (visibility toggle)", () => {
+  afterEach(() => window.localStorage.removeItem("pro:lobby-visible"));
+  const lobbySockets = () => FakeWebSocket.instances.filter((w) => w.url.endsWith("/lobby"));
+
+  it("is on by default; switching it off closes the presence socket and is remembered", async () => {
+    await mountPicker([]);
+    const [sock] = lobbySockets();
+    await act(async () => {
+      sock.readyState = FakeWebSocket.OPEN;
+      sock.onopen?.({});
+    });
+    const toggle = screen.getByTestId("lobby-visibility");
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toHaveTextContent("Visible");
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(sock.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(window.localStorage.getItem("pro:lobby-visible")).toBe("0");
+    expect(screen.getByTestId("lobby-visibility")).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("lobby-visibility")).toHaveTextContent("Hidden");
+    // Open lobbies still come off the poll: the pill keeps its "looking" count.
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("waiting");
+    expect(screen.getByTestId("presence-pill")).not.toHaveTextContent("here");
+  });
+
+  it("a stored opt-out never opens the socket; switching back on opens it", async () => {
+    window.localStorage.setItem("pro:lobby-visible", "0");
+    await mountPicker([]);
+    expect(lobbySockets()).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("lobby-visibility"));
+    });
+    expect(lobbySockets()).toHaveLength(1);
+    expect(window.localStorage.getItem("pro:lobby-visible")).toBeNull();
+  });
+});
+
+describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
+  const SAM = { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" };
+  let lobbyWs: FakeWebSocket;
+  const toLobby = (msg: Record<string, unknown>) =>
+    act(async () => {
+      lobbyWs.onmessage?.({ data: JSON.stringify({ v: 2, ...msg }) });
+    });
+  const snap = (players: Record<string, unknown>[] = [{ id: "me", state: "picking", sinceMs: 1_000 }, SAM], extra: Record<string, unknown> = {}) =>
+    toLobby({ type: "SNAPSHOT", you: "me", here: 2, looking: 0, players, lobbies: [], tablesInPlay: 0, ...extra });
+  /** The picker with the lobby socket up and Sam on the ribbon. */
+  const mountLobby = async () => {
+    await mountPicker([]);
+    const sock = FakeWebSocket.instances.find((w) => w.url.endsWith("/lobby"));
+    if (!sock) throw new Error("the picker never opened the lobby socket");
+    lobbyWs = sock;
+    await act(async () => {
+      lobbyWs.readyState = FakeWebSocket.OPEN;
+      lobbyWs.onopen?.({});
+    });
+    await snap();
+    SENT = [];
+  };
+  const click = (el: HTMLElement) =>
+    act(async () => {
+      fireEvent.click(el);
+    });
+  const pairAs = async (role: "host" | "guest") => {
+    await mountLobby();
+    await toLobby({ type: "PAIRED", pairId: "PAIR1", role, with: SAM });
+  };
+
+  it("turns a 👋 into a request: Accept sends NUDGE_REPLY accept:true", async () => {
+    await mountLobby();
+    await toLobby({ type: "NUDGED", from: SAM });
+    const toastEl = await screen.findByTestId("lobby-nudged-toast");
+    expect(toastEl).toHaveTextContent("Sam_B wants to play");
+    expect(screen.queryByText(/Quick Match\?/)).not.toBeInTheDocument();
+    await click(screen.getByTestId("lobby-nudge-accept"));
+    expect(frames("NUDGE_REPLY")).toEqual([{ v: 2, type: "NUDGE_REPLY", to: "sam", accept: true }]);
+  });
+
+  it("Decline sends NUDGE_REPLY accept:false", async () => {
+    await mountLobby();
+    await toLobby({ type: "NUDGED", from: SAM });
+    await click(await screen.findByTestId("lobby-nudge-decline"));
+    expect(frames("NUDGE_REPLY")).toEqual([{ v: 2, type: "NUDGE_REPLY", to: "sam", accept: false }]);
+  });
+
+  it("toasts a reply the server refused", async () => {
+    await mountLobby();
+    await toLobby({ type: "NUDGED", from: SAM });
+    await click(await screen.findByTestId("lobby-nudge-accept"));
+    await toLobby({ type: "NUDGE_REPLY_RESULT", to: "sam", ok: false, reason: "busy" });
+    expect(await screen.findByText("Sam_B is already matched")).toBeInTheDocument();
+  });
+
+  it("host: partner card, no setup controls; Go creates a private quickMatch room and relays its id", async () => {
+    await pairAs("host");
+    expect(screen.getByTestId("pair-partner")).toHaveTextContent(/MATCHED WITH SAM_B/i);
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("picking…");
+    expect(screen.queryByTestId("pro-create-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("quick-match")).not.toBeInTheDocument();
+    expect(screen.queryByText("FORMAT")).not.toBeInTheDocument();
+    expect(screen.queryByText("CREATE A ROOM")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("presence-pill")).not.toBeInTheDocument();
+    // The ribbon stays, but Sam (and every Join / wave) is off limits while paired.
+    expect(screen.getByRole("button", { name: "Wave at Sam_B" })).toBeDisabled();
+
+    await click(screen.getAllByTestId("pair-go")[0]);
+    expect(frames("CREATE_ROOM")).toEqual([
+      expect.objectContaining({ type: "CREATE_ROOM", heroId: HERO, quickMatch: true }),
+    ]);
+    expect(frames("PAIR_ROOM")).toEqual([]); // the id only arrives with ROOM_CREATED
+    await deliver({ type: "ROOM_CREATED", roomId: "PRIV", token: "tok", you: "p1" });
+    expect(frames("PAIR_ROOM")).toEqual([{ v: 2, type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" }]);
+    // Never published: no SET_VISIBILITY, before or after ROOM_CREATED.
+    expect(frames("SET_VISIBILITY")).toEqual([]);
+    expect(screen.getByTestId("waiting-title")).toHaveTextContent("Waiting for Sam_B…");
+    expect(screen.queryByText(/make lobby public/)).not.toBeInTheDocument();
+    // The lobby socket outlives the seat until the game's first STATE.
+    expect(lobbyWs.readyState).toBe(FakeWebSocket.OPEN);
+  });
+
+  it("host: shows the partner's fighter live from the snapshot, and the 2× on Go", async () => {
+    await pairAs("host");
+    await snap(
+      [{ id: "me", state: "picking", sinceMs: 1_000, paired: true }, { ...SAM, heroId: HERO, heroName: "King Kong", paired: true }],
+      { bonus: { multiplier: 2, endsAt: new Date(Date.now() + 86_400_000).toISOString() } },
+    );
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("King Kong");
+    expect(screen.getAllByTestId("pair-go-bonus")[0]).toHaveTextContent("2× XP");
+  });
+
+  it("host keeps the STAGE pick (no Custom JSON); Go opens the room on that board", async () => {
+    await pairAs("host");
+    expect(screen.queryByTestId("pair-board-note")).not.toBeInTheDocument();
+    const tile = screen.getAllByRole("button", { name: /Island of Despair/i })[0];
+    await click(tile);
+    expect(screen.queryByRole("button", { name: "Custom board — paste map JSON" })).not.toBeInTheDocument();
+    await click(screen.getAllByTestId("pair-go")[0]);
+    const [create] = frames("CREATE_ROOM");
+    expect(create).toMatchObject({ type: "CREATE_ROOM", quickMatch: true, turnTimerSeconds: 60 });
+    expect(JSON.stringify(create.customMap)).toMatch(/Island of Despair/i);
+  });
+
+  it("guest sees whose board it is instead of the picker", async () => {
+    await pairAs("guest");
+    expect(screen.getByTestId("pair-board-note")).toHaveTextContent("Sam_B picks the board");
+    expect(screen.queryByRole("button", { name: /Island of Despair/i })).not.toBeInTheDocument();
+  });
+
+  it("marks the partner's pick on the roster with a P2 token", async () => {
+    await pairAs("host");
+    expect(screen.queryByTestId("roster-p2")).not.toBeInTheDocument();
+    await snap([{ id: "me", state: "picking", sinceMs: 1_000, paired: true }, { ...SAM, heroId: HERO, heroName: "King Kong", paired: true }]);
+    const tokens = screen.getAllByTestId("roster-p2");
+    expect(tokens[0]).toHaveTextContent("P2");
+    expect(tokens[0]).not.toHaveAttribute("data-ready");
+    expect(tokens[0].closest("button")).toHaveAccessibleName(/King Kong/);
+  });
+
+  it("the partner's Go (their presence turns searching) makes ours loud: READY chip, P2 ✓, urgent Go, a toast", async () => {
+    await pairAs("host");
+    await snap([{ id: "me", state: "picking", sinceMs: 1_000, paired: true }, { ...SAM, state: "searching", heroId: HERO, heroName: "King Kong", paired: true }]);
+    expect(screen.getByTestId("pair-partner-ready")).toHaveTextContent("READY");
+    expect(screen.getAllByTestId("roster-p2")[0]).toHaveTextContent("P2 ✓");
+    const go = screen.getAllByTestId("pair-go")[0];
+    expect(go).toHaveTextContent("Sam_B is ready — Go!");
+    expect(go).toHaveAttribute("data-urgent", "true");
+    expect(await screen.findByText("Sam_B is ready — pick your fighter and Go!")).toBeInTheDocument();
+    // Sam stays on the ribbon (a paired searcher is not a lobby duplicate).
+    expect(screen.getByTestId("ribbon-player")).toHaveTextContent("Sam_B");
+  });
+
+  it("our Go tells the partner we're in: presence goes searching", async () => {
+    await pairAs("guest");
+    await click(screen.getAllByTestId("pair-go")[0]);
+    expect(frames("STATE").at(-1)).toMatchObject({ v: 2, type: "STATE", state: "searching", heroId: HERO });
+  });
+
+  it("guest: Go before PAIR_ROOM waits and sends nothing; PAIR_ROOM then joins with the locked hero", async () => {
+    await pairAs("guest");
+    await click(screen.getAllByTestId("pair-go")[0]);
+    const go = screen.getAllByTestId("pair-go")[0];
+    expect(go).toHaveTextContent("Ready — waiting for Sam_B");
+    expect(go).toBeDisabled();
+    expect(frames("JOIN_ROOM")).toEqual([]);
+    expect(frames("CREATE_ROOM")).toEqual([]);
+    await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
+    expect(frames("JOIN_ROOM")).toEqual([
+      expect.objectContaining({ type: "JOIN_ROOM", roomId: "PRIV", heroId: HERO }),
+    ]);
+  });
+
+  it("guest: PAIR_ROOM first marks the host Ready; Go then joins at once", async () => {
+    await pairAs("guest");
+    await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
+    expect(screen.getByTestId("pair-partner-ready")).toHaveTextContent("READY");
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("waiting on you");
+    expect(frames("JOIN_ROOM")).toEqual([]);
+    await click(screen.getAllByTestId("pair-go")[0]);
+    expect(frames("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "PRIV", heroId: HERO })]);
+  });
+
+  it("guest: the host's table closing sends us back with a toast", async () => {
+    await pairAs("guest");
+    await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
+    await click(screen.getAllByTestId("pair-go")[0]);
+    await deliver({ type: "ERROR", code: "ROOM_NOT_FOUND", message: "gone" });
+    expect(frames("PAIR_CANCEL")).toEqual([{ v: 2, type: "PAIR_CANCEL", pairId: "PAIR1" }]);
+    expect(window.sessionStorage.getItem("pro-game-flash")).toBe("Sam_B's table closed");
+  });
+
+  it("Cancel sends PAIR_CANCEL and restores the normal picker", async () => {
+    await pairAs("guest");
+    await click(screen.getAllByTestId("pair-cancel")[0]);
+    expect(frames("PAIR_CANCEL")).toEqual([{ v: 2, type: "PAIR_CANCEL", pairId: "PAIR1" }]);
+    expect(screen.queryByTestId("pair-partner")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("pro-create-button").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("quick-match")).toBeInTheDocument();
+  });
+
+  it("PAIR_ENDED cancelled toasts and restores the picker", async () => {
+    await pairAs("host");
+    await toLobby({ type: "PAIR_ENDED", pairId: "PAIR1", reason: "cancelled" });
+    expect(await screen.findByText("Sam_B cancelled")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-partner")).not.toBeInTheDocument();
+    expect(screen.getByTestId("quick-match")).toBeInTheDocument();
+    expect(frames("PAIR_CANCEL")).toEqual([]);
+  });
+
+  it("losing the lobby socket while paired clears the pair", async () => {
+    await pairAs("host");
+    await act(async () => {
+      lobbyWs.readyState = FakeWebSocket.CLOSED;
+      lobbyWs.onclose?.({});
+    });
+    expect(await screen.findByText("Lost the lobby connection — wave again")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-partner")).not.toBeInTheDocument();
+  });
+
+  it("waver: the chip reads waiting…; NUDGE_DECLINED re-enables it and toasts", async () => {
+    await mountLobby();
+    await click(screen.getByRole("button", { name: "Wave at Sam_B" }));
+    const waiting = screen.getByRole("button", { name: "Wave at Sam_B" });
+    expect(waiting).toHaveTextContent("waiting…");
+    expect(waiting).toBeDisabled();
+    await toLobby({ type: "NUDGE_DECLINED", from: SAM });
+    expect(await screen.findByText("Sam_B can't play right now")).toBeInTheDocument();
+    const again = screen.getByRole("button", { name: "Wave at Sam_B" });
+    expect(again).toHaveTextContent("👋");
+    expect(again).toBeEnabled();
+  });
+
+  it("waver: NUDGE_RESULT busy toasts and re-enables", async () => {
+    await mountLobby();
+    await click(screen.getByRole("button", { name: "Wave at Sam_B" }));
+    await toLobby({ type: "NUDGE_RESULT", to: "sam", ok: false, reason: "busy" });
+    expect(await screen.findByText("Sam_B is already matched")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wave at Sam_B" })).toBeEnabled();
+  });
+
+  it("a paired ribbon entry has no wave button and reads matched", async () => {
+    await mountLobby();
+    await snap([{ id: "me", state: "picking", sinceMs: 1_000 }, { ...SAM, paired: true }]);
+    expect(screen.queryByRole("button", { name: "Wave at Sam_B" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("ribbon-player")).toHaveTextContent("matched");
   });
 });

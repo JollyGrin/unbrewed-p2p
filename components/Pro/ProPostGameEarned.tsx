@@ -132,15 +132,26 @@ const Bar = ({ bar, levelUp }: { bar: LevelBar; levelUp: boolean }) => (
   </Box>
 );
 
+/** "2× Quick Play", "1.5× Quick Play". */
+export const quickPlayCaption = (multiplier: number): string =>
+  `${Number.isInteger(multiplier) ? multiplier : Math.round(multiplier * 10) / 10}× Quick Play`;
+
 export const ProPostGameEarned = ({
   view,
   heroName,
   compact = false,
+  xpMultiplier = null,
 }: {
   view: GameEarnedView;
   /** The played hero's display name, for the points tile. */
   heroName: string;
   compact?: boolean;
+  /**
+   * The room's locked-in XP multiplier (#1542 ↔ engine #1035). Above 1 it adds a
+   * "2× Quick Play" caption beside the XP; the number itself still comes from
+   * `/me/stats`, which already paid it.
+   */
+  xpMultiplier?: number | null;
 }) => {
   if (view.phase === "casual") {
     return (
@@ -200,6 +211,21 @@ export const ProPostGameEarned = ({
           ) : (
             <Text fontSize="0.82rem" fontWeight={600} color={MUTED} data-testid="post-game-xp-counting">
               XP counting…
+            </Text>
+          )}
+          {xpMultiplier !== null && xpMultiplier > 1 && (
+            <Text
+              as="span"
+              fontFamily="BebasNeueRegular"
+              letterSpacing="0.06em"
+              fontSize="0.8rem"
+              px="0.4rem"
+              borderRadius="3px"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              data-testid="post-game-xp-multiplier"
+            >
+              {quickPlayCaption(xpMultiplier)}
             </Text>
           )}
         </Flex>

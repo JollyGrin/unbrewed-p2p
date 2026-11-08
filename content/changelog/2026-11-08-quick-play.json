@@ -1,0 +1,16 @@
+{
+  "id": "2026-11-08-quick-play",
+  "date": "2026-11-08",
+  "title": "Quick Play: see who's here and get into a game fast",
+  "summary": "The Pro lobby now shows who else is picking a fighter right now. Wave at someone to ask for a game, or hit Quick Match to pair up with whoever has waited longest. For a limited time, Quick Match games pay 2× XP.",
+  "body": [
+    "When someone accepts your wave you're matched straight away: pick your fighter and press Go. Their pick shows on your roster, and you'll know the moment they're ready.",
+    "Every Quick Play game is a duel on a 60-second move timer. Quick Match rolls a random board; after a wave, the player who accepted picks it.",
+    "Rather stay out of the lobby? Switch the Visible toggle next to the player count to Hidden and nobody will see you or wave at you."
+  ],
+  "tags": ["feature"],
+  "pro": true,
+  "highlight": true,
+  "video": { "slug": "quick-play" },
+  "cta": { "label": "Find a game", "href": "/pro/game" }
+}

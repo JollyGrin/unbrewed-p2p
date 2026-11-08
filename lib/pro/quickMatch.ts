@@ -30,9 +30,18 @@ const RETRYABLE_JOIN_ERRORS: ReadonlySet<string> = new Set(["ROOM_FULL", "ROOM_N
 export const isQuickMatchRetryable = (code: string | null | undefined): boolean =>
   !!code && RETRYABLE_JOIN_ERRORS.has(code);
 
-/** v1 matches duels only. A listing with no `formatId` is a duel (see above). */
+/**
+ * Every Quick Play match is a duel on a 60 s move timer (Dean, 2026-11-08), what
+ * ever the picker's timer says: a Quick Match room is created with it, a pair
+ * room (wave → accept) too, and Quick Match only JOINS lobbies that match — so a
+ * search never lands in someone's untimed Create room. Joining from the ribbon
+ * is still a plain join on that room's own settings.
+ */
+export const QUICK_PLAY_TIMER_SECONDS = 60;
+
+/** Duels on the Quick Play timer. A listing with no `formatId` is a duel (see above). */
 export const isQuickMatchCandidate = (lobby: LobbyListing): boolean =>
-  (lobby.formatId ?? "duel") === "duel";
+  (lobby.formatId ?? "duel") === "duel" && (lobby.turnTimerSeconds ?? 0) === QUICK_PLAY_TIMER_SECONDS;
 
 /**
  * The rooms Quick Match will try, longest-waiting first.
