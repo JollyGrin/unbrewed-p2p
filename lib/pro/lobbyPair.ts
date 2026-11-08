@@ -121,10 +121,12 @@ export const livePartner = (
 ): PresenceEntry => (players ?? []).find((p) => p.id === pair.with.id) ?? pair.with;
 
 /**
- * "Ready" on the partner card: the host is in once its room has been relayed to
- * us. A guest has no "in" before the game starts — its join starts the game.
+ * The partner pressed Go. Each side's Go flips its lobby presence to `searching`
+ * (the page passes it to useLobbySocket), so the latest SNAPSHOT says so for
+ * either role; a guest also knows the host is in once its room has been relayed.
  */
-export const partnerReady = (pair: LobbyPair): boolean => pair.role === "guest" && pair.roomId !== null;
+export const partnerReady = (pair: LobbyPair, partner?: PresenceEntry | null): boolean =>
+  partner?.state === "searching" || (pair.role === "guest" && pair.roomId !== null);
 
 /** Toast copy for PAIR_ENDED. */
 export const pairEndedMessage = (reason: "cancelled" | "left" | "expired", name: string): string =>

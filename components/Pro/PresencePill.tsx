@@ -1,12 +1,12 @@
 /**
  * The presence pill at the right end of `/pro/game`'s rules strip (issue #1542):
- * "7 here · 3 looking" with a stacked avatar row and a live dot. Without lobby
+ * "you + 6 here · 3 looking" with a stacked avatar row and a live dot. Without lobby
  * presence it reads "3 looking" alone. The page mounts it only when
  * `presencePillModel` returns a model (never an empty box).
  */
 import { Box, Flex, keyframes, Text } from "@chakra-ui/react";
 import { AvatarDisc } from "@/components/Pro/LobbyRibbon";
-import type { PresencePillModel } from "@/lib/pro/quickPlayLobby";
+import { hereLabel, lookingLabel, type PresencePillModel } from "@/lib/pro/quickPlayLobby";
 
 const pulse = keyframes`0%,100% { opacity: 1 } 50% { opacity: .35 }`;
 
@@ -39,13 +39,13 @@ export const PresencePill = ({ model }: { model: PresencePillModel }) => (
       {model.here !== null && (
         <>
           <Box as="b" color="#39B7A8" fontWeight={600}>
-            {model.here} here
+            {hereLabel(model.here)}
           </Box>
           {" · "}
         </>
       )}
       <Box as="span" color="brand.accent" fontWeight={600}>
-        {model.looking} looking
+        {lookingLabel(model.looking, model.youLooking)}
       </Box>
     </Text>
     {model.avatars.length > 0 && (

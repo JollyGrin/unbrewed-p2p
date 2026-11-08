@@ -100,6 +100,10 @@ describe("partner helpers", () => {
     expect(partnerReady(paired("guest"))).toBe(false);
     expect(partnerReady({ ...paired("guest"), roomId: "R1" })).toBe(true);
     expect(partnerReady({ ...paired("host"), roomId: "R1" })).toBe(false);
+    // Either side's Go shows up as the partner's `searching` presence.
+    expect(partnerReady(paired("host"), { id: "x", state: "searching", sinceMs: 0 })).toBe(true);
+    expect(partnerReady(paired("guest"), { id: "x", state: "searching", sinceMs: 0 })).toBe(true);
+    expect(partnerReady(paired("host"), { id: "x", state: "picking", sinceMs: 0 })).toBe(false);
   });
 
   it("names and toast copy", () => {

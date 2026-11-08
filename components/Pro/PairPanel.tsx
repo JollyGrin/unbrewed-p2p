@@ -10,21 +10,36 @@
  *
  * Pure presentation; the pair state machine is `lib/pro/lobbyPair.ts`.
  */
-import { Box, Button, Flex, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, keyframes, Text } from "@chakra-ui/react";
 import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
 import { AvatarDisc } from "@/components/Pro/LobbyRibbon";
 import type { Avatar } from "@/lib/pro/quickPlayLobby";
 
 const TEAL = "#39B7A8";
 const DIM = "rgba(250,235,215,0.6)";
+const GREEN = "#2F9E68";
+
+/** The partner is in and waiting on us: the READY chip and Go breathe until we press it. */
+const readyPulse = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47,158,104,0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(47,158,104,0); }
+`;
+/** Glow + brightness only — no movement, so the target never shifts under a click. */
+const goPulse = keyframes`
+  0%, 100% { filter: brightness(1); box-shadow: 0 4px 0 #8a6420, 0 0 0 0 rgba(47,158,104,0.6); }
+  50% { filter: brightness(1.12); box-shadow: 0 4px 0 #8a6420, 0 0 0 7px rgba(47,158,104,0); }
+`;
+const NO_MOTION = { "@media (prefers-reduced-motion: reduce)": { animation: "none" } };
 
 export interface PartnerModel {
   avatar: Avatar;
   name: string;
   badge: string | null;
+  /** the fighter on their picker (the P2 token on the roster); null = none yet */
+  heroId: string | null;
   /** their locked fighter; null = still picking */
   heroName: string | null;
-  /** they are in (the host's room is up) */
+  /** they pressed Go and are waiting on us */
   ready: boolean;
 }
 
@@ -44,6 +59,10 @@ export const PartnerCard = ({ partner }: { partner: PartnerModel }) => (
         ) : null}
       </Text>
       <Text as="span" fontFamily="SpaceGrotesk" fontSize="0.68rem" color={DIM} whiteSpace="nowrap" data-testid="pair-partner-status">
+        <Box as="span" color={TEAL} fontWeight={600}>
+          P2
+        </Box>
+        {" · "}
         {partner.heroName ? (
           <Box as="span" color="brand.primary">
             {partner.heroName}
@@ -51,14 +70,28 @@ export const PartnerCard = ({ partner }: { partner: PartnerModel }) => (
         ) : (
           "picking…"
         )}
-        {partner.ready && (
-          <Box as="span" color={TEAL} fontWeight={600}>
-            {" · Ready"}
-          </Box>
-        )}
-        {" · pick your fighter"}
+        {partner.ready ? " · locked in, waiting on you" : " · pick your fighter"}
       </Text>
     </Flex>
+    {partner.ready && (
+      <Box
+        as="span"
+        data-testid="pair-partner-ready"
+        flex="none"
+        ml="0.2rem"
+        px="0.55rem"
+        py="0.2rem"
+        borderRadius="999px"
+        bg={GREEN}
+        color="#fff"
+        fontFamily="LeagueGothic"
+        fontSize="1rem"
+        letterSpacing="0.1em"
+        sx={{ animation: `${readyPulse} 1.4s ease-in-out infinite`, ...NO_MOTION }}
+      >
+        ✓ READY
+      </Box>
+    )}
   </Flex>
 );
 
@@ -68,6 +101,8 @@ export interface PairActionsProps {
   canGo: boolean;
   /** guest pressed Go before the host's room arrived */
   waiting: boolean;
+  /** the partner pressed Go and waits on us — Go gets loud */
+  partnerReady?: boolean;
   /** "2×" while the Quick Play bonus runs */
   bonusLabel: string | null;
   onGo: () => void;
@@ -76,7 +111,9 @@ export interface PairActionsProps {
   compact?: boolean;
 }
 
-export const PairActions = ({ partnerName, canGo, waiting, bonusLabel, onGo, onCancel, compact = false }: PairActionsProps) => (
+export const PairActions = ({ partnerName, canGo, waiting, partnerReady = false, bonusLabel, onGo, onCancel, compact = false }: PairActionsProps) => {
+  const urgent = partnerReady && !waiting;
+  return (
   <Flex direction={compact ? "row" : "column"} align={compact ? "center" : "stretch"} gap="0.4rem" flex={compact ? "1" : undefined} minW="0">
     <Button
       type="button"
@@ -101,8 +138,10 @@ export const PairActions = ({ partnerName, canGo, waiting, bonusLabel, onGo, onC
       _hover={{ transform: "translateY(-1px)", bg: "linear-gradient(180deg, #F0C874, #E0A82E 45%, #C48F1E)" }}
       _active={{ transform: "translateY(2px)", boxShadow: "0 2px 0 #8a6420" }}
       _disabled={{ filter: "grayscale(0.75) brightness(0.65)", boxShadow: "none", cursor: "not-allowed", opacity: 1 }}
+      data-urgent={urgent || undefined}
+      sx={urgent && canGo ? { animation: `${goPulse} 1.1s ease-in-out infinite`, ...NO_MOTION } : undefined}
     >
-      {waiting ? `Ready — waiting for ${partnerName}` : "Go"}
+      {waiting ? `Ready — waiting for ${partnerName}` : urgent ? (canGo ? `${partnerName} is ready — Go!` : "Pick a fighter — they're ready") : "Go"}
       {bonusLabel && !waiting && (
         <Box as="span" data-testid="pair-go-bonus" display="block" fontFamily="SpaceGrotesk" fontWeight={600} fontSize="0.6rem" letterSpacing="0.05em" opacity={0.75}>
           {bonusLabel} XP
@@ -125,3 +164,4 @@ export const PairActions = ({ partnerName, canGo, waiting, bonusLabel, onGo, onC
     </Button>
   </Flex>
 );
+};
