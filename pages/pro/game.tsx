@@ -295,7 +295,8 @@ import {
   type Avatar as QuickPlayAvatar,
 } from "@/lib/pro/quickPlayLobby";
 import { AvatarDisc, LobbyRibbon } from "@/components/Pro/LobbyRibbon";
-import { PresencePill } from "@/components/Pro/PresencePill";
+import { LobbyVisibilityToggle, PresencePill } from "@/components/Pro/PresencePill";
+import { useLobbyVisible } from "@/lib/pro/lobbyVisibility";
 import { PairActions, PartnerCard, type PartnerModel } from "@/components/Pro/PairPanel";
 import {
   livePartner,
@@ -5540,6 +5541,8 @@ const LiveGame = ({
   // transitions live in lib/pro/lobbyPair.ts; `stepPair` (below) runs them. The
   // ref is what the lobby callbacks read, so two frames in one tick see each other.
   const [pair, setPair] = useState<LobbyPair | null>(null);
+  // "Show me in the lobby" (default on): off keeps the presence socket closed.
+  const [lobbyVisible, setLobbyVisible] = useLobbyVisible();
   const pairRef = useRef<LobbyPair | null>(null);
   // The fighter our Go committed (the host's create / the guest's join fall back to it).
   const pairGoHeroRef = useRef<string | null>(null);
@@ -5554,6 +5557,7 @@ const LiveGame = ({
     // private room waits on it, and the first game STATE closes it.
     enabled:
       routerReady &&
+      lobbyVisible === true &&
       status === "open" &&
       !tournamentRoom &&
       ((!joined && !room) || (quickSearch !== null && !snapshot) || (pair !== null && !snapshot)),
@@ -6358,7 +6362,14 @@ const LiveGame = ({
           }}
           mapError={mapError}
           quickMatchArmed={quickParam}
-          presencePill={presenceModel ? <PresencePill model={presenceModel} /> : null}
+          presencePill={
+            presenceModel ? (
+              <Flex align="center" gap="0.4rem">
+                <PresencePill model={presenceModel} />
+                {lobbyVisible !== null && <LobbyVisibilityToggle visible={lobbyVisible} onChange={setLobbyVisible} />}
+              </Flex>
+            ) : null
+          }
           ribbon={ribbon}
           quickMatchSubline={quickMatchSublineFor(lookingCount(shownLobbies, roomId))}
           quickMatchBonusLabel={bonusLabel}
