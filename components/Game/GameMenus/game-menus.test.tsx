@@ -49,6 +49,9 @@ beforeEach(() => {
 
 jest.mock("../../../lib/contexts/WebGameProvider", () => ({
   useWebGame: () => mockGame,
+  // The hotseat hooks read the context softly (lib/hotseat/useHotseat.ts);
+  // an empty one means "no hotseat UI", which is what these dialogs test.
+  WebGameContext: jest.requireActual("react").createContext(undefined),
 }));
 
 const Opener = () => {

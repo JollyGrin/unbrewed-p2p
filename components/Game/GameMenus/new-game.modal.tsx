@@ -52,12 +52,12 @@ export const NewGameModal = (props: {
     requestGameReset,
     cancelGameReset,
     forceGameReset,
-    hotseat,
+    hotseat: seats,
     deckFor,
   } = useWebGame();
   const { starredDeck } = useBagDecks();
   // Under hotseat, the active seat's deck (#1563); online both are undefined.
-  const deck = (hotseat ? deckFor?.(hotseat.active) : undefined) ?? starredDeck;
+  const deck = (seats ? deckFor?.(seats.active) : undefined) ?? starredDeck;
   const pending = resetStatus.pending;
   // Hotseat (issue #1564): an opponent seated on this device can be sent
   // home from here, back to the plain solo table.
