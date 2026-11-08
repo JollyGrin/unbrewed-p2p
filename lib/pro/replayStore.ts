@@ -262,6 +262,33 @@ export function saveReplay(
   return { ok: true, id, evicted };
 }
 
+/**
+ * Free at least `bytes` by deleting the oldest UNSTARRED replays (starred are
+ * never touched). For callers outside this store whose own write hit the
+ * origin quota (#1550). Returns the ids removed.
+ */
+export function evictOldestUnstarred(bytes: number): string[] {
+  if (!hasWindow()) return [];
+  const entries = readIndex();
+  const victims = entries.filter((e) => !e.starred).sort((a, b) => a.savedAt - b.savedAt);
+  const evicted: string[] = [];
+  let freed = 0;
+  for (const v of victims) {
+    if (freed >= bytes) break;
+    window.localStorage.removeItem(REPLAY_PREFIX + v.id);
+    freed += v.bytes;
+    evicted.push(v.id);
+  }
+  if (evicted.length) {
+    try {
+      writeIndex(entries.filter((e) => !evicted.includes(e.id)));
+    } catch {
+      // the index only shrank; a failed rewrite leaves dangling entries loadReplay already tolerates
+    }
+  }
+  return evicted;
+}
+
 export function deleteReplay(id: string): void {
   if (!hasWindow()) return;
   window.localStorage.removeItem(REPLAY_PREFIX + id);

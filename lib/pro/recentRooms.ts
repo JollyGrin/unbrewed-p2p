@@ -11,7 +11,9 @@
  * screen (which also forgets it).
  */
 
+import { captureException } from "../analytics";
 import type { RoomBots } from "./rematch";
+import { evictOldestUnstarred } from "./replayStore";
 
 export interface RecentRoom {
   roomId: string;
@@ -35,6 +37,139 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000; // in-memory server rooms never outlive 
 
 const canStore = () => typeof window !== "undefined";
 
+// ---------------------------------------------------------------------------
+// Writes that never throw (#1550)
+// ---------------------------------------------------------------------------
+//
+// Every write below goes through `writeItem`. A full origin used to make
+// setItem throw straight out of the socket handler, skipping the rest of that
+// message (ROOM_CREATED lost its token, REMATCH_READY its stepRematch). Now a
+// quota error first frees what is safe to free — stale Pro room keys, then the
+// oldest UNSTARRED replays — and retries; if the write still fails it is
+// reported as a handled exception and dropped.
+
+const ROOM_KEY_PREFIXES = [TOKEN_PREFIX, RESUME_PREFIX, BOTS_PREFIX];
+
+function isQuotaError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const { name, code } = e as { name?: unknown; code?: unknown };
+  return name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED" || code === 22 || code === 1014;
+}
+
+function tryWrite(storage: Storage, key: string, value: string): unknown {
+  try {
+    storage.setItem(key, value);
+    return null;
+  } catch (e) {
+    return e ?? new Error("setItem failed");
+  }
+}
+
+/** Key families already reported this page load — a full browser fails on
+ *  every move, and one report per kind says everything. */
+const reported = new Set<string>();
+
+function reportWriteFailure(key: string, error: unknown): void {
+  const family = ROOM_KEY_PREFIXES.find((p) => key.startsWith(p)) ?? key;
+  if (reported.has(family)) return;
+  reported.add(family);
+  captureException(error, { handled: true, storage_key: family, source: "pro_recent_rooms" });
+}
+
+/** Store a value; true when it landed. Never throws. */
+function writeItem(storage: Storage, key: string, value: string): boolean {
+  let error = tryWrite(storage, key, value);
+  if (!error) return true;
+  if (isQuotaError(error) && storage === window.localStorage) {
+    const prefix = ROOM_KEY_PREFIXES.find((p) => key.startsWith(p));
+    // Never sweep the room being written: a fresh room joins the index only
+    // after its token/bots land (ROOM_CREATED, REMATCH_READY).
+    if (sweepStaleRoomKeys(Date.now(), prefix ? key.slice(prefix.length) : undefined).length > 0) {
+      error = tryWrite(storage, key, value);
+      if (!error) return true;
+    }
+    // UTF-16 in the quota: twice the characters, a safe over-estimate.
+    if (evictOldestUnstarred((key.length + value.length) * 2).length > 0) {
+      error = tryWrite(storage, key, value);
+      if (!error) return true;
+    }
+  }
+  reportWriteFailure(key, error);
+  return false;
+}
+
+/** The recent-rooms index as stored (unfiltered, never throws). */
+function readRecentIndex(): RecentRoom[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    return Array.isArray(parsed) ? (parsed as RecentRoom[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Delete every Pro room key (token / resume blob / bots) in localStorage whose
+ * room is not in the recent-rooms index, or is older than MAX_AGE_MS — the
+ * server can no longer hold such a room, so nothing can use them. Returns the
+ * keys removed. Rooms this tab is seated in (a sessionStorage token) and
+ * `keepRoomId` are spared; sessionStorage itself is left alone.
+ */
+export function sweepStaleRoomKeys(now: number = Date.now(), keepRoomId?: string): string[] {
+  if (!canStore()) return [];
+  const live = new Set(
+    readRecentIndex()
+      .filter((r) => r && typeof r.roomId === "string" && typeof r.ts === "number" && now - r.ts < MAX_AGE_MS)
+      .map((r) => r.roomId),
+  );
+  if (keepRoomId) live.add(keepRoomId);
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key?.startsWith(TOKEN_PREFIX)) live.add(key.slice(TOKEN_PREFIX.length));
+  }
+  const stale: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const prefix = key ? ROOM_KEY_PREFIXES.find((p) => key.startsWith(p)) : undefined;
+    if (key && prefix && !live.has(key.slice(prefix.length))) stale.push(key);
+  }
+  for (const key of stale) localStorage.removeItem(key);
+  return stale;
+}
+
+let sweptThisLoad = false;
+
+/** `sweepStaleRoomKeys`, at most once per page load. */
+export function sweepStaleRoomKeysOnce(): void {
+  if (sweptThisLoad || !canStore()) return;
+  sweptThisLoad = true;
+  sweepStaleRoomKeys();
+}
+
+/**
+ * A room's game is over (a STATE with a winner): drop its browser-wide copies —
+ * the resume blob (nothing revives a finished game), the localStorage token and
+ * the bots record. What the result screen still needs stays in THIS tab's
+ * sessionStorage: the seat token (a reload re-binds, Rematch re-binds) and the
+ * bots (the winner screen's Rematch link, REMATCH_READY copying them forward).
+ */
+export function retireFinishedRoom(roomId: string): void {
+  if (!canStore()) return;
+  localStorage.removeItem(RESUME_PREFIX + roomId);
+  const token = localStorage.getItem(TOKEN_PREFIX + roomId);
+  // A tab seated from the browser-wide copy (resumed in a new tab) holds no
+  // session token yet — hand it over before the shared copy goes.
+  if (token !== null && sessionStorage.getItem(TOKEN_PREFIX + roomId) === null) {
+    writeItem(sessionStorage, TOKEN_PREFIX + roomId, token);
+  }
+  localStorage.removeItem(TOKEN_PREFIX + roomId);
+  const bots = localStorage.getItem(BOTS_PREFIX + roomId);
+  if (bots !== null) {
+    writeItem(sessionStorage, BOTS_PREFIX + roomId, bots);
+    localStorage.removeItem(BOTS_PREFIX + roomId);
+  }
+}
+
 /**
  * THIS TAB's seat token (sessionStorage). Tabs must not share seats: with a
  * shared token, a second tab opening the join link would RECONNECT into the
@@ -56,8 +191,8 @@ export function getToken(roomId: string): string | null {
 
 export function setToken(roomId: string, token: string): void {
   if (!canStore()) return;
-  sessionStorage.setItem(TOKEN_PREFIX + roomId, token); // this tab's seat
-  localStorage.setItem(TOKEN_PREFIX + roomId, token); // browser-wide resume
+  writeItem(sessionStorage, TOKEN_PREFIX + roomId, token); // this tab's seat
+  writeItem(localStorage, TOKEN_PREFIX + roomId, token); // browser-wide resume
 }
 
 /**
@@ -66,7 +201,7 @@ export function setToken(roomId: string, token: string): void {
  */
 export function setResumeToken(roomId: string, blob: string): void {
   if (!canStore()) return;
-  localStorage.setItem(RESUME_PREFIX + roomId, blob);
+  writeItem(localStorage, RESUME_PREFIX + roomId, blob);
 }
 
 /** The stored resume blob for a room, or null. Used to revive after a redeploy. */
@@ -78,7 +213,10 @@ export function getResumeToken(roomId: string): string | null {
 /** Record which seats of a room are bots (seat → difficulty). */
 export function setRoomBots(roomId: string, bots: RoomBots): void {
   if (!canStore()) return;
-  localStorage.setItem(BOTS_PREFIX + roomId, JSON.stringify(bots));
+  const raw = JSON.stringify(bots);
+  writeItem(localStorage, BOTS_PREFIX + roomId, raw);
+  // A finished room keeps its bots in this tab only (retireFinishedRoom).
+  if (sessionStorage.getItem(BOTS_PREFIX + roomId) !== null) writeItem(sessionStorage, BOTS_PREFIX + roomId, raw);
 }
 
 /** The recorded bot seats of a room, or null when this browser never learned
@@ -86,7 +224,7 @@ export function setRoomBots(roomId: string, bots: RoomBots): void {
 export function getRoomBots(roomId: string): RoomBots | null {
   if (!canStore()) return null;
   try {
-    const raw = localStorage.getItem(BOTS_PREFIX + roomId);
+    const raw = localStorage.getItem(BOTS_PREFIX + roomId) ?? sessionStorage.getItem(BOTS_PREFIX + roomId);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as RoomBots) : null;
   } catch {
@@ -113,7 +251,7 @@ export function rememberRoom(roomId: string): void {
   if (!canStore()) return;
   const rest = listRecentRooms().filter((r) => r.roomId !== roomId);
   const next = [{ roomId, ts: Date.now() }, ...rest].slice(0, MAX_RECENT);
-  localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  writeItem(localStorage, RECENT_KEY, JSON.stringify(next));
 }
 
 export function forgetRoom(roomId: string): void {
@@ -122,8 +260,9 @@ export function forgetRoom(roomId: string): void {
   sessionStorage.removeItem(TOKEN_PREFIX + roomId);
   localStorage.removeItem(RESUME_PREFIX + roomId);
   localStorage.removeItem(BOTS_PREFIX + roomId);
+  sessionStorage.removeItem(BOTS_PREFIX + roomId);
   const next = listRecentRooms().filter((r) => r.roomId !== roomId);
-  localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  writeItem(localStorage, RECENT_KEY, JSON.stringify(next));
 }
 
 // ---------------------------------------------------------------------------
@@ -162,5 +301,5 @@ export function rememberHero(heroId: string): void {
     0,
     MAX_RECENT_HEROES,
   );
-  localStorage.setItem(RECENT_HEROES_KEY, JSON.stringify(next));
+  writeItem(localStorage, RECENT_HEROES_KEY, JSON.stringify(next));
 }
