@@ -487,6 +487,44 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
   });
 });
 
+describe("show me in the lobby (visibility toggle)", () => {
+  afterEach(() => window.localStorage.removeItem("pro:lobby-visible"));
+  const lobbySockets = () => FakeWebSocket.instances.filter((w) => w.url.endsWith("/lobby"));
+
+  it("is on by default; switching it off closes the presence socket and is remembered", async () => {
+    await mountPicker([]);
+    const [sock] = lobbySockets();
+    await act(async () => {
+      sock.readyState = FakeWebSocket.OPEN;
+      sock.onopen?.({});
+    });
+    const toggle = screen.getByTestId("lobby-visibility");
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toHaveTextContent("Visible");
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(sock.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(window.localStorage.getItem("pro:lobby-visible")).toBe("0");
+    expect(screen.getByTestId("lobby-visibility")).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("lobby-visibility")).toHaveTextContent("Hidden");
+    // Open lobbies still come off the poll: the pill keeps its "looking" count.
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("looking");
+    expect(screen.getByTestId("presence-pill")).not.toHaveTextContent("here");
+  });
+
+  it("a stored opt-out never opens the socket; switching back on opens it", async () => {
+    window.localStorage.setItem("pro:lobby-visible", "0");
+    await mountPicker([]);
+    expect(lobbySockets()).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("lobby-visibility"));
+    });
+    expect(lobbySockets()).toHaveLength(1);
+    expect(window.localStorage.getItem("pro:lobby-visible")).toBeNull();
+  });
+});
+
 describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
   const SAM = { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" };
   let lobbyWs: FakeWebSocket;

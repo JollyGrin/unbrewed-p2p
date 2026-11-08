@@ -4,7 +4,8 @@
  * presence it reads "3 looking" alone. The page mounts it only when
  * `presencePillModel` returns a model (never an empty box).
  */
-import { Box, Flex, keyframes, Text } from "@chakra-ui/react";
+import { Box, Flex, keyframes, Text, Tooltip } from "@chakra-ui/react";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { AvatarDisc } from "@/components/Pro/LobbyRibbon";
 import { hereLabel, lookingLabel, type PresencePillModel } from "@/lib/pro/quickPlayLobby";
 
@@ -67,4 +68,48 @@ export const PresencePill = ({ model }: { model: PresencePillModel }) => (
       </Flex>
     )}
   </Flex>
+);
+
+/**
+ * The "show me in the lobby" switch beside the pill (default on; see
+ * lib/pro/lobbyVisibility.ts). Off closes the presence socket for this browser.
+ */
+export const LobbyVisibilityToggle = ({ visible, onChange }: { visible: boolean; onChange: (visible: boolean) => void }) => (
+  <Tooltip
+    hasArrow
+    openDelay={300}
+    label={
+      visible
+        ? "Others on this page can see you and 👋 you. Click to hide."
+        : "You're hidden: nobody sees or 👋s you, and you don't see who's here. Click to show yourself."
+    }
+  >
+    <Flex
+      as="button"
+      type="button"
+      role="switch"
+      aria-checked={visible}
+      aria-label="Show me in the lobby"
+      data-testid="lobby-visibility"
+      onClick={() => onChange(!visible)}
+      align="center"
+      gap="0.35rem"
+      h="24px"
+      px="0.55rem"
+      borderRadius="999px"
+      border="1px solid"
+      borderColor={visible ? "rgba(57,183,168,0.45)" : "whiteAlpha.300"}
+      bg={visible ? "transparent" : "whiteAlpha.100"}
+      color={visible ? "#39B7A8" : "whiteAlpha.700"}
+      fontFamily="SpaceGrotesk"
+      fontSize="0.68rem"
+      whiteSpace="nowrap"
+      cursor="pointer"
+      _hover={{ borderColor: visible ? "#39B7A8" : "whiteAlpha.500" }}
+      _focusVisible={{ outline: "2px solid", outlineColor: "brand.accent", outlineOffset: "2px" }}
+    >
+      {visible ? <FaEye size="0.75rem" /> : <FaEyeSlash size="0.75rem" />}
+      {visible ? "Visible" : "Hidden"}
+    </Flex>
+  </Tooltip>
 );
