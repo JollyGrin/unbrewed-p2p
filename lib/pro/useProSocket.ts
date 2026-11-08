@@ -65,6 +65,7 @@ import {
   RematchOfferState,
   rematchOfferReducer,
 } from "./rematchOffer";
+import { isClientStale, markClientStale, useClientStale } from "./staleClient";
 import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
 
 /** `hero_picked.mode` (#1512). */
@@ -146,6 +147,10 @@ export interface ProGameSnapshot {
 
 export interface UseProSocketReturn {
   status: ProConnectionStatus;
+  /** the engine refused this bundle's protocol version (p2p #1549): sticky until
+   *  reload; nothing is sent or reconnected any more. The page-wide
+   *  StaleClientBanner shows the "reload" notice. */
+  stale: boolean;
   /**
    * The signed-in player's cosmetics as this hook's `useCosmetics` holds them
    * (p2p #1399): the post-game card's pre-game baseline. Read-only — the
@@ -792,9 +797,21 @@ export function useProSocket(
     }
   }, []);
 
+  // Stale client (p2p #1549): the engine refused this bundle's protocol version.
+  // Sticky for the page: nothing more goes out and no socket is reopened —
+  // every frame would only be refused again. `lastSentTypeRef` names the frame
+  // the refusal most likely answers (ERROR frames don't say).
+  const staleRef = useRef(isClientStale());
+  const stale = useClientStale();
+  const lastSentTypeRef = useRef<string | null>(null);
+
   const send = useCallback((msg: ClientMsg) => {
+    if (staleRef.current) return;
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      lastSentTypeRef.current = msg.type;
+      ws.send(JSON.stringify(msg));
+    }
   }, []);
 
   // Every message that binds a seat (CREATE/JOIN/RECONNECT/RESUME) goes out at
@@ -867,7 +884,7 @@ export function useProSocket(
   );
 
   const connect = useCallback(() => {
-    if (!wsUrl || closedForGoodRef.current) return;
+    if (!wsUrl || closedForGoodRef.current || staleRef.current) return;
     setStatus((s) => (s === "idle" || s === "connecting" ? "connecting" : "reconnecting"));
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -1233,6 +1250,19 @@ export function useProSocket(
             sendBind(lastBindRef.current, PROTOCOL_VERSION);
             break;
           }
+          // Any other VERSION refusal (p2p #1549): this bundle is older than the
+          // engine accepts. Stop talking — the lobby poll and every reconnect
+          // would only be refused again — and let the page-wide banner say
+          // "reload". No seat and no game on screen: reload outright (guarded).
+          // Then fall through: the terminal path below is what it always was.
+          if (msg.code === "VERSION") {
+            staleRef.current = true;
+            if (retryRef.current.timer) clearTimeout(retryRef.current.timer);
+            markClientStale(
+              lastSentTypeRef.current,
+              () => !hadStateRef.current && !roomRef.current && !seatReplacedRef.current
+            );
+          }
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
             setUndoUnavailable(true);
@@ -1370,6 +1400,7 @@ export function useProSocket(
         setSeatReplaced(true);
         return;
       }
+      if (staleRef.current) return; // a stale client never reconnects (p2p #1549)
       reportSocketClose(opened, e, restartWindowRef.current);
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
@@ -1780,6 +1811,7 @@ export function useProSocket(
 
   return {
     identitySettled,
+    stale,
     // The pre-game cosmetics, read-only, for the post-game "What you earned"
     // card (p2p #1399): one `/me/cosmetics` request per page lives here, so
     // the page diffs against THIS copy rather than mounting a second hook.
