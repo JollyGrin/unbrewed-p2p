@@ -16,6 +16,12 @@ import {
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { colors, fonts } from "@/styles/style";
+import {
+  OPPONENT_SEAT,
+  SOLO_SEAT,
+  useActiveHotseat,
+  useSwitchSeat,
+} from "@/lib/hotseat/useHotseat";
 
 const whatDies = (isSolo: boolean) => [
   isSolo
@@ -53,8 +59,18 @@ export const NewGameModal = (props: {
   // Under hotseat, the active seat's deck (#1563); online both are undefined.
   const deck = (hotseat ? deckFor?.(hotseat.active) : undefined) ?? starredDeck;
   const pending = resetStatus.pending;
+  // Hotseat (issue #1564): an opponent seated on this device can be sent
+  // home from here, back to the plain solo table.
+  const hotseat = useActiveHotseat();
+  const switchSeat = useSwitchSeat();
 
   const close = () => props.onClose();
+
+  const backToSolo = () => {
+    switchSeat(SOLO_SEAT);
+    hotseat?.removeSeat(OPPONENT_SEAT);
+    close();
+  };
 
   return (
     <Modal isOpen={props.isOpen} onClose={close} isCentered>
@@ -144,6 +160,11 @@ export const NewGameModal = (props: {
               </Text>
             </ModalBody>
             <ModalFooter>
+              {hotseat && (
+                <Button variant="ghost" mr="auto" onClick={backToSolo}>
+                  Back to solo
+                </Button>
+              )}
               <Button onClick={close}>Cancel</Button>
               <Button
                 ml="0.75rem"

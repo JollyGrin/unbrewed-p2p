@@ -21,6 +21,12 @@ import { ScryModal } from "./scry.modal";
 import { rollDice } from "@/components/Game/Dice/rollDice";
 import { useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { DeckCommand, DeckLabel, buildDeckCommands } from "./deckCommands";
+import {
+  nextSeat,
+  useActiveHotseat,
+  useSeatLabel,
+  useSwitchSeat,
+} from "@/lib/hotseat/useHotseat";
 
 export const CommandMenu: React.FC<{
   openModal: (type: ModalType) => void;
@@ -36,6 +42,10 @@ export const CommandMenu: React.FC<{
   const player = Array.isArray(localName) ? localName[0] : localName;
   const { gameState, logAction, publishRoll } = useWebGame();
   const menus = useGameMenus();
+  // Hotseat (issue #1564): "Switch seat" once an opponent is seated.
+  const hotseat = useActiveHotseat();
+  const switchSeat = useSwitchSeat();
+  const seatLabel = useSeatLabel();
   const players = gameState?.content?.players as
     | Record<string, { pool?: PoolType }>
     | undefined;
@@ -109,8 +119,8 @@ export const CommandMenu: React.FC<{
   // (deckCommands.ts). The palette injects the primitives it can provide —
   // dice rolls, the token library — and closes itself in each callback.
   const commands: DeckCommand[] = useMemo(
-    () =>
-      buildDeckCommands({
+    () => [
+      ...buildDeckCommands({
         act,
         roll,
         openModal: (type) => {
@@ -140,8 +150,24 @@ export const CommandMenu: React.FC<{
             }
           : undefined,
       }),
+      ...(hotseat
+        ? [
+            {
+              id: "switch-seat",
+              label: "Switch seat",
+              group: "Game" as const,
+              keywords: `hotseat pass device play ${seatLabel(nextSeat(hotseat))}`,
+              enabled: () => true,
+              run: () => {
+                close();
+                switchSeat(nextSeat(hotseat));
+              },
+            },
+          ]
+        : []),
+    ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pool, deckLen, discardLen, handLen, menus],
+    [pool, deckLen, discardLen, handLen, menus, hotseat, switchSeat, seatLabel],
   );
 
   const filtered = useMemo(() => {

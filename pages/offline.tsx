@@ -1,6 +1,6 @@
 import { Grid, Spinner, Text, VStack } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { PageSeo } from "@/components/Helmet/Head";
 import { GameErrorBoundary } from "@/components/ErrorBoundary/GameErrorBoundary";
@@ -12,6 +12,8 @@ import { deckMatchesLink } from "@/lib/deckLink";
 import { DeckLinkHold, DeckLinkNotice } from "@/components/DeckLink/DeckLinkHold";
 import { DeckRefreshOnTable } from "@/components/DeckLink/DeckRefreshOnTable";
 import { useIrlSession } from "@/lib/gameAnalytics";
+import { HotseatControls, WebGameContext } from "@/lib/contexts/WebGameProvider";
+import { SOLO_SEAT } from "@/lib/hotseat/useHotseat";
 
 /**
  * Solo offline table. Loads a deck entirely client-side and drops the player
@@ -35,14 +37,22 @@ const Offline = () => {
   const { failed } = link;
   const held = !!link.held && !link.held.refresh;
 
-  // BoardContainer/HandContainer/ActionLog read `self` from query.name.
+  // BoardContainer/HandContainer/ActionLog read `self` from query.name. The
+  // provider always mounts with the one seat, so on arrival any other name
+  // (a reload mid-hotseat left `?name=opponent`) is rewritten too; once the
+  // table is up, Switch seat owns the name and only a missing one is fixed.
+  const [nameChecked, setNameChecked] = useState(false);
   useEffect(() => {
-    if (!isReady || query.name) return;
-    replace({ query: { ...query, name: "offline" } }, undefined, {
+    if (!isReady) return;
+    if (nameChecked ? query.name : query.name === SOLO_SEAT) {
+      setNameChecked(true);
+      return;
+    }
+    replace({ query: { ...query, name: SOLO_SEAT } }, undefined, {
       shallow: true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, query.name]);
+  }, [isReady, query.name, nameChecked]);
 
   // When a deckId was requested, wait until the starred deck actually matches
   // it (so we don't flash a previously-starred deck's board first).
@@ -50,7 +60,10 @@ const Offline = () => {
     ? deckMatchesLink(starredDeck, deckId)
     : !!starredDeck;
 
-  const nameReady = !!query.name;
+  const nameReady = nameChecked && !!query.name;
+
+  // The provider's hotseat seats, lifted out for the session analytics.
+  const [hotseat, setHotseat] = useState<HotseatControls>();
 
   // No link and nothing starred: the spinner never resolves, but the
   // session is settled (same rule as /irl).
@@ -60,6 +73,7 @@ const Offline = () => {
     offline: true,
     hasDeck: deckReady && nameReady,
     settled: failed || noDeck,
+    hotseat,
   });
 
   return (
@@ -70,6 +84,7 @@ const Offline = () => {
           {/* Inside the provider: its board state is in memory, so "Try again" keeps it. */}
           <GameErrorBoundary boundary="irl">
             <GameShell />
+            <HotseatReporter onChange={setHotseat} />
             <DeckRefreshOnTable refresh={link.refresh} />
             {link.held?.refresh && <DeckLinkHold link={link} />}
             <DeckLinkNotice link={link} />
@@ -102,6 +117,20 @@ const Offline = () => {
       )}
     </>
   );
+};
+
+/** Hands the provider's hotseat controls up to the page (analytics). */
+const HotseatReporter = ({
+  onChange,
+}: {
+  onChange: (hotseat: HotseatControls | undefined) => void;
+}) => {
+  // Read leniently: analytics must never be what breaks the table.
+  const hotseat = useContext(WebGameContext)?.hotseat;
+  useEffect(() => {
+    onChange(hotseat);
+  }, [hotseat, onChange]);
+  return null;
 };
 
 export default Offline;

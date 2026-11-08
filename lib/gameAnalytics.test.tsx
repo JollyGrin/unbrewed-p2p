@@ -134,7 +134,7 @@ describe("useIrlSession (#1511)", () => {
     h.rerender({ offline: false, hasDeck: true, settled: false });
     h.rerender({ offline: false, hasDeck: true, settled: true });
     expect(track.mock.calls.slice(0, 2)).toEqual([
-      ["irl_session_started", { offline: false, has_deck: true }],
+      ["irl_session_started", { offline: false, has_deck: true, hotseat: false }],
       ["game_started", { mode: "irl", players: 1, is_host: true }],
     ]);
     h.unmount();
@@ -145,12 +145,32 @@ describe("useIrlSession (#1511)", () => {
     ]);
   });
 
+  it("hotseat (#1564): an added opponent makes the game two-player at its end", () => {
+    window.history.pushState({}, "", "/offline");
+    const solo = { seats: ["offline"] };
+    const h = irl({ offline: true, hasDeck: true, settled: true, hotseat: solo });
+    h.rerender({
+      offline: true,
+      hasDeck: true,
+      settled: true,
+      hotseat: { seats: ["offline", "opponent"] },
+    });
+    h.unmount();
+    expect(track.mock.calls[0]).toEqual([
+      "irl_session_started",
+      { offline: true, has_deck: true, hotseat: false },
+    ]);
+    expect(track.mock.calls[1][1]).toMatchObject({ players: 1 });
+    expect(track.mock.calls[2][0]).toBe("game_ended");
+    expect(track.mock.calls[2][1]).toMatchObject({ players: 2 });
+  });
+
   it("no deck: the session is reported, no game starts", () => {
     window.history.pushState({}, "", "/offline");
     const h = irl({ offline: true, hasDeck: false, settled: true });
     h.unmount();
     expect(track.mock.calls).toEqual([
-      ["irl_session_started", { offline: true, has_deck: false }],
+      ["irl_session_started", { offline: true, has_deck: false, hotseat: false }],
     ]);
   });
 });

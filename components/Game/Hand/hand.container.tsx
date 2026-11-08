@@ -34,6 +34,7 @@ import {
 import { ScryModal } from "@/components/Game/CommandMenu/scry.modal";
 import { PileSplitButton } from "./pile-split-button";
 import { HandActionsButton } from "./hand-actions-button";
+import { PassDeviceCover } from "./pass-device.cover";
 
 type GameData = {
   gameState: WebsocketMessage | undefined;
@@ -331,6 +332,8 @@ export const HandContainer = ({
         }}
         opponents={opponents}
       />
+      {/* Hotseat only (issue #1564): hides the hand after a seat switch. */}
+      <PassDeviceCover />
       <ScryModal
         isOpen={scryOpen}
         onClose={() => setScryOpen(false)}
