@@ -48,7 +48,7 @@ describe("useGameSession (#1511)", () => {
     // A second seat joins, then the socket drops: neither restarts nor ends it.
     h.rerender({ ...base, active: true, players: 2, isHost: true });
     h.rerender({ ...base, active: false, players: 2, isHost: true });
-    expect(names()).toEqual(["game_started"]);
+    expect(names()).toEqual(["game_started", "game_players_joined"]);
 
     jest.setSystemTime(95_400);
     h.unmount();
@@ -63,7 +63,11 @@ describe("useGameSession (#1511)", () => {
       },
       undefined,
     );
-    expect(names()).toEqual(["game_started", "game_ended"]);
+    expect(names()).toEqual([
+      "game_started",
+      "game_players_joined",
+      "game_ended",
+    ]);
     jest.useRealTimers();
   });
 
@@ -102,8 +106,10 @@ describe("useGameSession (#1511)", () => {
     h.unmount();
     expect(names()).toEqual([
       "game_started",
+      "game_players_joined",
       "game_ended",
       "game_started",
+      "game_players_joined",
       "game_ended",
     ]);
   });
@@ -117,6 +123,92 @@ describe("useGameSession (#1511)", () => {
       isHost: true,
     });
     pageEvent("pagehide");
+    h.unmount();
+    expect(track).not.toHaveBeenCalled();
+  });
+});
+
+describe("game_players_joined (#1547)", () => {
+  const joined = () =>
+    track.mock.calls.filter((c) => c[0] === "game_players_joined");
+  const base: Props = {
+    mode: "sandbox",
+    active: true,
+    players: 1,
+    isHost: true,
+  };
+
+  it("solo game: none", () => {
+    const h = session(base);
+    h.rerender({ ...base });
+    h.unmount();
+    expect(names()).toEqual(["game_started", "game_ended"]);
+  });
+
+  it("host: once when the second seat appears; a drop and rejoin sends nothing", () => {
+    const h = session(base);
+    h.rerender({ ...base, players: 2 });
+    h.rerender({ ...base, players: 1 });
+    h.rerender({ ...base, players: 2 });
+    h.unmount();
+    expect(names()).toEqual([
+      "game_started",
+      "game_players_joined",
+      "game_ended",
+    ]);
+    expect(joined()[0][1]).toEqual({
+      mode: "sandbox",
+      players: 2,
+      is_host: true,
+    });
+  });
+
+  it("joiner: the first room state already has 2 seats, sent right after game_started", () => {
+    const h = session({ ...base, active: false, players: 0, isHost: false });
+    h.rerender({ ...base, players: 2, isHost: false });
+    expect(names()).toEqual(["game_started", "game_players_joined"]);
+    expect(joined()[0][1]).toEqual({
+      mode: "sandbox",
+      players: 2,
+      is_host: false,
+    });
+    h.unmount();
+  });
+
+  it("2 → 3 players: once per new peak", () => {
+    const h = session(base);
+    h.rerender({ ...base, players: 2 });
+    h.rerender({ ...base, players: 3 });
+    h.rerender({ ...base, players: 2 });
+    h.rerender({ ...base, players: 3 });
+    h.unmount();
+    expect(joined().map((c) => c[1].players)).toEqual([2, 3]);
+  });
+
+  it("reload: the new page is a joiner, so the room is counted once with is_host", () => {
+    // Host page: alone, then a friend joins.
+    const host = session(base);
+    host.rerender({ ...base, players: 2 });
+    pageEvent("pagehide");
+    host.unmount();
+    // Reloaded page: the relay replays both seats, so it is not the host.
+    const reloaded = session({ ...base, players: 2, isHost: false });
+    reloaded.unmount();
+    expect(joined().map((c) => c[1].is_host)).toEqual([true, false]);
+  });
+
+  it("a back/forward-cache restore is a new game and reports again", () => {
+    const h = session({ ...base, players: 2 });
+    pageEvent("pagehide");
+    pageEvent("pageshow", true);
+    h.unmount();
+    expect(joined()).toHaveLength(2);
+  });
+
+  it("never emits on /pro/*", () => {
+    window.history.pushState({}, "", "/pro/game");
+    const h = session(base);
+    h.rerender({ ...base, players: 2 });
     h.unmount();
     expect(track).not.toHaveBeenCalled();
   });

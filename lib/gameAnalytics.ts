@@ -32,11 +32,16 @@ export const deckSourceOf = (
   (deck && isLabsDeckId(deck.id) ? "unmatched-labs" : undefined);
 
 /**
- * One `game_started` the first time `active` is true, then exactly one
+ * One `game_started` the first time `active` is true (`players` is the count
+ * at that moment: always 1 for a sandbox host), then exactly one
  * `game_ended`: `left` when the component unmounts (an in-app navigation),
  * `closed` on `pagehide` (sent as a beacon). A page restored from the
  * back/forward cache starts a new game. `active` latches: a later false (a
  * dropped socket, a deck swap) does not end the game.
+ *
+ * `game_players_joined` (#1547) counts a multiplayer game without waiting for
+ * its end: sent the first time the seat count reaches 2 after a
+ * `game_started`, then again only for each new peak (3, 4, …).
  */
 export const useGameSession = ({
   mode,
@@ -62,12 +67,27 @@ export const useGameSession = ({
     peak: Math.max(latest.current.peak, players),
   };
 
+  // Per game: whether it is open, and the most seats `game_players_joined` reported.
+  const game = useRef({ open: false, reported: 1 });
+  const reportJoined = () => {
+    const { players, isHost } = latest.current;
+    if (!game.current.open || players < 2 || players <= game.current.reported)
+      return;
+    game.current.reported = players;
+    track("game_players_joined", { mode, players, is_host: isHost });
+  };
+  const reportJoinedRef = useRef(reportJoined);
+  reportJoinedRef.current = reportJoined;
+
+  useEffect(() => {
+    reportJoinedRef.current();
+  }, [players]);
+
   useEffect(() => {
     if (!live || isProPath()) return;
-    let open = false;
     let startedAt = 0;
     const start = () => {
-      open = true;
+      game.current = { open: true, reported: 1 };
       startedAt = Date.now();
       latest.current.peak = latest.current.players;
       track("game_started", {
@@ -75,10 +95,12 @@ export const useGameSession = ({
         players: latest.current.players,
         is_host: latest.current.isHost,
       });
+      // A joiner's first room state already holds the host's seat.
+      reportJoinedRef.current();
     };
     const end = (reason: GameEndReason, beacon = false) => {
-      if (!open) return;
-      open = false;
+      if (!game.current.open) return;
+      game.current.open = false;
       track(
         "game_ended",
         {
@@ -93,7 +115,7 @@ export const useGameSession = ({
     };
     const onHide = () => end("closed", true);
     const onShow = (e: PageTransitionEvent) => {
-      if (e.persisted && !open) start();
+      if (e.persisted && !game.current.open) start();
     };
     start();
     window.addEventListener("pagehide", onHide);
