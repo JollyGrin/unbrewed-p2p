@@ -15,9 +15,10 @@ import { PlayCardToTable } from "@/components/Positions/position.type";
 import { TransferZone } from "@/lib/gamesocket/message";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { WebGameContext } from "@/lib/contexts/WebGameProvider";
 import { Flex } from "@chakra-ui/react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { HandFan } from "../game.carousel";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
@@ -72,6 +73,9 @@ export const HandContainer = ({
   const player = Array.isArray(localName) ? localName[0] : localName;
 
   const { starredDeck } = useBagDecks();
+  // Read softly: HandContainer is also mounted without a game provider.
+  // Online `deckFor` is undefined, so the starred deck is used as before (#1563).
+  const deckFor = useContext(WebGameContext)?.deckFor;
   const players = gameState?.content?.players as Record<
     string,
     { pool?: PoolType }
@@ -82,13 +86,14 @@ export const HandContainer = ({
   };
 
   useEffect(() => {
-    if (!starredDeck || playerState?.pool) return;
+    const seatDeck = (player ? deckFor?.(player) : undefined) ?? starredDeck;
+    if (!seatDeck || playerState?.pool) return;
     // The timer must cancel when a gameState update lands: on rejoin the
     // server replays the existing pool ~instantly, and letting a stale
     // timer fire would re-init the deck over it (hand/deck reset, and any
     // cards out on the table would be duplicated back into the deck).
     const timer = setTimeout(() => {
-      setGameState(initPool(starredDeck));
+      setGameState(initPool(seatDeck));
     }, 500);
     return () => clearTimeout(timer);
     // starredDeck matters as well as gameState: `useBagDecks` resolves
@@ -96,7 +101,7 @@ export const HandContainer = ({
     // its own (offline — no socket snapshots) this effect would run once with
     // no deck and never fire again, leaving the player with an empty pool.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, starredDeck]);
+  }, [gameState, starredDeck, deckFor]);
 
   const gDraw = flow(draw, setGameState, () => logAction("Drew a card"));
   const gDeckCard = flow(

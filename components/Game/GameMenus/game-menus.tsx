@@ -52,7 +52,7 @@ export const GameMenusProvider = ({
 }>) => {
   const { query } = useRouter();
   const self = (Array.isArray(query?.name) ? query.name[0] : query?.name) ?? "";
-  const { gameState, resetStatus } = useWebGame();
+  const { gameState, resetStatus, hotseat } = useWebGame();
 
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [changeDeckOpen, setChangeDeckOpen] = useState(false);
@@ -60,9 +60,11 @@ export const GameMenusProvider = ({
   const players = (gameState?.content as GameState | undefined)?.players;
   // Solo when nobody else has a pool — then there is nobody to ask, and the
   // provider commits the reset immediately.
+  // Hotseat is always solo: every seat is on this device, so there is nobody
+  // to ask (#1563). The online provider never sets `hotseat`.
   const isSolo = useMemo(
-    () => requiredVoters(players ?? {}, self).length === 0,
-    [players, self],
+    () => !!hotseat || requiredVoters(players ?? {}, self).length === 0,
+    [hotseat, players, self],
   );
 
   const menus = useMemo<GameMenus>(
