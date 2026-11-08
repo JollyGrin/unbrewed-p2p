@@ -1,9 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useContext } from "react";
 import { useRouter } from "next/router";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import {
   HotseatControls,
-  useWebGame,
+  WebGameContext,
 } from "@/lib/contexts/WebGameProvider";
 
 /**
@@ -27,7 +27,9 @@ export const OPPONENT_SEAT = "opponent";
  * nothing new renders on /game, /connect, /table or /irl.
  */
 export const useHotseat = (): HotseatControls | undefined => {
-  const { hotseat } = useWebGame();
+  // Read softly: HandContainer (which mounts the pass-the-device cover) is
+  // also rendered without a game provider.
+  const hotseat = useContext(WebGameContext)?.hotseat;
   const { pathname } = useRouter();
   return pathname === HOTSEAT_PATH ? hotseat : undefined;
 };
@@ -73,7 +75,7 @@ export const heroOf = (deck: DeckImportType | undefined): string | undefined =>
 
 /** A seat's display name: its hero, falling back to the raw key. */
 export const useSeatLabel = () => {
-  const { deckFor } = useWebGame();
+  const deckFor = useContext(WebGameContext)?.deckFor;
   return useCallback(
     (name: string) => heroOf(deckFor?.(name)) ?? name,
     [deckFor],
