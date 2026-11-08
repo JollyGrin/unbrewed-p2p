@@ -55,6 +55,7 @@ import {
 } from "@/lib/pro/boardObjects";
 import { buildPromptSpaceMap } from "@/lib/pro/promptSpaces";
 import { replayId, saveReplay } from "@/lib/pro/replayStore";
+import { toastReplaySaveResult } from "@/components/Pro/replaySaveToast";
 import { shareReplayLink } from "@/lib/pro/replayShareLink";
 import { proErrorMessage } from "@/lib/pro/proErrors";
 import { deriveRelocateMode, resolveRelocateBoardClick } from "@/lib/pro/relocateMode";
@@ -4779,23 +4780,7 @@ const LiveGame = ({
   useEffect(() => {
     if (!replayBundle || savedBundleRef.current === replayBundle) return;
     savedBundleRef.current = replayBundle;
-    const res = saveReplay(replayBundle);
-    if (res.ok) {
-      toast.success(
-        (t) => (
-          <span>
-            Match saved to{" "}
-            <Link href="/pro/replays" color="brand.accent" onClick={() => toast.dismiss(t.id)}>
-              Replays
-            </Link>
-          </span>
-        ),
-        { duration: 6000 }
-      );
-    } else {
-      // Silent failure used to lose the match with no hint why (#1551).
-      toast.error("Couldn't save this replay — storage is full", { id: "replay-save-failed", duration: 7000 });
-    }
+    toastReplaySaveResult(saveReplay(replayBundle));
   }, [replayBundle]);
 
   // "Copy share link" on the win screen (#698). The replay link the dock hands

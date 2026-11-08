@@ -124,15 +124,18 @@ describe("load-time purge (#1551)", () => {
     expect(listReplays()).toHaveLength(0);
   });
 
-  it("never throws when storage is blocked", () => {
-    const spy = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+  it("never throws when storage throws mid-sweep, and still runs only once", () => {
+    saveReplay(bundle({ seed: 1 }), stale);
+    const spy = jest.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
       throw new Error("SecurityError");
     });
     try {
       expect(() => purgeExpiredOnLoad(now)).not.toThrow();
+      expect(spy).toHaveBeenCalled(); // the sweep really hit the throwing call
     } finally {
       spy.mockRestore();
     }
+    expect(takePurgedReplays(now)).toHaveLength(1); // the page's own sweep picks it up
   });
 });
 
