@@ -8,8 +8,13 @@ describe("public roster", () => {
     const roster = PUBLIC_ROSTER.map((h) => h.heroId);
     const hidden = Object.keys(HIDDEN_HERO_NAMES);
     expect([...roster, ...hidden].sort()).toEqual(deckHeroes);
-    expect(ROSTER_SIZE).toBe(36);
+    expect(ROSTER_SIZE).toBe(37);
     expect(new Set(roster).size).toBe(roster.length);
+  });
+
+  it("is listed in hero-id order", () => {
+    const roster = PUBLIC_ROSTER.map((h) => h.heroId);
+    expect(roster).toEqual([...roster].sort());
   });
 
   it("names heroes, falling back to the sent name then the id", () => {

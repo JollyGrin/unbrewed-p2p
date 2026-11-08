@@ -83,6 +83,17 @@ export interface HeroStateFlag {
    *  portrait already conveys the state (recommended for art swaps like tide).
    *  A variant with no art keeps its badge regardless. */
   hideBadgeWhenArt?: boolean;
+  /** printed-stat overrides while this state is ACTIVE (flag set, or the group's
+   *  active member). The view carries no move field, so the nameplate's move chip
+   *  reads the deck JSON's `hero.move`; a state that changes the hero's printed
+   *  move (a transform such as Springtrap) declares the new number here and the
+   *  nameplate shows it instead. Omit for states that leave the stats alone. */
+  stats?: FlagStatOverrides;
+}
+
+/** Hero stats a flag-driven state can override on the nameplate. */
+export interface FlagStatOverrides {
+  move?: number;
 }
 
 /**
@@ -119,6 +130,22 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
       off: "https://unbrewed.xyz/evergreen-decks/art/thetis/token-thetis-low.webp",
     },
     hideBadgeWhenArt: true,
+  },
+  // William Afton (the-unmatched.club 14750, issue #1530 ↔ engine #1018/#1019, William
+  // Afton train). ONE-SIDED, like EQUILIBRIUM: the engine sets SPRINGTRAP permanently the
+  // moment William's first death is replaced by the revive (the same fighter keeps its
+  // space, renamed "Springtrap" on a 12-HP dial). Absent = William, which needs no pill.
+  // The portrait swaps to Springtrap on BOTH surfaces (board + replay) by this row alone —
+  // the nameplate name and the HP dial already read the live fighter.
+  {
+    flag: "SPRINGTRAP",
+    heroes: ["william-afton"],
+    nameplate: { onLabel: "SPRINGTRAP", offLabel: "", showWhenAbsent: false },
+    token: { on: { icon: "🐰", label: "Springtrap", title: "Revived as Springtrap", bg: "#4A4A2A", color: "#F2EBC9" } },
+    tokenArt: { on: "https://unbrewed.xyz/evergreen-decks/art/william-afton/token-springtrap.webp" },
+    hideBadgeWhenArt: true,
+    // Springtrap moves 2 (William moves 3, the deck JSON's printed number).
+    stats: { move: 2 },
   },
   {
     flag: "DRUID_FORM_BEAR",
@@ -598,6 +625,17 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "🦺 {n}", longLabelTemplate: "EQUIPPED: {n}" },
     token: { icon: "🦺", title: "EQUIPPED", bg: "#4A3B22", color: "#F0E9DA" },
   },
+  // William Afton's set-aside SPRINGTRAP pile (engine `startsInPile:'SPRINGTRAP'`): the 10
+  // Springtrap cards sit outside the deck from setup until the revive shuffles the whole
+  // pile in, after which the engine prunes the key and the chip disappears. Public, so the
+  // opponent can inspect what Springtrap will bring.
+  {
+    pile: "SPRINGTRAP",
+    heroes: ["william-afton"],
+    pileLabel: "Springtrap cards",
+    nameplate: { labelTemplate: "🐰 {n}", longLabelTemplate: "SPRINGTRAP CARDS: {n}" },
+    token: { icon: "🐰", title: "SPRINGTRAP CARDS", bg: "#4A4A2A", color: "#F2EBC9" },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */
@@ -839,6 +877,36 @@ export const flagChipsFor = (
   }
   chips.push(...denyChipsFor(flags));
   return chips;
+};
+
+/**
+ * The printed-stat overrides in force for one hero given its live flags: the
+ * `stats` of every ACTIVE registry entry (a set standalone flag; a group's active
+ * member, its `isDefault` included). The first active entry in registry order
+ * wins a stat two entries both set. `{}` for a hero with no active override, so
+ * callers fall back to the deck JSON (`overrides.move ?? hero.move`).
+ */
+export const flagStatOverridesFor = (
+  heroId: string,
+  flags: Record<string, boolean> | undefined
+): FlagStatOverrides => {
+  const out: FlagStatOverrides = {};
+  const seenGroups = new Set<string>();
+  for (const e of entriesForHero(heroId)) {
+    let active: HeroStateFlag | null;
+    if (e.group) {
+      if (seenGroups.has(e.group)) continue;
+      seenGroups.add(e.group);
+      active = activeGroupEntry(
+        entriesForHero(heroId).filter((x) => x.group === e.group),
+        flags
+      );
+    } else {
+      active = flags?.[e.flag] ? e : null;
+    }
+    if (active?.stats?.move !== undefined && out.move === undefined) out.move = active.stats.move;
+  }
+  return out;
 };
 
 // ---------------------------------------------------------------------------

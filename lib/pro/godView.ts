@@ -17,6 +17,7 @@ import type {
   PlayerView,
   ReplayExpansion,
   ReplayStep,
+  ReplayStepPlayer,
   ViewPlayer,
 } from "./protocol";
 import { isFaceUpPreRevealAttack } from "./faceUpCommit";
@@ -37,6 +38,12 @@ function requireStepPlayer(step: ReplayStep, player: PlayerId) {
   const entry = step.players[player];
   if (!entry) throw new Error(`Replay step is missing player ${player}`);
   return entry;
+}
+
+/** A step seat's active flags; `{}` whenever the frame omits them (older server or a
+ * legacy-epoch fallback replay — never inferred from server version) (#1534). */
+function stepFlags(p: ReplayStepPlayer): Record<string, boolean> {
+  return p.flags ?? {};
 }
 
 /**
@@ -82,9 +89,11 @@ export function toPlayerView(
       // it ABSENT for an old replay, which is exactly how the live view encodes
       // "nothing tucked" — so the TRAINING pill/badge stays hidden either way.
       ...(p.piles ? { piles: p.piles } : {}),
-      // Replay bundles predate v16 `flags`; god-view synthesizes an empty map
-      // (no active flags) since replay/god-view tide surfacing is a follow-up.
-      flags: {},
+      // Per-step flags (#1534) drive the same portrait swaps + flag pills the live
+      // table shows (e.g. Springtrap). Frames from older servers AND legacy-epoch
+      // fallback replays omit the field: fall back to an empty map (no active
+      // flags), exactly as before.
+      flags: stepFlags(p),
       // Replay bundles predate `wonCombatThisTurn` — default false (the "combat
       // won" chip is a live-play affordance; replay legibility is a follow-up).
       wonCombatThisTurn: false,
@@ -120,7 +129,7 @@ export function toPlayerView(
       committedCard: me.committedCard,
       counters: me.counters,
       ...(me.piles ? { piles: me.piles } : {}),
-      flags: {},
+      flags: stepFlags(me),
       wonCombatThisTurn: false,
       lostCombatThisTurn: false,
       firstAttackThisTurn: false,
@@ -139,7 +148,7 @@ export function toPlayerView(
             hasCommitted: opp.committedCard !== null || faceUpCommitterId === oppId,
             counters: opp.counters,
             ...(opp.piles ? { piles: opp.piles } : {}),
-            flags: {},
+            flags: stepFlags(opp),
             wonCombatThisTurn: false,
             lostCombatThisTurn: false,
             firstAttackThisTurn: false,

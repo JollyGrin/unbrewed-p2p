@@ -29,6 +29,7 @@ import { fxLabelZIndex, fxRingZIndex, standeeTransform } from "@/lib/pro/tablePr
 const FX_COLOR: Record<BoardFxItem["kind"], string> = {
   damage: "#FF5C5C",
   heal: "#58D68D",
+  revive: "#58D68D",
   blocked: "#B8C4CE",
   defeat: "#E0A82E",
 };

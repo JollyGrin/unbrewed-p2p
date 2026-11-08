@@ -9,6 +9,7 @@
 import { FighterId, GameEvent, PlayerId, PlayerView, SpaceId, ViewPlayer } from "./protocol";
 import { isViewerOnWinningTeam } from "./teams";
 import { sweptFighters } from "./sweep";
+import { isHeroRevive } from "./heroRevive";
 import { isNoWinner } from "./combatOutcome";
 import { faceUpCommitter, isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { mustDefend } from "./defenseTurn";
@@ -28,6 +29,13 @@ export type FxEvent =
    *  and its neutral steel colour are shared. */
   | { type: "blocked"; space: SpaceId | null; noWinner: boolean }
   | { type: "defeated"; fighter: FighterId; space: SpaceId | null; mine: boolean }
+  /** a HERO's defeat was REPLACED by a revive (William Afton → Springtrap, engine
+   *  #1018): the same fighter, renamed, on a new dial in the same space. Its own beat —
+   *  never the K.O. for the first form. The batch's hp numbers would compare the old
+   *  dial with the new one, so it is preceded by a `damage` for the hp the old dial
+   *  lost (prev hp → 0) and followed by a `defeated` only if the new form also fell
+   *  before the next view. */
+  | { type: "revived"; fighter: FighterId; space: SpaceId | null; name: string; mine: boolean }
   /** it just became your turn */
   | { type: "turn" }
   /** the live combat just asked YOU to commit a defense. Its own beat, not a
@@ -135,6 +143,20 @@ export function diffFxEvents(
     if (!was) continue;
     const space = f.space ?? was.space;
     const mine = f.owner === next.you;
+    // A replaced defeat: keyed on a HERO alive in the previous view whose name AND
+    // dial max both changed — whether or not the new form is still standing (enough
+    // further damage in the same window defeats it before the next view). The hp
+    // numbers would compare two different dials, so the batch narrates the blow that
+    // emptied the OLD dial (prev hp → 0), the revive, then — if it fell again — the K.O.
+    if (isHeroRevive(was, f)) {
+      anyHpDrop = true; // the blow landed — never read this batch as a block
+      if (was.hp > 0) {
+        events.push({ type: "damage", fighter: f.id, space, amount: was.hp, mine, heroHit: true });
+      }
+      events.push({ type: "revived", fighter: f.id, space, name: f.name, mine });
+      if (f.defeated) events.push({ type: "defeated", fighter: f.id, space, mine });
+      continue;
+    }
     if (f.hp < was.hp && !swept.has(f.id)) {
       anyHpDrop = true;
       events.push({

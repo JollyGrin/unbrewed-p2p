@@ -360,6 +360,14 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // has no avatar in the export, so token-xenomorph is a square crop of the Marked
   // Blip's underside art (a picture of the Xenomorph — never shown on a Blip).
   xenomorph: "xenomorph",
+  // William Afton / Springtrap (the-unmatched.club 14750 by bobafettIG88, lab tier; issue
+  // #1530 ↔ engine #1018 HeroDef.revive / #1019 deck, William Afton train). Club-only, so
+  // the id is unbrewed-minted (Ripley/Xenomorph precedent). ART: 16 files self-hosted under
+  // public/evergreen-decks/art/william-afton/ (q80 webp, ≤1600w): the 13 club full-card
+  // renders (cardImage, full-bleed), the club cover as cardback, and the author's two
+  // character avatars as square top-anchored board tokens — token-william-afton (deck
+  // default) and token-springtrap (swapped in by the SPRINGTRAP flag, heroStateFlags.ts).
+  "william-afton": "william-afton",
 };
 
 /**

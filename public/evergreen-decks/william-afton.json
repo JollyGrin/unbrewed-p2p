@@ -1,0 +1,255 @@
+{
+  "bgg_link": null,
+  "created_on": "2026-09-29T03:36:01+00:00",
+  "deck_first_published_on": "2026-09-29T03:36:01+00:00",
+  "deck_published": true,
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#5e255f",
+      "cardbackUrl": "/evergreen-decks/art/william-afton/cardback.webp",
+      "highlightColour": "#5e255f",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "cards": [
+      {
+        "afterText": "Move your fighter up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/slip-away.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/slip-away.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "slip away",
+        "type": "defence",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/jump-scare.webp"
+        },
+        "characterName": "Springtrap",
+        "duringText": "If Springtrap shares no zones with the space he started in this turn, this card's value is 6 instead.",
+        "imageUrl": "/evergreen-decks/art/william-afton/jump-scare.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Jump Scare",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Draw 1 card.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/die.webp"
+        },
+        "characterName": "Springtrap",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/die.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Die!",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "",
+        "basicText": "Deal 1 damage to each opposing fighter in your zone. Move your fighter up to 3 spaces, you may move through opposing fighters.",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/man-behind-the-slaughter.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/man-behind-the-slaughter.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Man Behind The Slaughter",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "Move Springtrap up to 3 spaces. Springtrap recovers 1 health. Gain 1 action.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/a-monster.webp"
+        },
+        "characterName": "Springtrap",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/a-monster.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "A Monster",
+        "type": "scheme",
+        "value": 0
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/id-do-it-again.webp"
+        },
+        "characterName": "Any",
+        "duringText": "You may BOOST this card.",
+        "imageUrl": "/evergreen-decks/art/william-afton/id-do-it-again.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "i'd do it again",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/you-will-not-be-saved.webp"
+        },
+        "characterName": "Springtrap",
+        "duringText": "Ignore the value on your opponent's card.",
+        "imageUrl": "/evergreen-decks/art/william-afton/you-will-not-be-saved.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "You will not be saved",
+        "type": "attack",
+        "value": 1
+      },
+      {
+        "afterText": "Recover 1 health. You may shuffle 1 card not named I WILL NEVER DIE from your discard back into your deck.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/i-will-never-die.webp"
+        },
+        "characterName": "Springtrap",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/i-will-never-die.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "I Will Never Die",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "Draw 1 card. If you won the combat, draw 2 cards instead.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/regroup.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/regroup.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Regroup",
+        "type": "versatile",
+        "value": 1
+      },
+      {
+        "afterText": "Deal 2 damage to both fighters in the combat.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/spring-lock-suit.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/spring-lock-suit.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Spring-lock suit",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/feint.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/feint.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Feint",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "If you won the combat, choose one of the fighters in the combat and move them up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/skirmish.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/skirmish.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Skirmish",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, draw 1 card. If you lost the combat, deal 2 damage any adjacent opposing fighter.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/william-afton/you-will-not-be-spared.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/william-afton/you-will-not-be-spared.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "You will not be spared",
+        "type": "attack",
+        "value": 4
+      }
+    ],
+    "hero": {
+      "hp": 7,
+      "isRanged": false,
+      "move": 3,
+      "name": "William Afton",
+      "quote": "\"Hide if you want. It did not save the others. It will not save you.\"",
+      "specialAbility": "At the start of the game, remove all Springtrap cards from your deck.\nWhen William Afton dies, revive him as Springtrap in the same space where he was defeated.\n\nSPRINGTRAP (HP 12, MOVE 2, melee)\nWhen William Afton is revived as Springtrap, shuffle all Springtrap cards into your deck.\nAdd +1 to the attack value of all of Springtrap's attacks.",
+      "tokenImageUrl": "/evergreen-decks/art/william-afton/token-william-afton.webp"
+    },
+    "name": "William Afton",
+    "sidekick": {
+      "hp": null,
+      "isRanged": false,
+      "name": "Sidekick",
+      "quantity": 0
+    }
+  },
+  "family_id": "william-afton",
+  "id": "william-afton",
+  "liked": false,
+  "likes": 0,
+  "name": "William Afton",
+  "note": "Rules-enforced Pro deck (server hero william-afton), mirrored from the-unmatched.club deck 14750 \"William Afton\" by bobafettIG88 (version \"Initial\", Slip Away defence 3 since 2026-11-02; the page is this deck's sourceUrl). The requester is the author (Discord booba._.fett, #pro-deck-request 2026-10-13), so rights are clear. There is no unmatched.cards mirror used here, so the id `william-afton` is unbrewed-minted (Ellen Ripley / Xenomorph precedent). Card titles, types, values, boosts, quantities and banners are the author's, read off the club export, and match the engine's data/heroes/william-afton.rules.ts (engine #1019 on feature/william-afton) — titles are verbatim including the author's lowercase (slip away, i'd do it again, You will not be saved/spared) and the straight apostrophe; art matches on the title. The deck has ONE hero slot: William Afton (7 HP, move 3, melee, no sidekick). His second form, Springtrap (12 HP, move 2, melee), is a separate character card in the club deck; this snapshot carries Springtrap's two ability sentences in the hero's specialAbility, and the live Springtrap name, 12-HP dial and portrait come from the engine's view (the same fighter is renamed on revive; the SPRINGTRAP flag swaps the token art). The five Springtrap-banner cards (10 copies) start set aside in the public SPRINGTRAP pile and are shuffled in on the revive, so the printed 30 is 20 drawable + 10. Defence cards are type \"defence\" here and \"defense\" in the engine (community convention; the rules-lock digest normalizes it). ART: the 13 faces are the club's full-card renders drawn FULL-BLEED via cardImage, the cardback is the club cover, and the two board tokens are the author's character avatars — all the AUTHOR'S artwork, self-hosted under public/evergreen-decks/art/william-afton/; never route this deck to the art-generation pipeline. Engine serves the hero at tier `lab`.",
+  "published": true,
+  "published_on": "2026-09-29T03:36:01+00:00",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/william-afton.14750",
+  "tags": [],
+  "updated_on": "2026-11-02T08:49:00+00:00",
+  "user": "bobafettIG88",
+  "version_id": "evergreen-1",
+  "version_name": "Initial"
+}

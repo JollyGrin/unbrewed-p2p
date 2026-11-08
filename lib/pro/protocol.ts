@@ -996,6 +996,30 @@
  *   events go out under an anonymous per-room id.
  * - Gate on `PROTOCOL_VERSION >= 39`. A v38 client never sends the field and plays on.
  */
+/**
+ * ## Additive field (2026-11-07, no version bump): `ReplayStepPlayer.flags` (engine #1025, p2p#1534)
+ * God-view replay frames now carry each seat's public named flags, so flag-driven surfaces
+ * (William Afton's SPRINGTRAP form, Thetis's HIGH_TIDE, Malfurion's portrait swap) work in
+ * the scrubber as they do live.
+ *
+ * - `ReplayStepPlayer.flags?: Record<string, boolean>` — EXACTLY `ViewSelf.flags` (v16) for
+ *   that seat at that step: flag name -> `true`, presence = active, a cleared flag is
+ *   absent. The server copies the live redacted view's map — no separate derivation — and
+ *   sends it (`{}` when no flag is active) on every frame the CURRENT engine expands.
+ * - ABSENT on frames from a pre-#1025 server AND on legacy-epoch frames from a current one:
+ *   a bundle the current engine cannot reproduce is expanded by a frozen archived build
+ *   (`ReplayExpansion.servedBy: "legacy-epoch-<n>"`, #908), whose frames predate this field.
+ *   So clients MUST treat absent as `{}` and never assume presence.
+ * - Response-only and presence-gated, so PROTOCOL_VERSION stays 39 (the rule most additive
+ *   view fields above follow; v38 did bump for `marks?`): the client gates on the FIELD'S
+ *   PRESENCE, not the version. A bump could not gate this path anyway — `POST /replay` is
+ *   stateless HTTP with no `v`; only WebSocket messages go through the version check. And
+ *   it would drop v38 clients from the WS accept window and make a client-first deploy
+ *   fail that check.
+ * - Replays are re-expanded server-side from the bundle's action log, so every bundle the
+ *   current engine reproduces gains the field on the next `POST /replay`. Nothing in
+ *   `ReplayBundle` changes, so no bundle, digest or state hash moves.
+ */
 export const PROTOCOL_VERSION = 39;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
@@ -1989,6 +2013,7 @@ export interface ReplayStepPlayer {
   piles?: Record<string, PileEntry[]>; // v25: named public set-aside piles ("tucked under the hero card"), card identities visible to EVERY viewer; absent when nothing is tucked. v33: each entry is a bare id (this seat controls it) or `{card, controller}` (an opponent tucked it here and still owns it) — see PileEntry
   committedCard: CardInstanceId | null;
   counters: Record<string, number>;
+  flags?: Record<string, boolean>; // #1025: the seat's active named flags — same map as ViewSelf.flags (v16; presence = active). `{}` when none. ABSENT from pre-#1025 servers and on legacy-epoch frames (`servedBy: "legacy-epoch-<n>"`) even from a current server — clients MUST treat absent as `{}`, never assume presence
 }
 
 // One scrubber frame: the board plus BOTH players face-up. `index` 0 is the
