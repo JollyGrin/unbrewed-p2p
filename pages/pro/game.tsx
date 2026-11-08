@@ -286,6 +286,7 @@ import {
   lookingCount,
   multiplierLabel,
   presencePillModel,
+  presentCount,
   quickMatchSubline as quickMatchSublineFor,
   ribbonItems,
   searchProgressLine,
@@ -5404,8 +5405,11 @@ const LiveGame = ({
   // The presence socket (lib/pro/useLobbySocket.ts, engine #1034) is open only
   // while this player sits on the CREATE picker — `joined` flips the moment a
   // CREATE_ROOM / JOIN_ROOM / RECONNECT / RESUME_ROOM goes out, which closes it,
-  // and a bounce back to the picker reopens it. It waits for the game socket so
-  // an engine that is down costs one failed connect, not two.
+  // and a bounce back to the picker reopens it. A Quick Match search is the one
+  // exception: it holds a seat while it walks the lobbies, but the dock still
+  // shows who is here, so the socket stays up (as `searching`) until the game's
+  // first STATE lands. It waits for the game socket so an engine that is down
+  // costs one failed connect, not two.
   const nudgeQuickMatchRef = useRef<() => void>(() => {});
   const [waved, setWaved] = useState<ReadonlySet<string>>(() => new Set());
   // Not before the router is ready: the static export's first render has no
@@ -5413,8 +5417,12 @@ const LiveGame = ({
   const routerReady = useRouter().isReady;
   const lobbySocket = useLobbySocket({
     wsUrl: WS_URL,
-    enabled: routerReady && status === "open" && !joined && !room && !tournamentRoom,
-    state: "picking",
+    enabled:
+      routerReady &&
+      status === "open" &&
+      !tournamentRoom &&
+      ((!joined && !room) || (quickSearch !== null && !snapshot)),
+    state: quickSearch !== null ? "searching" : "picking",
     heroId: selectedHeroId && selectedHeroId !== RANDOM_HERO_ID ? selectedHeroId : null,
     onNudged: (from: PresenceEntry) => {
       const name = from.displayName?.trim() || "Someone";
@@ -5849,9 +5857,10 @@ const LiveGame = ({
   if (!joined || showQuickDock) {
     const effectiveHeroId = selectedHeroId ?? (heroes === null ? heroParam : null);
     // ---- Quick Play lobby surface (#1542) ----
+    const hereCount = lobbySnapshot ? presentCount(lobbySnapshot) : null;
     const presenceModel = presencePillModel({
       connected: status === "open" || lobbyLive,
-      here: lobbySnapshot?.here ?? null,
+      here: hereCount,
       lobbies: shownLobbies,
       players: lobbySnapshot?.players,
       you: lobbySnapshot?.you,
@@ -5868,7 +5877,7 @@ const LiveGame = ({
     const ribbon = ribbonShown ? (
       <LobbyRibbon
         items={ribbonChips}
-        here={lobbySnapshot?.here ?? null}
+        here={hereCount}
         bonus={bonus && bonusLabel ? { label: bonusLabel, ends: bonusEndsLabel(bonus.endsAt, Date.now()) } : null}
         onJoin={joinFromRibbon}
         onNudge={lobbyLive ? onNudge : undefined}

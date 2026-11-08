@@ -12,6 +12,7 @@ import {
   multiplierLabel,
   presencePillModel,
   presenceStateLabel,
+  presentCount,
   quickMatchSubline,
   ribbonItems,
   searchProgressLine,
@@ -109,8 +110,30 @@ describe("ribbonItems", () => {
     expect(chip).toMatchObject({ name: "Kay", age: "1m 42s", timer: "⏱ 45s", badge: "regular" });
   });
 
+  it("leaves a Quick Match searcher to its lobby chip (no second player chip)", () => {
+    const items = ribbonItems({
+      lobbies: [lobby("theirs", 10_000)],
+      players: [player("sam", { state: "searching" }), player("kay")],
+    });
+    expect(items.map((i) => i.key)).toEqual(["lobby-theirs", "player-kay"]);
+  });
+
   it("omits the tail with no tables in play, and players with no presence", () => {
     expect(ribbonItems({ lobbies: [], tablesInPlay: 0 })).toEqual([]);
+  });
+});
+
+describe("presentCount", () => {
+  it("counts a searcher once — the server has it as a watcher AND a lobby", () => {
+    expect(
+      presentCount({ here: 4, players: [player("me", { state: "searching" }), player("kay")], lobbies: [lobby("MINE", 1), lobby("x", 2)] }),
+    ).toBe(3);
+  });
+  it("caps the correction at the listed lobbies (a searcher between rooms is listed nowhere)", () => {
+    expect(presentCount({ here: 2, players: [player("a", { state: "searching" }), player("b", { state: "searching" })], lobbies: [] })).toBe(2);
+  });
+  it("is the server number when nobody is searching", () => {
+    expect(presentCount({ here: 5, players: [player("a"), player("b", { state: "idle" })], lobbies: [lobby("x", 1)] })).toBe(5);
   });
 });
 
