@@ -3,7 +3,6 @@ import type { PresenceEntry } from "./lobbyProtocol";
 import {
   activeBonus,
   avatarInitial,
-  bonusEndsLabel,
   effectiveLobbies,
   elapsedLabel,
   foundOpponent,
@@ -38,6 +37,10 @@ const player = (id: string, extra: Partial<PresenceEntry> = {}): PresenceEntry =
 const NOW = Date.parse("2026-11-08T12:00:00Z");
 
 describe("activeBonus", () => {
+  it("is an open-ended promotion when there is no endsAt", () => {
+    const b = { multiplier: 2 };
+    expect(activeBonus(b, NOW)).toBe(b);
+  });
   it("is the bonus while it runs", () => {
     const b = { multiplier: 2, endsAt: "2026-11-09T00:00:00Z" };
     expect(activeBonus(b, NOW)).toBe(b);
@@ -54,16 +57,6 @@ describe("labels", () => {
   it("prints multipliers", () => {
     expect(multiplierLabel(2)).toBe("2×");
     expect(multiplierLabel(1.5)).toBe("1.5×");
-  });
-  it("names the bonus end by weekday unless it is today", () => {
-    const end = new Date(NOW);
-    end.setDate(end.getDate() + 1);
-    end.setHours(23, 59, 0, 0);
-    expect(bonusEndsLabel(end.toISOString(), NOW)).toMatch(/^ends (Sun|Mon|Tue|Wed|Thu|Fri|Sat) 23:59$/);
-    const today = new Date(NOW);
-    today.setHours(23, 30, 0, 0);
-    expect(bonusEndsLabel(today.toISOString(), NOW)).toBe("ends 23:30");
-    expect(bonusEndsLabel("nope", NOW)).toBeNull();
   });
   it("formats waits and elapsed time", () => {
     expect(waitAgeLabel(102_000)).toBe("1m 42s");

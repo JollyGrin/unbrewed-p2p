@@ -19,15 +19,17 @@ import { isQuickMatchCandidate, lobbyHostName, lobbyTimerLabel } from "./quickMa
 // ---------------------------------------------------------------------------
 
 /**
- * The bonus that is running right now, or null. The server already omits an
+ * The bonus that is running right now, or null. No `endsAt` = an open-ended
+ * promotion (on until the operator switches it off). The server already omits an
  * expired bonus from SNAPSHOT; the clock check is for a tab that sat on one
- * snapshot past `endsAt` (the 10 s heartbeat normally prevents that).
+ * snapshot past a scheduled `endsAt` (the 10 s heartbeat normally prevents that).
  */
 export const activeBonus = (
   bonus: QuickPlayBonus | null | undefined,
   now: number,
 ): QuickPlayBonus | null => {
   if (!bonus || !(bonus.multiplier > 1)) return null;
+  if (bonus.endsAt === undefined) return bonus;
   const ends = Date.parse(bonus.endsAt);
   if (!Number.isFinite(ends) || ends <= now) return null;
   return bonus;
@@ -37,25 +39,13 @@ export const activeBonus = (
 export const multiplierLabel = (multiplier: number): string =>
   `${Number.isInteger(multiplier) ? multiplier : Math.round(multiplier * 10) / 10}×`;
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const pad2 = (n: number) => String(n).padStart(2, "0");
-
 /**
- * "ends Sun 23:59" in the viewer's local time; "ends 23:59" when that is today.
- * Null for an unparseable timestamp (the tag then drops the line).
+ * The bonus tag's second line. Deliberately no end date (Dean, 2026-11-08): the
+ * bonus is a promotion switched on and off by hand, so it reads as one.
  */
-export const bonusEndsLabel = (endsAt: string, now: number): string | null => {
-  const ends = Date.parse(endsAt);
-  if (!Number.isFinite(ends)) return null;
-  const end = new Date(ends);
-  const today = new Date(now);
-  const sameDay =
-    end.getFullYear() === today.getFullYear() &&
-    end.getMonth() === today.getMonth() &&
-    end.getDate() === today.getDate();
-  const time = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
-  return sameDay ? `ends ${time}` : `ends ${WEEKDAYS[end.getDay()]} ${time}`;
-};
+export const BONUS_PROMO_LINE = "Limited-time offer";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
 // ---------------------------------------------------------------------------
 // Avatars

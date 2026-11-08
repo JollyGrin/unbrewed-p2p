@@ -278,7 +278,6 @@ import { useLobbySocket } from "@/lib/pro/useLobbySocket";
 import type { PresenceEntry, QuickPlayBonus } from "@/lib/pro/lobbyProtocol";
 import {
   activeBonus,
-  bonusEndsLabel,
   effectiveLobbies,
   elapsedLabel,
   foundOpponent,
@@ -3251,6 +3250,8 @@ const HeroSelectLobby = ({
    */
   pairMode?: {
     partner: PartnerModel;
+    /** host picks the board (its Go opens the room); the guest sees whose pick it is */
+    role: "host" | "guest";
     /** guest pressed Go and waits for the host's room */
     waiting: boolean;
     bonusLabel: string | null;
@@ -3261,6 +3262,8 @@ const HeroSelectLobby = ({
   // A `?room=` join and a tournament game both arrive with the room's setup
   // decided elsewhere: only the fighter is picked here. So does a pair (#1556).
   const fixedSetup = room !== null || tournament !== null || pairMode !== null;
+  // Matched mode keeps ONE setup control: the host's board (its Go opens the room).
+  const showStage = !fixedSetup || pairMode?.role === "host";
   // While the list is loading, a valid-looking `?hero=` stands in so the
   // creator isn't blocked; once the list arrives the real selection takes over.
   const effective = selectedHeroId ?? (heroes === null ? heroParam : null);
@@ -3955,7 +3958,15 @@ const HeroSelectLobby = ({
 
         {/* ---------------- stage row ---------------- */}
         <Box gridArea="stage" minW="0">
-          {!fixedSetup && (
+          {pairMode?.role === "guest" && (
+            <Box data-testid="pair-board-note">
+              <Text {...STRIP_LBL}>STAGE</Text>
+              <Text fontFamily="SpaceGrotesk" fontSize="0.75rem" color="whiteAlpha.700" mt="0.35rem">
+                {pairMode.partner.name} picks the board — you'll see it when the table opens.
+              </Text>
+            </Box>
+          )}
+          {showStage && (
             <Box ref={stageRowRef}>
               <Flex align="center" justify="space-between" gap="0.5rem" mb="0.35rem">
                 <Text {...STRIP_LBL}>STAGE</Text>
@@ -4368,7 +4379,7 @@ const HeroSelectLobby = ({
                 wrap, and the rail is 20rem wide. Scrim closes; so does Escape and
                 picking a board. Custom… is the one choice that leaves it open —
                 its JSON box lives inside. */}
-            {!fixedSetup && stagePickerOpen && (
+            {showStage && stagePickerOpen && (
               <Box ref={boardPickerRef} position="absolute" inset="0" zIndex={20}>
                 {/* Scrim: the roster behind reads as parked, and a click anywhere
                     off the panel closes — the popover has no OK/Cancel. */}
@@ -4405,6 +4416,8 @@ const HeroSelectLobby = ({
                       {format.label.toLowerCase()} · {eligibleBoards.length} boards + random
                     </Text>
                     <Box flex="1" minW="0" />
+                    {/* A pair room is a plain Quick Match duel: catalog boards or Random only. */}
+                    {!pairMode && (
                     <Button
                       type="button"
                       size="xs"
@@ -4426,6 +4439,7 @@ const HeroSelectLobby = ({
                     >
                       Custom JSON…
                     </Button>
+                    )}
                     <Box
                       as="button"
                       type="button"
@@ -5622,6 +5636,14 @@ const LiveGame = ({
       toast.dismiss(`lobby-nudge-declined-${partner.id}`);
       unwave(partner.id);
       stepPair({ type: "paired", pairId, role, with: partner });
+      // The pair room is a duel: the host's STAGE rail lists duel boards, and a
+      // board that isn't one (or Custom…) goes back to Random.
+      setSelectedFormat("duel");
+      setSelectedMapId((prev) => {
+        if (prev === RANDOM_MAP_ID) return prev;
+        const entry = catalogEntry(prev);
+        return entry && mapEligibleForFormat(entry.map, "duel") ? prev : RANDOM_MAP_ID;
+      });
     },
     onPairRoom: ({ pairId, roomId: pairRoomId }) => {
       stepPair({ type: "room", pairId, roomId: pairRoomId, seated: joined });
@@ -5797,6 +5819,10 @@ const LiveGame = ({
   // `flash` (#1556) is a toast for the page we land on: the navigation would
   // otherwise swallow "Sam cancelled" before anyone could read it.
   const leaveToPicker = (heroId: string | null, flash?: string) => {
+    // Leaving a waiting room we listed (a cancelled Quick Match): unlist it first,
+    // so nobody joins an empty table while the page reloads. The engine also hides
+    // a host whose socket dropped; this makes the leave explicit, not inferred.
+    if (roomId && roomPublic && !snapshot) setVisibility(false);
     if (flash) {
       try {
         window.sessionStorage.setItem(PRO_FLASH_KEY, flash);
@@ -5858,12 +5884,16 @@ const LiveGame = ({
         // for the auto-publish (`quickCreatedFromRef`): a pair room stays private.
         const heroId = pairGoHeroRef.current;
         if (!heroId) return;
-        const rolledEntry = rollRandomMap("duel");
-        setRolledMapId(rolledEntry.id);
+        // The host's STAGE pick (catalog boards only, duel-eligible); Random — the
+        // default — or anything else rolls from the duel pool like Quick Match.
+        const picked = catalogEntry(selectedMapId);
+        const chosen = picked && mapEligibleForFormat(picked.map, "duel") ? picked : null;
+        const boardEntry = chosen ?? rollRandomMap("duel");
+        setRolledMapId(chosen ? null : boardEntry.id);
         setSelectedFormat("duel");
         tournament.seatedUntagged();
         pairCreatedFromRef.current = roomId;
-        createRoom(heroId, undefined, customMapForEntry(rolledEntry), "duel", [], 0, mulligan, true);
+        createRoom(heroId, undefined, customMapForEntry(boardEntry), "duel", [], 0, mulligan, true);
         trackHeroPicked(heroId, "quickmatch");
         setJoined(true);
         return;
@@ -6211,7 +6241,7 @@ const LiveGame = ({
       <LobbyRibbon
         items={ribbonChips}
         here={hereCount}
-        bonus={bonus && bonusLabel ? { label: bonusLabel, ends: bonusEndsLabel(bonus.endsAt, Date.now()) } : null}
+        bonus={bonus && bonusLabel ? { label: bonusLabel } : null}
         onJoin={joinFromRibbon}
         onNudge={lobbyLive ? onNudge : undefined}
         waved={waved}
@@ -6231,6 +6261,7 @@ const LiveGame = ({
           heroName: partner.heroName ?? (partner.heroId ? heroNameOf(heroes, partner.heroId) : null),
           ready: partnerReady(pair, partner),
         },
+        role: pair.role,
         waiting: pair.role === "guest" && pair.ready,
         bonusLabel,
         onGo: pairGo,

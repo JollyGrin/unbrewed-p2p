@@ -242,6 +242,18 @@ describe("Quick Match on the pre-join picker", () => {
     ]);
   });
 
+  it("Cancel unlists the room it published before leaving (no ghost lobby)", async () => {
+    await mountPicker([]);
+    await clickQuickMatch();
+    await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
+    await deliver({ type: "VISIBILITY", roomId: "MINE", public: true });
+    SENT = [];
+    await act(async () => {
+      fireEvent.click(dock("quick-match-cancel"));
+    });
+    expect(frames("SET_VISIBILITY")).toEqual([expect.objectContaining({ type: "SET_VISIBILITY", roomId: "MINE", public: false })]);
+  });
+
   it("keeps the picker up while searching, then fills the P2 plate when the match lands (#1542)", async () => {
     // A join can succeed into a room that is still waiting, so ROOM_JOINED alone
     // is not "found": the opponent has to show up on the live roster.
@@ -455,6 +467,8 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     const sock = await openLobby();
     await snapshot(sock, { bonus: { multiplier: 2, endsAt: new Date(Date.now() + 86_400_000).toISOString() } });
     expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("2×");
+    expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("Limited-time offer");
+    expect(screen.getByTestId("ribbon-bonus")).not.toHaveTextContent(/ends/);
     expect(screen.getByTestId("quick-match-bonus")).toHaveTextContent("2× XP");
     expect(screen.getByRole("button", { name: /Join Anonymous/ })).toHaveTextContent("2× XP");
     expect(screen.getByTestId("bonus-summary")).toHaveTextContent("Quick Match pays 2× XP · Create room is 1×");
@@ -616,6 +630,24 @@ describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
     );
     expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("King Kong");
     expect(screen.getAllByTestId("pair-go-bonus")[0]).toHaveTextContent("2× XP");
+  });
+
+  it("host keeps the STAGE pick (no Custom JSON); Go opens the room on that board", async () => {
+    await pairAs("host");
+    expect(screen.queryByTestId("pair-board-note")).not.toBeInTheDocument();
+    const tile = screen.getAllByRole("button", { name: /Island of Despair/i })[0];
+    await click(tile);
+    expect(screen.queryByRole("button", { name: "Custom board — paste map JSON" })).not.toBeInTheDocument();
+    await click(screen.getAllByTestId("pair-go")[0]);
+    const [create] = frames("CREATE_ROOM");
+    expect(create).toMatchObject({ type: "CREATE_ROOM", quickMatch: true });
+    expect(JSON.stringify(create.customMap)).toMatch(/Island of Despair/i);
+  });
+
+  it("guest sees whose board it is instead of the picker", async () => {
+    await pairAs("guest");
+    expect(screen.getByTestId("pair-board-note")).toHaveTextContent("Sam_B picks the board");
+    expect(screen.queryByRole("button", { name: /Island of Despair/i })).not.toBeInTheDocument();
   });
 
   it("marks the partner's pick on the roster with a P2 token", async () => {

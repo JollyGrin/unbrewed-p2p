@@ -11,7 +11,7 @@
  */
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { BadgeGlyph, badgeArtName, isKnownBadge } from "@/components/Badges/BadgeGlyph";
-import { tablesInPlayLabel, type Avatar, type RibbonItem } from "@/lib/pro/quickPlayLobby";
+import { BONUS_PROMO_LINE, tablesInPlayLabel, type Avatar, type RibbonItem } from "@/lib/pro/quickPlayLobby";
 
 const TEAL = "#39B7A8";
 const DIM = "rgba(250,235,215,0.6)";
@@ -98,7 +98,7 @@ export interface LobbyRibbonProps {
   /** SNAPSHOT.here; null without presence (the key then reads just "live") */
   here: number | null;
   /** the running bonus, pre-formatted; null = no tags anywhere */
-  bonus: { label: string; ends: string | null } | null;
+  bonus: { label: string } | null;
   onJoin: (roomId: string) => void;
   /** absent = no lobby socket, so no 👋 buttons */
   onNudge?: (presenceId: string) => void;
@@ -333,11 +333,9 @@ export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved, disabl
         </Box>
         <Box as="span" transform="skewX(6deg)" lineHeight="1.1" display={{ base: "none", md: "block" }}>
           XP on Quick Match
-          {bonus.ends && (
-            <Box as="span" display="block" fontFamily="SpaceGrotesk" fontWeight={500} fontSize="0.52rem" letterSpacing="0.08em" opacity={0.75}>
-              {bonus.ends}
-            </Box>
-          )}
+          <Box as="span" display="block" fontFamily="SpaceGrotesk" fontWeight={500} fontSize="0.52rem" letterSpacing="0.08em" opacity={0.75}>
+            {BONUS_PROMO_LINE}
+          </Box>
         </Box>
       </Flex>
     )}
