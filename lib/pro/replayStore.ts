@@ -198,6 +198,10 @@ export interface SaveResult {
   error?: string; // set when even after eviction it wouldn't fit
 }
 
+/** The replay this page load saved last — the game that just ended. Spared by
+ *  evictOldestUnstarred (#1550). */
+let savedThisSession: string | null = null;
+
 /**
  * Persist a bundle. Idempotent by content (see replayId): saving the same match
  * again refreshes it in place (keeping its star). Evicts oldest UNSTARRED replays
@@ -259,18 +263,24 @@ export function saveReplay(
   };
   entries = [...others.filter((e) => !evicted.includes(e.id)), entry];
   writeIndex(entries);
+  savedThisSession = id;
   return { ok: true, id, evicted };
 }
 
 /**
  * Free at least `bytes` by deleting the oldest UNSTARRED replays (starred are
- * never touched). For callers outside this store whose own write hit the
- * origin quota (#1550). Returns the ids removed.
+ * never touched, nor the replay this page load just saved). For callers outside
+ * this store whose own write hit the origin quota (#1550). Deletes nothing when
+ * all of them together are smaller than `bytes` — the write could not land
+ * anyway. Returns the ids removed.
  */
 export function evictOldestUnstarred(bytes: number): string[] {
   if (!hasWindow()) return [];
   const entries = readIndex();
-  const victims = entries.filter((e) => !e.starred).sort((a, b) => a.savedAt - b.savedAt);
+  const victims = entries
+    .filter((e) => !e.starred && e.id !== savedThisSession)
+    .sort((a, b) => a.savedAt - b.savedAt);
+  if (victims.reduce((sum, e) => sum + e.bytes, 0) < bytes) return [];
   const evicted: string[] = [];
   let freed = 0;
   for (const v of victims) {

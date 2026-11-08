@@ -81,14 +81,12 @@ function writeItem(storage: Storage, key: string, value: string): boolean {
   let error = tryWrite(storage, key, value);
   if (!error) return true;
   if (isQuotaError(error) && storage === window.localStorage) {
-    const prefix = ROOM_KEY_PREFIXES.find((p) => key.startsWith(p));
-    // Never sweep the room being written: a fresh room joins the index only
-    // after its token/bots land (ROOM_CREATED, REMATCH_READY).
-    if (sweepStaleRoomKeys(Date.now(), prefix ? key.slice(prefix.length) : undefined).length > 0) {
+    if (sweepStaleRoomKeys().length > 0) {
       error = tryWrite(storage, key, value);
       if (!error) return true;
     }
-    // UTF-16 in the quota: twice the characters, a safe over-estimate.
+    // UTF-16 in the quota: twice the characters, a safe over-estimate. Evicts
+    // nothing when even every evictable replay together could not make room.
     if (evictOldestUnstarred((key.length + value.length) * 2).length > 0) {
       error = tryWrite(storage, key, value);
       if (!error) return true;
@@ -96,6 +94,58 @@ function writeItem(storage: Storage, key: string, value: string): boolean {
   }
   reportWriteFailure(key, error);
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Room liveness by age (#1550)
+// ---------------------------------------------------------------------------
+//
+// `TOUCHED_KEY` maps roomId → the last time any of its keys was written. A room
+// is dead — and its keys sweepable — only once untouched for MAX_AGE_MS (the
+// server never keeps a room that long), or when its game ends
+// (retireFinishedRoom) or fails (forgetRoom). Membership of the 5-entry
+// recent-rooms list says nothing: a long game in another tab can fall out of it
+// while very much alive. A live game re-stamps on every move (RESUME_TOKEN).
+
+const TOUCHED_KEY = "unbrewed-pro-room-touched";
+
+function readTouched(): Record<string, number> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(TOUCHED_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Rewrite the touched index; a failure only loses stamps (never throws). */
+function writeTouched(touched: Record<string, number>): void {
+  if (Object.keys(touched).length === 0) localStorage.removeItem(TOUCHED_KEY);
+  else tryWrite(localStorage, TOUCHED_KEY, JSON.stringify(touched));
+}
+
+/** Write a browser-wide room key and stamp its room as touched now. */
+function writeRoomItem(prefix: string, roomId: string, value: string): boolean {
+  const touched = readTouched();
+  touched[roomId] = Date.now();
+  // Stamp first: a landed key must never look unstamped (= sweepable).
+  writeItem(localStorage, TOUCHED_KEY, JSON.stringify(touched));
+  return writeItem(localStorage, prefix + roomId, value);
+}
+
+function untouch(roomId: string): void {
+  const touched = readTouched();
+  if (!(roomId in touched)) return;
+  delete touched[roomId];
+  writeTouched(touched);
+}
+
+/** Last-touched time per room; keys written before #1550 carry no stamp and
+ *  fall back to their recent-rooms entry (no entry → long dead). */
+function lastTouched(roomId: string, touched: Record<string, number>, recent: Map<string, number>): number {
+  const ts = touched[roomId];
+  if (typeof ts === "number") return ts;
+  return recent.get(roomId) ?? 0;
 }
 
 /** The recent-rooms index as stored (unfiltered, never throws). */
@@ -110,30 +160,33 @@ function readRecentIndex(): RecentRoom[] {
 
 /**
  * Delete every Pro room key (token / resume blob / bots) in localStorage whose
- * room is not in the recent-rooms index, or is older than MAX_AGE_MS — the
- * server can no longer hold such a room, so nothing can use them. Returns the
- * keys removed. Rooms this tab is seated in (a sessionStorage token) and
- * `keepRoomId` are spared; sessionStorage itself is left alone.
+ * room has gone untouched for MAX_AGE_MS — the server can no longer hold such a
+ * room, so nothing can use it. Returns the keys removed. Also drops expired
+ * stamps. sessionStorage is left alone.
  */
-export function sweepStaleRoomKeys(now: number = Date.now(), keepRoomId?: string): string[] {
+export function sweepStaleRoomKeys(now: number = Date.now()): string[] {
   if (!canStore()) return [];
-  const live = new Set(
-    readRecentIndex()
-      .filter((r) => r && typeof r.roomId === "string" && typeof r.ts === "number" && now - r.ts < MAX_AGE_MS)
-      .map((r) => r.roomId),
-  );
-  if (keepRoomId) live.add(keepRoomId);
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key?.startsWith(TOKEN_PREFIX)) live.add(key.slice(TOKEN_PREFIX.length));
+  const touched = readTouched();
+  const recent = new Map<string, number>();
+  for (const r of readRecentIndex()) {
+    if (r && typeof r.roomId === "string" && typeof r.ts === "number") recent.set(r.roomId, r.ts);
   }
+  const isDead = (roomId: string) => now - lastTouched(roomId, touched, recent) >= MAX_AGE_MS;
   const stale: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     const prefix = key ? ROOM_KEY_PREFIXES.find((p) => key.startsWith(p)) : undefined;
-    if (key && prefix && !live.has(key.slice(prefix.length))) stale.push(key);
+    if (key && prefix && isDead(key.slice(prefix.length))) stale.push(key);
   }
   for (const key of stale) localStorage.removeItem(key);
+  let pruned = false;
+  for (const roomId of Object.keys(touched)) {
+    if (isDead(roomId)) {
+      delete touched[roomId];
+      pruned = true;
+    }
+  }
+  if (pruned) writeTouched(touched);
   return stale;
 }
 
@@ -156,6 +209,7 @@ export function sweepStaleRoomKeysOnce(): void {
 export function retireFinishedRoom(roomId: string): void {
   if (!canStore()) return;
   localStorage.removeItem(RESUME_PREFIX + roomId);
+  untouch(roomId);
   const token = localStorage.getItem(TOKEN_PREFIX + roomId);
   // A tab seated from the browser-wide copy (resumed in a new tab) holds no
   // session token yet — hand it over before the shared copy goes.
@@ -192,7 +246,7 @@ export function getToken(roomId: string): string | null {
 export function setToken(roomId: string, token: string): void {
   if (!canStore()) return;
   writeItem(sessionStorage, TOKEN_PREFIX + roomId, token); // this tab's seat
-  writeItem(localStorage, TOKEN_PREFIX + roomId, token); // browser-wide resume
+  writeRoomItem(TOKEN_PREFIX, roomId, token); // browser-wide resume
 }
 
 /**
@@ -201,7 +255,7 @@ export function setToken(roomId: string, token: string): void {
  */
 export function setResumeToken(roomId: string, blob: string): void {
   if (!canStore()) return;
-  writeItem(localStorage, RESUME_PREFIX + roomId, blob);
+  writeRoomItem(RESUME_PREFIX, roomId, blob);
 }
 
 /** The stored resume blob for a room, or null. Used to revive after a redeploy. */
@@ -214,7 +268,7 @@ export function getResumeToken(roomId: string): string | null {
 export function setRoomBots(roomId: string, bots: RoomBots): void {
   if (!canStore()) return;
   const raw = JSON.stringify(bots);
-  writeItem(localStorage, BOTS_PREFIX + roomId, raw);
+  writeRoomItem(BOTS_PREFIX, roomId, raw);
   // A finished room keeps its bots in this tab only (retireFinishedRoom).
   if (sessionStorage.getItem(BOTS_PREFIX + roomId) !== null) writeItem(sessionStorage, BOTS_PREFIX + roomId, raw);
 }
@@ -261,6 +315,7 @@ export function forgetRoom(roomId: string): void {
   localStorage.removeItem(RESUME_PREFIX + roomId);
   localStorage.removeItem(BOTS_PREFIX + roomId);
   sessionStorage.removeItem(BOTS_PREFIX + roomId);
+  untouch(roomId);
   const next = listRecentRooms().filter((r) => r.roomId !== roomId);
   writeItem(localStorage, RECENT_KEY, JSON.stringify(next));
 }

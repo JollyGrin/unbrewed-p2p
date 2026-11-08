@@ -88,8 +88,10 @@ const boot = () => {
 // First mount in this file: the sweep runs once per page load (module), so it
 // must not follow another test that already mounted the hook.
 describe("load sweep", () => {
-  it("removes stale room keys once on mount, keeps indexed ones", () => {
+  it("removes stale room keys once on mount; keeps listed ones and a recently touched room seated in another tab", () => {
     localStorage.setItem("unbrewed-pro-recent-rooms", JSON.stringify([{ roomId: "LIVE", ts: Date.now() }]));
+    localStorage.setItem("unbrewed-pro-room-touched", JSON.stringify({ OTHER: Date.now() - 60_000 }));
+    localStorage.setItem("unbrewed-pro-bots-OTHER", JSON.stringify({ p2: "hard" }));
     localStorage.setItem("unbrewed-pro-resume-LIVE", "b");
     localStorage.setItem("unbrewed-pro-token-LIVE", "t");
     localStorage.setItem("unbrewed-pro-resume-DONE", "b");
@@ -98,6 +100,7 @@ describe("load sweep", () => {
     expect(localStorage.getItem("unbrewed-pro-resume-LIVE")).toBe("b");
     expect(localStorage.getItem("unbrewed-pro-resume-DONE")).toBeNull();
     expect(localStorage.getItem("unbrewed-pro-bots-DONE")).toBeNull();
+    expect(localStorage.getItem("unbrewed-pro-bots-OTHER")).not.toBeNull();
   });
 });
 
@@ -122,6 +125,21 @@ describe("game over retires the room's browser-wide keys", () => {
     // a blob trailing the winner does not bring the key back
     act(() => ws.emit({ type: "RESUME_TOKEN", roomId: "R1", token: "late" }));
     expect(localStorage.getItem("unbrewed-pro-resume-R1")).toBeNull();
+  });
+
+  it("reload on the result screen with only this tab's token keeps its bots; the reconnect's token rewrite is removed again", () => {
+    // what retireFinishedRoom left behind, then a reload: a fresh hook rejoins
+    sessionStorage.setItem("unbrewed-pro-token-R1", "tok");
+    sessionStorage.setItem("unbrewed-pro-bots-R1", JSON.stringify({ p2: "hard" }));
+    const { hook, ws } = boot();
+    act(() => ws.emit(joined())); // the RECONNECT's ROOM_JOINED rewrites the localStorage token
+    expect(localStorage.getItem("unbrewed-pro-token-R1")).toBe("tok");
+    expect(hook.result.current.roomInfo?.bots).toEqual({ p2: "hard" });
+    act(() => ws.emit(state("p1")));
+    expect(localStorage.getItem("unbrewed-pro-token-R1")).toBeNull();
+    expect(localStorage.getItem("unbrewed-pro-room-touched")).toBeNull();
+    expect(hook.result.current.roomInfo?.bots).toEqual({ p2: "hard" });
+    expect(sessionStorage.getItem("unbrewed-pro-token-R1")).toBe("tok");
   });
 
   it("Rematch still carries the finished room's bots into the new room", () => {
