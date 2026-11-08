@@ -169,6 +169,32 @@ export const effectiveLobbies = (
 ): LobbyListing[] | null => snapshotLobbies ?? polled ?? null;
 
 /**
+ * A Quick Match searcher keeps its presence socket open (as `searching`) while it
+ * holds a seat in its own listed room, so the server counts it twice: once as a
+ * watcher, once as a lobby. The lobby chip is the one that matters (it has Join),
+ * so a `searching` entry never gets its own chip or disc…
+ */
+const shownPresence = (p: PresenceEntry): boolean => p.state !== "searching";
+
+/**
+ * …and the "N here" number drops it again. A searcher between rooms (its last
+ * pick raced away) has no listing for a moment, hence the cap at the lobby count.
+ * `players` is capped at 50 server-side; past that the count may read a few high.
+ */
+export const presentCount = ({
+  here,
+  players,
+  lobbies,
+}: {
+  here: number;
+  players?: PresenceEntry[] | null;
+  lobbies?: LobbyListing[] | null;
+}): number => {
+  const searching = (players ?? []).filter((p) => !shownPresence(p)).length;
+  return Math.max(0, here - Math.min(searching, (lobbies ?? []).length));
+};
+
+/**
  * Build the ribbon's chips in display order: open lobbies (oldest first), then
  * on-page players, then the "tables in play" tail. The viewer's own room and own
  * presence entry are excluded. Every non-duel lobby still shows (Join routes to
@@ -206,7 +232,7 @@ export const ribbonItems = ({
     });
   }
   for (const p of players ?? []) {
-    if (you && p.id === you) continue;
+    if ((you && p.id === you) || !shownPresence(p)) continue;
     items.push({
       kind: "player",
       key: `player-${p.id}`,
@@ -267,7 +293,7 @@ export const presencePillModel = ({
   if (!connected) return null;
   const discs: Avatar[] = [
     ...(lobbies ?? []).filter((l) => l.roomId !== ownRoomId).map(lobbyAvatar),
-    ...(players ?? []).filter((p) => p.id !== you).map(presenceAvatar),
+    ...(players ?? []).filter((p) => p.id !== you && shownPresence(p)).map(presenceAvatar),
   ];
   return {
     here: hereN,

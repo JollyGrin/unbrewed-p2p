@@ -464,13 +464,22 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     expect(screen.queryByTestId("quick-match-bonus")).not.toBeInTheDocument();
   });
 
-  it("closes once the player takes a seat", async () => {
+  it("stays up through a Quick Match search, as `searching`, so the dock keeps its counts", async () => {
     await mountPicker([]);
     const sock = await openLobby();
     await snapshot(sock);
     await clickQuickMatch();
-    expect(sock.readyState).toBe(FakeWebSocket.CLOSED);
-    // The poll is the fallback again while seated.
-    expect(screen.getByTestId("presence-pill")).not.toHaveTextContent("here");
+    expect(sock.readyState).toBe(FakeWebSocket.OPEN);
+    expect(frames("STATE").at(-1)).toMatchObject({ v: 1, type: "STATE", state: "searching" });
+    // The server now counts us as a watcher AND as our own listed lobby: once here.
+    await snapshot(sock, {
+      here: 4,
+      players: [
+        { id: "me", state: "searching", sinceMs: 1_000 },
+        { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" },
+      ],
+      lobbies: [lobby("aaa", 60_000), lobby("MINE", 1_000)],
+    });
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("3 here");
   });
 });

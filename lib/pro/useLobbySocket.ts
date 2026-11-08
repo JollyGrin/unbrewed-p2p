@@ -5,7 +5,9 @@
  * (v1) — NOT the game protocol. It is open only while the player sits on the hero
  * picker: the page passes `enabled: false` the moment it takes a seat on the game
  * socket (CREATE_ROOM / JOIN_ROOM / RECONNECT / RESUME_ROOM) and `true` again on
- * the way back, so a seated player is never counted twice.
+ * the way back. A Quick Match search is the exception: it stays open as
+ * `searching` until the game starts, and the page counts that player once
+ * (`presentCount` in quickPlayLobby.ts) though it is also hosting a listed lobby.
  *
  * - HELLO once per socket (re-sent when the identity settles or changes), with the
  *   same displayName/badge/badges/playerId a CREATE_ROOM would carry
