@@ -102,11 +102,13 @@ export interface LobbyRibbonProps {
   onJoin: (roomId: string) => void;
   /** absent = no lobby socket, so no 👋 buttons */
   onNudge?: (presenceId: string) => void;
-  /** presence ids already waved at (button greys out until the next snapshot drops them) */
+  /** presence ids we waved at and are waiting on (button reads "waiting…" until answered) */
   waved?: ReadonlySet<string>;
+  /** we are in a pair (#1556): Join and 👋 stay visible but disabled */
+  disabled?: boolean;
 }
 
-export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved }: LobbyRibbonProps) => (
+export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved, disabled = false }: LobbyRibbonProps) => (
   <Flex
     data-testid="lobby-ribbon"
     flex="none"
@@ -179,6 +181,7 @@ export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved }: Lobb
               <Button
                 type="button"
                 onClick={() => onJoin(item.roomId)}
+                isDisabled={disabled}
                 aria-label={`Join ${item.name} (${item.heroName})`}
                 minH="40px"
                 h="auto"
@@ -209,6 +212,8 @@ export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved }: Lobb
         }
         if (item.kind === "player") {
           const didWave = waved?.has(item.id) ?? false;
+          // A paired player (#1556) is not wave-able: no button at all.
+          const canWave = !!onNudge && !item.paired;
           return (
             <Flex
               key={item.key}
@@ -217,7 +222,7 @@ export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved }: Lobb
               align="center"
               gap="0.45rem"
               pl="0.4rem"
-              pr={onNudge ? "0.3rem" : "0.55rem"}
+              pr={canWave ? "0.3rem" : "0.55rem"}
               py="0.2rem"
               minH="44px"
               borderRadius="7px"
@@ -243,12 +248,12 @@ export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved }: Lobb
                   {item.stateLine}
                 </Text>
               </Flex>
-              {onNudge && (
+              {canWave && (
                 <Button
                   type="button"
-                  onClick={() => onNudge(item.id)}
-                  isDisabled={didWave}
-                  title={didWave ? "Waved" : "Want to play?"}
+                  onClick={() => onNudge?.(item.id)}
+                  isDisabled={didWave || disabled}
+                  title={didWave ? "Waiting for an answer" : "Want to play?"}
                   aria-label={`Wave at ${item.name}`}
                   minW="40px"
                   minH="40px"
@@ -262,7 +267,13 @@ export const LobbyRibbon = ({ items, here, bonus, onJoin, onNudge, waved }: Lobb
                   fontSize="0.9rem"
                   _hover={{ bg: "whiteAlpha.100" }}
                 >
-                  {didWave ? "✓" : "👋"}
+                  {didWave ? (
+                    <Box as="span" fontFamily="SpaceGrotesk" fontSize="0.6rem" color={DIM}>
+                      waiting…
+                    </Box>
+                  ) : (
+                    "👋"
+                  )}
                 </Button>
               )}
             </Flex>

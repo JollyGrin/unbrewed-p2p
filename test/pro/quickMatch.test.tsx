@@ -16,6 +16,7 @@
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
+import { Toaster, toast } from "react-hot-toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
 import { theme } from "@/styles/style";
@@ -93,6 +94,7 @@ const mountPicker = async (lobbies: LobbyListing[]) => {
       <RouterContext.Provider value={fakeRouter()}>
         <ChakraProvider theme={theme}>
           <ProGamePage />
+          <Toaster />
         </ChakraProvider>
       </RouterContext.Provider>
     </QueryClientProvider>,
@@ -148,6 +150,7 @@ afterEach(() => {
 });
 
 afterEach(() => {
+  act(() => toast.remove()); // react-hot-toast's store is module-level
   window.sessionStorage.clear();
   window.localStorage.clear();
 });
@@ -406,7 +409,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     act(async () => {
       sock.onmessage?.({
         data: JSON.stringify({
-          v: 1,
+          v: 2,
           type: "SNAPSHOT",
           you: "me",
           here: 3,
@@ -425,7 +428,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
   it("says HELLO once the game socket is up, and fills the pill and ribbon from SNAPSHOT", async () => {
     await mountPicker([]);
     const sock = await openLobby();
-    expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 1, type: "HELLO", state: "picking", heroId: HERO })]);
+    expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 2, type: "HELLO", state: "picking", heroId: HERO })]);
     await snapshot(sock);
     expect(screen.getByTestId("presence-pill")).toHaveTextContent("3 here · 1 looking");
     expect(screen.getAllByTestId("ribbon-lobby")).toHaveLength(1);
@@ -444,7 +447,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Wave at Sam_B" }));
     });
-    expect(frames("NUDGE")).toEqual([{ v: 1, type: "NUDGE", to: "sam" }]);
+    expect(frames("NUDGE")).toEqual([{ v: 2, type: "NUDGE", to: "sam" }]);
   });
 
   it("puts 2× on the ribbon, Quick Match, every Join and the summary during the bonus", async () => {
@@ -470,7 +473,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     await snapshot(sock);
     await clickQuickMatch();
     expect(sock.readyState).toBe(FakeWebSocket.OPEN);
-    expect(frames("STATE").at(-1)).toMatchObject({ v: 1, type: "STATE", state: "searching" });
+    expect(frames("STATE").at(-1)).toMatchObject({ v: 2, type: "STATE", state: "searching" });
     // The server now counts us as a watcher AND as our own listed lobby: once here.
     await snapshot(sock, {
       here: 4,
@@ -481,5 +484,187 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
       lobbies: [lobby("aaa", 60_000), lobby("MINE", 1_000)],
     });
     expect(screen.getByTestId("presence-pill")).toHaveTextContent("3 here");
+  });
+});
+
+describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
+  const SAM = { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" };
+  let lobbyWs: FakeWebSocket;
+  const toLobby = (msg: Record<string, unknown>) =>
+    act(async () => {
+      lobbyWs.onmessage?.({ data: JSON.stringify({ v: 2, ...msg }) });
+    });
+  const snap = (players: Record<string, unknown>[] = [{ id: "me", state: "picking", sinceMs: 1_000 }, SAM], extra: Record<string, unknown> = {}) =>
+    toLobby({ type: "SNAPSHOT", you: "me", here: 2, looking: 0, players, lobbies: [], tablesInPlay: 0, ...extra });
+  /** The picker with the lobby socket up and Sam on the ribbon. */
+  const mountLobby = async () => {
+    await mountPicker([]);
+    const sock = FakeWebSocket.instances.find((w) => w.url.endsWith("/lobby"));
+    if (!sock) throw new Error("the picker never opened the lobby socket");
+    lobbyWs = sock;
+    await act(async () => {
+      lobbyWs.readyState = FakeWebSocket.OPEN;
+      lobbyWs.onopen?.({});
+    });
+    await snap();
+    SENT = [];
+  };
+  const click = (el: HTMLElement) =>
+    act(async () => {
+      fireEvent.click(el);
+    });
+  const pairAs = async (role: "host" | "guest") => {
+    await mountLobby();
+    await toLobby({ type: "PAIRED", pairId: "PAIR1", role, with: SAM });
+  };
+
+  it("turns a 👋 into a request: Accept sends NUDGE_REPLY accept:true", async () => {
+    await mountLobby();
+    await toLobby({ type: "NUDGED", from: SAM });
+    const toastEl = await screen.findByTestId("lobby-nudged-toast");
+    expect(toastEl).toHaveTextContent("Sam_B wants to play");
+    expect(screen.queryByText(/Quick Match\?/)).not.toBeInTheDocument();
+    await click(screen.getByTestId("lobby-nudge-accept"));
+    expect(frames("NUDGE_REPLY")).toEqual([{ v: 2, type: "NUDGE_REPLY", to: "sam", accept: true }]);
+  });
+
+  it("Decline sends NUDGE_REPLY accept:false", async () => {
+    await mountLobby();
+    await toLobby({ type: "NUDGED", from: SAM });
+    await click(await screen.findByTestId("lobby-nudge-decline"));
+    expect(frames("NUDGE_REPLY")).toEqual([{ v: 2, type: "NUDGE_REPLY", to: "sam", accept: false }]);
+  });
+
+  it("toasts a reply the server refused", async () => {
+    await mountLobby();
+    await toLobby({ type: "NUDGED", from: SAM });
+    await click(await screen.findByTestId("lobby-nudge-accept"));
+    await toLobby({ type: "NUDGE_REPLY_RESULT", to: "sam", ok: false, reason: "busy" });
+    expect(await screen.findByText("Sam_B is already matched")).toBeInTheDocument();
+  });
+
+  it("host: partner card, no setup controls; Go creates a private quickMatch room and relays its id", async () => {
+    await pairAs("host");
+    expect(screen.getByTestId("pair-partner")).toHaveTextContent(/MATCHED WITH SAM_B/i);
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("picking…");
+    expect(screen.queryByTestId("pro-create-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("quick-match")).not.toBeInTheDocument();
+    expect(screen.queryByText("FORMAT")).not.toBeInTheDocument();
+    expect(screen.queryByText("CREATE A ROOM")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("presence-pill")).not.toBeInTheDocument();
+    // The ribbon stays, but Sam (and every Join / wave) is off limits while paired.
+    expect(screen.getByRole("button", { name: "Wave at Sam_B" })).toBeDisabled();
+
+    await click(screen.getAllByTestId("pair-go")[0]);
+    expect(frames("CREATE_ROOM")).toEqual([
+      expect.objectContaining({ type: "CREATE_ROOM", heroId: HERO, quickMatch: true }),
+    ]);
+    expect(frames("PAIR_ROOM")).toEqual([]); // the id only arrives with ROOM_CREATED
+    await deliver({ type: "ROOM_CREATED", roomId: "PRIV", token: "tok", you: "p1" });
+    expect(frames("PAIR_ROOM")).toEqual([{ v: 2, type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" }]);
+    // Never published: no SET_VISIBILITY, before or after ROOM_CREATED.
+    expect(frames("SET_VISIBILITY")).toEqual([]);
+    expect(screen.getByTestId("waiting-title")).toHaveTextContent("Waiting for Sam_B…");
+    expect(screen.queryByText(/make lobby public/)).not.toBeInTheDocument();
+    // The lobby socket outlives the seat until the game's first STATE.
+    expect(lobbyWs.readyState).toBe(FakeWebSocket.OPEN);
+  });
+
+  it("host: shows the partner's fighter live from the snapshot, and the 2× on Go", async () => {
+    await pairAs("host");
+    await snap(
+      [{ id: "me", state: "picking", sinceMs: 1_000, paired: true }, { ...SAM, heroId: HERO, heroName: "King Kong", paired: true }],
+      { bonus: { multiplier: 2, endsAt: new Date(Date.now() + 86_400_000).toISOString() } },
+    );
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("King Kong");
+    expect(screen.getAllByTestId("pair-go-bonus")[0]).toHaveTextContent("2× XP");
+  });
+
+  it("guest: Go before PAIR_ROOM waits and sends nothing; PAIR_ROOM then joins with the locked hero", async () => {
+    await pairAs("guest");
+    await click(screen.getAllByTestId("pair-go")[0]);
+    const go = screen.getAllByTestId("pair-go")[0];
+    expect(go).toHaveTextContent("Ready — waiting for Sam_B");
+    expect(go).toBeDisabled();
+    expect(frames("JOIN_ROOM")).toEqual([]);
+    expect(frames("CREATE_ROOM")).toEqual([]);
+    await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
+    expect(frames("JOIN_ROOM")).toEqual([
+      expect.objectContaining({ type: "JOIN_ROOM", roomId: "PRIV", heroId: HERO }),
+    ]);
+  });
+
+  it("guest: PAIR_ROOM first marks the host Ready; Go then joins at once", async () => {
+    await pairAs("guest");
+    await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("Ready");
+    expect(frames("JOIN_ROOM")).toEqual([]);
+    await click(screen.getAllByTestId("pair-go")[0]);
+    expect(frames("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "PRIV", heroId: HERO })]);
+  });
+
+  it("guest: the host's table closing sends us back with a toast", async () => {
+    await pairAs("guest");
+    await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
+    await click(screen.getAllByTestId("pair-go")[0]);
+    await deliver({ type: "ERROR", code: "ROOM_NOT_FOUND", message: "gone" });
+    expect(frames("PAIR_CANCEL")).toEqual([{ v: 2, type: "PAIR_CANCEL", pairId: "PAIR1" }]);
+    expect(window.sessionStorage.getItem("pro-game-flash")).toBe("Sam_B's table closed");
+  });
+
+  it("Cancel sends PAIR_CANCEL and restores the normal picker", async () => {
+    await pairAs("guest");
+    await click(screen.getAllByTestId("pair-cancel")[0]);
+    expect(frames("PAIR_CANCEL")).toEqual([{ v: 2, type: "PAIR_CANCEL", pairId: "PAIR1" }]);
+    expect(screen.queryByTestId("pair-partner")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("pro-create-button").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("quick-match")).toBeInTheDocument();
+  });
+
+  it("PAIR_ENDED cancelled toasts and restores the picker", async () => {
+    await pairAs("host");
+    await toLobby({ type: "PAIR_ENDED", pairId: "PAIR1", reason: "cancelled" });
+    expect(await screen.findByText("Sam_B cancelled")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-partner")).not.toBeInTheDocument();
+    expect(screen.getByTestId("quick-match")).toBeInTheDocument();
+    expect(frames("PAIR_CANCEL")).toEqual([]);
+  });
+
+  it("losing the lobby socket while paired clears the pair", async () => {
+    await pairAs("host");
+    await act(async () => {
+      lobbyWs.readyState = FakeWebSocket.CLOSED;
+      lobbyWs.onclose?.({});
+    });
+    expect(await screen.findByText("Lost the lobby connection — wave again")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-partner")).not.toBeInTheDocument();
+  });
+
+  it("waver: the chip reads waiting…; NUDGE_DECLINED re-enables it and toasts", async () => {
+    await mountLobby();
+    await click(screen.getByRole("button", { name: "Wave at Sam_B" }));
+    const waiting = screen.getByRole("button", { name: "Wave at Sam_B" });
+    expect(waiting).toHaveTextContent("waiting…");
+    expect(waiting).toBeDisabled();
+    await toLobby({ type: "NUDGE_DECLINED", from: SAM });
+    expect(await screen.findByText("Sam_B can't play right now")).toBeInTheDocument();
+    const again = screen.getByRole("button", { name: "Wave at Sam_B" });
+    expect(again).toHaveTextContent("👋");
+    expect(again).toBeEnabled();
+  });
+
+  it("waver: NUDGE_RESULT busy toasts and re-enables", async () => {
+    await mountLobby();
+    await click(screen.getByRole("button", { name: "Wave at Sam_B" }));
+    await toLobby({ type: "NUDGE_RESULT", to: "sam", ok: false, reason: "busy" });
+    expect(await screen.findByText("Sam_B is already matched")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wave at Sam_B" })).toBeEnabled();
+  });
+
+  it("a paired ribbon entry has no wave button and reads matched", async () => {
+    await mountLobby();
+    await snap([{ id: "me", state: "picking", sinceMs: 1_000 }, { ...SAM, paired: true }]);
+    expect(screen.queryByRole("button", { name: "Wave at Sam_B" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("ribbon-player")).toHaveTextContent("matched");
   });
 });

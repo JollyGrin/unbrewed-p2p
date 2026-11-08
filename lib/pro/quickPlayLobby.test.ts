@@ -121,6 +121,13 @@ describe("ribbonItems", () => {
   it("omits the tail with no tables in play, and players with no presence", () => {
     expect(ribbonItems({ lobbies: [], tablesInPlay: 0 })).toEqual([]);
   });
+
+  it("marks a paired player 'matched' (#1556), still a chip", () => {
+    const [chip] = ribbonItems({ lobbies: [], players: [player("sam", { paired: true })] });
+    expect(chip).toMatchObject({ kind: "player", id: "sam", paired: true, stateLine: "matched" });
+    const [plain] = ribbonItems({ lobbies: [], players: [player("kay")] });
+    expect(plain).toMatchObject({ paired: false });
+  });
 });
 
 describe("presentCount", () => {
