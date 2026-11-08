@@ -2166,6 +2166,8 @@ const ROSTER_GRID_COLUMNS = {
 
 /** Gold selection ring for a locked roster tile (brand.accent = #E0A82E). */
 const GOLD_RING = "0 0 0 2px #E0A82E, 0 0 18px rgba(224,168,46,0.4)";
+/** Matched mode's P2 token (the partner's pick), teal like the presence pill. */
+const P2_TEAL = "#39B7A8";
 /** Teal used for the viewer's own team/seat, matching CreateSeats + #195/#201. */
 const ALLY_ACCENT = "#39B7A8";
 
@@ -2215,6 +2217,7 @@ const RosterTile = ({
   onHover,
   pip,
   last = false,
+  partnerPick = null,
 }: {
   hero: HeroListing;
   selected: boolean;
@@ -2224,6 +2227,8 @@ const RosterTile = ({
   pip?: QuickPlayAvatar;
   /** #1542: the most recent entry in Recently played — a "LAST" badge top-left */
   last?: boolean;
+  /** matched mode: the partner has this fighter on their picker — a P2 token top-right */
+  partnerPick?: { ready: boolean } | null;
 }) => {
   const deck = heroDeckMeta(hero.heroId);
   const cardback = deck?.cardbackUrl;
@@ -2296,7 +2301,32 @@ const RosterTile = ({
           Last
         </Box>
       )}
-      {pip && (
+      {partnerPick && (
+        <Flex
+          data-testid="roster-p2"
+          data-ready={partnerPick.ready || undefined}
+          position="absolute"
+          top="0.3rem"
+          right="0.3rem"
+          zIndex={3}
+          h="1.4rem"
+          minW="1.4rem"
+          px={partnerPick.ready ? "0.35rem" : 0}
+          borderRadius="999px"
+          bg={partnerPick.ready ? "brand.positive" : P2_TEAL}
+          color="brand.surfaceDim"
+          align="center"
+          justify="center"
+          gap="0.15rem"
+          fontFamily="BebasNeueRegular"
+          fontSize="0.7rem"
+          boxShadow={partnerPick.ready ? "0 0 0 2px rgba(47,158,104,0.45), 0 0 12px rgba(47,158,104,0.8)" : "0 2px 5px rgba(0,0,0,0.5)"}
+          sx={{ transform: "rotate(8deg)", animation: `${tokenStamp} 0.22s ease`, ...NO_MOTION }}
+        >
+          P2{partnerPick.ready ? " ✓" : ""}
+        </Flex>
+      )}
+      {pip && !partnerPick && (
         <Box as="span" data-testid="roster-pip" position="absolute" top="0.3rem" right="0.3rem" zIndex={3}>
           <AvatarDisc avatar={pip} size={18} ring="rgba(0,0,0,0.6)" />
         </Box>
@@ -3565,6 +3595,7 @@ const HeroSelectLobby = ({
         partnerName={pairMode.partner.name}
         canGo={status === "open" && !!effective && !randomPicked}
         waiting={pairMode.waiting}
+        partnerReady={pairMode.partner.ready}
         bonusLabel={pairMode.bonusLabel}
         onGo={() => {
           if (effective && !randomPicked) pairMode.onGo(effective);
@@ -4241,6 +4272,7 @@ const HeroSelectLobby = ({
                             key={`recent-${h.heroId}`}
                             hero={h}
                             pip={heroPips?.get(h.heroId)}
+                            partnerPick={pairMode?.partner.heroId === h.heroId ? { ready: pairMode.partner.ready } : null}
                             last={i === 0 && h.heroId === recentHeroIds[0]}
                             selected={effective === h.heroId}
                             onSelect={() => onSelectHero(h.heroId)}
@@ -4271,6 +4303,7 @@ const HeroSelectLobby = ({
                             key={h.heroId}
                             hero={h}
                             pip={heroPips?.get(h.heroId)}
+                            partnerPick={pairMode?.partner.heroId === h.heroId ? { ready: pairMode.partner.ready } : null}
                             selected={effective === h.heroId}
                             onSelect={() => onSelectHero(h.heroId)}
                             onHover={() => setHoverHero(h)}
@@ -4304,6 +4337,7 @@ const HeroSelectLobby = ({
                             key={h.heroId}
                             hero={h}
                             pip={heroPips?.get(h.heroId)}
+                            partnerPick={pairMode?.partner.heroId === h.heroId ? { ready: pairMode.partner.ready } : null}
                             selected={effective === h.heroId}
                             onSelect={() => onSelectHero(h.heroId)}
                             onHover={() => setHoverHero(h)}
@@ -5523,7 +5557,8 @@ const LiveGame = ({
       status === "open" &&
       !tournamentRoom &&
       ((!joined && !room) || (quickSearch !== null && !snapshot) || (pair !== null && !snapshot)),
-    state: quickSearch !== null ? "searching" : "picking",
+    // A pair's Go reads `searching` too: that is how the partner sees we're in.
+    state: quickSearch !== null || pair?.ready ? "searching" : "picking",
     heroId: selectedHeroId && selectedHeroId !== RANDOM_HERO_ID ? selectedHeroId : null,
     onNudged: (from: PresenceEntry) => {
       // The server never nudges a paired watcher; if one slips through, ignore it.
@@ -5869,6 +5904,29 @@ const LiveGame = ({
     stepPair({ type: "go" });
   };
   const cancelPair = () => stepPair({ type: "cancel", seated: joined });
+  // The partner pressed Go and we haven't: say so once per pair (toast), and in the
+  // tab title while the tab is hidden, so the nudge to confirm is hard to miss.
+  const partnerIsReady = pair ? partnerReady(pair, livePartner(pair, lobbySnapshot?.players)) : false;
+  const weAreReady = !!pair?.ready;
+  const readyToastedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pair || !partnerIsReady || weAreReady) return;
+    if (readyToastedRef.current !== pair.pairId) {
+      readyToastedRef.current = pair.pairId;
+      toast(`${pairPartnerName(pair.with)} is ready — pick your fighter and Go!`, { id: `pair-ready-${pair.pairId}`, icon: "⚔️", duration: 6_000 });
+    }
+    if (typeof document === "undefined") return;
+    const prev = document.title;
+    const flash = () => {
+      document.title = document.visibilityState === "hidden" ? `⚔️ ${pairPartnerName(pair.with)} is ready!` : prev;
+    };
+    flash();
+    document.addEventListener("visibilitychange", flash);
+    return () => {
+      document.removeEventListener("visibilitychange", flash);
+      document.title = prev;
+    };
+  }, [pair, partnerIsReady, weAreReady]);
   // Host: ROOM_CREATED for the pair's room ⇒ relay it to the guest.
   useEffect(() => {
     const armedFrom = pairCreatedFromRef.current;
@@ -6135,6 +6193,7 @@ const LiveGame = ({
       players: lobbySnapshot?.players,
       you: lobbySnapshot?.you,
       ownRoomId: roomId,
+      youLooking: quickSearch !== null,
     });
     const ribbonChips = ribbonItems({
       lobbies: shownLobbies,
@@ -6164,8 +6223,9 @@ const LiveGame = ({
           avatar: presenceAvatar(partner),
           name: pairPartnerName(partner),
           badge: partner.badges?.[0] ?? partner.badge ?? null,
+          heroId: partner.heroId ?? null,
           heroName: partner.heroName ?? (partner.heroId ? heroNameOf(heroes, partner.heroId) : null),
-          ready: partnerReady(pair),
+          ready: partnerReady(pair, partner),
         },
         waiting: pair.role === "guest" && pair.ready,
         bonusLabel,

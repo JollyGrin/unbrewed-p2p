@@ -174,9 +174,11 @@ export const effectiveLobbies = (
  * A Quick Match searcher keeps its presence socket open (as `searching`) while it
  * holds a seat in its own listed room, so the server counts it twice: once as a
  * watcher, once as a lobby. The lobby chip is the one that matters (it has Join),
- * so a `searching` entry never gets its own chip or disc…
+ * so a `searching` entry never gets its own chip or disc… unless it is paired: a
+ * matched player who pressed Go (#1556 polish) reads `searching` but sits in a
+ * private room with no listing, so it keeps its chip and its place in the count.
  */
-const shownPresence = (p: PresenceEntry): boolean => p.state !== "searching";
+const shownPresence = (p: PresenceEntry): boolean => p.state !== "searching" || p.paired === true;
 
 /**
  * …and the "N here" number drops it again. A searcher between rooms (its last
@@ -263,6 +265,8 @@ export interface PresencePillModel {
   /** null = the lobby socket has no presence for us (render "N looking" alone) */
   here: number | null;
   looking: number;
+  /** we are in the Quick Match pool ourselves (our own room is never in `looking`) */
+  youLooking: boolean;
   avatars: Avatar[];
   overflow: number;
 }
@@ -280,6 +284,7 @@ export const presencePillModel = ({
   players,
   you,
   ownRoomId,
+  youLooking = false,
 }: {
   /** the GAME socket is open (the pill's "looking" number comes off its poll) */
   connected: boolean;
@@ -289,6 +294,7 @@ export const presencePillModel = ({
   players?: PresenceEntry[] | null;
   you?: string | null;
   ownRoomId?: string | null;
+  youLooking?: boolean;
 }): PresencePillModel | null => {
   const looking = lookingCount(lobbies, ownRoomId);
   const hereN = typeof here === "number" ? here : null;
@@ -301,10 +307,20 @@ export const presencePillModel = ({
   return {
     here: hereN,
     looking,
+    youLooking,
     avatars: discs.slice(0, PILL_AVATARS),
     overflow: Math.max(0, discs.length - PILL_AVATARS),
   };
 };
+
+/**
+ * The pill's two counts, always telling "you" apart from everyone else (Dean,
+ * 2026-11-08: "2 looking" read as two OTHER people when one was him). `here`
+ * includes us (we are a watcher); `looking` never does (our own room is dropped).
+ */
+export const hereLabel = (here: number): string => (here <= 1 ? "just you here" : `you + ${here - 1} here`);
+export const lookingLabel = (looking: number, youLooking: boolean): string =>
+  youLooking ? (looking === 0 ? "you're looking" : `you + ${looking} looking`) : `${looking} looking`;
 
 /** "looking" = open duel lobbies other than ours (the Quick Match pool). */
 export const lookingCount = (

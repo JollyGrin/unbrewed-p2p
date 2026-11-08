@@ -13,6 +13,8 @@ import {
   presencePillModel,
   presenceStateLabel,
   presentCount,
+  hereLabel,
+  lookingLabel,
   quickMatchSubline,
   ribbonItems,
   searchProgressLine,
@@ -139,8 +141,25 @@ describe("presentCount", () => {
   it("caps the correction at the listed lobbies (a searcher between rooms is listed nowhere)", () => {
     expect(presentCount({ here: 2, players: [player("a", { state: "searching" }), player("b", { state: "searching" })], lobbies: [] })).toBe(2);
   });
+  it("keeps a paired searcher (a matched Go — private room, no listing)", () => {
+    expect(
+      presentCount({ here: 3, players: [player("a", { state: "searching", paired: true }), player("b")], lobbies: [lobby("x", 1)] }),
+    ).toBe(3);
+  });
   it("is the server number when nobody is searching", () => {
     expect(presentCount({ here: 5, players: [player("a"), player("b", { state: "idle" })], lobbies: [lobby("x", 1)] })).toBe(5);
+  });
+});
+
+describe("pill labels tell you apart", () => {
+  it("here includes you", () => {
+    expect(hereLabel(1)).toBe("just you here");
+    expect(hereLabel(3)).toBe("you + 2 here");
+  });
+  it("looking never counts you, and says so when you're searching", () => {
+    expect(lookingLabel(2, false)).toBe("2 looking");
+    expect(lookingLabel(0, true)).toBe("you're looking");
+    expect(lookingLabel(1, true)).toBe("you + 1 looking");
   });
 });
 

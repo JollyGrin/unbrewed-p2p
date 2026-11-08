@@ -430,7 +430,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     const sock = await openLobby();
     expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 2, type: "HELLO", state: "picking", heroId: HERO })]);
     await snapshot(sock);
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("3 here · 1 looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · 1 looking");
     expect(screen.getAllByTestId("ribbon-lobby")).toHaveLength(1);
     const player = screen.getByTestId("ribbon-player");
     expect(player).toHaveTextContent("Sam_B");
@@ -483,7 +483,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
       ],
       lobbies: [lobby("aaa", 60_000), lobby("MINE", 1_000)],
     });
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("3 here");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · you + 1 looking");
   });
 });
 
@@ -580,6 +580,35 @@ describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
     expect(screen.getAllByTestId("pair-go-bonus")[0]).toHaveTextContent("2× XP");
   });
 
+  it("marks the partner's pick on the roster with a P2 token", async () => {
+    await pairAs("host");
+    expect(screen.queryByTestId("roster-p2")).not.toBeInTheDocument();
+    await snap([{ id: "me", state: "picking", sinceMs: 1_000, paired: true }, { ...SAM, heroId: HERO, heroName: "King Kong", paired: true }]);
+    const tokens = screen.getAllByTestId("roster-p2");
+    expect(tokens[0]).toHaveTextContent("P2");
+    expect(tokens[0]).not.toHaveAttribute("data-ready");
+    expect(tokens[0].closest("button")).toHaveAccessibleName(/King Kong/);
+  });
+
+  it("the partner's Go (their presence turns searching) makes ours loud: READY chip, P2 ✓, urgent Go, a toast", async () => {
+    await pairAs("host");
+    await snap([{ id: "me", state: "picking", sinceMs: 1_000, paired: true }, { ...SAM, state: "searching", heroId: HERO, heroName: "King Kong", paired: true }]);
+    expect(screen.getByTestId("pair-partner-ready")).toHaveTextContent("READY");
+    expect(screen.getAllByTestId("roster-p2")[0]).toHaveTextContent("P2 ✓");
+    const go = screen.getAllByTestId("pair-go")[0];
+    expect(go).toHaveTextContent("Sam_B is ready — Go!");
+    expect(go).toHaveAttribute("data-urgent", "true");
+    expect(await screen.findByText("Sam_B is ready — pick your fighter and Go!")).toBeInTheDocument();
+    // Sam stays on the ribbon (a paired searcher is not a lobby duplicate).
+    expect(screen.getByTestId("ribbon-player")).toHaveTextContent("Sam_B");
+  });
+
+  it("our Go tells the partner we're in: presence goes searching", async () => {
+    await pairAs("guest");
+    await click(screen.getAllByTestId("pair-go")[0]);
+    expect(frames("STATE").at(-1)).toMatchObject({ v: 2, type: "STATE", state: "searching", heroId: HERO });
+  });
+
   it("guest: Go before PAIR_ROOM waits and sends nothing; PAIR_ROOM then joins with the locked hero", async () => {
     await pairAs("guest");
     await click(screen.getAllByTestId("pair-go")[0]);
@@ -597,7 +626,8 @@ describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
   it("guest: PAIR_ROOM first marks the host Ready; Go then joins at once", async () => {
     await pairAs("guest");
     await toLobby({ type: "PAIR_ROOM", pairId: "PAIR1", roomId: "PRIV" });
-    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("pair-partner-ready")).toHaveTextContent("READY");
+    expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("waiting on you");
     expect(frames("JOIN_ROOM")).toEqual([]);
     await click(screen.getAllByTestId("pair-go")[0]);
     expect(frames("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "PRIV", heroId: HERO })]);
