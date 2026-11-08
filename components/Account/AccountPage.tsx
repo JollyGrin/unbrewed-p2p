@@ -15,15 +15,15 @@
  * Since #590 the body of the page IS `ProfileView` — the same component
  * `/stats?u=` renders for anybody else — with the owner-only extras layered on
  * top: a wearable badge case (the `owner` flag), the Discord perks card as a
- * child, and sign-out in the header. That is the whole design rule of the
- * feature: /account is a superset of a public profile, never a parallel one.
+ * child (hidden for now, #1571), and sign-out in the header. That is the whole
+ * design rule of the feature: /account is a superset of a public profile, never
+ * a parallel one.
  */
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
 import NextLink from "next/link";
 import { useState } from "react";
 
-import { AccountDiscord } from "@/components/Account/AccountDiscord";
 import { ProfileView } from "@/components/Account/ProfileView";
 import { AccountShell, Panel } from "@/components/Account/Shell";
 import { signOut, useAccount } from "@/lib/account/useAccount";
@@ -194,9 +194,13 @@ export const AccountPage = () => {
         stats={statsView}
         history={history}
         headerAction={<OwnerActions username={account.username} />}
-      >
-        <AccountDiscord />
-      </ProfileView>
+      />
+      {/*
+        #1571: the Discord server perks card (Sync now / Unlink) is hidden for
+        now. To restore it, import `AccountDiscord` from
+        "@/components/Account/AccountDiscord" and render `<AccountDiscord />`
+        as ProfileView's child again. The component and its tests are kept.
+      */}
     </Shell>
   );
 };
