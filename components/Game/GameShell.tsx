@@ -198,7 +198,11 @@ const BoardContainer = ({
     gameState,
     logAction,
     claimTableCard,
+    deckFor,
   } = useWebGame();
+  // The seat's own deck under hotseat (#1563); online `deckFor` is undefined,
+  // so this is the starred deck exactly as before.
+  const seatDeck = deckFor?.(self) ?? starredDeck;
 
   const players = (gameState?.content as GameState | undefined)?.players;
 
@@ -474,9 +478,14 @@ const BoardContainer = ({
     if (blobs[self]) return;
     // Same helper the reset re-seeds with, so a rematch board is identical to
     // a fresh join's (lib/sandbox/initGame.ts).
-    const timer = setTimeout(() => sendBlob(initPositionBlob(starredDeck, self)), 1500);
+    // Resolved inside the effect so a changing `deckFor` result can't re-arm
+    // the timer on every render; the seat's deck under hotseat (#1563).
+    const timer = setTimeout(
+      () => sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self)),
+      1500,
+    );
     return () => clearTimeout(timer);
-  }, [blobs, self, gameState, sendBlob, starredDeck]);
+  }, [blobs, self, gameState, sendBlob, starredDeck, deckFor]);
 
   const iconSvg = useCallback(
     (
@@ -617,14 +626,14 @@ const BoardContainer = ({
             hp: c.hero.hp,
           })),
         }}
-        heroTokens={heroTokenSources(starredDeck?.deck_data)}
+        heroTokens={heroTokenSources(seatDeck?.deck_data)}
         onAdd={addToken}
         onPatch={patchToken}
         onDelete={deleteToken}
         footer={
-          starredDeck && (
+          seatDeck && (
             <SaveTokensToDeck
-              deck={starredDeck}
+              deck={seatDeck}
               tokens={myTokens}
               color={myColor}
               onSave={updateDeck}

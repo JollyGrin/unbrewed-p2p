@@ -41,9 +41,17 @@ export const NewGameModal = (props: {
   /** Nobody else is playing — commit happens immediately, with no consent. */
   isSolo: boolean;
 }) => {
-  const { resetStatus, requestGameReset, cancelGameReset, forceGameReset } =
-    useWebGame();
+  const {
+    resetStatus,
+    requestGameReset,
+    cancelGameReset,
+    forceGameReset,
+    hotseat,
+    deckFor,
+  } = useWebGame();
   const { starredDeck } = useBagDecks();
+  // Under hotseat, the active seat's deck (#1563); online both are undefined.
+  const deck = (hotseat ? deckFor?.(hotseat.active) : undefined) ?? starredDeck;
   const pending = resetStatus.pending;
 
   const close = () => props.onClose();
@@ -110,8 +118,8 @@ export const NewGameModal = (props: {
               <Text fontSize="0.9rem">
                 You&apos;ll play{" "}
                 <Text as="span" fontWeight={700}>
-                  {starredDeck?.deck_data?.hero?.name ??
-                    starredDeck?.name ??
+                  {deck?.deck_data?.hero?.name ??
+                    deck?.name ??
                     "your starred deck"}
                 </Text>{" "}
                 <Text
