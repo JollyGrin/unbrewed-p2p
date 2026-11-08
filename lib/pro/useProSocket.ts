@@ -19,9 +19,11 @@ import {
   getTabToken,
   getToken,
   rememberRoom,
+  retireFinishedRoom,
   setResumeToken,
   setRoomBots,
   setToken,
+  sweepStaleRoomKeysOnce,
 } from "./recentRooms";
 import { botsFromCreateRoom, RoomBots } from "./rematch";
 import { advanceRevealedHand, EMPTY_REVEAL_STATE, RevealState } from "./revealedHand";
@@ -682,6 +684,9 @@ export function useProSocket(
     runSlowStep({ type: "DISABLE" });
   }, [slowMode, runSlowStep]);
 
+  // Stale Pro room keys (finished / expired games) — swept once per page load (#1550).
+  useEffect(() => sweepStaleRoomKeysOnce(), []);
+
   // Socket teardown / unmount: drop the queue and any scheduled drain.
   useEffect(
     () => () => {
@@ -994,6 +999,11 @@ export function useProSocket(
           illegalStreakRef.current = 0; // a fresh view: rejections start counting anew (#848)
           setResyncing(false); // …and if we asked for one, this is it
           gameOverRef.current = !!view.winner;
+          // Game decided (#1550): nothing can revive it, so drop the room's
+          // browser-wide resume blob / token / bots. This tab keeps its seat and
+          // bots in sessionStorage — the result screen, a reload and the Rematch
+          // re-bind below all read them from there.
+          if (view.winner && roomRef.current) retireFinishedRoom(roomRef.current);
           // Rematch (p2p #880): a seat bound at v34 (a first visit, before this
           // tab had seen the engine's version) can neither offer nor be offered.
           // At game over, re-bind it at PROTOCOL_VERSION on this same socket — the same
@@ -1092,6 +1102,8 @@ export function useProSocket(
         case "RESUME_TOKEN":
           // Opaque, encrypted resume blob for our seat — stash it so a redeploy or
           // crash can revive this exact game via RESUME_ROOM. Never inspected.
+          // A blob trailing the winner STATE would undo retireFinishedRoom (#1550).
+          if (gameOverRef.current && msg.roomId.toUpperCase() === roomRef.current?.toUpperCase()) break;
           setResumeToken(msg.roomId, msg.token);
           break;
         case "SERVER_RESTARTING":

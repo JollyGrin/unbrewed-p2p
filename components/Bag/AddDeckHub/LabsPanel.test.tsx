@@ -8,6 +8,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import lucy from "@/lib/labs/fixtures/set-by-slug.lucy-piper.json";
 import lucySave from "@/lib/labs/fixtures/tts-save.lucy-piper.json";
+import brigade from "@/lib/labs/fixtures/set-by-slug.dumbass-brigade.json";
+import brigadeSave from "@/lib/labs/fixtures/tts-save.dumbass-brigade.json";
 import pink from "@/lib/labs/fixtures/set-by-slug.pink-panther.json";
 import pinkSave from "@/lib/labs/fixtures/tts-save.pink-panther.json";
 import { LABS_TTS_ASSETS, LabsSetRow } from "@/lib/labs";
@@ -17,6 +19,10 @@ import { toast } from "react-hot-toast";
 import { LabsPanel } from "./LabsPanel";
 
 const mockTrack = jest.fn();
+const mockPush = jest.fn();
+jest.mock("next/router", () => ({
+  useRouter: () => ({ query: {}, push: (...a: unknown[]) => mockPush(...a) }),
+}));
 jest.mock("../../../lib/analytics", () => ({
   ...jest.requireActual("../../../lib/analytics"),
   track: (...a: unknown[]) => mockTrack(...a),
@@ -31,6 +37,7 @@ jest.mock("react-hot-toast", () => {
 
 const LUCY = (lucy as unknown as LabsSetRow[])[0];
 const PINK = (pink as unknown as LabsSetRow[])[0];
+const BRIGADE = (brigade as unknown as LabsSetRow[])[0];
 const json = (body: unknown, ok = true) =>
   Promise.resolve({ ok, json: async () => body } as Response);
 
@@ -47,24 +54,26 @@ const mockLabs = (row: LabsSetRow, save: unknown, saveOk = true) => {
   }) as unknown as typeof fetch;
 };
 
-const openSet = async (row: LabsSetRow) => {
+const setLink = (row: LabsSetRow) => `https://www.unmatchedlabs.com/shared/${row.slug}`;
+
+// The paste bar hands the link in; the panel fetches at once (#1538).
+const openSet = async (row: LabsSetRow, setStar: (id: string) => void = () => {}) => {
   const pushDeck = jest.fn(async () => true);
   render(
     <ChakraProvider>
-      <LabsPanel pushDeck={pushDeck} setStar={() => {}} />
+      <LabsPanel link={setLink(row)} pushDeck={pushDeck} setStar={setStar} />
     </ChakraProvider>,
   );
-  fireEvent.change(screen.getByLabelText("Unmatched Labs link"), {
-    target: { value: `https://www.unmatchedlabs.com/shared/${row.slug}` },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Import" }));
-  await screen.findByText(/^From “/);
+  await screen.findByTestId("deck-preview");
   return pushDeck;
 };
 
 const save = async () => {
-  fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
-  await waitFor(() => expect(screen.queryByText(/^From “/)).not.toBeInTheDocument());
+  (toast.success as jest.Mock).mockClear();
+  fireEvent.click(screen.getByRole("button", { name: "Save for later" }));
+  await waitFor(() =>
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/saved & ready to play/)),
+  );
 };
 
 const maps = () => bagItems(stores.maps);
@@ -159,7 +168,7 @@ describe("LabsPanel map checkbox", () => {
 describe("LabsPanel re-import of an edited deck", () => {
   const RealPanel = () => {
     const { pushDeck } = useBagDecks();
-    return <LabsPanel pushDeck={pushDeck} setStar={() => {}} />;
+    return <LabsPanel link={setLink(LUCY)} pushDeck={pushDeck} setStar={() => {}} />;
   };
 
   const importLucy = async () => {
@@ -169,11 +178,7 @@ describe("LabsPanel re-import of an edited deck", () => {
         <RealPanel />
       </ChakraProvider>,
     );
-    fireEvent.change(screen.getByLabelText("Unmatched Labs link"), {
-      target: { value: `https://www.unmatchedlabs.com/shared/${LUCY.slug}` },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
-    await screen.findByText(/^From “/);
+    await screen.findByTestId("deck-preview");
   };
 
   const savedDecks = () => JSON.parse(localStorage.getItem("DECKS") ?? "[]");
@@ -193,10 +198,12 @@ describe("LabsPanel re-import of an edited deck", () => {
     (toast.success as jest.Mock).mockClear();
 
     await importLucy();
-    fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save for later" }));
     const prompt = await screen.findByTestId("replace-deck-confirm");
     expect(prompt).toHaveTextContent(/with changes you made: token colour/);
-    expect(screen.getByRole("button", { name: /Save & use/ })).toBeDisabled();
+    // the step blocks every way out until the player picks
+    expect(screen.getByRole("button", { name: /Save for later/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "▶ Solo table" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
     await waitFor(() =>
@@ -206,12 +213,16 @@ describe("LabsPanel re-import of an edited deck", () => {
     expect(savedDecks()[0].savedTokenColor).toBe("#ff0000");
     expect(toast.success).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Save & use/ }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Save for later/ })).not.toBeDisabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Save for later/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Replace" }));
-    await waitFor(() => expect(screen.queryByText(/^From “/)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/saved & ready to play/)),
+    );
     expect(savedDecks()).toHaveLength(1);
     expect(savedDecks()[0].savedTokenColor).toBeUndefined();
-    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/saved & ready to play/));
   });
 
   it("re-imports an unedited deck without asking", async () => {
@@ -246,17 +257,79 @@ describe("LabsPanel deck events (#1512)", () => {
     global.fetch = jest.fn(async () => json([])) as unknown as typeof fetch;
     render(
       <ChakraProvider>
-        <LabsPanel pushDeck={jest.fn()} setStar={() => {}} />
+        <LabsPanel
+          link="https://www.unmatchedlabs.com/shared/nope"
+          pushDeck={jest.fn()}
+          setStar={() => {}}
+        />
       </ChakraProvider>,
     );
-    fireEvent.change(screen.getByLabelText("Unmatched Labs link"), {
-      target: { value: "https://www.unmatchedlabs.com/shared/nope" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
     await screen.findByRole("alert");
     expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", {
       source: "unmatched-labs",
       reason: "not-found",
     });
+  });
+});
+
+/**
+ * #1538: the preview ends in a table. A set with several heroes shows them
+ * as pills; Solo table saves + stars the picked hero's deck and opens
+ * /offline with it, Invite a friend opens /connect, each with its event.
+ */
+describe("LabsPanel table actions (#1538)", () => {
+  beforeEach(() => {
+    mockTrack.mockClear();
+    mockPush.mockClear();
+  });
+
+  it("a 4-hero set: pick Marouine, Solo table lands on /offline with her deck starred", async () => {
+    mockLabs(BRIGADE, brigadeSave);
+    const setStar = jest.fn();
+    const pushDeck = await openSet(BRIGADE, setStar);
+    expect(screen.getByRole("status")).toHaveTextContent(/Unmatched Labs set · 4 heroes · by Tombadil Bombadil/);
+
+    const pills = screen.getAllByRole("radio");
+    expect(pills.map((p) => p.textContent)).toEqual([
+      "Elliot Becker",
+      "The Night Star",
+      "Marouine",
+      "Aesa-Arannis",
+    ]);
+    fireEvent.click(screen.getByRole("radio", { name: "Marouine" }));
+    expect(screen.getByRole("radio", { name: "Marouine" })).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "▶ Solo table" }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalled());
+    const deck = (pushDeck.mock.calls[0] as unknown[])[0] as { id: string; name: string };
+    expect(deck.name).toBe("Marouine");
+    expect(setStar).toHaveBeenCalledWith(deck.id);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/offline", query: { deckId: deck.id } });
+    expect(mockTrack).toHaveBeenCalledWith("bag_table_opened", { destination: "offline", from: "preview" });
+  });
+
+  it("Invite a friend saves, stars and goes to /connect", async () => {
+    mockLabs(PINK, pinkSave);
+    const setStar = jest.fn();
+    const pushDeck = await openSet(PINK, setStar);
+    fireEvent.click(screen.getByRole("button", { name: "⚔ Invite a friend" }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: "/connect", query: {} }));
+    expect(pushDeck).toHaveBeenCalledTimes(1);
+    expect(setStar).toHaveBeenCalledTimes(1);
+    expect(mockTrack).toHaveBeenCalledWith("bag_table_opened", { destination: "connect", from: "preview" });
+  });
+
+  it("a refused save opens no table", async () => {
+    mockLabs(PINK, pinkSave);
+    render(
+      <ChakraProvider>
+        <LabsPanel link={setLink(PINK)} pushDeck={jest.fn(async () => false)} setStar={() => {}} />
+      </ChakraProvider>,
+    );
+    await screen.findByTestId("deck-preview");
+    fireEvent.click(screen.getByRole("button", { name: "▶ Solo table" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "▶ Solo table" })).not.toBeDisabled());
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockTrack).not.toHaveBeenCalledWith("bag_table_opened", expect.anything());
   });
 });

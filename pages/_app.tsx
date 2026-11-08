@@ -4,7 +4,8 @@ import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { ChakraProvider } from "@chakra-ui/react";
 import { theme } from "@/styles/style";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { purgeExpiredOnLoad } from "@/lib/pro/replayStore";
 import {
   Hydrate,
   QueryClient,
@@ -35,6 +36,8 @@ const spaceGrotesk = Space_Grotesk({
 
 export default function App({ Component, pageProps }: AppProps) {
   const [queryClient] = useState(() => new QueryClient());
+  // 7-day replay retention on every page load, not only on /pro/replays (#1551).
+  useEffect(() => purgeExpiredOnLoad(), []);
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -21,6 +21,7 @@ import {
   parseTtsDeck,
 } from "@/lib/tts/parse-tts";
 import { SubToggle } from "@/components/Bag/AddDeckHub/SubToggle";
+import { DeckPreview } from "@/components/Bag/AddDeckHub/DeckPreview";
 import { DeckSource, trackDeckAddFailed } from "@/lib/deckAnalytics";
 
 /**
@@ -32,8 +33,11 @@ import { DeckSource, trackDeckAddFailed } from "@/lib/deckAnalytics";
  */
 export const AddImageDeck = ({
   onAdded,
+  initialTts,
 }: {
   onAdded?: (deckId: string) => void;
+  /** a TTS export the paste bar already recognised (#1538): loaded on mount */
+  initialTts?: string;
 }) => {
   return (
     <Flex direction="column" color="brand.secondary">
@@ -41,7 +45,7 @@ export const AddImageDeck = ({
         For decks the card generator can&apos;t express — like The Unmatched
         Club&apos;s. Import a Tabletop Simulator export, or list image URLs.
       </Text>
-      <Builder onAdded={onAdded} />
+      <Builder onAdded={onAdded} initialTts={initialTts} />
     </Flex>
   );
 };
@@ -58,7 +62,13 @@ type DeckMeta = {
   sidekickIsRanged: boolean;
 };
 
-const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
+const Builder = ({
+  onAdded,
+  initialTts,
+}: {
+  onAdded?: (deckId: string) => void;
+  initialTts?: string;
+}) => {
   const { pushDeck, setStar } = useBagDecks();
 
   const [source, setSource] = useState<"tts" | "urls">("tts");
@@ -99,6 +109,14 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
     }
   };
 
+  const loadedInitial = useRef<string>();
+  useEffect(() => {
+    if (!initialTts || loadedInitial.current === initialTts) return;
+    loadedInitial.current = initialTts;
+    loadTtsJson(initialTts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTts]);
+
   const onTtsFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) loadTtsJson(await file.text());
@@ -117,30 +135,39 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
     [cards],
   );
 
-  const save = async () => {
+  // The deck as it would be saved, for the preview; rebuilt as the form
+  // changes (buildImageDeck mints the id, so memoise to keep it stable).
+  const built = useMemo(
+    () =>
+      buildImageDeck({
+        name: meta.name.trim() || "Untitled deck",
+        hp: parseInt(meta.hp) || 15,
+        move: parseInt(meta.move) || 2,
+        isRanged: meta.isRanged,
+        specialAbility: meta.specialAbility,
+        sidekickName: meta.sidekickName,
+        sidekickQuantity: parseInt(meta.sidekickQuantity) || 0,
+        sidekickHp: parseInt(meta.sidekickHp) || undefined,
+        sidekickIsRanged: meta.sidekickIsRanged,
+        cardbackUrl,
+        cards,
+      }),
+    [meta, cardbackUrl, cards],
+  );
+
+  // The preview's Solo table / Invite a friend / Save for later (#1538): the
+  // same three actions as a fetched deck.
+  const save = async (): Promise<string | undefined> => {
     if (!meta.name.trim()) {
       toast.error("Give the deck a name first");
-      return;
+      return undefined;
     }
-    const sidekickQuantity = parseInt(meta.sidekickQuantity) || 0;
-    const deck = buildImageDeck({
-      name: meta.name.trim(),
-      hp: parseInt(meta.hp) || 15,
-      move: parseInt(meta.move) || 2,
-      isRanged: meta.isRanged,
-      specialAbility: meta.specialAbility,
-      sidekickName: meta.sidekickName,
-      sidekickQuantity,
-      sidekickHp: parseInt(meta.sidekickHp) || undefined,
-      sidekickIsRanged: meta.sidekickIsRanged,
-      cardbackUrl,
-      cards,
-    });
     // storage full — already toasted
-    if (!(await pushDeck(deck, { source: deckSource }))) return;
-    setStar(deck.id);
-    toast.success(`${deck.name} saved & ready to play`);
-    onAdded?.(deck.id);
+    if (!(await pushDeck(built, { source: deckSource }))) return undefined;
+    setStar(built.id);
+    toast.success(`${built.name} saved & ready to play`);
+    onAdded?.(built.id);
+    return built.id;
   };
 
   return (
@@ -394,15 +421,13 @@ const Builder = ({ onAdded }: { onAdded?: (deckId: string) => void }) => {
               <Text fontSize="0.8rem">Ranged</Text>
             </Checkbox>
           </Grid>
-          <Button
-            mt="0.75rem"
-            bg="brand.accent"
-            color="brand.surfaceDim"
-            _hover={{ bg: "brand.accentDeep" }}
-            onClick={save}
-          >
-            ★ Save &amp; use this deck
-          </Button>
+          <Box mt="0.75rem">
+            <DeckPreview
+              deck={built}
+              source={source === "tts" ? "Tabletop Simulator export" : "Card images"}
+              onSave={save}
+            />
+          </Box>
         </Box>
       )}
     </>
