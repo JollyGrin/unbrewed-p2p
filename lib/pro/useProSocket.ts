@@ -33,6 +33,7 @@ import {
   GameEvent,
   HeroListing,
   LobbyListing,
+  MatchedVia,
   PlayerView,
   PlayerId,
   ProMapDef,
@@ -104,6 +105,12 @@ export interface ProRoomInfo {
    *  waiting room announce the rule before the game starts, and the draining bar
    *  size its window. */
   turnTimerSeconds?: number;
+  /** how the room formed (engine #1035, additive) — absent on an older engine. */
+  matchedVia?: MatchedVia;
+  /** the XP multiplier this room's game locked in at start (engine #1035). Absent
+   *  = 1: every room before its game starts, and every non-bonus game. Once seen
+   *  it is kept for the room — the server never lowers it mid-game. */
+  xpMultiplier?: number;
 }
 
 /** A live move-timer snapshot from the server (issue #223, protocol TURN_TIMER).
@@ -919,7 +926,7 @@ export function useProSocket(
           // so the panel can name who has joined. `you` is preserved from the seat
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
-          const { formatId, requiredPlayers, seats, turnTimerSeconds } = msg;
+          const { formatId, requiredPlayers, seats, turnTimerSeconds, matchedVia, xpMultiplier } = msg;
           const bots: RoomBots = {};
           for (const seat of seats) if (seat.bot) bots[seat.player] = seat.bot;
           setRoomBots(msg.roomId, bots);
@@ -931,6 +938,8 @@ export function useProSocket(
             roster: seats,
             bots,
             turnTimerSeconds,
+            matchedVia: matchedVia ?? prev?.matchedVia,
+            xpMultiplier: xpMultiplier ?? prev?.xpMultiplier,
           }));
           break;
         }
@@ -951,7 +960,7 @@ export function useProSocket(
           {
             const bots = getRoomBots(msg.roomId) ?? undefined;
             // Destructure first: msg is not narrowed inside the setState callback.
-            const { formatId, seats, requiredPlayers, you, turnTimerSeconds } = msg;
+            const { formatId, seats, requiredPlayers, you, turnTimerSeconds, matchedVia, xpMultiplier } = msg;
             setRoomInfo((prev) => ({
               formatId: formatId ?? "duel",
               seats: seats ?? [you],
@@ -962,6 +971,10 @@ export function useProSocket(
               roster: prev?.roster,
               bots,
               turnTimerSeconds,
+              // #1035: a fresh seat starts from what this frame says (a revive's
+              // ROOM_JOINED carries the multiplier its resume token kept).
+              matchedVia,
+              xpMultiplier,
             }));
           }
           setRoomPublic(false); // fresh rooms are private until acked otherwise

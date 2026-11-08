@@ -129,8 +129,16 @@ export class FakeWebSocket {
   static reset(): void {
     FakeWebSocket.instances = [];
   }
+  /**
+   * The newest GAME socket. The `/pro/game` picker also opens a `/lobby`
+   * presence socket (#1542) once the game socket is up; tests that want it find
+   * it in `instances` by URL.
+   */
   static latest(): FakeWebSocket | null {
-    return FakeWebSocket.instances[FakeWebSocket.instances.length - 1] ?? null;
+    for (let i = FakeWebSocket.instances.length - 1; i >= 0; i--) {
+      if (!FakeWebSocket.instances[i].url.endsWith("/lobby")) return FakeWebSocket.instances[i];
+    }
+    return null;
   }
 
   readyState = 0;

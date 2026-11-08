@@ -1020,6 +1020,22 @@
  *   current engine reproduces gains the field on the next `POST /replay`. Nothing in
  *   `ReplayBundle` changes, so no bundle, digest or state hash moves.
  */
+/**
+ * ## Additive fields (2026-11-08, no version bump): `matchedVia` + `xpMultiplier` (engine #1035, p2p #1542)
+ * Quick Play games pay a time-limited XP multiplier. The server stamps how each room formed
+ * and what multiplier its game locked in, and echoes both to the seats so the waiting room
+ * can say "2× XP locked in".
+ *
+ * - `MatchedVia` — `quick_match` (CREATE_ROOM.quickMatch), `lobby` (an invite room that was
+ *   public when a human joined it, i.e. found in the list), `invite` (everything else a human
+ *   opened), `bot` (every other seat a bot), `tournament` (a ticketed room), `rematch`.
+ * - `ROOM_CREATED` / `ROOM_JOINED` / `ROOM_STATUS` gain optional `matchedVia?: MatchedVia` and
+ *   `xpMultiplier?: number`. `xpMultiplier` is decided ONCE, when the game starts, and is
+ *   OMITTED when 1 (every room before its game starts, and every non-bonus game). A
+ *   multiplier, once present, never changes for that game, even if the bonus ends mid-game.
+ * - Purely additive and optional, so PROTOCOL_VERSION stays 39: a client that ignores both
+ *   fields loses nothing, and clients gate on the fields' PRESENCE, not the version.
+ */
 export const PROTOCOL_VERSION = 39;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
@@ -2232,13 +2248,18 @@ export type ClientMsg =
 // v35: why a rematch negotiation ended without a room. See the v35 header note.
 export type RematchClosedReason = "declined" | "cancelled" | "disconnected" | "timeout" | "unavailable";
 
+/** How a room formed (engine #1035, additive — see the 2026-11-08 header note). */
+export type MatchedVia = "quick_match" | "lobby" | "invite" | "bot" | "tournament" | "rematch";
+
 export type ServerMsg =
   | { v: number; type: "HEROES"; heroes: HeroListing[] }
   | { v: number; type: "LOBBIES"; lobbies: LobbyListing[] }
   // `turnTimerSeconds` (issue #122): the room's per-decision timer setting,
   // present only when the timer is on. Absent = untimed room.
-  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
-  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number }
+  // `matchedVia` / `xpMultiplier` (#1035, additive): how the room formed and the XP
+  // multiplier its game locked in at start; `xpMultiplier` omitted when 1.
+  | { v: number; type: "ROOM_CREATED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number; matchedVia?: MatchedVia; xpMultiplier?: number }
+  | { v: number; type: "ROOM_JOINED"; roomId: string; token: string; you: PlayerId; formatId?: string; seats?: PlayerId[]; requiredPlayers?: number; turnTimerSeconds?: number; matchedVia?: MatchedVia; xpMultiplier?: number }
   | { v: number; type: "VISIBILITY"; roomId: string; public: boolean } // ack to SET_VISIBILITY
   | {
       v: number;
@@ -2260,7 +2281,7 @@ export type ServerMsg =
   // join, pre-game seat release, and reconnect/disconnect while waiting. The
   // one live channel for "who is in this room right now" — ROOM_CREATED/
   // ROOM_JOINED's `seats: PlayerId[]` stays a point-in-time snapshot.
-  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[]; turnTimerSeconds?: number }
+  | { v: number; type: "ROOM_STATUS"; roomId: string; formatId: string; requiredPlayers: number; seats: RoomStatusSeat[]; turnTimerSeconds?: number; matchedVia?: MatchedVia; xpMultiplier?: number }
   // Per-decision move timer (issue #122; timed rooms ONLY — an untimed room
   // never sends this). Broadcast on every clock change: `deadline` (epoch ms)
   // while the clock runs for `player`; `deadline: null` when `player` is on

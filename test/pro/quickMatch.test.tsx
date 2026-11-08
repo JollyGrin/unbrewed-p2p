@@ -55,6 +55,7 @@ const lobby = (roomId: string, ageMs: number): LobbyListing => ({
 });
 
 let SENT: string[] = [];
+const mockReplace = jest.fn(async (..._a: unknown[]) => true);
 
 const frames = (type: string): Record<string, unknown>[] =>
   SENT.map((raw) => JSON.parse(raw)).filter((m) => m.type === type);
@@ -75,7 +76,7 @@ const fakeRouter = () =>
     isLocaleDomain: false,
     events: { on() {}, off() {}, emit() {} },
     push: async () => true,
-    replace: async () => true,
+    replace: (...a: unknown[]) => mockReplace(...a),
     reload() {},
     back() {},
     forward() {},
@@ -118,6 +119,9 @@ const deliver = async (msg: Record<string, unknown>) => {
 const raceAway = (code: "ROOM_FULL" | "ROOM_NOT_FOUND") =>
   deliver({ type: "ERROR", code, message: "gone" });
 
+/** The dock panel mounts twice (desktop rail + mobile bar; CSS shows one), like Create. */
+const dock = (testId: string) => screen.getAllByTestId(testId)[0];
+
 const clickQuickMatch = async () => {
   const button = await screen.findByTestId("quick-match");
   await act(async () => {
@@ -136,6 +140,7 @@ beforeAll(() => {
 beforeEach(() => {
   FakeWebSocket.reset();
   SENT = [];
+  mockReplace.mockClear();
 });
 
 afterEach(() => {
@@ -234,18 +239,58 @@ describe("Quick Match on the pre-join picker", () => {
     ]);
   });
 
-  it("shows the waiting room — not 'trying lobby 1 of 1' — once a join LANDS", async () => {
-    // Caught in a real browser: a join can succeed into a room that is still
-    // waiting (a reconnect to our own room, or a format needing a third seat).
-    // No STATE is coming until it fills, so gating the search screen on the
-    // candidate list alone parks the player on "searching" forever.
+  it("keeps the picker up while searching, then fills the P2 plate when the match lands (#1542)", async () => {
+    // A join can succeed into a room that is still waiting, so ROOM_JOINED alone
+    // is not "found": the opponent has to show up on the live roster.
     await mountPicker([lobby("a", 120_000)]);
     await clickQuickMatch();
-    expect(screen.getByText(/SEARCHING FOR AN OPPONENT/i)).toBeInTheDocument();
+    expect(dock("quick-match-searching")).toBeInTheDocument();
+    expect(screen.getByTestId("p2-plate-status")).toHaveTextContent("Searching…");
+    // The roster is still there to browse — only the dock buttons were swapped.
+    expect(screen.getByTestId("pro-roster-scroll")).toBeInTheDocument();
+    expect(screen.queryByTestId("quick-match")).not.toBeInTheDocument();
+
     await deliver({ type: "ROOM_JOINED", roomId: "a", token: "tok", you: "p2" });
-    expect(screen.queryByText(/SEARCHING FOR AN OPPONENT/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/ROOM a/i)).toBeInTheDocument();
-    expect(screen.getByTestId("quick-match-bot")).toBeInTheDocument();
+    expect(dock("quick-match-searching")).toBeInTheDocument();
+
+    await deliver({
+      type: "ROOM_STATUS",
+      roomId: "a",
+      formatId: "duel",
+      requiredPlayers: 2,
+      matchedVia: "lobby",
+      xpMultiplier: 2,
+      seats: [
+        { player: "p1", heroId: HERO, connected: true, bot: null, displayName: "Moritz" },
+        { player: "p2", heroId: HERO, connected: true, bot: null },
+      ],
+    });
+    expect(screen.queryByTestId("quick-match-searching")).not.toBeInTheDocument();
+    const found = dock("quick-match-found");
+    expect(found).toHaveTextContent("Match found · Moritz");
+    expect(found).toHaveTextContent("King Kong");
+    expect(dock("quick-match-found-xp")).toHaveTextContent("2× XP match");
+    const p2 = screen.getByTestId("p2-plate-status");
+    expect(p2).toHaveTextContent("King Kong");
+    expect(p2).toHaveAttribute("data-found", "true");
+  });
+
+  it("says nothing about a multiplier when the room locked none in", async () => {
+    await mountPicker([lobby("a", 120_000)]);
+    await clickQuickMatch();
+    await deliver({ type: "ROOM_JOINED", roomId: "a", token: "tok", you: "p2" });
+    await deliver({
+      type: "ROOM_STATUS",
+      roomId: "a",
+      formatId: "duel",
+      requiredPlayers: 2,
+      seats: [
+        { player: "p1", heroId: HERO, connected: true, bot: null },
+        { player: "p2", heroId: HERO, connected: true, bot: null },
+      ],
+    });
+    expect(dock("quick-match-found")).toHaveTextContent("Match found · Anonymous");
+    expect(dock("quick-match-found-xp")).toBeEmptyDOMElement();
   });
 
   it("stops the search on an error that is NOT a race", async () => {
@@ -258,50 +303,174 @@ describe("Quick Match on the pre-join picker", () => {
   });
 });
 
-describe("the Quick Match waiting screen", () => {
-  const reachWaitingRoom = async (lobbies: LobbyListing[] = []) => {
+describe("the Quick Match searching panel (#1542)", () => {
+  const reachOwnTable = async (lobbies: LobbyListing[] = []) => {
     await mountPicker(lobbies);
     await clickQuickMatch();
     await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
   };
 
-  it("says it is searching, and offers the invite link and the bot fallback", async () => {
-    await reachWaitingRoom();
-    expect(screen.getByTestId("quick-match-searching")).toBeInTheDocument();
-    expect(screen.getByText(/Waiting\? Invite a friend directly/i)).toBeInTheDocument();
-    expect(screen.getByText("copy link")).toBeInTheDocument();
-    expect(screen.getByTestId("quick-match-bot")).toBeInTheDocument();
+  it("replaces only the dock buttons, and offers invite, chime, bot and cancel", async () => {
+    await reachOwnTable();
+    expect(dock("quick-match-searching")).toHaveTextContent("Finding a match");
+    expect(screen.queryByTestId("pro-create-button")).not.toBeInTheDocument();
+    expect(dock("quick-match-invite")).toBeInTheDocument();
+    expect(dock("lobby-sound-toggle")).toBeInTheDocument();
+    expect(dock("quick-match-bot")).toBeInTheDocument();
+    expect(dock("quick-match-cancel")).toBeInTheDocument();
+    // The old full-screen waiting room is gone for Quick Match.
+    expect(screen.queryByText(/ROOM MINE/)).not.toBeInTheDocument();
   });
 
   it("counts the other people searching, excluding our own room", async () => {
-    await reachWaitingRoom();
-    expect(screen.getByText(/no one else is searching right now/i)).toBeInTheDocument();
-    // Our own room is listed publicly now; only the other two count.
+    await reachOwnTable();
+    expect(dock("quick-match-searching")).toHaveTextContent(/No one else is searching right now/);
     await deliver({
       type: "LOBBIES",
       lobbies: [lobby("MINE", 1_000), lobby("someone", 2_000), lobby("else", 3_000)],
     });
-    expect(screen.getByText(/2 other players are waiting/i)).toBeInTheDocument();
+    expect(dock("quick-match-searching")).toHaveTextContent("2 others are waiting too.");
+    // …and the ribbon never offers our own table back to us.
+    expect(screen.getAllByTestId("ribbon-lobby").map((c) => c.getAttribute("data-room"))).toEqual(["else", "someone"]);
   });
 });
 
-describe("the open-lobbies strip", () => {
-  it("renders a bare listing exactly as it always has", async () => {
+describe("the Here now ribbon (#1542)", () => {
+  it("renders a bare listing (today's engine) as an Anonymous gold chip, no 2× anywhere", async () => {
     await mountPicker([lobby("aaa", 60_000)]);
-    expect(await screen.findByText(/vs King Kong · room aaa/)).toBeInTheDocument();
+    const chip = await screen.findByTestId("ribbon-lobby");
+    expect(chip).toHaveTextContent("Anonymous");
+    expect(chip).toHaveTextContent("King Kong · 1m 00s");
+    expect(chip).not.toHaveTextContent("XP");
+    expect(screen.queryByTestId("ribbon-bonus")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("quick-match-bonus")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bonus-summary")).not.toBeInTheDocument();
+    // No presence socket answered: the pill reads "looking" alone.
+    const pill = screen.getByTestId("presence-pill");
+    expect(pill).toHaveTextContent("1 looking");
+    expect(pill).not.toHaveTextContent("here");
+    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("1 looking right now");
+    // The old strip under the picker is gone.
+    expect(screen.queryByText(/Open lobbies — join someone waiting/)).not.toBeInTheDocument();
   });
 
   it("renders the #391 enrichments when the server sends them", async () => {
     await mountPicker([
-      {
-        ...lobby("bbb", 60_000),
-        formatId: "team-2v2",
-        turnTimerSeconds: 45,
-        host: { displayName: "Dean" },
-      },
+      { ...lobby("bbb", 60_000), turnTimerSeconds: 45, host: { displayName: "Dean" } },
     ]);
-    const row = await screen.findByText(/Dean · vs King Kong/);
-    expect(row).toHaveTextContent("2v2");
-    expect(row).toHaveTextContent("⏱ 45s");
+    const chip = await screen.findByTestId("ribbon-lobby");
+    expect(chip).toHaveTextContent("Dean");
+    expect(chip).toHaveTextContent("⏱ 45s");
+  });
+
+  it("is absent, not an empty box, with nothing to show", async () => {
+    await mountPicker([]);
+    expect(screen.queryByTestId("lobby-ribbon")).not.toBeInTheDocument();
+    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("no one waiting");
+  });
+
+  it("Join routes through ?room= with the current fighter kept", async () => {
+    await mountPicker([lobby("aaa", 60_000)]);
+    const join = await screen.findByRole("button", { name: /Join Anonymous/ });
+    await act(async () => {
+      fireEvent.click(join);
+    });
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.objectContaining({ room: "aaa", hero: HERO }) }),
+      undefined,
+      { shallow: true },
+    );
+  });
+
+  it("marks the roster tile a lobby host is playing with their pip", async () => {
+    await mountPicker([{ ...lobby("aaa", 60_000), host: { displayName: "Kay" } }]);
+    expect(await screen.findByTestId("roster-pip")).toHaveTextContent("K");
+  });
+});
+
+describe("the lobby socket (#1542 ↔ engine #1034)", () => {
+  const lobbySocket = () => {
+    const sock = FakeWebSocket.instances.find((w) => w.url.endsWith("/lobby"));
+    if (!sock) throw new Error("the picker never opened the lobby socket");
+    return sock;
+  };
+  const openLobby = async () => {
+    const sock = lobbySocket();
+    await act(async () => {
+      sock.readyState = FakeWebSocket.OPEN;
+      sock.onopen?.({});
+    });
+    return sock;
+  };
+  const snapshot = (sock: FakeWebSocket, extra: Record<string, unknown> = {}) =>
+    act(async () => {
+      sock.onmessage?.({
+        data: JSON.stringify({
+          v: 1,
+          type: "SNAPSHOT",
+          you: "me",
+          here: 3,
+          looking: 1,
+          players: [
+            { id: "me", state: "picking", sinceMs: 1_000 },
+            { id: "sam", state: "picking", sinceMs: 5_000, displayName: "Sam_B" },
+          ],
+          lobbies: [lobby("aaa", 60_000)],
+          tablesInPlay: 1,
+          ...extra,
+        }),
+      });
+    });
+
+  it("says HELLO once the game socket is up, and fills the pill and ribbon from SNAPSHOT", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 1, type: "HELLO", state: "picking", heroId: HERO })]);
+    await snapshot(sock);
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("3 here · 1 looking");
+    expect(screen.getAllByTestId("ribbon-lobby")).toHaveLength(1);
+    const player = screen.getByTestId("ribbon-player");
+    expect(player).toHaveTextContent("Sam_B");
+    expect(player).toHaveTextContent("picking a fighter…");
+    expect(screen.getByTestId("ribbon-tail")).toHaveTextContent("1 table in play");
+    // Our own presence entry is never a chip.
+    expect(screen.getAllByTestId("ribbon-player")).toHaveLength(1);
+  });
+
+  it("sends NUDGE on 👋", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Wave at Sam_B" }));
+    });
+    expect(frames("NUDGE")).toEqual([{ v: 1, type: "NUDGE", to: "sam" }]);
+  });
+
+  it("puts 2× on the ribbon, Quick Match, every Join and the summary during the bonus", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock, { bonus: { multiplier: 2, endsAt: new Date(Date.now() + 86_400_000).toISOString() } });
+    expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("2×");
+    expect(screen.getByTestId("quick-match-bonus")).toHaveTextContent("2× XP");
+    expect(screen.getByRole("button", { name: /Join Anonymous/ })).toHaveTextContent("2× XP");
+    expect(screen.getByTestId("bonus-summary")).toHaveTextContent("Quick Match pays 2× XP · Create room is 1×");
+  });
+
+  it("ignores an expired bonus", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock, { bonus: { multiplier: 2, endsAt: new Date(Date.now() - 1_000).toISOString() } });
+    expect(screen.queryByTestId("quick-match-bonus")).not.toBeInTheDocument();
+  });
+
+  it("closes once the player takes a seat", async () => {
+    await mountPicker([]);
+    const sock = await openLobby();
+    await snapshot(sock);
+    await clickQuickMatch();
+    expect(sock.readyState).toBe(FakeWebSocket.CLOSED);
+    // The poll is the fallback again while seated.
+    expect(screen.getByTestId("presence-pill")).not.toHaveTextContent("here");
   });
 });
