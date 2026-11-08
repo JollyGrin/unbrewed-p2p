@@ -1,7 +1,9 @@
 import { Card } from "@/components/CardFactory/Card";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { hasFieldedSidekick, toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
-import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
+import { Flex, Box, Text, HStack, Tooltip, Button } from "@chakra-ui/react";
+import { useState } from "react";
+import { CardInspector } from "./CardInspector";
 
 import { FaHeart } from "react-icons/fa";
 import { GiFootprint } from "@/components/Icons/gi";
@@ -16,12 +18,13 @@ export const DeckCards = ({
 }: {
   decks?: DeckImportType[];
   selectedDeckId?: string;
-  /** when set, clicking a card flags it as a hero/rule card (kept out of the draw deck) */
+  /** when set, the card inspector offers a button to flag the card as a hero/rule card (kept out of the draw deck) */
   onToggleCharacterCard?: (cardIndex: number) => void;
 }) => {
   const deck = decks?.find((deck) => deck.id === selectedDeckId);
   const cards = deck?.deck_data?.cards;
   const isImageDeck = deck?.tags?.includes("image-deck");
+  const [inspecting, setInspecting] = useState<number | null>(null);
 
   return (
     <Box>
@@ -35,8 +38,8 @@ export const DeckCards = ({
           fontSize="0.85rem"
           fontWeight={600}
         >
-          ⚠ Imported deck — click any hero or rule card below to keep it out
-          of the shuffled draw deck.
+          ⚠ Imported deck — click a hero or rule card below, then
+          choose "Keep out of draw deck" to keep it out of the shuffle.
         </Flex>
       )}
       <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem">
@@ -47,12 +50,21 @@ export const DeckCards = ({
             maxW="200px"
             position="relative"
             transition="transform 0.15s ease-out"
-            cursor={onToggleCharacterCard ? "pointer" : undefined}
+            cursor="pointer"
+            role="button"
+            tabIndex={0}
+            aria-label={`Inspect ${card.title}`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setInspecting(index);
+              }
+            }}
             outline={card.isCharacterCard ? "3px solid" : "none"}
             outlineColor="brand.accent"
             borderRadius="0.4rem"
             _hover={{ transform: "scale(2)", zIndex: 10, position: "relative" }}
-            onClick={() => onToggleCharacterCard?.(index)}
+            onClick={() => setInspecting(index)}
           >
             <Card card={card} />
             {card.isCharacterCard && (
@@ -72,6 +84,30 @@ export const DeckCards = ({
           </Box>
         ))}
       </Flex>
+      <CardInspector
+        cards={cards ?? []}
+        index={inspecting}
+        onIndexChange={setInspecting}
+        onClose={() => setInspecting(null)}
+        renderActions={
+          isImageDeck && onToggleCharacterCard
+            ? (card, index) => (
+                // plain stop-gap until #1578 builds the real toggle here
+                <Button
+                  size="sm"
+                  w="100%"
+                  variant={card.isCharacterCard ? "solid" : "outline"}
+                  colorScheme="yellow"
+                  onClick={() => onToggleCharacterCard(index)}
+                >
+                  {card.isCharacterCard
+                    ? "Hero / rule card — kept out of draw deck"
+                    : "Keep out of draw deck (hero / rule card)"}
+                </Button>
+              )
+            : undefined
+        }
+      />
     </Box>
   );
 };
