@@ -53,6 +53,7 @@ const lobby = (roomId: string, ageMs: number): LobbyListing => ({
   heroId: HERO,
   heroName: "King Kong",
   ageMs,
+  turnTimerSeconds: 60, // a Quick Play room (QUICK_PLAY_TIMER_SECONDS)
 });
 
 let SENT: string[] = [];
@@ -207,11 +208,11 @@ describe("Quick Match on the pre-join picker", () => {
     expect(created).toEqual([
       expect.objectContaining({ type: "CREATE_ROOM", heroId: HERO, quickMatch: true }),
     ]);
-    // A matchmade room is the plainest possible duel: no timer, and duel is the
-    // omitted default. The BOARD is the one thing it does roll (#685) — here the
-    // roll landed on the server-default board, which sends no customMap at all.
+    // A matchmade room is a plain duel (the omitted default) on the Quick Play
+    // 60 s timer, whatever the picker says. The BOARD is the one thing it rolls
+    // (#685) — here the server-default board, which sends no customMap at all.
     expect(created[0]).not.toHaveProperty("customMap");
-    expect(created[0]).not.toHaveProperty("turnTimerSeconds");
+    expect(created[0]).toMatchObject({ turnTimerSeconds: 60 });
     expect(created[0]).not.toHaveProperty("formatId");
   });
 
@@ -240,6 +241,29 @@ describe("Quick Match on the pre-join picker", () => {
     expect(frames("SET_VISIBILITY")).toEqual([
       expect.objectContaining({ type: "SET_VISIBILITY", roomId: "MINE", public: true }),
     ]);
+  });
+
+  it("skips lobbies off the Quick Play timer: an untimed Create room is not joined", async () => {
+    await mountPicker([{ ...lobby("untimed", 120_000), turnTimerSeconds: undefined }, lobby("qp", 30_000)]);
+    await clickQuickMatch();
+    expect(frames("JOIN_ROOM")).toEqual([expect.objectContaining({ roomId: "qp" })]);
+  });
+
+  it("says the Quick Play rules under the summary", async () => {
+    await mountPicker([]);
+    expect(screen.getAllByTestId("quick-play-rules")[0]).toHaveTextContent("Quick Match: ⏱ 60s timer · random board");
+  });
+
+  it("Cancel unlists the room it published before leaving (no ghost lobby)", async () => {
+    await mountPicker([]);
+    await clickQuickMatch();
+    await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
+    await deliver({ type: "VISIBILITY", roomId: "MINE", public: true });
+    SENT = [];
+    await act(async () => {
+      fireEvent.click(dock("quick-match-cancel"));
+    });
+    expect(frames("SET_VISIBILITY")).toEqual([expect.objectContaining({ type: "SET_VISIBILITY", roomId: "MINE", public: false })]);
   });
 
   it("keeps the picker up while searching, then fills the P2 plate when the match lands (#1542)", async () => {
@@ -350,9 +374,9 @@ describe("the Here now ribbon (#1542)", () => {
     expect(screen.queryByTestId("bonus-summary")).not.toBeInTheDocument();
     // No presence socket answered: the pill reads "looking" alone.
     const pill = screen.getByTestId("presence-pill");
-    expect(pill).toHaveTextContent("1 looking");
+    expect(pill).toHaveTextContent("1 waiting");
     expect(pill).not.toHaveTextContent("here");
-    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("1 looking right now");
+    expect(screen.getByTestId("quick-match-subline")).toHaveTextContent("1 waiting right now");
     // The old strip under the picker is gone.
     expect(screen.queryByText(/Open lobbies — join someone waiting/)).not.toBeInTheDocument();
   });
@@ -430,7 +454,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     const sock = await openLobby();
     expect(frames("HELLO")).toEqual([expect.objectContaining({ v: 2, type: "HELLO", state: "picking", heroId: HERO })]);
     await snapshot(sock);
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · 1 looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · 1 waiting");
     expect(screen.getAllByTestId("ribbon-lobby")).toHaveLength(1);
     const player = screen.getByTestId("ribbon-player");
     expect(player).toHaveTextContent("Sam_B");
@@ -455,6 +479,8 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
     const sock = await openLobby();
     await snapshot(sock, { bonus: { multiplier: 2, endsAt: new Date(Date.now() + 86_400_000).toISOString() } });
     expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("2×");
+    expect(screen.getByTestId("ribbon-bonus")).toHaveTextContent("Limited-time offer");
+    expect(screen.getByTestId("ribbon-bonus")).not.toHaveTextContent(/ends/);
     expect(screen.getByTestId("quick-match-bonus")).toHaveTextContent("2× XP");
     expect(screen.getByRole("button", { name: /Join Anonymous/ })).toHaveTextContent("2× XP");
     expect(screen.getByTestId("bonus-summary")).toHaveTextContent("Quick Match pays 2× XP · Create room is 1×");
@@ -483,7 +509,7 @@ describe("the lobby socket (#1542 ↔ engine #1034)", () => {
       ],
       lobbies: [lobby("aaa", 60_000), lobby("MINE", 1_000)],
     });
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · you + 1 looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("you + 2 here · you + 1 waiting");
   });
 });
 
@@ -509,7 +535,7 @@ describe("show me in the lobby (visibility toggle)", () => {
     expect(screen.getByTestId("lobby-visibility")).toHaveAttribute("aria-checked", "false");
     expect(screen.getByTestId("lobby-visibility")).toHaveTextContent("Hidden");
     // Open lobbies still come off the poll: the pill keeps its "looking" count.
-    expect(screen.getByTestId("presence-pill")).toHaveTextContent("looking");
+    expect(screen.getByTestId("presence-pill")).toHaveTextContent("waiting");
     expect(screen.getByTestId("presence-pill")).not.toHaveTextContent("here");
   });
 
@@ -616,6 +642,24 @@ describe("wave → accept → matched (#1556 ↔ engine #1041)", () => {
     );
     expect(screen.getByTestId("pair-partner-status")).toHaveTextContent("King Kong");
     expect(screen.getAllByTestId("pair-go-bonus")[0]).toHaveTextContent("2× XP");
+  });
+
+  it("host keeps the STAGE pick (no Custom JSON); Go opens the room on that board", async () => {
+    await pairAs("host");
+    expect(screen.queryByTestId("pair-board-note")).not.toBeInTheDocument();
+    const tile = screen.getAllByRole("button", { name: /Island of Despair/i })[0];
+    await click(tile);
+    expect(screen.queryByRole("button", { name: "Custom board — paste map JSON" })).not.toBeInTheDocument();
+    await click(screen.getAllByTestId("pair-go")[0]);
+    const [create] = frames("CREATE_ROOM");
+    expect(create).toMatchObject({ type: "CREATE_ROOM", quickMatch: true, turnTimerSeconds: 60 });
+    expect(JSON.stringify(create.customMap)).toMatch(/Island of Despair/i);
+  });
+
+  it("guest sees whose board it is instead of the picker", async () => {
+    await pairAs("guest");
+    expect(screen.getByTestId("pair-board-note")).toHaveTextContent("Sam_B picks the board");
+    expect(screen.queryByRole("button", { name: /Island of Despair/i })).not.toBeInTheDocument();
   });
 
   it("marks the partner's pick on the roster with a P2 token", async () => {

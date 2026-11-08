@@ -19,15 +19,17 @@ import { isQuickMatchCandidate, lobbyHostName, lobbyTimerLabel } from "./quickMa
 // ---------------------------------------------------------------------------
 
 /**
- * The bonus that is running right now, or null. The server already omits an
+ * The bonus that is running right now, or null. No `endsAt` = an open-ended
+ * promotion (on until the operator switches it off). The server already omits an
  * expired bonus from SNAPSHOT; the clock check is for a tab that sat on one
- * snapshot past `endsAt` (the 10 s heartbeat normally prevents that).
+ * snapshot past a scheduled `endsAt` (the 10 s heartbeat normally prevents that).
  */
 export const activeBonus = (
   bonus: QuickPlayBonus | null | undefined,
   now: number,
 ): QuickPlayBonus | null => {
   if (!bonus || !(bonus.multiplier > 1)) return null;
+  if (bonus.endsAt === undefined) return bonus;
   const ends = Date.parse(bonus.endsAt);
   if (!Number.isFinite(ends) || ends <= now) return null;
   return bonus;
@@ -37,25 +39,13 @@ export const activeBonus = (
 export const multiplierLabel = (multiplier: number): string =>
   `${Number.isInteger(multiplier) ? multiplier : Math.round(multiplier * 10) / 10}×`;
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const pad2 = (n: number) => String(n).padStart(2, "0");
-
 /**
- * "ends Sun 23:59" in the viewer's local time; "ends 23:59" when that is today.
- * Null for an unparseable timestamp (the tag then drops the line).
+ * The bonus tag's second line. Deliberately no end date (Dean, 2026-11-08): the
+ * bonus is a promotion switched on and off by hand, so it reads as one.
  */
-export const bonusEndsLabel = (endsAt: string, now: number): string | null => {
-  const ends = Date.parse(endsAt);
-  if (!Number.isFinite(ends)) return null;
-  const end = new Date(ends);
-  const today = new Date(now);
-  const sameDay =
-    end.getFullYear() === today.getFullYear() &&
-    end.getMonth() === today.getMonth() &&
-    end.getDate() === today.getDate();
-  const time = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
-  return sameDay ? `ends ${time}` : `ends ${WEEKDAYS[end.getDay()]} ${time}`;
-};
+export const BONUS_PROMO_LINE = "Limited-time offer";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
 // ---------------------------------------------------------------------------
 // Avatars
@@ -262,7 +252,7 @@ export const tablesInPlayLabel = (n: number): string => `${n} table${n === 1 ? "
 // ---------------------------------------------------------------------------
 
 export interface PresencePillModel {
-  /** null = the lobby socket has no presence for us (render "N looking" alone) */
+  /** null = the lobby socket has no presence for us (render "N waiting" alone) */
   here: number | null;
   looking: number;
   /** we are in the Quick Match pool ourselves (our own room is never in `looking`) */
@@ -315,12 +305,14 @@ export const presencePillModel = ({
 
 /**
  * The pill's two counts, always telling "you" apart from everyone else (Dean,
- * 2026-11-08: "2 looking" read as two OTHER people when one was him). `here`
+ * 2026-11-08: "2 looking" (now "waiting") read as two OTHER people when one was him). `here`
  * includes us (we are a watcher); `looking` never does (our own room is dropped).
  */
 export const hereLabel = (here: number): string => (here <= 1 ? "just you here" : `you + ${here - 1} here`);
+// Copy says "waiting" (Dean, 2026-11-08): these are people sitting in Quick Match
+// for an opponent. Code keeps the `looking` name the protocol uses.
 export const lookingLabel = (looking: number, youLooking: boolean): string =>
-  youLooking ? (looking === 0 ? "you're looking" : `you + ${looking} looking`) : `${looking} looking`;
+  youLooking ? (looking === 0 ? "you're waiting" : `you + ${looking} waiting`) : `${looking} waiting`;
 
 /** "looking" = open duel lobbies other than ours (the Quick Match pool). */
 export const lookingCount = (
@@ -339,7 +331,7 @@ export const lookingCount = (
 export const quickMatchSubline = (looking: number): string =>
   looking === 0
     ? "no one waiting — your table goes public"
-    : `${looking} looking right now`;
+    : `${looking} waiting right now`;
 
 /**
  * Roster pips: hero id → the host avatar of the OLDEST open lobby holding that

@@ -80,10 +80,15 @@ export interface PresenceEntry {
 export type PairRole = 'host' | 'guest';
 export type PairEndReason = 'cancelled' | 'left' | 'expired';
 
-/** The quick-play XP bonus advert. `endsAt` is ISO. */
+/**
+ * The quick-play XP bonus advert. `endsAt` (ISO) is present only when the bonus
+ * has a scheduled end; absent = an open-ended promotion, on until the operator
+ * switches it off. Made optional 2026-11-08 without a version bump: the lobby
+ * is unreleased and both repos sync this file in the same train.
+ */
 export interface QuickPlayBonus {
   multiplier: number;
-  endsAt: string;
+  endsAt?: string;
 }
 
 export type LobbyClientMsg =
