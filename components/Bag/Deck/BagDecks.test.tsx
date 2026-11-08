@@ -136,6 +136,34 @@ describe("BagDecks", () => {
     expect(mockPush).toHaveBeenCalledWith({ query: { ...mockQuery, editMapUrl: true } });
   });
 
+  it("every deck keeps its place in the grid when the star moves; the starred tile is highlighted (round 3)", () => {
+    const decks = [deck("a", "Alpha"), deck("b", "Bravo"), deck("c", "Charlie")];
+    const { setStar } = bag(decks);
+    const { rerender } = renderBag();
+    const order = () =>
+      screen.getAllByRole("button", { name: /up next$/ }).map((el) => el.getAttribute("aria-label"));
+    expect(order()).toEqual(["Alpha: up next", "Bravo: make it up next", "Charlie: make it up next"]);
+    expect(screen.getByRole("button", { name: "Alpha: up next" })).toHaveAttribute("aria-pressed", "true");
+    expect(upNext()).toHaveTextContent("Alpha");
+
+    fireEvent.click(screen.getByRole("button", { name: "Charlie: make it up next" }));
+    expect(setStar).toHaveBeenCalledWith("c");
+    // the store would now report star = "c": same order, only the highlight moves
+    mockBag.star = "c";
+    rerender(
+      <ChakraProvider>
+        <BagDecks />
+      </ChakraProvider>,
+    );
+    expect(order()).toEqual(["Alpha: make it up next", "Bravo: make it up next", "Charlie: up next"]);
+    expect(screen.getByRole("button", { name: "Charlie: up next" })).toHaveAttribute("aria-pressed", "true");
+    expect(upNext()).toHaveTextContent("Charlie");
+    // tapping the starred tile again changes nothing
+    (setStar as jest.Mock).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Charlie: up next" }));
+    expect(setStar).not.toHaveBeenCalled();
+  });
+
   it("every other deck is a tile; tapping one makes it Up next", () => {
     const { setStar } = bag([deck("a", "Alpha"), deck("b", "Bravo"), deck("c", "Charlie")]);
     renderBag();
@@ -145,6 +173,8 @@ describe("BagDecks", () => {
       "Bravo: make it up next",
       "Charlie: make it up next",
     ]);
+    // the starred deck is a tile too, highlighted, not pulled out of the grid
+    expect(screen.getByRole("button", { name: "Alpha: up next" })).toBeInTheDocument();
     fireEvent.click(tiles[0]);
     expect(setStar).toHaveBeenCalledWith("b");
   });

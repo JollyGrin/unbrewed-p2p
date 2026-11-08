@@ -94,7 +94,12 @@ export const DeckDetail = ({
   };
 
   return (
-    <Flex direction="column" bg="brand.secondary" minH="100%" flex="1">
+    /*
+      `flex: 1 0 auto`, never a fixed height: the panel grows with the card
+      list, so the purple runs the full height of a long deck instead of
+      stopping at the viewport and leaving the last rows on the page colour.
+    */
+    <Flex direction="column" bg="brand.secondary" minH="100%" flex="1 0 auto">
       {/* Mobile (#816): back + name + an overflow menu for everything secondary. */}
       <Flex
         display={{ base: "flex", md: "none" }}
@@ -104,7 +109,7 @@ export const DeckDetail = ({
         py="0.4rem"
         position="sticky"
         top={0}
-        zIndex={2}
+        zIndex={20}
         bg="brand.secondary"
         borderBottom="1px solid rgba(255,255,255,0.08)"
       >
@@ -203,10 +208,13 @@ export const DeckDetail = ({
         gap="0.5rem"
         flexWrap="wrap"
         align="center"
+        // Above the card grid (a hovered card lifts to z 10) and opaque, so the
+        // cards scroll under the row, never over it.
         position="sticky"
         top={0}
-        zIndex={1}
+        zIndex={20}
         bg="brand.secondary"
+        boxShadow="0 2px 8px rgba(20, 8, 24, 0.35)"
         borderBottom="1px solid rgba(255,255,255,0.08)"
       >
         <Button
@@ -266,11 +274,15 @@ export const DeckDetail = ({
       {/* The menu's "Toss from bag" asks here, where there is room for the answer. */}
       {confirmingToss && (
         <Flex
+          position="sticky"
+          top={{ base: "3.1rem", md: "3.6rem" }}
+          zIndex={19}
           p="0.75rem"
           gap="0.5rem"
           align="center"
           flexWrap="wrap"
-          bg="rgba(255, 99, 71, 0.12)"
+          bg="#5C3A4B"
+          color="brand.primary"
           borderBottom="1px solid rgba(72, 40, 79, 0.12)"
           fontSize="0.9rem"
         >

@@ -54,7 +54,10 @@ export const BagDecks = () => {
 
   const count = decks?.length ?? 0;
   const upNext = decks?.find((deck) => deck.id === star);
-  const others = decks?.filter((deck) => deck.id !== upNext?.id) ?? [];
+  // Every deck keeps its place in the grid, the starred one included (it is
+  // highlighted there and shown above as Up next): starring must never
+  // reflow the tiles under the player's thumb.
+  const tiles = decks ?? [];
 
   // The map a table opened from here will use: the one picked in the modal
   // (`?mapUrl=`), else the default board.
@@ -92,6 +95,7 @@ export const BagDecks = () => {
   };
 
   const makeUpNext = (id: string) => {
+    if (id === star) return;
     setStar(id);
     const deck = decks?.find((d) => d.id === id);
     toast.success(`${deck?.name} is up next`, { id: "bag-up-next" });
@@ -101,9 +105,9 @@ export const BagDecks = () => {
     /* One scroll container: the stats bar scrolls away, every pane flows at
        its natural height, no nested scroll boxes. */
     <Flex direction="column" h="100%" minH={0} overflowY="auto" bg="brand.highlight">
-      <Box bg="brand.primary" flexShrink={0}>
+      {!editing && (
         <DeckStats length={count} storage={storage} isSignedIn={account.status === "signed-in"} />
-      </Box>
+      )}
 
       {editing ? (
         <DeckDetail
@@ -150,7 +154,7 @@ export const BagDecks = () => {
               <Text fontSize="0.8rem" opacity={0.7}>
                 {count} {count === 1 ? "deck" : "decks"} · 🎒
               </Text>
-              {others.length > 0 && (
+              {tiles.length > 1 && (
                 <Text fontSize="0.8rem" opacity={0.7} ml={{ md: "auto" }}>
                   Tap a deck to make it up next
                 </Text>
@@ -199,11 +203,12 @@ export const BagDecks = () => {
                   gap={{ base: "0.4rem", md: "0.6rem" }}
                   mt="0.75rem"
                 >
-                  {others.map((deck) => (
+                  {tiles.map((deck) => (
                     <DeckTile
                       key={deck.id + deck.version_id}
                       deck={deck}
                       bagSource={sourceOf(deck.id)}
+                      starred={deck.id === upNext?.id}
                       onSelect={makeUpNext}
                     />
                   ))}

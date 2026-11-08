@@ -173,14 +173,19 @@ export const UpNextCard = ({
   );
 };
 
-/** Every other deck: a compact tile. Tapping it makes the deck Up next. */
+/**
+ * Every deck as a compact tile, in a stable position. Tapping one makes it
+ * Up next; the starred one stays where it is, with a gold ring and a ★.
+ */
 export const DeckTile = ({
   deck,
   bagSource,
+  starred = false,
   onSelect,
 }: {
   deck: DeckImportType;
   bagSource: BagSource;
+  starred?: boolean;
   onSelect: (id: string) => void;
 }) => {
   const hero = deck.deck_data?.hero;
@@ -191,14 +196,18 @@ export const DeckTile = ({
       type="button"
       textAlign="left"
       bg="white"
-      border="1px solid rgba(72, 40, 79, 0.14)"
+      border="1px solid"
+      borderColor={starred ? "brand.accent" : "rgba(72, 40, 79, 0.14)"}
+      boxShadow={starred ? "0 0 0 3px rgba(224, 168, 46, 0.45)" : undefined}
       borderRadius="0.6rem"
       overflow="hidden"
       cursor="pointer"
       transition="transform 0.12s ease-out, box-shadow 0.12s ease-out"
       _hover={{ transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(20, 8, 24, 0.22)" }}
       _focusVisible={{ outline: "3px solid", outlineColor: "brand.accent" }}
-      aria-label={`${deck.name}: make it up next`}
+      aria-label={starred ? `${deck.name}: up next` : `${deck.name}: make it up next`}
+      aria-pressed={starred}
+      data-starred={starred || undefined}
       onClick={() => onSelect(deck.id)}
     >
       <Box
@@ -238,6 +247,26 @@ export const DeckTile = ({
         <Box position="absolute" top="0.35rem" right="0.35rem" zIndex={1} color="white">
           <BagSourceChip source={bagSource} />
         </Box>
+        {starred && (
+          <Text
+            as="span"
+            aria-hidden
+            position="absolute"
+            bottom="0.3rem"
+            right="0.35rem"
+            zIndex={1}
+            fontSize="0.8rem"
+            fontWeight={700}
+            lineHeight={1}
+            px="0.35rem"
+            py="0.15rem"
+            borderRadius="full"
+            bg="brand.accent"
+            color="brand.surfaceDim"
+          >
+            ★
+          </Text>
+        )}
       </Box>
       <Text
         fontWeight={700}
