@@ -309,6 +309,7 @@ export const DeckDetail = ({
         decks={[deck]}
         selectedDeckId={deck.id}
         onToggleCharacterCard={toggleCharacterCard}
+        onUpdateDeck={updateDeck}
       />
     </Flex>
   );
