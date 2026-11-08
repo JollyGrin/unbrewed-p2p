@@ -1,14 +1,10 @@
 /**
- * /bag's Decks tab on a phone (#816). jest renders Chakra's BASE breakpoint
- * (desktop-only UI is display:none), so this is the ~390px layout:
- *
- *  - the rail and the detail pane SWAP instead of stacking in one fixed box —
- *    tapping "Add" from a stocked bag gives the add panel the whole screen,
- *    and there's a way back to the list;
- *  - an empty bag (where /irl's "Open your bag" lands) opens straight onto
- *    the add panel;
- *  - a deck's two primary actions share one foot bar, and everything
- *    secondary sits behind a menu instead of wrapping at equal weight.
+ * /bag's Decks tab (#1538): the paste bar on top, the starred deck as one
+ * "★ Up next" card whose buttons name their table, every other deck a tile
+ * that becomes Up next when tapped, and "Edit deck" swapping the panel for
+ * the deck's detail screen with a way back (#816). jest renders Chakra's
+ * BASE breakpoint, so this is the ~390px layout: the detail screen's
+ * secondary actions sit behind the overflow menu.
  */
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -17,14 +13,22 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { BagDecks } from ".";
 
+const mockTrack = jest.fn();
+jest.mock("../../../lib/analytics", () => ({
+  ...jest.requireActual("../../../lib/analytics"),
+  track: (...a: unknown[]) => mockTrack(...a),
+}));
+const mockPush = jest.fn();
+let mockQuery: Record<string, string> = {};
 jest.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/bag", query: {}, push: jest.fn() }),
+  useRouter: () => ({ asPath: "/bag", query: mockQuery, push: (...a: unknown[]) => mockPush(...a) }),
 }));
 // Relative paths, not the `@/` alias: SWC rewrites alias imports but leaves a
 // `jest.mock()` string alone. Everything around the layout is stubbed — the
-// swap and the action bar are what's under test.
+// shelf, the swap and the detail screen are what's under test.
 jest.mock("../../../lib/bag/useBag", () => ({
   useBagDecks: () => mockBag,
+  useBagMaps: () => ({ data: [], importMaps: async () => 0 }),
 }));
 jest.mock("../../../lib/account/useAccount", () => ({
   useAccount: () => ({ status: "guest" }),
@@ -34,20 +38,19 @@ jest.mock("../../../lib/storage/breakdown", () => ({
 }));
 jest.mock("./Stats", () => ({ DeckStats: () => null }));
 jest.mock("./DeckCards", () => ({ DeckCards: () => <p>deck cards</p> }));
-jest.mock("../AddDeckHub", () => ({
-  AddDeckHub: () => <p>Add a deck to your bag</p>,
-}));
+jest.mock("../Map/MapModal", () => ({ MapModal: () => null }));
 jest.mock("../Account", () => ({
   BagSourceChip: () => null,
   ShareItemButton: () => null,
 }));
 
-const deck = (id: string, name: string) =>
+const deck = (id: string, name: string, extra: Partial<DeckImportType> = {}) =>
   ({
     id,
     name,
     version_id: "1",
-    deck_data: { cards: [], appearance: {} },
+    deck_data: { cards: [], appearance: {}, hero: { hp: 15, move: 2, isRanged: false, name } },
+    ...extra,
   }) as unknown as DeckImportType;
 
 let mockBag: Record<string, unknown>;
@@ -58,8 +61,9 @@ const bag = (decks: DeckImportType[], extra: Record<string, unknown> = {}) => {
     removeDeckbyId: jest.fn(),
     updateDeck: jest.fn(),
     setStar: jest.fn(),
-    star: undefined,
-    clearDecks: jest.fn(),
+    star: decks[0]?.id,
+    clearDecks: jest.fn(async () => undefined),
+    clearStar: jest.fn(),
     isLoading: false,
     sourceOf: () => "device",
     cloudIdOf: () => undefined,
@@ -75,7 +79,8 @@ const renderBag = () =>
     </ChakraProvider>,
   );
 
-const addPanel = () => screen.getByText("Add a deck to your bag");
+const pasteBar = () => screen.getByPlaceholderText("Paste a deck link, code or JSON");
+const upNext = () => screen.getByTestId("up-next");
 
 /*
   Chakra's MenuList is still `visibility: hidden` mid-open-animation in jsdom,
@@ -88,57 +93,109 @@ const menuItem = (label: string) => {
   return item;
 };
 
-describe("BagDecks on mobile", () => {
-  it("gives the add panel the whole screen from a stocked bag, and comes back", () => {
+beforeEach(() => {
+  mockTrack.mockClear();
+  mockPush.mockClear();
+  mockQuery = {};
+});
+
+describe("BagDecks", () => {
+  it("shows the starred deck as Up next, with buttons that name their table", () => {
     bag([deck("a", "Alpha"), deck("b", "Bravo")]);
     renderBag();
 
-    expect(screen.getByText("Alpha")).toBeVisible();
-    expect(addPanel()).not.toBeVisible();
+    expect(pasteBar()).toBeVisible();
+    expect(upNext()).toHaveTextContent("★ Up next");
+    expect(upNext()).toHaveTextContent("Alpha");
+    expect(upNext()).toHaveTextContent("❤ 15");
+    expect(upNext()).toHaveTextContent("Map: The Mended Drum");
 
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
-    expect(addPanel()).toBeVisible();
-    expect(screen.getByText("Alpha")).not.toBeVisible();
+    expect(screen.getByRole("link", { name: "▶ Solo table" })).toHaveAttribute("href", "/offline?deckId=a");
+    expect(screen.getByRole("link", { name: "⚔ Invite a friend" })).toHaveAttribute("href", "/connect");
+    expect(screen.getByRole("link", { name: "📱 In person" })).toHaveAttribute("href", "/irl?deckId=a");
+    // no generic "Play" anywhere: the buttons say where they go
+    expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^play$/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Your bag (2)" }));
-    expect(screen.getByText("Alpha")).toBeVisible();
-    expect(addPanel()).not.toBeVisible();
+    fireEvent.click(screen.getByRole("link", { name: "▶ Solo table" }));
+    expect(mockTrack).toHaveBeenCalledWith("bag_table_opened", { destination: "offline", from: "upnext" });
   });
 
-  it("opens an empty bag straight onto the add panel, with nothing to go back to", () => {
-    bag([]);
+  it("carries a map picked on this page to the sandbox tables, not to /irl", () => {
+    mockQuery = { mapUrl: "/maps/legacy-the-chalk.webp" };
+    bag([deck("a", "Alpha")]);
     renderBag();
+    expect(upNext()).toHaveTextContent("Map: The Chalk");
+    expect(screen.getByRole("link", { name: "▶ Solo table" })).toHaveAttribute(
+      "href",
+      "/offline?deckId=a&mapUrl=%2Fmaps%2Flegacy-the-chalk.webp",
+    );
+    expect(screen.getByRole("link", { name: "📱 In person" })).toHaveAttribute("href", "/irl?deckId=a");
 
-    expect(addPanel()).toBeVisible();
-    expect(screen.queryByRole("button", { name: /your bag/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "change" }));
+    expect(mockPush).toHaveBeenCalledWith({ query: { ...mockQuery, editMapUrl: true } });
   });
 
-  it("keeps a still-loading account bag on the rail rather than the add panel", () => {
-    bag([], { isLoading: true });
-    renderBag();
+  it("every deck keeps its place in the grid when the star moves; the starred tile is highlighted (round 3)", () => {
+    const decks = [deck("a", "Alpha"), deck("b", "Bravo"), deck("c", "Charlie")];
+    const { setStar } = bag(decks);
+    const { rerender } = renderBag();
+    const order = () =>
+      screen.getAllByRole("button", { name: /up next$/ }).map((el) => el.getAttribute("aria-label"));
+    expect(order()).toEqual(["Alpha: up next", "Bravo: make it up next", "Charlie: make it up next"]);
+    expect(screen.getByRole("button", { name: "Alpha: up next" })).toHaveAttribute("aria-pressed", "true");
+    expect(upNext()).toHaveTextContent("Alpha");
 
-    expect(screen.getByText("Loading your bag…")).toBeVisible();
-    expect(addPanel()).not.toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Charlie: make it up next" }));
+    expect(setStar).toHaveBeenCalledWith("c");
+    // the store would now report star = "c": same order, only the highlight moves
+    mockBag.star = "c";
+    rerender(
+      <ChakraProvider>
+        <BagDecks />
+      </ChakraProvider>,
+    );
+    expect(order()).toEqual(["Alpha: make it up next", "Bravo: make it up next", "Charlie: up next"]);
+    expect(screen.getByRole("button", { name: "Charlie: up next" })).toHaveAttribute("aria-pressed", "true");
+    expect(upNext()).toHaveTextContent("Charlie");
+    // tapping the starred tile again changes nothing
+    (setStar as jest.Mock).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Charlie: up next" }));
+    expect(setStar).not.toHaveBeenCalled();
   });
 
-  it("promotes the two primary actions into one bar and menus the rest", () => {
-    const { setStar } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+  it("every other deck is a tile; tapping one makes it Up next", () => {
+    const { setStar } = bag([deck("a", "Alpha"), deck("b", "Bravo"), deck("c", "Charlie")]);
     renderBag();
 
-    fireEvent.click(screen.getByText("Alpha"));
+    const tiles = screen.getAllByRole("button", { name: /make it up next/ });
+    expect(tiles.map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Bravo: make it up next",
+      "Charlie: make it up next",
+    ]);
+    // the starred deck is a tile too, highlighted, not pulled out of the grid
+    expect(screen.getByRole("button", { name: "Alpha: up next" })).toBeInTheDocument();
+    fireEvent.click(tiles[0]);
+    expect(setStar).toHaveBeenCalledWith("b");
+  });
+
+  it("'+ Add another' focuses the paste bar", () => {
+    bag([deck("a", "Alpha")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: /Add another/ }));
+    expect(pasteBar()).toHaveFocus();
+  });
+
+  it("Edit deck opens the detail screen with the secondary actions behind a menu, and comes back", () => {
+    bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+    renderBag();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
     expect(screen.getByRole("heading", { name: "Alpha" })).toBeVisible();
-    expect(screen.getByText("Bravo")).not.toBeVisible();
+    expect(screen.getByText("deck cards")).toBeVisible();
+    expect(screen.queryByTestId("up-next")).toBeNull();
+    expect(screen.queryByPlaceholderText("Paste a deck link, code or JSON")).toBeNull();
 
-    const use = screen.getByRole("button", { name: "★ Use this deck" });
-    const playtest = screen.getByRole("link", { name: "Playtest in person" });
-    expect(playtest).toHaveAttribute("href", "/irl?deckId=a");
-    expect(use.parentElement).toBe(playtest.parentElement);
-
-    // the desktop row's equal-weight secondaries aren't on screen...
-    expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Toss" })).toBeNull();
-
-    // ...they're behind the overflow menu
     fireEvent.click(screen.getByRole("button", { name: "More deck actions" }));
     expect(menuItems().map((item) => item.textContent)).toEqual([
       "Edit cardback",
@@ -147,28 +204,106 @@ describe("BagDecks on mobile", () => {
       "Toss from bag",
     ]);
 
-    fireEvent.click(use);
-    expect(setStar).toHaveBeenCalledWith("a");
+    fireEvent.click(screen.getByRole("button", { name: "Back to your bag" }));
+    expect(upNext()).toBeVisible();
+    expect(pasteBar()).toBeVisible();
   });
 
-  it("tossing from the menu drops the deck and returns to the list", () => {
+  it("an image deck's detail menu also offers Edit hero info; an account deck a share link", () => {
+    bag([deck("a", "Alpha", { tags: ["image-deck"] })], { cloudIdOf: () => "row-1" });
+    renderBag();
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
+    fireEvent.click(screen.getByRole("button", { name: "More deck actions" }));
+    expect(menuItems().map((item) => item.textContent)).toEqual([
+      "Edit hero info",
+      "Edit cardback",
+      "Tokens",
+      "Share link",
+      "Copy JSON",
+      "Toss from bag",
+    ]);
+  });
+
+  it("tossing from the detail menu asks first, then drops the deck and returns to the shelf", () => {
     const { removeDeckbyId } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
     renderBag();
 
-    fireEvent.click(screen.getByText("Alpha"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
     fireEvent.click(screen.getByRole("button", { name: "More deck actions" }));
     fireEvent.click(menuItem("Toss from bag"));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss Alpha from your bag?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, toss it" }));
 
     expect(removeDeckbyId).toHaveBeenCalledWith("a");
-    expect(screen.getByText("Bravo")).toBeVisible();
+    expect(mockTrack).toHaveBeenCalledWith("deck_removed", { source: undefined });
+    expect(pasteBar()).toBeVisible();
   });
 
-  it("goes back from a deck to the list", () => {
-    bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+  it("Toss on the Up next card is two taps: Cancel keeps the deck, Yes tosses it (review)", () => {
+    const { removeDeckbyId } = bag([deck("a", "Alpha")]);
     renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Toss" }));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss Alpha?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Toss" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Alpha"));
-    fireEvent.click(screen.getByRole("button", { name: "Back to your bag" }));
-    expect(screen.getByText("Bravo")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Toss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    expect(removeDeckbyId).toHaveBeenCalledWith("a");
+  });
+
+  it("tossing the Up next deck stars the next one, or clears the star when the bag empties (review)", () => {
+    const { setStar } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Toss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    expect(setStar).toHaveBeenCalledWith("b");
+
+    const { clearStar, setStar: setStar2 } = bag([deck("a", "Alpha")]);
+    renderBag();
+    fireEvent.click(screen.getAllByRole("button", { name: "Toss" }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Yes" }).at(-1)!);
+    expect(clearStar).toHaveBeenCalled();
+    expect(setStar2).not.toHaveBeenCalled();
+  });
+
+  it("Clear bag is back, low-key under the tiles, with the same confirm (review)", () => {
+    const { clearDecks } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Clear bag" }));
+    expect(clearDecks).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss all 2 decks?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(clearDecks).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Clear bag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all 2" }));
+    expect(clearDecks).toHaveBeenCalled();
+  });
+
+  it("keeps a still-loading account bag on a spinner, never a flash of empty", () => {
+    bag([], { isLoading: true, star: undefined });
+    renderBag();
+    expect(screen.getByText("Loading your bag…")).toBeVisible();
+    expect(screen.queryByText(/Your bag is empty/)).toBeNull();
+    expect(pasteBar()).toBeVisible();
+  });
+
+  it("an empty bag says so under the paste bar", () => {
+    bag([], { star: undefined });
+    renderBag();
+    expect(screen.getByText(/Your bag is empty/)).toBeVisible();
+    expect(pasteBar()).toBeVisible();
+    expect(screen.queryByTestId("up-next")).toBeNull();
+  });
+
+  it("with nothing starred, every deck is a tile and there is no Up next card", () => {
+    bag([deck("a", "Alpha"), deck("b", "Bravo")], { star: "" });
+    renderBag();
+    expect(screen.queryByTestId("up-next")).toBeNull();
+    expect(screen.getAllByRole("button", { name: /make it up next/ })).toHaveLength(2);
   });
 });

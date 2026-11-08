@@ -1,224 +1,276 @@
-import { useState } from "react";
-import { Box, Button, Flex, Grid, Text } from "@chakra-ui/react";
-import { FaArrowLeft } from "react-icons/fa";
+import {
+  ChangeEvent,
+  DragEvent,
+  FormEvent,
+  RefObject,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Box, Button, Flex, Input, Link, Text } from "@chakra-ui/react";
+import { FaFileImport, FaLink } from "react-icons/fa";
 import { BagDeckView } from "@/lib/bag/useBag";
+import { PasteDetection, detectDeckPaste } from "@/lib/bag/detectPaste";
 import { PopularDecks } from "@/components/Bag/PopularDecks";
 import { AddImageDeck } from "@/components/Bag/ImageDeck";
-import { StarterDeckContainer } from "@/components/Bag/StarterDecks";
 import { AddJson } from "@/components/Bag/Deck/AddJson";
+import { ClubPanel } from "./ClubPanel";
+import { UrlPanel } from "./UrlPanel";
 import { CodePanel } from "./CodePanel";
+import { FoundLine } from "./FoundLine";
 import { LabsPanel } from "./LabsPanel";
 
-type MethodId = "popular" | "code" | "labs" | "images" | "json" | "starters";
+type Browse = "popular" | "images";
 
-type Method = {
-  id: MethodId;
-  icon: string;
-  title: string;
-  blurb: string;
-  featured?: boolean;
-};
+const siteLink = (href: string, label: string) => (
+  <Link href={href} isExternal textDecoration="underline" fontWeight={700}>
+    {label}
+  </Link>
+);
 
-const METHODS: Method[] = [
-  {
-    id: "popular",
-    icon: "⭐",
-    title: "Popular decks",
-    blurb: "Browse the community's most-liked decks. One click and you're ready to play.",
-    featured: true,
-  },
-  {
-    id: "code",
-    icon: "🔑",
-    title: "Import from unmatched.cards",
-    blurb: "Have a deck code from unmatched.cards? Paste it here to pull the deck in.",
-  },
-  {
-    id: "labs",
-    icon: "🧪",
-    title: "Import from Unmatched Labs",
-    blurb: "Paste a share link from unmatchedlabs.com to bring in a fan-made hero.",
-  },
-  {
-    id: "images",
-    icon: "🖼️",
-    title: "Import from The Unmatched Club",
-    blurb: "Also works for any deck you have as card images or a TTS export.",
-  },
-  {
-    id: "json",
-    icon: "📋",
-    title: "Paste JSON",
-    blurb: "Raw deck JSON from any source — paste it in, or point us at a URL.",
-  },
-  {
-    id: "starters",
-    icon: "🎲",
-    title: "Starter decks",
-    blurb: "New here? Load a few ready-made decks to try.",
-  },
-];
-
+/**
+ * The universal paste bar (#1538): one input for a link, a code, deck JSON
+ * or a dropped `.json` file. `detectDeckPaste` says what it is, and the
+ * matching panel opens underneath with it filled in — no method to choose.
+ * "Browse decks" (every Pro deck plus the community's most-liked) opens inline.
+ */
 export const AddDeckHub = ({
   pushDeck,
   setStar,
   star,
   deckIds,
   onDeckAdded,
+  inputRef,
 }: {
   pushDeck: BagDeckView["pushDeck"];
   setStar: (id: string) => void;
   star?: string;
   deckIds?: string[];
-  /** jump to the new deck's detail view once a single deck is built */
+  /** a deck landed in the bag (it is starred, so it is Up next) */
   onDeckAdded?: (deckId: string) => void;
+  /** lets "+ Add another" focus the bar */
+  inputRef?: RefObject<HTMLInputElement>;
 }) => {
-  const [method, setMethod] = useState<MethodId | null>(null);
-  const active = METHODS.find((m) => m.id === method);
+  const [text, setText] = useState("");
+  const [browse, setBrowse] = useState<Browse>();
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const ownRef = useRef<HTMLInputElement>(null);
+  const ref = inputRef ?? ownRef;
 
-  if (active) {
-    return (
-      <Box maxW="920px" mx="auto">
-        <Button
-          variant="ghost"
-          size="sm"
-          color="brand.primary"
-          _hover={{ bg: "rgba(255,255,255,0.08)" }}
-          leftIcon={<FaArrowLeft />}
-          mb="0.75rem"
-          onClick={() => setMethod(null)}
-        >
-          All options
-        </Button>
-        <Box
-          bg="brand.parchment"
-          borderRadius="0.75rem"
-          p={{ base: "1rem", md: "1.25rem" }}
-          boxShadow="0 2px 10px rgba(20, 8, 24, 0.22)"
-        >
-          <Flex align="center" gap="0.6rem" mb="0.75rem">
-            <Text fontSize="1.5rem" lineHeight={1}>
-              {active.icon}
-            </Text>
-            <Text
-              fontFamily="SpaceGrotesk"
-              fontWeight={700}
-              fontSize="1.25rem"
-              color="brand.secondary"
-            >
-              {active.title}
-            </Text>
-          </Flex>
+  const detected: PasteDetection = useMemo(() => detectDeckPaste(text), [text]);
 
-          {method === "popular" && (
-            <PopularDecks deckIds={deckIds} pushDeck={pushDeck} setStar={setStar} star={star} />
-          )}
-          {method === "code" && (
-            <CodePanel pushDeck={pushDeck} setStar={setStar} onAdded={onDeckAdded} />
-          )}
-          {method === "labs" && (
-            <LabsPanel
-              pushDeck={pushDeck}
-              setStar={setStar}
-              onAdded={onDeckAdded}
-              onOpenImages={() => setMethod("images")}
-            />
-          )}
-          {method === "images" && <AddImageDeck onAdded={onDeckAdded} />}
-          {method === "json" && <AddJson onAdded={onDeckAdded} />}
-          {method === "starters" && (
-            <StarterDeckContainer deckIds={deckIds} pushDeck={pushDeck} />
-          )}
-        </Box>
-      </Box>
-    );
-  }
+  const added = (id: string) => {
+    setText("");
+    onDeckAdded?.(id);
+  };
+
+  const readFile = async (file: File | undefined) => {
+    if (!file) return;
+    setBrowse(undefined);
+    setText(await file.text());
+  };
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    await readFile(e.target.files?.[0]);
+    e.target.value = "";
+  };
+  const onDrop = async (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    await readFile(e.dataTransfer.files?.[0]);
+  };
+
+  const toggle = (next: Browse) => setBrowse((prev) => (prev === next ? undefined : next));
 
   return (
-    <Box maxW="920px" mx="auto">
+    <Box maxW="920px" mx="auto" color="brand.secondary">
       <Text
+        as="h2"
         fontFamily="BebasNeueRegular"
-        fontSize="2rem"
+        fontSize={{ base: "2rem", md: "2.5rem" }}
         letterSpacing="0.03em"
-        color="brand.primary"
-        lineHeight={1.1}
+        lineHeight={1}
       >
-        Add a deck to your bag
+        Got a deck?{" "}
+        <Text as="span" color="brand.accentDeep">
+          Paste it in.
+        </Text>
       </Text>
-      <Text fontSize="0.9rem" opacity={0.85} mb="1.25rem" color="brand.primary">
-        Pick how you want to bring a deck in — you can always add more later.
+      <Text fontSize="0.9rem" opacity={0.75} mt="0.3rem" mb="0.8rem">
+        Links from unmatched.cards, Unmatched Labs or the-unmatched.club. Files
+        too. You&apos;ll be at a table one click later.
       </Text>
 
-      <Grid
-        templateColumns={{ base: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" }}
-        gap="0.85rem"
+      <form
+        onSubmit={(e: FormEvent) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
       >
-        {METHODS.map((m) => (
-          <MethodCard key={m.id} method={m} onClick={() => setMethod(m.id)} />
-        ))}
-      </Grid>
+        <Flex
+          align="center"
+          gap="0.6rem"
+          bg="white"
+          border="2px solid"
+          borderColor={dragging ? "brand.accent" : "brand.secondary"}
+          borderStyle={dragging ? "dashed" : "solid"}
+          borderRadius="0.75rem"
+          boxShadow="0 2px 0 #48284F"
+          px="0.85rem"
+          h="3.25rem"
+        >
+          <Box opacity={0.7} flexShrink={0}>
+            <FaLink />
+          </Box>
+          <Input
+            ref={ref}
+            aria-label="Paste a deck link, code or JSON"
+            placeholder="Paste a deck link, code or JSON"
+            variant="unstyled"
+            fontFamily="ArchivoNarrow"
+            fontSize="1.05rem"
+            value={text}
+            onChange={(e) => {
+              setBrowse(undefined);
+              setText(e.target.value);
+            }}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {text && (
+            <Button
+              size="xs"
+              variant="ghost"
+              flexShrink={0}
+              aria-label="Clear"
+              onClick={() => setText("")}
+            >
+              ✕
+            </Button>
+          )}
+          <Button
+            as="label"
+            size="sm"
+            variant="ghost"
+            flexShrink={0}
+            cursor="pointer"
+            leftIcon={<FaFileImport />}
+            display={{ base: "none", sm: "inline-flex" }}
+          >
+            File
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={onFile}
+              data-testid="paste-file"
+            />
+          </Button>
+        </Flex>
+      </form>
+
+      <Flex
+        mt="0.5rem"
+        fontSize="0.82rem"
+        opacity={0.85}
+        gap="0.35rem"
+        flexWrap="wrap"
+        align="center"
+      >
+        <TextLink active={browse === "popular"} onClick={() => toggle("popular")}>
+          Browse decks
+        </TextLink>
+        <span>·</span>
+        <TextLink onClick={() => fileRef.current?.click()}>Drop a file</TextLink>
+      </Flex>
+
+      {browse && (
+        <Box
+          mt="0.75rem"
+          bg="brand.parchment"
+          borderRadius="0.75rem"
+          p={{ base: "0.85rem", md: "1rem" }}
+          border="1px solid rgba(72, 40, 79, 0.18)"
+        >
+          {browse === "popular" && (
+            <PopularDecks deckIds={deckIds} pushDeck={pushDeck} setStar={setStar} star={star} />
+          )}
+          {browse === "images" && <AddImageDeck onAdded={added} />}
+        </Box>
+      )}
+
+      <Box mt={detected.kind === "empty" ? 0 : "0.25rem"}>
+        {detected.kind === "labs" && (
+          <LabsPanel
+            link={detected.link}
+            pushDeck={pushDeck}
+            setStar={setStar}
+            onAdded={added}
+            onOpenImages={() => setBrowse("images")}
+          />
+        )}
+        {detected.kind === "code" && (
+          <CodePanel code={detected.code} pushDeck={pushDeck} setStar={setStar} onAdded={added} />
+        )}
+        {detected.kind === "bundle" && (
+          <AddJson key={detected.text} bundle={detected.bundle} onAdded={added} />
+        )}
+        {detected.kind === "tts" && (
+          <>
+            <FoundLine>
+              Tabletop Simulator export · {detected.cardCount} unique cards
+              {detected.name ? ` · ${detected.name}` : ""}
+            </FoundLine>
+            <Box mt="0.75rem">
+              <AddImageDeck key={detected.text} initialTts={detected.text} onAdded={added} />
+            </Box>
+          </>
+        )}
+        {detected.kind === "club" && (
+          <ClubPanel id={detected.id} pushDeck={pushDeck} setStar={setStar} onAdded={added} />
+        )}
+        {detected.kind === "url" && (
+          <UrlPanel url={detected.url} onAdded={added} notRecognised={<NotRecognised looksLikeJson />} />
+        )}
+        {detected.kind === "unknown" && <NotRecognised looksLikeJson={detected.looksLikeJson} />}
+      </Box>
     </Box>
   );
 };
 
-const MethodCard = ({
-  method,
+const NotRecognised = ({ looksLikeJson }: { looksLikeJson: boolean }) => (
+  <FoundLine tone="problem">
+    Not a deck we recognise.{" "}
+    {looksLikeJson ? "That JSON isn't a deck, a backup or a Tabletop Simulator export. " : ""}
+    Paste a link from {siteLink("https://unmatched.cards/decks", "unmatched.cards")},{" "}
+    {siteLink("https://www.unmatchedlabs.com", "Unmatched Labs")} or{" "}
+    {siteLink("https://the-unmatched.club", "the-unmatched.club")}.
+  </FoundLine>
+);
+
+const TextLink = ({
+  children,
   onClick,
+  active,
 }: {
-  method: Method;
+  children: string;
   onClick: () => void;
+  active?: boolean;
 }) => (
-  <Flex
-    as="button"
+  <Button
+    variant="link"
+    size="sm"
+    fontSize="0.82rem"
+    fontWeight={active ? 700 : 600}
+    color="brand.secondary"
+    textDecoration="underline"
+    textUnderlineOffset="3px"
     onClick={onClick}
-    direction="column"
-    textAlign="left"
-    gap="0.4rem"
-    p="1rem"
-    borderRadius="0.75rem"
-    bg="brand.parchment"
-    border="2px solid"
-    borderColor={method.featured ? "brand.accent" : "rgba(72, 40, 79, 0.15)"}
-    boxShadow="0 2px 8px rgba(20, 8, 24, 0.18)"
-    cursor="pointer"
-    transition="all 0.15s ease-out"
-    gridColumn={{ base: "auto", sm: method.featured ? "1 / -1" : "auto" }}
-    _hover={{
-      transform: "translateY(-2px)",
-      boxShadow: "0 8px 20px rgba(20, 8, 24, 0.3)",
-      borderColor: method.featured ? "brand.accentDeep" : "brand.secondary",
-    }}
   >
-    <Flex align="center" gap="0.5rem">
-      <Text fontSize="1.6rem" lineHeight={1}>
-        {method.icon}
-      </Text>
-      <Text
-        fontFamily="SpaceGrotesk"
-        fontWeight={700}
-        fontSize="1.05rem"
-        color="brand.secondary"
-      >
-        {method.title}
-      </Text>
-      {method.featured && (
-        <Text
-          fontSize="0.62rem"
-          fontWeight={700}
-          textTransform="uppercase"
-          letterSpacing="0.06em"
-          bg="brand.accent"
-          color="brand.surfaceDim"
-          px="0.4rem"
-          py="0.1rem"
-          borderRadius="full"
-        >
-          Easiest
-        </Text>
-      )}
-    </Flex>
-    <Text fontSize="0.85rem" opacity={0.82} color="brand.secondary">
-      {method.blurb}
-    </Text>
-  </Flex>
+    {children}
+  </Button>
 );
