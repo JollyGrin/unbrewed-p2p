@@ -12,7 +12,6 @@ jest.mock("react-hot-toast", () => ({ toast: { success: jest.fn() } }));
 jest.mock("@chakra-ui/focus-lock", () => ({
   FocusLock: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-jest.mock("react-color", () => ({ CirclePicker: () => null }));
 
 const renderModal = (heroTokens?: { kind: "hero" | "sidekick"; name: string; imageUrl: string }[]) => {
   const onAdd = jest.fn();
