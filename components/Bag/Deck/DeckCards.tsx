@@ -10,7 +10,7 @@ import { CardInspector } from "./CardInspector";
 import { HeroSheet } from "./HeroSheet";
 
 /** Sum of `quantity` (default 1): "N cards" counts copies, not unique faces. */
-export const weightedCount = (cards: DeckImportCardType[]) =>
+const weightedCount = (cards: DeckImportCardType[]) =>
   cards.reduce((n, c) => n + (c.quantity ?? 1), 0);
 
 /** Section header: Bebas title, muted subtitle, hairline rule underneath. */
@@ -52,8 +52,16 @@ const KeepOutToggle = ({
   card: DeckImportCardType;
   onToggle: () => void;
 }) => (
+  // A div, not a label: Chakra's Switch already renders its own <label>, and
+  // nesting labels is invalid HTML. The row's onClick covers the text and
+  // padding. Clicks that start inside the Switch are left to its onChange (its
+  // own label/input click would otherwise toggle twice), so keyboard Space and
+  // a click on the track also flip exactly once.
   <Flex
-    as="label"
+    onClick={(e) => {
+      if ((e.target as HTMLElement).closest("label")) return;
+      onToggle();
+    }}
     align="center"
     gap="0.75rem"
     p="0.75rem"
@@ -115,6 +123,7 @@ export const DeckCards = ({
     return { drawDeck, keptOut, ordered: [...drawDeck, ...keptOut] };
   }, [cards]);
 
+  const drawCount = weightedCount(drawDeck.map((e) => e.card));
   const inspectorIndex =
     inspecting === null ? null : ordered.findIndex((e) => e.index === inspecting);
   // the inspected card vanished (deck swapped / card removed): forget it so a
@@ -206,7 +215,7 @@ export const DeckCards = ({
       {deck && onUpdateDeck && <HeroSheet deck={deck} onSave={onUpdateDeck} />}
       <SectionHeader
         title="Draw deck"
-        subtitle={`${weightedCount(drawDeck.map((e) => e.card))} cards, shuffled at the start of a game`}
+        subtitle={`${drawCount} ${drawCount === 1 ? "card" : "cards"}, shuffled at the start of a game`}
       />
       {grid(drawDeck.map(renderCard), "draw-deck-grid")}
       {showKeptOut && (
