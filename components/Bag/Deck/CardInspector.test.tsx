@@ -118,7 +118,7 @@ describe("CardInspector", () => {
     setup(deckOf(cards, ["image-deck"]), onToggle);
     open("GAMMA");
     const actions = screen.getByTestId("inspector-actions");
-    fireEvent.click(within(actions).getByRole("button"));
+    fireEvent.click(within(actions).getByRole("checkbox", { name: "Keep out of draw deck" }));
     expect(onToggle).toHaveBeenCalledWith(2);
   });
 
@@ -127,9 +127,11 @@ describe("CardInspector", () => {
     const flagged = [mk("ALPHA", { isCharacterCard: true }), mk("BETA")];
     setup(deckOf(flagged, ["unmatched-labs"]), onToggle);
     open("ALPHA");
-    const btn = within(screen.getByTestId("inspector-actions")).getByRole("button");
-    expect(btn).toHaveTextContent(/kept out/i);
-    fireEvent.click(btn);
+    const sw = within(screen.getByTestId("inspector-actions")).getByRole("checkbox", {
+      name: "Keep out of draw deck",
+    });
+    expect(sw).toBeChecked();
+    fireEvent.click(sw);
     expect(onToggle).toHaveBeenCalledWith(0);
   });
 
