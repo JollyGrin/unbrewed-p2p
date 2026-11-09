@@ -22,8 +22,7 @@ import {
 } from "@chakra-ui/react";
 import { DeleteIcon, LockIcon, UnlockIcon } from "@chakra-ui/icons";
 import { FC, ReactNode, useMemo, useState } from "react";
-//@ts-ignore
-import { CirclePicker } from "react-color";
+import { ColorCircles } from "@/components/Positions/ColorCircles";
 import { ImageFace } from "@/components/CardFactory/Card";
 import { TokenMarkup } from "@/components/BoardCanvas/Tokens";
 import { toast } from "react-hot-toast";
@@ -195,12 +194,7 @@ export const TokenLibraryModal: FC<{
           )}
           <SectionLabel>Your color — tints all of your tokens</SectionLabel>
           <Box mt="0.4rem">
-            <CirclePicker
-              color={color}
-              onChangeComplete={({ hex }: { hex: string }) =>
-                onColorChange(hex)
-              }
-            />
+            <ColorCircles color={color} onChange={onColorChange} />
           </Box>
 
           <Divider my="0.9rem" borderColor="rgba(72, 40, 79, 0.3)" />
