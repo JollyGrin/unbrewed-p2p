@@ -1,6 +1,11 @@
 import { renderHook } from "@testing-library/react";
 import { labsDeckId } from "@/lib/labs";
-import { deckSourceOf, useGameSession, useIrlSession } from "./gameAnalytics";
+import {
+  deckSourceOf,
+  MAX_JOINED_SEATS,
+  useGameSession,
+  useIrlSession,
+} from "./gameAnalytics";
 
 const track = jest.fn();
 jest.mock("./analytics", () => ({
@@ -93,7 +98,7 @@ describe("useGameSession (#1511)", () => {
     expect(ended()).toHaveLength(1);
   });
 
-  it("a back/forward-cache restore starts a new game", () => {
+  it("a back/forward-cache restore starts a new game (the room is not re-counted)", () => {
     const h = session({
       mode: "sandbox",
       active: true,
@@ -109,7 +114,6 @@ describe("useGameSession (#1511)", () => {
       "game_players_joined",
       "game_ended",
       "game_started",
-      "game_players_joined",
       "game_ended",
     ]);
   });
@@ -175,7 +179,7 @@ describe("game_players_joined (#1547)", () => {
     h.unmount();
   });
 
-  it("2 → 3 players: once per new peak", () => {
+  it("2 → 3 players: once per threshold", () => {
     const h = session(base);
     h.rerender({ ...base, players: 2 });
     h.rerender({ ...base, players: 3 });
@@ -185,24 +189,81 @@ describe("game_players_joined (#1547)", () => {
     expect(joined().map((c) => c[1].players)).toEqual([2, 3]);
   });
 
-  it("reload: the new page is a joiner, so the room is counted once with is_host", () => {
+  it("1 → 3 jump (two guests at once): sends 2, then 3", () => {
+    const h = session(base);
+    h.rerender({ ...base, players: 3 });
+    h.unmount();
+    expect(names()).toEqual([
+      "game_started",
+      "game_players_joined",
+      "game_players_joined",
+      "game_ended",
+    ]);
+    expect(joined().map((c) => c[1])).toEqual([
+      { mode: "sandbox", players: 2, is_host: true },
+      { mode: "sandbox", players: 3, is_host: true },
+    ]);
+  });
+
+  it(`caps at ${MAX_JOINED_SEATS} seats: ≤ 4 events per player`, () => {
+    const h = session(base);
+    h.rerender({ ...base, players: 4 });
+    h.rerender({ ...base, players: 6 });
+    h.unmount();
+    expect(joined().map((c) => c[1].players)).toEqual([2, 3]);
+    expect(track).toHaveBeenCalledTimes(4);
+  });
+
+  it("joiner into a 3-seat room: sends 2 and 3, once", () => {
+    const h = session({ ...base, active: false, players: 0, isHost: false });
+    h.rerender({ ...base, players: 3, isHost: false });
+    h.rerender({ ...base, players: 3, isHost: false });
+    h.unmount();
+    expect(joined().map((c) => c[1].players)).toEqual([2, 3]);
+  });
+
+  it("reload: the host's room is counted once (is_host true, players 2)", () => {
     // Host page: alone, then a friend joins.
     const host = session(base);
     host.rerender({ ...base, players: 2 });
     pageEvent("pagehide");
     host.unmount();
     // Reloaded page: the relay replays both seats, so it is not the host.
-    const reloaded = session({ ...base, players: 2, isHost: false });
+    const reloaded = session({
+      ...base,
+      active: false,
+      players: 0,
+      isHost: false,
+    });
+    reloaded.rerender({ ...base, players: 2, isHost: false });
+    reloaded.rerender({ ...base, players: 2, isHost: false });
     reloaded.unmount();
-    expect(joined().map((c) => c[1].is_host)).toEqual([true, false]);
+    expect(joined().map((c) => c[1])).toEqual([
+      { mode: "sandbox", players: 2, is_host: true },
+      { mode: "sandbox", players: 2, is_host: false },
+    ]);
+    const roomCount = joined().filter(
+      (c) => c[1].is_host === true && c[1].players === 2,
+    );
+    expect(roomCount).toHaveLength(1);
+    expect(names().filter((n) => n === "game_started")).toHaveLength(2);
   });
 
-  it("a back/forward-cache restore is a new game and reports again", () => {
-    const h = session({ ...base, players: 2 });
+  it("a back/forward-cache restore starts a new game but does not count the room again", () => {
+    const h = session(base);
+    h.rerender({ ...base, players: 2 });
     pageEvent("pagehide");
     pageEvent("pageshow", true);
+    expect(names()).toEqual([
+      "game_started",
+      "game_players_joined",
+      "game_ended",
+      "game_started",
+    ]);
+    // A new threshold after the restore still sends.
+    h.rerender({ ...base, players: 3 });
     h.unmount();
-    expect(joined()).toHaveLength(2);
+    expect(joined().map((c) => c[1].players)).toEqual([2, 3]);
   });
 
   it("never emits on /pro/*", () => {
@@ -265,7 +326,11 @@ describe("deckSourceOf", () => {
   });
 
   it("prefers the add source the bag stored, ignoring one it didn't mint", () => {
-    expect(deckSourceOf({ id: "abc123", addSource: "popular" })).toBe("popular");
-    expect(deckSourceOf({ id: "abc123", addSource: "typed" as never })).toBeUndefined();
+    expect(deckSourceOf({ id: "abc123", addSource: "popular" })).toBe(
+      "popular",
+    );
+    expect(
+      deckSourceOf({ id: "abc123", addSource: "typed" as never }),
+    ).toBeUndefined();
   });
 });

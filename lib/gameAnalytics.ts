@@ -40,9 +40,15 @@ export const deckSourceOf = (
  * dropped socket, a deck swap) does not end the game.
  *
  * `game_players_joined` (#1547) counts a multiplayer game without waiting for
- * its end: sent the first time the seat count reaches 2 after a
- * `game_started`, then again only for each new peak (3, 4, …).
+ * its end: once per seat threshold (2, then 3) the first time the seat count
+ * reaches it. A jump (1 → 3) sends every step it crossed, so `players = 2`
+ * never misses a room. Thresholds are per mount: a back/forward-cache restore
+ * starts a new `game_started` but does not send the same threshold again.
  */
+/** Seat thresholds above this send no `game_players_joined`: keeps a sandbox
+ * game at ≤ 4 events per player (started, 2, 3, ended). */
+export const MAX_JOINED_SEATS = 3;
+
 export const useGameSession = ({
   mode,
   active,
@@ -67,14 +73,21 @@ export const useGameSession = ({
     peak: Math.max(latest.current.peak, players),
   };
 
-  // Per game: whether it is open, and the most seats `game_players_joined` reported.
+  // Whether a game is open, and the highest seat threshold
+  // `game_players_joined` sent on this mount (1 = none yet).
   const game = useRef({ open: false, reported: 1 });
   const reportJoined = () => {
     const { players, isHost } = latest.current;
-    if (!game.current.open || players < 2 || players <= game.current.reported)
-      return;
-    game.current.reported = players;
-    track("game_players_joined", { mode, players, is_host: isHost });
+    if (!game.current.open) return;
+    const target = Math.min(players, MAX_JOINED_SEATS);
+    while (game.current.reported < target) {
+      game.current.reported += 1;
+      track("game_players_joined", {
+        mode,
+        players: game.current.reported,
+        is_host: isHost,
+      });
+    }
   };
   const reportJoinedRef = useRef(reportJoined);
   reportJoinedRef.current = reportJoined;
@@ -87,7 +100,7 @@ export const useGameSession = ({
     if (!live || isProPath()) return;
     let startedAt = 0;
     const start = () => {
-      game.current = { open: true, reported: 1 };
+      game.current.open = true;
       startedAt = Date.now();
       latest.current.peak = latest.current.players;
       track("game_started", {
