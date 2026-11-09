@@ -31,6 +31,10 @@ export const deckSourceOf = (
   knownAddSource(deck as DeckImportType | undefined) ??
   (deck && isLabsDeckId(deck.id) ? "unmatched-labs" : undefined);
 
+/** Seat thresholds above this send no `game_players_joined`: keeps a sandbox
+ * game at ≤ 4 events per player (started, 2, 3, ended). */
+export const MAX_JOINED_SEATS = 3;
+
 /**
  * One `game_started` the first time `active` is true (`players` is the count
  * at that moment: always 1 for a sandbox host), then exactly one
@@ -45,10 +49,6 @@ export const deckSourceOf = (
  * never misses a room. Thresholds are per mount: a back/forward-cache restore
  * starts a new `game_started` but does not send the same threshold again.
  */
-/** Seat thresholds above this send no `game_players_joined`: keeps a sandbox
- * game at ≤ 4 events per player (started, 2, 3, ended). */
-export const MAX_JOINED_SEATS = 3;
-
 export const useGameSession = ({
   mode,
   active,
