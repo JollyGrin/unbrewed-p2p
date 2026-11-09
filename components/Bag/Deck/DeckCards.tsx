@@ -1,4 +1,5 @@
 import { Card } from "@/components/CardFactory/Card";
+import { CardTilt } from "@/components/CardFactory/CardTilt";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { hasFieldedSidekick, toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
 import { Flex, Box, Text, HStack, Tooltip } from "@chakra-ui/react";
@@ -39,19 +40,18 @@ export const DeckCards = ({
           of the shuffled draw deck.
         </Flex>
       )}
-      <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem">
+      {/* py/px leave room for the hovered card's 1.08 scale + tilt, so it never
+          reaches the scroll container edge (a transform that does would grow a
+          scrollbar for the duration of the hover). */}
+      <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem" py="16px" px="6px">
         {deck && <HeroCard deck={deck} />}
         {cards?.map((card, index) => (
-          <Box
+          <CardTilt
             key={card.title + index}
             maxW="200px"
-            position="relative"
-            transition="transform 0.15s ease-out"
             cursor={onToggleCharacterCard ? "pointer" : undefined}
             outline={card.isCharacterCard ? "3px solid" : "none"}
             outlineColor="brand.accent"
-            borderRadius="0.4rem"
-            _hover={{ transform: "scale(2)", zIndex: 10, position: "relative" }}
             onClick={() => onToggleCharacterCard?.(index)}
           >
             <Card card={card} />
@@ -69,7 +69,7 @@ export const DeckCards = ({
                 HERO/RULE — NOT SHUFFLED
               </Text>
             )}
-          </Box>
+          </CardTilt>
         ))}
       </Flex>
     </Box>
