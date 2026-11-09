@@ -31,12 +31,23 @@ export const deckSourceOf = (
   knownAddSource(deck as DeckImportType | undefined) ??
   (deck && isLabsDeckId(deck.id) ? "unmatched-labs" : undefined);
 
+/** Seat thresholds above this send no `game_players_joined`: keeps a sandbox
+ * game at ≤ 4 events per player (started, 2, 3, ended). */
+export const MAX_JOINED_SEATS = 3;
+
 /**
- * One `game_started` the first time `active` is true, then exactly one
+ * One `game_started` the first time `active` is true (`players` is the count
+ * at that moment: always 1 for a sandbox host), then exactly one
  * `game_ended`: `left` when the component unmounts (an in-app navigation),
  * `closed` on `pagehide` (sent as a beacon). A page restored from the
  * back/forward cache starts a new game. `active` latches: a later false (a
  * dropped socket, a deck swap) does not end the game.
+ *
+ * `game_players_joined` (#1547) counts a multiplayer game without waiting for
+ * its end: once per seat threshold (2, then 3) the first time the seat count
+ * reaches it. A jump (1 → 3) sends every step it crossed, so `players = 2`
+ * never misses a room. Thresholds are per mount: a back/forward-cache restore
+ * starts a new `game_started` but does not send the same threshold again.
  */
 export const useGameSession = ({
   mode,
@@ -62,12 +73,34 @@ export const useGameSession = ({
     peak: Math.max(latest.current.peak, players),
   };
 
+  // Whether a game is open, and the highest seat threshold
+  // `game_players_joined` sent on this mount (1 = none yet).
+  const game = useRef({ open: false, reported: 1 });
+  const reportJoined = () => {
+    const { players, isHost } = latest.current;
+    if (!game.current.open) return;
+    const target = Math.min(players, MAX_JOINED_SEATS);
+    while (game.current.reported < target) {
+      game.current.reported += 1;
+      track("game_players_joined", {
+        mode,
+        players: game.current.reported,
+        is_host: isHost,
+      });
+    }
+  };
+  const reportJoinedRef = useRef(reportJoined);
+  reportJoinedRef.current = reportJoined;
+
+  useEffect(() => {
+    reportJoinedRef.current();
+  }, [players]);
+
   useEffect(() => {
     if (!live || isProPath()) return;
-    let open = false;
     let startedAt = 0;
     const start = () => {
-      open = true;
+      game.current.open = true;
       startedAt = Date.now();
       latest.current.peak = latest.current.players;
       track("game_started", {
@@ -75,10 +108,12 @@ export const useGameSession = ({
         players: latest.current.players,
         is_host: latest.current.isHost,
       });
+      // A joiner's first room state already holds the host's seat.
+      reportJoinedRef.current();
     };
     const end = (reason: GameEndReason, beacon = false) => {
-      if (!open) return;
-      open = false;
+      if (!game.current.open) return;
+      game.current.open = false;
       track(
         "game_ended",
         {
@@ -93,7 +128,7 @@ export const useGameSession = ({
     };
     const onHide = () => end("closed", true);
     const onShow = (e: PageTransitionEvent) => {
-      if (e.persisted && !open) start();
+      if (e.persisted && !game.current.open) start();
     };
     start();
     window.addEventListener("pagehide", onHide);
