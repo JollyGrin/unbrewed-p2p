@@ -32,7 +32,7 @@
  *                     centre).
  *
  * Usage (a dev server on :3000 must already be running — start it with the
- * Browser pane's preview tools, never with a bare `yarn dev`):
+ * Browser pane's preview tools, never with a bare `npm run dev`):
  *
  *   PW_PATH=~/.npm/_npx/<hash>/node_modules/playwright \
  *     node scripts/visual-probe/tableBoard.cjs [--out <dir>]

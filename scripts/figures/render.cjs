@@ -103,7 +103,7 @@ const DECLARED = OPEN
   ? ["license", "redistributable", "officialHero", "modelName", "creator", "sourceUrl"]
   : ["license", "redistributable", "officialHero"];
 // three.js is not a direct dependency; it arrives with another package. Fine
-// for a local tool — if it ever disappears, `yarn add -D three` restores it.
+// for a local tool — if it ever disappears, `bun add -d three` restores it.
 const THREE_DIR = path.dirname(path.dirname(require.resolve("three", { paths: [REPO] })));
 
 /** Camera elevation above the ground, degrees: 90 − the board's tilt. */

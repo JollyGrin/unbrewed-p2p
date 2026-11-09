@@ -6,13 +6,14 @@
 # to be recreated. This script:
 #   1. copies the untracked-but-needed files from the main worktree
 #      (currently the compiled gameserver binary + any local env files)
-#   2. installs dependencies with a FLAT node_modules using npm.
+#   2. installs dependencies with a FLAT node_modules using bun (issue #1584).
 #
 # ⚠️  Do NOT run `pnpm install` in this repo. pnpm builds a symlinked
 #     (`node_modules/.pnpm`) tree, and Next.js's dev server cannot resolve its
 #     internal webpack loaders (next-swc-loader, next-client-pages-loader, …)
-#     under it — you get "Module not found" errors on the dev port. Use npm,
-#     which matches the main checkout's flat layout.
+#     under it — you get "Module not found" errors on the dev port. bun keeps
+#     the flat layout (bunfig.toml pins `linker = "hoisted"`) and hardlinks
+#     from its global cache, so a worktree install is seconds, not minutes.
 #
 # Usage:  ./scripts/init-worktree.sh      (run from anywhere inside the worktree)
 
@@ -59,7 +60,7 @@ else
   echo "  · no separate main worktree — skipping file copy"
 fi
 
-# --- 3. Install dependencies (flat, via npm) ---------------------------------
+# --- 3. Install dependencies (flat, via bun) ---------------------------------
 # A pnpm-style tree left behind from an accidental `pnpm install` breaks Next,
 # so clear it before installing.
 if [ -d node_modules/.pnpm ] || [ -L node_modules/react ]; then
@@ -67,8 +68,12 @@ if [ -d node_modules/.pnpm ] || [ -L node_modules/react ]; then
   rm -rf node_modules
 fi
 
-echo "▸ installing dependencies (npm, --legacy-peer-deps)…"
-npm install --legacy-peer-deps
+if ! command -v bun >/dev/null 2>&1; then
+  echo "✗ bun not found. Install it (https://bun.sh), then re-run this script." >&2
+  exit 1
+fi
+echo "▸ installing dependencies (bun install --frozen-lockfile)…"
+bun install --frozen-lockfile
 
 # --- 4. Sanity-check the layout that pnpm breaks -----------------------------
 if [ -f node_modules/next/dist/build/webpack/loaders/next-swc-loader.js ] \
@@ -77,6 +82,6 @@ if [ -f node_modules/next/dist/build/webpack/loaders/next-swc-loader.js ] \
   echo "   Start dev with:  npm run dev"
 else
   echo "✗ node_modules looks wrong (symlinked react or missing loader)." >&2
-  echo "  Make sure you used npm, not pnpm, then re-run this script." >&2
+  echo "  Make sure you used bun, not pnpm, then re-run this script." >&2
   exit 1
 fi

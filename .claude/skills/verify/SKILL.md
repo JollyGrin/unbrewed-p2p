@@ -7,7 +7,7 @@ description: Build, run, and drive the Unbrewed game board end-to-end to verify 
 
 ## Launch
 
-1. `npm install --legacy-peer-deps` (npm, not yarn/pnpm; react-icons stays at 4.12.0).
+1. `bun install` (bun, not npm/yarn/pnpm; react-icons stays at 4.12.0).
 2. `npm run dev` — Next dev server; picks the next free port if 3000 is taken (watch the "ready" line).
 3. Relay: a local gameserver usually runs on `:1111` (`lsof -nP -iTCP:1111`); otherwise `cd gameserver && go run .`.
 4. **Rooms must be created before the websocket join**: `curl http://localhost:1111/lobby/<gid>` first, or the ws handshake 500s with "Unable to find the game room socket".

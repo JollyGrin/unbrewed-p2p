@@ -59,11 +59,11 @@ A default gameserver is already live, so most players never need to run anything
 cd gameserver && go build && cd ..
 
 # 2. start the gameserver (ws relay on :1111)
-yarn server
+npm run server
 
-# 3. in another terminal, start the web app
-yarn install
-yarn dev
+# 3. in another terminal, install deps with bun (https://bun.sh) and start the web app
+bun install
+npm run dev
 ```
 
 Open http://localhost:3000, then point the app at your local server on the settings page (`http://localhost:1111`).
@@ -73,9 +73,9 @@ Open http://localhost:3000, then point the app at your local server on the setti
 You can run the server on your own machine — free, and independent of Unbrewed's servers ever going offline:
 
 1. `cd gameserver && go build`
-2. `cd ../ && yarn server` — relay now running on `localhost:1111`
+2. `cd ../ && npm run server` — relay now running on `localhost:1111`
 3. Sign up for a free [ngrok](https://ngrok.com) account
-4. In a new terminal: `yarn grok` and copy the public URL it prints
+4. In a new terminal: `npm run grok` and copy the public URL it prints
 5. Paste that URL at [unbrewed.xyz/settings](https://unbrewed.xyz/settings) — and share it with your friends so they connect to the same server
 
 Want to run a 24/7 public server for the community? Open an issue or PR so we can add it to the default server list. (`Dockerfile.gameserver` is included if you like containers — it's what the default relay on [Railway](https://railway.com) builds from.)
@@ -133,7 +133,7 @@ Unbrewed uses Next.js static export, so your fork can run on GitHub Pages. Since
 PRs, forks, and feature requests through the [issue tracker](https://github.com/JollyGrin/unbrewed-p2p/issues) are all welcome! Come say hi on [Discord](https://discord.gg/qPxHFjwkNN).
 
 - 📓 Curious how the project evolved? Read the [dev journal](docs/JOURNAL.md)
-- 🧪 Run tests with `yarn test`
+- 🧪 Run tests with `npm test`
 
 <details>
 <summary><strong>How to add fonts</strong></summary>
