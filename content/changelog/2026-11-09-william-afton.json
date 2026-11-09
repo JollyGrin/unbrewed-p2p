@@ -6,5 +6,6 @@
   "tags": ["deck"],
   "pro": true,
   "highlight": false,
+  "video": { "slug": "william-afton" },
   "cta": { "label": "Play William Afton in Pro", "href": "/pro" }
 }
