@@ -86,7 +86,7 @@ export const markClientStale = (messageType: string | null, canAutoReload: () =>
   if (!stale) {
     stale = true;
     // Beacon: the reload below may follow immediately, before a batched send.
-    // The engine echoes the version it was sent, so ours is this bundle's.
+    // `client_version` is this bundle's: the frame's `v` is the engine's own.
     try {
       track(
         "client_version_stale",

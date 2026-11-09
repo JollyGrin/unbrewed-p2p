@@ -217,6 +217,21 @@ describe("stale client (p2p #1549)", () => {
     vis.mockRestore();
   });
 
+  it("a rematch frame refused by a NEWER engine stays a rematch refusal, not stale", () => {
+    const { result } = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => result.current.joinRoom("ROOM1", "alice"));
+    act(() => ws.emit({ type: "ROOM_JOINED", roomId: "ROOM1", you: "p2", token: "tok" }));
+    act(() => result.current.offerRematch());
+    expect(ws.sent.at(-1)).toMatchObject({ type: "REMATCH_OFFER" });
+    act(() => ws.emit(VERSION_ERROR));
+    expect(result.current.rematchOffer.phase).not.toBe("offering");
+    expect(result.current.stale).toBe(false);
+    expect(staleEvents()).toHaveLength(0);
+    expect(ws.readyState).toBe(FakeWebSocket.OPEN);
+  });
+
   it("the rollback re-bind is unchanged: re-sent at PROTOCOL_VERSION, not stale", () => {
     mockWireV = PROTOCOL_VERSION + 1;
     const { result } = renderHook(() => useProSocket("ws://test"));
