@@ -35,9 +35,9 @@ export type CardInspectorProps = {
   /**
    * Position in the `cards` PROP of the card being inspected; `null` keeps it
    * closed. It is not the card's index in `deck_data.cards` unless `cards` is
-   * the whole deck in order. A caller that shows a subset or reorders (#1578's
-   * Draw deck / Kept out sections) must map back to the deck_data index itself,
-   * and must update `index` when a card moves between sections so the
+   * the whole deck in order. A caller that shows a subset or reorders (DeckCards'
+   * Draw deck / Kept out sections, #1578) must map back to the deck_data index
+   * itself, and must update `index` when a card moves between sections so the
    * inspector follows the card instead of showing its old neighbour.
    */
   index: number | null;
@@ -47,7 +47,7 @@ export type CardInspectorProps = {
   onClose: () => void;
   /**
    * Slot under the rules text, rendered for the card currently shown. Empty
-   * when omitted. The "Keep out of draw deck" toggle (#1578) plugs in here.
+   * when omitted. DeckCards plugs the "Keep out of draw deck" switch (#1578) in here.
    * `index` is the same position-in-`cards` as the `index` prop above.
    */
   renderActions?: (card: DeckImportCardType, index: number) => ReactNode;
