@@ -3,6 +3,7 @@
 ## Installing
 
 - `bun install` (bun is the package manager only; Node runs next, jest and tsx). No `--legacy-peer-deps` or other flags. CI uses `bun install --frozen-lockfile`.
+- Use bun ≥ 1.4.4 (the `packageManager` pin). Older bun silently drops `"libc"` from `bun.lock` on `bun add` / non-frozen installs and brings back ~124 MB of musl binaries; `grep -c '"libc"' bun.lock` should be 20 (CI fails otherwise).
 - `bun.lock` is the only lockfile. Don't run `npm install` / `yarn` / `pnpm install`; they would write a second lockfile (pnpm also breaks Next's flat layout).
 - Script names are unchanged: `npm run x` and `bun run x` both work.
 
