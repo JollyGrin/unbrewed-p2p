@@ -105,24 +105,28 @@ const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
 /** Plain text with bare URLs turned into links (notes are free text). */
 const Linkified = ({ text }: { text: string }) => (
   <>
-    {text.split(URL_RE).map((part, i) =>
-      i % 2 === 1 ? (
-        <Box
-          as="a"
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          color="brand.accent"
-          textDecoration="underline"
-          wordBreak="break-all"
-        >
-          {part}
-        </Box>
-      ) : (
-        <Fragment key={i}>{part}</Fragment>
-      ),
-    )}
+    {text.split(URL_RE).map((raw, i) => {
+      if (i % 2 === 0) return <Fragment key={i}>{raw}</Fragment>;
+      // "see https://x.com/a." — the sentence's full stop is not part of the link
+      const part = raw.replace(/[.,;:!?)\]}]+$/, "");
+      const tail = raw.slice(part.length);
+      return (
+        <Fragment key={i}>
+          <Box
+            as="a"
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            color="brand.accent"
+            textDecoration="underline"
+            wordBreak="break-all"
+          >
+            {part}
+          </Box>
+          {tail}
+        </Fragment>
+      );
+    })}
   </>
 );
 
@@ -134,11 +138,19 @@ const DeckNotes = ({ note }: { note: string }) => {
 
   useLayoutEffect(() => {
     const el = ref.current;
+    if (!el || open) return;
     // Only hide the toggle when we can see the note already fits in two lines
-    // (jsdom reports 0 for both, which keeps it).
-    if (el && !open && el.clientHeight > 0) {
-      setCanExpand(el.scrollHeight > el.clientHeight + 1);
-    }
+    // (jsdom reports 0 for both, which keeps it). Re-measured on resize, since
+    // a narrower column can push a short note past two lines.
+    const measure = () => {
+      if (el.clientHeight > 0)
+        setCanExpand(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [note, open]);
 
   return (
@@ -306,6 +318,7 @@ export const HeroSheet = ({
     >
       <Box position="relative">
         <Portrait
+          key={backUrl}
           src={backUrl ? httpsUpgrade(backUrl) : ""}
           onClick={onSave ? () => setEditing("cardback") : undefined}
         />
@@ -318,6 +331,7 @@ export const HeroSheet = ({
           fontSize="2.5rem"
           letterSpacing="0.03em"
           lineHeight={0.95}
+          overflowWrap="anywhere"
           color="brand.primary"
         >
           {hero?.name || deck.name}
@@ -326,11 +340,11 @@ export const HeroSheet = ({
         <Flex gap="0.4rem" flexWrap="wrap" mt="0.5rem" mb="0.65rem">
           <Chip>
             <FaHeart aria-label="health" />
-            <Num>{hero?.hp}</Num>
+            <Num>{hero?.hp}</Num> health
           </Chip>
           <Chip>
             <GiFootprint aria-label="move" />
-            <Num>{hero?.move}</Num>
+            <Num>{hero?.move}</Num> move
           </Chip>
           <Chip>
             <IsRanged isRanged={hero?.isRanged} />
@@ -350,7 +364,9 @@ export const HeroSheet = ({
               <IsRanged isRanged={sidekick?.isRanged} />
             </Chip>
           ) : (
-            <Chip>solo fighter</Chip>
+            // a deck with extra characters (Skeleton King) fields more than the
+            // hero alone, even though its primary sidekick slot is blank
+            extraCharacters.length === 0 && <Chip>solo fighter</Chip>
           )}
         </Flex>
 

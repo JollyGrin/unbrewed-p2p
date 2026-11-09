@@ -57,6 +57,7 @@ describe("HeroSheet", () => {
     expect(screen.getByText("SPECIAL ABILITY")).toBeInTheDocument();
     expect(screen.getByText(/Bloom tokens\./)).toBeInTheDocument();
     expect(screen.queryByLabelText("sidekick")).toBeNull();
+    expect(screen.getByText(/health/)).toBeInTheDocument();
   });
 
   it("a fielded sidekick replaces the solo chip", () => {
@@ -115,6 +116,7 @@ describe("HeroSheet", () => {
         ],
       }),
     );
+    expect(screen.queryByText("solo fighter")).toBeNull();
     expect(screen.getByText("Skeleton")).toBeInTheDocument();
     expect(screen.getByText("Rattles.")).toBeInTheDocument();
     expect(screen.getAllByText(/melee|ranged/)).toHaveLength(2);
@@ -122,6 +124,9 @@ describe("HeroSheet", () => {
 
   it("clamps notes behind an expander and keeps links clickable", () => {
     renderSheet(make({}, { note: "Lore https://example.com/x here" }));
+    expect(
+      screen.getByRole("link", { name: "https://example.com/x" }),
+    ).toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: /Read the deck notes/ });
     fireEvent.click(toggle);
     expect(
@@ -130,6 +135,30 @@ describe("HeroSheet", () => {
     expect(
       screen.getByRole("link", { name: "https://example.com/x" }),
     ).toHaveAttribute("href", "https://example.com/x");
+  });
+
+  it("a trailing full stop is not part of the link", () => {
+    renderSheet(make({}, { note: "See https://example.com/lore." }));
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "https://example.com/lore",
+    );
+  });
+
+  it("the portrait recovers from a broken cardback when the url changes", () => {
+    const withBack = (url: string) =>
+      make({
+        appearance: { ...mockDeck.deck_data.appearance, cardbackUrl: url },
+      });
+    const { rerender } = renderSheet(withBack("https://x.test/bad.png"));
+    fireEvent.error(screen.getByAltText("Deck cardback"));
+    expect(screen.getByText("House back")).toBeInTheDocument();
+    rerender(
+      <ChakraProvider>
+        <HeroSheet deck={withBack("https://x.test/good.png")} />
+      </ChakraProvider>,
+    );
+    expect(screen.getByAltText("Deck cardback")).toBeInTheDocument();
   });
 
   it("no notes: no expander", () => {
