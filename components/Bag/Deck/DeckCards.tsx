@@ -16,7 +16,7 @@ export const DeckCards = ({
   selectedDeckId?: string;
   /** when set, the card inspector offers a button to flag the card as a hero/rule card (kept out of the draw deck) */
   onToggleCharacterCard?: (cardIndex: number) => void;
-  /** persists the hero sheet's editors (hero info, cardback, tokens) */
+  /** persists the hero sheet's editors (hero info, cardback, tokens); the sheet is only rendered when set */
   onUpdateDeck?: (updated: DeckImportType) => Promise<void> | void;
 }) => {
   const deck = decks?.find((deck) => deck.id === selectedDeckId);
@@ -40,7 +40,10 @@ export const DeckCards = ({
           choose &quot;Keep out of draw deck&quot; to keep it out of the shuffle.
         </Flex>
       )}
-      {deck && <HeroSheet deck={deck} onSave={onUpdateDeck} />}
+      {/* Only on the editable Bag screen. The AddDeckHub previews already head
+          the deck with DeckPreview's hero name; a second summary under it would
+          repeat the name (and a second heading). */}
+      {deck && onUpdateDeck && <HeroSheet deck={deck} onSave={onUpdateDeck} />}
       {/* py/px leave room for the hovered card's 1.08 scale + tilt, so it never
           reaches the scroll container edge (a transform that does would grow a
           scrollbar for the duration of the hover). */}
