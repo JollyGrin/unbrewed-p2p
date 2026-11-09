@@ -1,10 +1,8 @@
 import {
   ReactNode,
-  PointerEvent as ReactPointerEvent,
   TouchEvent as ReactTouchEvent,
   useEffect,
   useRef,
-  useState,
 } from "react";
 import {
   Box,
@@ -16,6 +14,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Card } from "@/components/CardFactory/Card";
+import { CardTilt } from "@/components/CardFactory/CardTilt";
 import { actions as cardText } from "@/components/CardFactory/card.helpers";
 import {
   DeckImportCardType,
@@ -33,7 +32,14 @@ export const CARD_TYPE_COLOURS: Record<UnmatchedCardType, string> = {
 export type CardInspectorProps = {
   /** Every card of the deck, in grid order. Navigation wraps around this list. */
   cards: DeckImportCardType[];
-  /** Index into `cards` of the card being inspected; `null` keeps it closed. */
+  /**
+   * Position in the `cards` PROP of the card being inspected; `null` keeps it
+   * closed. It is not the card's index in `deck_data.cards` unless `cards` is
+   * the whole deck in order. A caller that shows a subset or reorders (#1578's
+   * Draw deck / Kept out sections) must map back to the deck_data index itself,
+   * and must update `index` when a card moves between sections so the
+   * inspector follows the card instead of showing its old neighbour.
+   */
   index: number | null;
   /** Called with the new index for ‹ ›, ← →, swipe and filmstrip clicks. */
   onIndexChange: (index: number) => void;
@@ -42,6 +48,7 @@ export type CardInspectorProps = {
   /**
    * Slot under the rules text, rendered for the card currently shown. Empty
    * when omitted. The "Keep out of draw deck" toggle (#1578) plugs in here.
+   * `index` is the same position-in-`cards` as the `index` prop above.
    */
   renderActions?: (card: DeckImportCardType, index: number) => ReactNode;
 };
@@ -64,6 +71,12 @@ export const CardInspector = ({
   const counterRef = useRef<HTMLParagraphElement>(null);
   const isOpen = index !== null && index >= 0 && index < count;
   const card = isOpen ? cards[index] : undefined;
+  // the deck shrank under an open inspector (card removed): close rather than
+  // sit on a blank dialog
+  const outOfRange = index !== null && index >= count;
+  useEffect(() => {
+    if (outOfRange) onClose();
+  }, [outOfRange, onClose]);
 
   const step = (delta: number) => {
     if (!isOpen || count === 0) return;
@@ -77,6 +90,7 @@ export const CardInspector = ({
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.metaKey || e.ctrlKey) return;
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         stepRef.current(-1);
@@ -90,17 +104,22 @@ export const CardInspector = ({
   }, [isOpen]);
 
   // swipe left/right on the card area (touch devices)
-  const touchStartX = useRef<number | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const onTouchStart = (e: ReactTouchEvent) => {
-    touchStartX.current = e.touches[0]?.clientX ?? null;
+    const t = e.touches[0];
+    touchStart.current = t ? { x: t.clientX, y: t.clientY } : null;
   };
   const onTouchEnd = (e: ReactTouchEvent) => {
-    const start = touchStartX.current;
-    touchStartX.current = null;
-    const end = e.changedTouches[0]?.clientX;
-    if (start === null || end === undefined) return;
-    const dx = end - start;
-    if (Math.abs(dx) >= 50) step(dx < 0 ? 1 : -1);
+    const start = touchStart.current;
+    touchStart.current = null;
+    const end = e.changedTouches[0];
+    if (!start || !end) return;
+    const dx = end.clientX - start.x;
+    const dy = end.clientY - start.y;
+    // a mostly-horizontal flick; a vertical scroll must not flip the card
+    if (Math.abs(dx) >= 50 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+      step(dx < 0 ? 1 : -1);
+    }
   };
 
   return (
@@ -127,11 +146,33 @@ export const CardInspector = ({
         overflow="visible"
       >
         {card && index !== null && (
+          <>
+          <IconButton
+            aria-label="Close"
+            icon={<span aria-hidden>×</span>}
+            onClick={onClose}
+            variant="unstyled"
+            position="fixed"
+            top="10px"
+            right="14px"
+            zIndex={2}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            w="44px"
+            h="44px"
+            fontSize="2rem"
+            lineHeight="1"
+            color="white"
+            opacity={0.75}
+            _hover={{ opacity: 1 }}
+          />
           <Flex direction="column" align="center" py="3rem" px="0.5rem" gap="1rem">
             <Text
               ref={counterRef}
               tabIndex={-1}
               outline="none"
+              aria-live="polite"
               data-testid="inspector-counter"
               fontSize="0.75rem"
               letterSpacing="0.08em"
@@ -155,6 +196,7 @@ export const CardInspector = ({
               <NavButton dir="prev" onClick={() => step(-1)} />
               <Flex
                 gridArea="main"
+                data-testid="inspector-swipe-area"
                 direction={{ base: "column", md: "row" }}
                 align={{ base: "center", md: "center" }}
                 gap="1.25rem"
@@ -165,9 +207,18 @@ export const CardInspector = ({
                   w={{ base: "min(340px, 68vw)", md: "340px" }}
                   flexShrink={0}
                 >
-                  <InspectorTilt>
-                    <Card card={card} />
-                  </InspectorTilt>
+                  {/* the shadow and aspect ratio live on this outer Box: CardTilt
+                      spreads `...rest` after its own `sx`, so passing sx /
+                      transition / _hover to it would wipe the tilt transform */}
+                  <Box
+                    borderRadius="0.6rem"
+                    boxShadow="0 24px 60px rgba(0,0,0,0.65)"
+                    sx={{ aspectRatio: "63 / 88" }}
+                  >
+                    <CardTilt zoom={1} borderRadius="0.6rem">
+                      <Card card={card} />
+                    </CardTilt>
+                  </Box>
                 </Box>
                 <InfoPanel card={card}>
                   {renderActions?.(card, index)}
@@ -187,6 +238,7 @@ export const CardInspector = ({
               <Kbd>→</Kbd> flip through · <Kbd>Esc</Kbd> close
             </Text>
           </Flex>
+          </>
         )}
       </ModalContent>
     </Modal>
@@ -229,40 +281,6 @@ const NavButton = ({
     _hover={{ bg: "rgba(255,255,255,0.18)" }}
   />
 );
-
-/**
- * Tilt-only frame for the big card: leans toward the cursor (≤ 10° per axis),
- * no zoom. #1575's `CardTilt` (components/CardFactory/CardTilt.tsx) is meant
- * to replace this body once it is on main — the call site only wraps `<Card>`.
- */
-const MAX_TILT_DEG = 10;
-const InspectorTilt = ({ children }: { children: ReactNode }) => {
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === "touch") return;
-    const r = e.currentTarget.getBoundingClientRect();
-    if (!r.width || !r.height) return;
-    const px = (e.clientX - r.left) / r.width - 0.5;
-    const py = (e.clientY - r.top) / r.height - 0.5;
-    setTilt({ x: -py * 2 * MAX_TILT_DEG, y: px * 2 * MAX_TILT_DEG });
-  };
-  const moving = tilt.x !== 0 || tilt.y !== 0;
-  return (
-    <Box
-      onPointerMove={onMove}
-      onPointerLeave={() => setTilt({ x: 0, y: 0 })}
-      style={{
-        transform: `perspective(900px) rotateX(${tilt.x.toFixed(1)}deg) rotateY(${tilt.y.toFixed(1)}deg)`,
-        transition: moving ? "transform 80ms ease-out" : "transform 550ms ease-out",
-      }}
-      borderRadius="0.6rem"
-      boxShadow="0 24px 60px rgba(0,0,0,0.65)"
-      sx={{ aspectRatio: "63 / 88" }}
-    >
-      {children}
-    </Box>
-  );
-};
 
 type RuleBlock = { heading?: string; text: string };
 

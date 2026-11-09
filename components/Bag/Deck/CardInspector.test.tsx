@@ -4,7 +4,7 @@
  * reachable hero/rule toggle in the actions slot.
  */
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 
 import { DeckImportCardType, DeckImportType } from "@/components/DeckPool/deck-import.type";
@@ -121,10 +121,62 @@ describe("CardInspector", () => {
     expect(onToggle).toHaveBeenCalledWith(2);
   });
 
-  it("generated decks have an empty actions slot", () => {
-    setup(deckOf(cards), jest.fn());
+  it("a deck WITHOUT the image-deck tag (e.g. Labs, pre-flagged) keeps the toggle too", () => {
+    const onToggle = jest.fn();
+    const flagged = [mk("ALPHA", { isCharacterCard: true }), mk("BETA")];
+    setup(deckOf(flagged, ["unmatched-labs"]), onToggle);
+    open("ALPHA");
+    const btn = within(screen.getByTestId("inspector-actions")).getByRole("button");
+    expect(btn).toHaveTextContent(/kept out/i);
+    fireEvent.click(btn);
+    expect(onToggle).toHaveBeenCalledWith(0);
+  });
+
+  it("no toggle slot when the caller passes no onToggleCharacterCard", () => {
+    setup(deckOf(cards));
     open("ALPHA");
     expect(screen.queryByTestId("inspector-actions")).toBeNull();
+  });
+
+  it("the Close button closes (phones have no Esc and may have no backdrop)", async () => {
+    setup();
+    open("ALPHA");
+    fireEvent.click(screen.getByLabelText("Close"));
+    await waitFor(() => expect(screen.queryByTestId("inspector-counter")).toBeNull());
+  });
+
+  it("arrow keys are ignored with a modifier held", () => {
+    setup();
+    open("ALPHA");
+    fireEvent.keyDown(window, { key: "ArrowRight", altKey: true });
+    fireEvent.keyDown(window, { key: "ArrowRight", metaKey: true });
+    expect(counter()).toBe("1 / 3");
+  });
+
+  it("swipe flips only on a mostly-horizontal flick", () => {
+    setup();
+    open("ALPHA");
+    const area = screen.getByTestId("inspector-swipe-area");
+    const swipe = (dx: number, dy: number) => {
+      // jsdom's TouchEvent init won't take plain touch points: attach them
+      // (Chakra's scroll lock reads changedTouches[0] on every touch event, so
+      // both lists are set on both events)
+      const touch = (type: "touchStart" | "touchEnd", x: number, y: number) => {
+        const ev = createEvent[type](area);
+        const list = [{ clientX: x, clientY: y }];
+        Object.defineProperty(ev, "touches", { value: list });
+        Object.defineProperty(ev, "changedTouches", { value: list });
+        fireEvent(area, ev);
+      };
+      touch("touchStart", 200, 200);
+      touch("touchEnd", 200 + dx, 200 + dy);
+    };
+    swipe(-80, 90); // diagonal / vertical scroll: ignored
+    expect(counter()).toBe("1 / 3");
+    swipe(-80, 10);
+    expect(counter()).toBe("2 / 3");
+    swipe(80, 10);
+    expect(counter()).toBe("1 / 3");
   });
 });
 
