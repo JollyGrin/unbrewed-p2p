@@ -5,3 +5,8 @@
 # webpack loaders under a symlinked/isolated tree (see scripts/init-worktree.sh),
 # and several imports rely on hoisted transitive deps.
 linker = "hoisted"
+# Host-libc filtering (issue #1585): bun >= 1.4.4 (pinned in package.json's
+# packageManager) honours the `libc` field that bun.lock records for
+# @next/swc-* and @img/sharp-*, so glibc hosts skip the musl binaries. Older
+# bun ignores the field and installs both, which still works. Keep `libc` on
+# those entries when regenerating the lock.

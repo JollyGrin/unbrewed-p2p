@@ -80,6 +80,18 @@ jobs:
             ${{ runner.os }}-bun-
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Check bun.lock keeps libc on native binaries
+        # Issue #1585: bun < 1.4.4 silently strips "libc" from these entries
+        # on `bun add` / a non-frozen install, which brings back ~124 MB of
+        # musl duplicates on glibc hosts. --frozen-lockfile can't catch that.
+        run: |
+          missing=$(grep -E '^\s*"(@next/swc-linux|@img/sharp-(libvips-)?linux)[^"]*": \[' bun.lock | grep -v '"libc"' || true)
+          if [ -n "$missing" ]; then
+            echo "::error file=bun.lock::bun.lock entries for linux @next/swc / @img/sharp binaries are missing \"libc\". Regenerate bun.lock with bun >= 1.4.4 (the packageManager pin in package.json); older bun drops the field."
+            echo "$missing" | cut -c1-120
+            exit 1
+          fi
+          echo "libc present on $(grep -cE '^\s*"(@next/swc-linux|@img/sharp-(libvips-)?linux)[^"]*": \[' bun.lock) linux native-binary entries"
       - name: Build with Next.js
         # NEXT_PUBLIC_PRO_WS_URL is baked in at build time. When the repo
         # variable is unset it expands to "" and /pro/game falls back to its
