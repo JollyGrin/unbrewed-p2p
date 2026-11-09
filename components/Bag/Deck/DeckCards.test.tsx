@@ -100,11 +100,12 @@ describe("Draw deck / Kept out sections", () => {
     expect(getComputedStyle(plain).filter).not.toContain("saturate");
   });
 
+  // jsdom resolves emotion's rules, so Chakra's `outline="none"` (a transparent
+  // 2px outline) and any gold outlineColor show up in the computed `outline`.
   it("no outline or border is painted on any card, flagged or not", () => {
     renderIt(<Harness tags={["image-deck"]} cards={base()} />);
     for (const t of ["A", "B", "C", "D"]) {
       const s = getComputedStyle(screen.getByLabelText(`Inspect ${t}`));
-      expect(s.outlineColor).toBe("");
       expect(s.outlineWidth).toBe("");
       expect(s.outline).not.toMatch(/solid|transparent|accent|gold|#E/i);
       expect(["", "0px"]).toContain(s.borderWidth); // Chakra reset: style solid, width 0
@@ -133,7 +134,7 @@ describe("Draw deck / Kept out sections", () => {
     fireEvent.click(keepOut());
     // C moved to Kept out immediately
     expect(titles("draw-deck-grid")).toEqual(["A"]);
-    expect(titles("kept-out-grid")).toEqual(["B", "C", "D"])  // deck order within a section;
+    expect(titles("kept-out-grid")).toEqual(["B", "C", "D"]); // deck order within a section
     expect(screen.getByText("3 cards, shuffled at the start of a game")).toBeInTheDocument();
     // ...and the inspector is still on C (now 3rd of 4), switch on
     expect(screen.getByRole("heading", { name: "C" })).toBeInTheDocument();
@@ -162,7 +163,40 @@ describe("Draw deck / Kept out sections", () => {
     open("C"); // 2nd in section order, but index 2 in deck_data
     fireEvent.click(keepOut());
     expect(onToggle).toHaveBeenLastCalledWith(2);
-    open("B");
+    fireEvent.click(screen.getByLabelText("Next card")); // C -> B, 3rd in section order
+    fireEvent.click(keepOut());
+    expect(onToggle).toHaveBeenLastCalledWith(1); // index 1 in deck_data
+    expect(onToggle).toHaveBeenCalledTimes(3);
+  });
+
+  it("flips exactly once per click on the switch, its track, the title, the sub-line or the row", () => {
+    const onToggle = jest.fn();
+    renderIt(
+      <DeckCards
+        decks={[deckOf(base(), ["image-deck"])]}
+        selectedDeckId="d1"
+        onToggleCharacterCard={onToggle}
+      />,
+    );
+    open("A");
+    const actions = screen.getByTestId("inspector-actions");
+    const targets = [
+      keepOut(),
+      keepOut().closest("label") as HTMLElement, // Chakra's own switch label (the track)
+      within(actions).getByText("Keep out of draw deck"),
+      within(actions).getByText("Hero / rule card. Sits on the table, never shuffled in."),
+      actions.firstElementChild as HTMLElement, // the row's padding
+    ];
+    targets.forEach((el, i) => {
+      fireEvent.click(el);
+      expect(onToggle).toHaveBeenCalledTimes(i + 1);
+    });
+    expect(actions.querySelector("label label")).toBeNull(); // no nested labels
+  });
+
+  it("says '1 card' not '1 cards'", () => {
+    renderIt(<Harness tags={[]} cards={[mk("A"), mk("B", { isCharacterCard: true, quantity: 3 })]} />);
+    expect(screen.getByText("1 card, shuffled at the start of a game")).toBeInTheDocument();
   });
 
   it("inspector prev/next walks section order: Draw deck, then Kept out", () => {
