@@ -58,6 +58,10 @@ export const CardInspector = ({
   renderActions,
 }: CardInspectorProps) => {
   const count = cards.length;
+  // Initial focus on the counter (top of the dialog), not the first tabbable —
+  // that is the ‹ button, which sits below the stacked card on a phone and
+  // would scroll the dialog past the card on open.
+  const counterRef = useRef<HTMLParagraphElement>(null);
   const isOpen = index !== null && index >= 0 && index < count;
   const card = isOpen ? cards[index] : undefined;
 
@@ -103,9 +107,9 @@ export const CardInspector = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      isCentered
       motionPreset="none"
       scrollBehavior="outside"
+      initialFocusRef={counterRef}
     >
       <ModalOverlay bg="rgba(20, 8, 24, 0.86)" backdropFilter="blur(6px)" />
       <ModalContent
@@ -115,7 +119,9 @@ export const CardInspector = ({
         maxW="min(860px, 100vw)"
         w="auto"
         mx="auto"
-        my="0"
+        // auto margins centre it vertically when it fits and fall back to the
+        // top when the stacked phone layout is taller than the screen
+        my="auto"
         color="brand.highlight"
         // keep the card's own tilt/shadow from being clipped
         overflow="visible"
@@ -123,6 +129,9 @@ export const CardInspector = ({
         {card && index !== null && (
           <Flex direction="column" align="center" py="3rem" px="0.5rem" gap="1rem">
             <Text
+              ref={counterRef}
+              tabIndex={-1}
+              outline="none"
               data-testid="inspector-counter"
               fontSize="0.75rem"
               letterSpacing="0.08em"
@@ -388,13 +397,21 @@ const Filmstrip = ({
   index: number;
   onJump: (i: number) => void;
 }) => {
+  const stripRef = useRef<HTMLDivElement>(null);
   const currentRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    // keep the current thumb in view on a long deck / narrow screen
-    currentRef.current?.scrollIntoView?.({ inline: "center", block: "nearest" });
+    // keep the current thumb centred on a long deck / narrow screen. Scroll
+    // the strip itself — scrollIntoView would also scroll the whole dialog
+    // (and so hide the top of the card on a phone).
+    const strip = stripRef.current;
+    const el = currentRef.current;
+    if (!strip || !el) return;
+    strip.scrollLeft = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2;
   }, [index]);
   return (
     <Flex
+      ref={stripRef}
+      position="relative"
       aria-label="Deck cards"
       gap="6px"
       maxW="100%"

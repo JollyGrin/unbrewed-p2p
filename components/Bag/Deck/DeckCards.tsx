@@ -96,6 +96,9 @@ export const DeckCards = ({
                 <Button
                   size="sm"
                   w="100%"
+                  h="auto"
+                  py="0.4rem"
+                  whiteSpace="normal"
                   variant={card.isCharacterCard ? "solid" : "outline"}
                   colorScheme="yellow"
                   onClick={() => onToggleCharacterCard(index)}
