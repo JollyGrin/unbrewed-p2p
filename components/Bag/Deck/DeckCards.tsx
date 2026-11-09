@@ -43,7 +43,7 @@ export const DeckCards = ({
       {/* py/px leave room for the hovered card's 1.08 scale + tilt, so it never
           reaches the scroll container edge (a transform that does would grow a
           scrollbar for the duration of the hover). */}
-      <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem" py="12px" px="6px">
+      <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem" py="16px" px="6px">
         {deck && <HeroCard deck={deck} />}
         {cards?.map((card, index) => (
           <CardTilt
