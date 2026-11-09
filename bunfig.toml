@@ -1,0 +1,7 @@
+# bun is this repo's package manager only (issue #1584); Node still runs
+# next, jest and the tsx scripts.
+[install]
+# Keep npm's flat node_modules. Next 13's dev server cannot resolve its
+# webpack loaders under a symlinked/isolated tree (see scripts/init-worktree.sh),
+# and several imports rely on hoisted transitive deps.
+linker = "hoisted"

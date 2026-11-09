@@ -12,7 +12,7 @@ out), every `visibilitychange`, and every "Board out of date" / "Board
 refreshed" toast.
 
 ```sh
-yarn dev -p 3869                                   # your worktree, a spare port
+npm run dev -- -p 3869                                 # your worktree, a spare port
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 "$CHROME" --remote-debugging-port=9869 --user-data-dir=/tmp/probe-a --no-first-run &
 "$CHROME" --remote-debugging-port=9870 --user-data-dir=/tmp/probe-b --no-first-run &   # pvp only

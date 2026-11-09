@@ -6,6 +6,10 @@ gameserver/unbrewed-server
 
 # dependencies
 /node_modules
+# bun.lock is the only lockfile (unbrewed-p2p-1584); a stray npm/yarn install
+# must not commit a second one. Root-only: marketing/ keeps its own lock.
+/package-lock.json
+/yarn.lock
 /.pnp
 .pnp.js
 

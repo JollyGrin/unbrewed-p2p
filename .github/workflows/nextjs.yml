@@ -12,47 +12,47 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+  # PRs run the build only (install, next build with its lint, export). The
+  # PostHog source-map upload, the Pages artifact and the deploy job are all
+  # skipped on pull_request, so a PR can never publish anything.
+  pull_request:
+
+# GITHUB_TOKEN permissions are granted per job, not workflow-wide: the build
+# job also runs PR code (pull_request trigger), so only `deploy`, which never
+# runs on a PR, gets the Pages write + OIDC token permissions.
+permissions: {}
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# PR builds get their own per-PR group (newer pushes cancel older builds) so
+# they never queue behind or in front of a deploy.
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pr-build-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # actions/configure-pages reads the Pages site config.
+      pages: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Detect package manager
-        id: detect-package-manager
-        run: |
-          if [ -f "${{ github.workspace }}/yarn.lock" ]; then
-            echo "manager=yarn" >> $GITHUB_OUTPUT
-            echo "command=install" >> $GITHUB_OUTPUT
-            echo "runner=yarn" >> $GITHUB_OUTPUT
-            exit 0
-          elif [ -f "${{ github.workspace }}/package.json" ]; then
-            echo "manager=npm" >> $GITHUB_OUTPUT
-            echo "command=ci" >> $GITHUB_OUTPUT
-            echo "runner=npx --no-install" >> $GITHUB_OUTPUT
-            exit 0
-          else
-            echo "Unable to determine package manager"
-            exit 1
-          fi
+      # bun is the package manager only (issue #1584): it installs
+      # node_modules from bun.lock. Node 20 still runs next build, the
+      # postbuild script and next export.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Reads the "packageManager": "bun@x.y.z" pin in package.json.
+          bun-version-file: package.json
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: ${{ steps.detect-package-manager.outputs.manager }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
@@ -67,12 +67,19 @@ jobs:
           path: |
             .next/cache
           # Generate a new cache whenever packages or source files change.
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
           # If source files changed but packages didn't, rebuild from a prior cache.
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/bun.lock') }}-
+      - name: Restore bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
       - name: Install dependencies
-        run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
+        run: bun install --frozen-lockfile
       - name: Build with Next.js
         # NEXT_PUBLIC_PRO_WS_URL is baked in at build time. When the repo
         # variable is unset it expands to "" and /pro/game falls back to its
@@ -111,11 +118,11 @@ jobs:
           NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
           # Short commit hash surfaced in in-game bug reports (issue #87).
           NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
-        run: ${{ steps.detect-package-manager.outputs.runner }} next build
+        run: npx --no-install next build
       - name: Run postbuild
-        run: ${{ steps.detect-package-manager.outputs.runner }} node lib/buildTools/prefixFonts.js
+        run: node lib/buildTools/prefixFonts.js
       - name: Static HTML export with Next.js
-        run: ${{ steps.detect-package-manager.outputs.runner }} next export
+        run: npx --no-install next export
       # Source maps for PostHog Error Tracking (issue #1548). next.config.js
       # sets productionBrowserSourceMaps, so ./out/_next/static has a .map per
       # chunk. `inject` stamps each chunk with the chunk id PostHog matches
@@ -128,6 +135,7 @@ jobs:
       # Without the token (forks, or before it is added) the step warns and
       # skips. An upload failure warns too, rather than blocking the deploy.
       - name: Upload source maps to PostHog
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         env:
           POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_TOKEN }}
@@ -158,12 +166,18 @@ jobs:
             exit 1
           fi
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
 
   # Deployment job
   deploy:
+    if: github.event_name != 'pull_request'
+    # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
