@@ -66,7 +66,15 @@ class FakeWebSocket {
   }
 }
 
-const VERSION_ERROR = { type: "ERROR", code: "VERSION", message: `Protocol v${PROTOCOL_VERSION + 2} required` };
+// The engine stamps every frame, ERROR included, with its own version.
+const versionError = (engineV: number) => ({
+  v: engineV,
+  type: "ERROR",
+  code: "VERSION",
+  message: `Protocol v${engineV} required (got v${PROTOCOL_VERSION}) — refresh the page`,
+});
+const VERSION_ERROR = versionError(PROTOCOL_VERSION + 1); // an engine newer than this bundle
+const OLDER_ENGINE_ERROR = versionError(PROTOCOL_VERSION - 1); // this bundle is the newer one
 const staleEvents = () => mockTrack.mock.calls.filter(([event]) => event === "client_version_stale");
 
 describe("stale client (p2p #1549)", () => {
@@ -104,7 +112,8 @@ describe("stale client (p2p #1549)", () => {
       ["client_version_stale", { client_version: PROTOCOL_VERSION, message_type: "LIST_HEROES" }, { beacon: true }],
     ]);
 
-    // The lobby poll, a join and a dropped socket all go nowhere.
+    // The socket is closed, and the lobby poll, a join and its close event go nowhere.
+    expect(ws.readyState).toBe(FakeWebSocket.CLOSED);
     act(() => result.current.requestLobbies());
     act(() => result.current.joinRoom("ROOM1", "alice"));
     act(() => ws.drop());
@@ -169,6 +178,45 @@ describe("stale client (p2p #1549)", () => {
     vis.mockRestore();
   });
 
+  it("an engine OLDER than this bundle refuses it: no banner, no reload, the socket keeps going and reconnects", () => {
+    const { result } = renderHook(() => useProSocket("ws://test"));
+    const ws = FakeWebSocket.last!;
+    act(() => ws.open());
+    act(() => ws.emit(OLDER_ENGINE_ERROR));
+
+    expect(result.current.stale).toBe(false);
+    render(<StaleClientBanner />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(staleEvents()).toHaveLength(0);
+    expect(reload).not.toHaveBeenCalled();
+    expect(ws.readyState).toBe(FakeWebSocket.OPEN);
+    act(() => result.current.requestLobbies());
+    expect(ws.sent.map((m) => m.type)).toEqual(["LIST_HEROES", "LIST_LOBBIES"]);
+
+    // A drop reconnects as it always has, and the new socket asks again.
+    act(() => ws.drop());
+    act(() => {
+      jest.advanceTimersByTime(60_000);
+    });
+    expect(FakeWebSocket.all).toHaveLength(2);
+    act(() => FakeWebSocket.last!.open());
+    expect(FakeWebSocket.last!.sent.map((m) => m.type)).toEqual(["LIST_HEROES"]);
+  });
+
+  it("unmounting a hidden stale tab drops its pending reload-on-visible listener", () => {
+    const vis = jest.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const { unmount } = renderHook(() => useProSocket("ws://test"));
+    act(() => FakeWebSocket.last!.open());
+    act(() => FakeWebSocket.last!.emit(VERSION_ERROR));
+    unmount();
+    vis.mockReturnValue("visible");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(reload).not.toHaveBeenCalled();
+    vis.mockRestore();
+  });
+
   it("the rollback re-bind is unchanged: re-sent at PROTOCOL_VERSION, not stale", () => {
     mockWireV = PROTOCOL_VERSION + 1;
     const { result } = renderHook(() => useProSocket("ws://test"));
@@ -194,6 +242,16 @@ describe("stale client (p2p #1549)", () => {
     const { result } = renderHook(() => useProLiveRosterState("ws://test"));
     expect(FakeWebSocket.all).toHaveLength(1);
     expect(result.current.offline).toBe(true);
+  });
+
+  it("the roster fetch refused by an OLDER engine is not stale", () => {
+    renderHook(() => useProLiveRosterState("ws://test"));
+    act(() => FakeWebSocket.last!.open());
+    act(() => FakeWebSocket.last!.emit(OLDER_ENGINE_ERROR));
+    render(<StaleClientBanner />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+    expect(staleEvents()).toHaveLength(0);
   });
 
   it("the roster fetch with autoReload off shows the banner but doesn't reload", () => {

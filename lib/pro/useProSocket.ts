@@ -65,7 +65,7 @@ import {
   RematchOfferState,
   rematchOfferReducer,
 } from "./rematchOffer";
-import { isClientStale, markClientStale, useClientStale } from "./staleClient";
+import { isClientStale, markClientStale, serverIsNewer, useClientStale } from "./staleClient";
 import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
 
 /** `hero_picked.mode` (#1512). */
@@ -804,6 +804,8 @@ export function useProSocket(
   const staleRef = useRef(isClientStale());
   const stale = useClientStale();
   const lastSentTypeRef = useRef<string | null>(null);
+  // Drops the "reload when visible" listener a hidden stale tab left armed.
+  const disposeStaleRef = useRef<() => void>(() => {});
 
   const send = useCallback((msg: ClientMsg) => {
     if (staleRef.current) return;
@@ -1250,18 +1252,25 @@ export function useProSocket(
             sendBind(lastBindRef.current, PROTOCOL_VERSION);
             break;
           }
-          // Any other VERSION refusal (p2p #1549): this bundle is older than the
-          // engine accepts. Stop talking — the lobby poll and every reconnect
-          // would only be refused again — and let the page-wide banner say
-          // "reload". No seat and no game on screen: reload outright (guarded).
-          // Then fall through: the terminal path below is what it always was.
-          if (msg.code === "VERSION") {
+          // Any other VERSION refusal from an engine NEWER than this bundle
+          // (p2p #1549; the frame's `v` is the engine's own version): this tab
+          // is out of date. Stop talking — the lobby poll and every reconnect
+          // would only be refused again — close the socket, and let the
+          // page-wide banner say "reload". No seat and no game on screen:
+          // reload outright (guarded). An engine OLDER than this bundle (Pages
+          // deployed first, or a rollback) is not this tab's fault: no banner,
+          // no reload, keep retrying as before. Either way, fall through: the
+          // terminal path below is what it always was.
+          if (msg.code === "VERSION" && serverIsNewer((msg as { v?: unknown }).v)) {
             staleRef.current = true;
             if (retryRef.current.timer) clearTimeout(retryRef.current.timer);
-            markClientStale(
+            retryRef.current.timer = 0;
+            disposeStaleRef.current();
+            disposeStaleRef.current = markClientStale(
               lastSentTypeRef.current,
               () => !hadStateRef.current && !roomRef.current && !seatReplacedRef.current
             );
+            ws.close(); // its onclose sees staleRef and never reconnects
           }
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
@@ -1425,7 +1434,10 @@ export function useProSocket(
     }
     connect();
     const retry = retryRef.current;
+    const disposeStale = disposeStaleRef;
     return () => {
+      disposeStale.current();
+      disposeStale.current = () => {};
       if (retry.timer) clearTimeout(retry.timer);
       clearResumeDeadline();
       clearResumeReplyDeadline();

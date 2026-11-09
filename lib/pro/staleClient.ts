@@ -63,13 +63,26 @@ export const reloadIfGuardAllows = (now = Date.now()): boolean => {
 };
 
 /**
+ * Is an ERROR{VERSION} frame telling us THIS bundle is too old? The engine
+ * stamps every frame, ERROR included, with its own PROTOCOL_VERSION. The
+ * engine also refuses a client that is NEWER than it (Pages deployed before
+ * Railway on a joint bump, or an engine rollback): that tab is up to date, a
+ * reload can't help, and it must keep retrying until the engine catches up.
+ * A frame without a numeric `v` proves nothing, so it is not stale either.
+ */
+export const serverIsNewer = (serverV: unknown): boolean =>
+  typeof serverV === "number" && Number.isFinite(serverV) && serverV > PROTOCOL_VERSION;
+
+/**
  * Flag the page stale (sticky until reload). `messageType` is the last frame
  * this socket sent — ERROR frames don't say which request they answer.
  * `canAutoReload` is the caller's "no seat, no game snapshot" verdict; the tab
  * must also be visible, and a hidden tab reloads when it next becomes visible.
+ * Returns a disposer for that pending visibility listener: call it on unmount.
  */
-export const markClientStale = (messageType: string | null, canAutoReload: () => boolean): void => {
-  if (typeof window === "undefined") return;
+export const markClientStale = (messageType: string | null, canAutoReload: () => boolean): (() => void) => {
+  const noop = () => {};
+  if (typeof window === "undefined") return noop;
   if (!stale) {
     stale = true;
     // Beacon: the reload below may follow immediately, before a batched send.
@@ -90,11 +103,13 @@ export const markClientStale = (messageType: string | null, canAutoReload: () =>
     if (canAutoReload()) reloadIfGuardAllows();
     return true;
   };
-  if (tryReload()) return;
+  if (tryReload()) return noop;
+  const dispose = () => document.removeEventListener("visibilitychange", onVisible);
   const onVisible = () => {
-    if (tryReload()) document.removeEventListener("visibilitychange", onVisible);
+    if (tryReload()) dispose();
   };
   document.addEventListener("visibilitychange", onVisible);
+  return dispose;
 };
 
 /** Tests only: a fresh page. */

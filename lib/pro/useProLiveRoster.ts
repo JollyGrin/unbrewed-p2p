@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { HeroListing, PROTOCOL_VERSION, ServerMsg } from "./protocol";
-import { isClientStale, markClientStale } from "./staleClient";
+import { isClientStale, markClientStale, serverIsNewer } from "./staleClient";
 
 /** What the landing needs to tell "still loading" apart from "never arrived". */
 export interface ProLiveRosterState {
@@ -50,6 +50,7 @@ export function useProLiveRosterState(
     // Set once the reply lands, so the close event that follows our own
     // `ws.close()` isn't mistaken for the connection dying.
     let answered = false;
+    let disposeStale = () => {};
     ws.onopen = () => {
       ws.send(
         JSON.stringify({
@@ -66,11 +67,12 @@ export function useProLiveRosterState(
       } catch {
         return;
       }
-      // Refused for its protocol version (p2p #1549): flag the page stale.
-      // The roster holds no seat and no game, so a guarded reload is safe —
-      // unless the caller has unsaved input on screen (`autoReload` false).
-      if (msg.type === "ERROR" && msg.code === "VERSION") {
-        markClientStale("LIST_HEROES", () => autoReload);
+      // Refused by an engine newer than this bundle (p2p #1549): flag the page
+      // stale. The roster holds no seat and no game, so a guarded reload is
+      // safe — unless the caller has unsaved input on screen (`autoReload`
+      // false). An OLDER engine refusing us is not a stale bundle: ignored.
+      if (msg.type === "ERROR" && msg.code === "VERSION" && serverIsNewer((msg as { v?: unknown }).v)) {
+        disposeStale = markClientStale("LIST_HEROES", () => autoReload);
         ws.close();
         return;
       }
@@ -87,6 +89,7 @@ export function useProLiveRosterState(
       // Unmount/re-run: suppress the onclose handler so tearing down a healthy
       // socket never reports offline.
       answered = true;
+      disposeStale();
       ws.close();
     };
   }, [wsUrl, debug, autoReload]);

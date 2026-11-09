@@ -182,6 +182,11 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
      superseded before its close lands), a close inside a `SERVER_RESTARTING` window (the planned redeploy path,
      which also suppresses `ws_connect_failed` while the new instance boots), and a tournament seat taken over by
      another tab (code 4001). `code` is null for the synthetic close of a half-open socket on tab return.
+   - `client_version_stale` {client_version, message_type} (#1549): the engine refused this tab's protocol version
+     and its ERROR frame's `v` is newer than ours, so the bundle is out of date. `client_version` is this bundle's
+     `PROTOCOL_VERSION` (the engine's own `protocol_rejected` carries both sides); `message_type` is the last frame
+     the socket sent (ERROR frames don't say which they answer; `LIST_HEROES` for the roster fetch). Once per page
+     load, sent as a beacon because a guarded auto-reload may follow. A client NEWER than the engine is not reported.
    - Engine: `server_error`, `rate_limited`.
    - Dismissed: `toast_error_shown` (toasts are free text with no key and can carry user text).
 5. **Funnels/paths:** built from the above (visitor → first game, deck-add per source, lobby funnel, retention).
