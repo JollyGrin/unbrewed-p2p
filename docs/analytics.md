@@ -20,6 +20,23 @@ Both are set as GitHub Actions repository variables and passed to the build step
 Analytics are off in dev and test (`NODE_ENV !== "production"`), on `/dev/*` and `/debug`, and whenever the key is unset.
 Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, loaded by dynamic `import()` only once analytics starts, so nothing downloads when it is off/declined). The notice and first start are skipped on in-game routes (`/pro/game`, `/game`, `/irl`, `/offline`, `/table`): a new visitor starts on the first normal route. The account probe for identify mounts only when analytics is available.
 
+### Source maps (Error Tracking, #1548)
+`next.config.js` sets `productionBrowserSourceMaps`, so the build writes a `.map` beside every chunk. After
+`next export`, the deploy workflow runs `posthog-cli sourcemap inject` and then `upload` on `./out/_next/static`
+(CLI pinned to 0.19.0, EU host). `inject` adds a chunk id to each chunk, which posthog-js sends with every
+`$exception` frame, and registers the release `unbrewed-p2p` @ the full commit sha (`app_commit`). Then a
+separate step deletes every `.map` from `./out` and the `sourceMappingURL` comments, so the Pages site never serves
+source. It fails the deploy if any `.map` is left.
+
+| Name | Kind | Value |
+|---|---|---|
+| `POSTHOG_CLI_TOKEN` | Actions **secret** | PostHog personal API key, scope `error_tracking:write` (EU, project 306568). |
+| `POSTHOG_CLI_ENV_ID` | Actions variable (optional) | `306568`; the workflow falls back to this value. |
+
+Without the secret (forks, or before it is added) the upload step logs a warning and the deploy goes on with
+minified traces. A CLI or API failure also warns and does not block the deploy. Note that `inject` calls the
+PostHog API too (it creates the release), so it cannot run without a key: CLI 0.19 has no offline inject.
+
 ## Privacy model
 - No cookie; anonymous id in localStorage. Notice (`AnalyticsNotice`) renders first, capture starts after it
   has painted; `Decline` persists and calls `opt_out_capturing`. `/privacy` explains and lets users flip it.
@@ -147,8 +164,8 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
      protection, `error_tracking.exceptionRateLimiter*`). Boundary-caught render crashes,
      which React swallows so autocapture never sees them, are sent by `reportClientError` via
      `captureException(error, { boundary })`, once per boundary per page load. Messages are scrubbed (see the privacy
-     model). Stack traces stay minified until source maps are uploaded (separate ticket); grouping by type and
-     message works without them. Server-side suppression rules apply; client-side ones arrive via remote config, so
+     model). Stack frames resolve to source through source maps uploaded on each deploy (#1548, see "Source maps"
+     above); grouping by type and message works without them. Server-side suppression rules apply; client-side ones arrive via remote config, so
      they don't.
    - **Named events** for the "Errors" dashboard. They fire at most once per key per page load
      (`lib/analyticsErrors.ts`), so a crash loop or a redeploy reconnect storm costs one event.
