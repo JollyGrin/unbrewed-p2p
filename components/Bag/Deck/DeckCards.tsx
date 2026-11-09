@@ -1,26 +1,23 @@
 import { Card } from "@/components/CardFactory/Card";
 import { CardTilt } from "@/components/CardFactory/CardTilt";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
-import { hasFieldedSidekick, toPoolExtraCharacters } from "@/components/DeckPool/PoolFns";
-import { Flex, Box, Text, HStack, Tooltip, Button } from "@chakra-ui/react";
+import { Flex, Box, Text, Button } from "@chakra-ui/react";
 import { useState } from "react";
 import { CardInspector } from "./CardInspector";
-
-import { FaHeart } from "react-icons/fa";
-import { GiFootprint } from "@/components/Icons/gi";
-import { LuSwords } from "react-icons/lu";
-import { TbArcheryArrow } from "react-icons/tb";
-import { MdSupervisorAccount as IconSidekick } from "react-icons/md";
+import { HeroSheet } from "./HeroSheet";
 
 export const DeckCards = ({
   decks,
   selectedDeckId,
   onToggleCharacterCard,
+  onUpdateDeck,
 }: {
   decks?: DeckImportType[];
   selectedDeckId?: string;
   /** when set, the card inspector offers a button to flag the card as a hero/rule card (kept out of the draw deck) */
   onToggleCharacterCard?: (cardIndex: number) => void;
+  /** persists the hero sheet's editors (hero info, cardback, tokens) */
+  onUpdateDeck?: (updated: DeckImportType) => Promise<void> | void;
 }) => {
   const deck = decks?.find((deck) => deck.id === selectedDeckId);
   const cards = deck?.deck_data?.cards;
@@ -40,14 +37,14 @@ export const DeckCards = ({
           fontWeight={600}
         >
           ⚠ Imported deck — click a hero or rule card below, then
-          choose "Keep out of draw deck" to keep it out of the shuffle.
+          choose &quot;Keep out of draw deck&quot; to keep it out of the shuffle.
         </Flex>
       )}
+      {deck && <HeroSheet deck={deck} onSave={onUpdateDeck} />}
       {/* py/px leave room for the hovered card's 1.08 scale + tilt, so it never
           reaches the scroll container edge (a transform that does would grow a
           scrollbar for the duration of the hover). */}
       <Flex flexWrap="wrap" gap="0.5rem" mx="0.5rem" py="16px" px="6px">
-        {deck && <HeroCard deck={deck} />}
         {cards?.map((card, index) => (
           <CardTilt
             key={card.title + index}
@@ -64,6 +61,12 @@ export const DeckCards = ({
             }}
             outline={card.isCharacterCard ? "3px solid" : "none"}
             outlineColor="brand.accent"
+            // keyboard focus ring (the outline above is "none" on unflagged cards)
+            _focusVisible={{
+              outline: "3px solid",
+              outlineColor: "brand.primary",
+              outlineOffset: "2px",
+            }}
             onClick={() => setInspecting(index)}
           >
             <Card card={card} />
@@ -118,109 +121,3 @@ export const DeckCards = ({
     </Box>
   );
 };
-
-const HeroCard = ({ deck }: { deck: DeckImportType }) => {
-  const hero = deck?.deck_data?.hero;
-  const sidekick = deck?.deck_data?.sidekick;
-  // Read straight off deck_data — this tile never sees a pool. Routed through
-  // the same narrowing helper the pool uses so /bag and the table agree on
-  // which characters a deck actually fields (issue #500).
-  const extraCharacters = toPoolExtraCharacters(
-    deck?.deck_data?.extraCharacters,
-  );
-  // Shared section gate (issue #749 pair test): the blank API stub a solo hero
-  // carries (Jason Voorhees / DOPE — name "", hp null, quantity 0) must not
-  // render an empty sidekick row here, same as in HeroPreviewModal.
-  const isSidekick = hasFieldedSidekick(sidekick);
-  return (
-    <Box w="408px" maxW="100%" bg="brand.highlight" borderRadius="0.25rem" p="0.5rem">
-      <Flex justifyContent="space-between">
-        <Text fontWeight={700}>{hero?.name}</Text>
-        <HStack>
-          <FaHeart />
-          <Text>{hero?.hp}</Text>
-          <GiFootprint />
-          <Text>{hero?.move}</Text>
-          <IsRanged isRanged={hero?.isRanged} />
-        </HStack>
-      </Flex>
-
-      {isSidekick && (
-        <Flex justifyContent="space-between">
-          <Text fontWeight={700}>{sidekick?.name}</Text>
-          <HStack>
-            {sidekick?.hp && (
-              <>
-                <FaHeart />
-                <Text>{sidekick?.hp}</Text>
-              </>
-            )}
-            {sidekick?.quantity && (
-              <>
-                <IconSidekick />
-                <Text>{sidekick?.quantity}</Text>
-              </>
-            )}
-            <IsRanged isRanged={sidekick?.isRanged} />
-          </HStack>
-        </Flex>
-      )}
-
-      <Box>
-        <Text>{hero?.specialAbility}</Text>
-
-        {/* character cards past the hero/sidekick (issue #500) — Skeleton
-            King's skeletons, Frankenstein's Monster. Same row as the sidekick
-            above, so a player sees the whole roster before starring the deck,
-            but placed after the hero's ability so that paragraph stays with
-            the hero it belongs to. Blank slots (the Maker's empty "Sidekick"
-            stubs) are dropped by the shared guard, so decks without the field
-            render exactly as before. */}
-        {extraCharacters.map(({ hero: character }, index) => (
-          <Box key={`${character.name}-${index}`}>
-            <Flex justifyContent="space-between">
-              <Text fontWeight={700}>{character.name}</Text>
-              <HStack>
-                {character.hp !== null && (
-                  <>
-                    <FaHeart />
-                    <Text>{character.hp}</Text>
-                  </>
-                )}
-                <GiFootprint />
-                <Text>{character.move}</Text>
-                <IsRanged isRanged={character.isRanged} />
-              </HStack>
-            </Flex>
-            {!!character.specialAbility?.trim() && (
-              <Text fontSize="0.75rem" opacity="0.75" whiteSpace="pre-wrap">
-                {character.specialAbility.trim()}
-              </Text>
-            )}
-          </Box>
-        ))}
-
-        <Text
-          mt="4px"
-          fontSize="0.75rem"
-          opacity="0.75"
-          maxH="80px"
-          overflowY="auto"
-        >
-          {deck.note}
-        </Text>
-        <HStack>
-          <Text mt="4px" fontSize="0.75rem" opacity="0.75">
-            Made by: {deck.user}
-          </Text>
-        </HStack>
-      </Box>
-    </Box>
-  );
-};
-
-const IsRanged = ({ isRanged }: { isRanged?: boolean }) => (
-  <Tooltip label={isRanged ? "Is Ranged" : "Is Meele"}>
-    <span>{isRanged ? <TbArcheryArrow /> : <LuSwords />}</span>
-  </Tooltip>
-);
