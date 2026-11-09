@@ -1,7 +1,8 @@
 /**
  * Card inspector (#1577): opens when a card in the deck grid is clicked, ← →
- * move (wrapping), Esc closes, the filmstrip jumps, and image decks keep a
- * reachable hero/rule toggle in the actions slot.
+ * move (wrapping), Esc closes, the filmstrip jumps, Close works, and every deck
+ * whose caller passes a toggle callback (image decks, Labs, pre-flagged) keeps
+ * a reachable hero/rule toggle in the actions slot.
  */
 import "@testing-library/jest-dom";
 import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
