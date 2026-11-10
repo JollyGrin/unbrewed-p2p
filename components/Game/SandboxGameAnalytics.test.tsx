@@ -20,6 +20,8 @@ jest.mock("../../lib/contexts/WebGameProvider", () => ({
 }));
 
 const started = () => track.mock.calls.filter((c) => c[0] === "game_started");
+const joined = () =>
+  track.mock.calls.filter((c) => c[0] === "game_players_joined");
 
 beforeEach(() => {
   track.mockClear();
@@ -42,7 +44,9 @@ describe("SandboxGameAnalytics", () => {
     expect(started()).toEqual([
       ["game_started", { mode: "sandbox", players: 1, is_host: true }],
     ]);
-    expect(track.mock.calls[1][1]).toMatchObject({ players: 2, is_host: true });
+    expect(joined()).toEqual([
+      ["game_players_joined", { mode: "sandbox", players: 2, is_host: true }],
+    ]);
   });
 
   it("someone already in the room: not the host", () => {
@@ -50,6 +54,17 @@ describe("SandboxGameAnalytics", () => {
     render(<SandboxGameAnalytics />);
     expect(started()).toEqual([
       ["game_started", { mode: "sandbox", players: 2, is_host: false }],
+    ]);
+  });
+
+  it("reload with a friend in the room: game_players_joined is not the host's (#1547)", () => {
+    // The relay replays both seats to the reloaded page.
+    mockPlayers = { ann: {}, bob: {} };
+    const h = render(<SandboxGameAnalytics />);
+    h.rerender(<SandboxGameAnalytics />);
+    h.unmount();
+    expect(joined()).toEqual([
+      ["game_players_joined", { mode: "sandbox", players: 2, is_host: false }],
     ]);
   });
 });

@@ -1,0 +1,22 @@
+{
+  "deckSlug": "william-afton",
+  "tagline": "Kill him once. He comes back as Springtrap, bigger and meaner.",
+  "featuredCards": [
+    {
+      "title": "Man Behind The Slaughter",
+      "caption": "He stalks across the board, scarring everyone in his zone on the way. The setup for the fight he wants."
+    },
+    {
+      "title": "I Will Never Die",
+      "caption": "Heal up and shuffle a spent card back into the deck. You can't run William out of resources."
+    },
+    {
+      "title": "Spring-lock suit",
+      "caption": "The suit bites both fighters. If it finishes William, he rises as Springtrap with 12 health, ready to finish the job."
+    },
+    {
+      "title": "You will not be spared",
+      "caption": "Win the fight and he draws a card. Lose it and an adjacent enemy still pays two."
+    }
+  ]
+}

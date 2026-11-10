@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { HeroListing, PROTOCOL_VERSION, ServerMsg } from "./protocol";
+import { isClientStale, markClientStale, serverIsNewer } from "./staleClient";
 
 /** What the landing needs to tell "still loading" apart from "never arrived". */
 export interface ProLiveRosterState {
@@ -21,10 +22,14 @@ export interface ProLiveRosterState {
  * `offline` bit too: `heroes === null` alone can't distinguish "the reply is a
  * few hundred ms out — show skeletons" from "the socket died — say so", and
  * pulsing skeletons forever is the worse of the two failure modes.
+ *
+ * `autoReload` (p2p #1549): when the engine refuses this bundle's version, may
+ * the page reload itself? Pass false where a reload could throw away input.
  */
 export function useProLiveRosterState(
   wsUrl: string | undefined,
-  debug = false
+  debug = false,
+  autoReload = true
 ): ProLiveRosterState {
   const [state, setState] = useState<ProLiveRosterState>({
     heroes: null,
@@ -33,6 +38,11 @@ export function useProLiveRosterState(
 
   useEffect(() => {
     if (!wsUrl) return;
+    // A stale bundle (p2p #1549) would only be refused again: don't ask.
+    if (isClientStale()) {
+      setState({ heroes: null, offline: true });
+      return;
+    }
     // Re-fetching (a debug toggle, a URL change) starts from loading again, so a
     // previous run's `offline` never sticks to the new socket.
     setState({ heroes: null, offline: false });
@@ -40,6 +50,7 @@ export function useProLiveRosterState(
     // Set once the reply lands, so the close event that follows our own
     // `ws.close()` isn't mistaken for the connection dying.
     let answered = false;
+    let disposeStale = () => {};
     ws.onopen = () => {
       ws.send(
         JSON.stringify({
@@ -56,6 +67,15 @@ export function useProLiveRosterState(
       } catch {
         return;
       }
+      // Refused by an engine newer than this bundle (p2p #1549): flag the page
+      // stale. The roster holds no seat and no game, so a guarded reload is
+      // safe — unless the caller has unsaved input on screen (`autoReload`
+      // false). An OLDER engine refusing us is not a stale bundle: ignored.
+      if (msg.type === "ERROR" && msg.code === "VERSION" && serverIsNewer((msg as { v?: unknown }).v)) {
+        disposeStale = markClientStale("LIST_HEROES", () => autoReload);
+        ws.close();
+        return;
+      }
       if (msg.type === "HEROES") {
         answered = true;
         setState({ heroes: msg.heroes, offline: false });
@@ -69,9 +89,10 @@ export function useProLiveRosterState(
       // Unmount/re-run: suppress the onclose handler so tearing down a healthy
       // socket never reports offline.
       answered = true;
+      disposeStale();
       ws.close();
     };
-  }, [wsUrl, debug]);
+  }, [wsUrl, debug, autoReload]);
 
   return state;
 }
