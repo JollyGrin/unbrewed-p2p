@@ -337,6 +337,10 @@ describe("switch-seat keybind on /offline", () => {
     document.body.appendChild(input);
     press({ key: "s", code: "KeyS" }, input);
     input.remove();
+    const textarea = document.createElement("textarea");
+    document.body.appendChild(textarea);
+    press({ key: "s", code: "KeyS" }, textarea);
+    textarea.remove();
     openPalette(); // the palette is a modal dialog
     press({ key: "s", code: "KeyS" });
     expect(game.hotseat?.active).toBe("offline");
@@ -449,5 +453,15 @@ describe("hotseat settings and chip controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Switch seat" }));
     expect(game.hotseat?.active).toBe("opponent");
     expect(screen.queryByRole("button", { name: /Bob's turn/ })).toBeNull();
+  });
+
+  it("the key still works with a settings switch focused (not a text field)", async () => {
+    renderOffline();
+    await addOpponent();
+    await openSettings();
+    const setting = screen.getByRole("checkbox", { name: /Reveal hand right away/ });
+    fireEvent.click(setting);
+    press({ key: "s", code: "KeyS" }, setting);
+    expect(game.hotseat?.active).toBe("opponent");
   });
 });

@@ -191,11 +191,26 @@ export const comboFromKeyEvent = (
 };
 
 /** Typing in a field, or a dialog (command menu, deck picker) is open. */
+/** Inputs that take typed text; a checkbox or switch does not. */
+const NON_TEXT_INPUTS = new Set([
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+  "range",
+  "color",
+  "file",
+  "image",
+]);
+
 const keyIsBusy = (e: KeyboardEvent): boolean => {
   const el = e.target as HTMLElement | null;
+  if (el?.isContentEditable) return true;
+  if (el?.tagName === "TEXTAREA" || el?.tagName === "SELECT") return true;
   if (
-    el?.isContentEditable ||
-    (el?.tagName && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))
+    el?.tagName === "INPUT" &&
+    !NON_TEXT_INPUTS.has((el as HTMLInputElement).type)
   ) {
     return true;
   }
