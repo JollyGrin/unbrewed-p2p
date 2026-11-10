@@ -35,7 +35,10 @@ const SectionHeader = ({ title, subtitle }: { title: string; subtitle: string })
     >
       {title}
     </Text>
-    <Text fontSize="0.8rem" opacity={0.7}>
+    {/* Not inherited: the screen's text colour is the dark purple, which
+        disappeared into the purple panel. A colour alpha, not `opacity`, so the
+        selection highlight is not blended down with the text. */}
+    <Text fontSize="0.8rem" color="rgba(231, 204, 152, 0.8)">
       {subtitle}
     </Text>
   </Flex>

@@ -27,6 +27,7 @@ import { shareUrl } from "@/lib/account/bagCloud";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
 import { DeckCards } from "./DeckCards";
+import { selectionSx } from "./selection";
 import { EditHeroModal } from "./EditHeroInfo";
 import { EditCardbackModal } from "./EditCardback";
 import { EditSavedTokensModal } from "./EditSavedTokens";
@@ -145,7 +146,13 @@ export const DeckDetail = ({
       list, so the purple runs the full height of a long deck instead of
       stopping at the viewport and leaving the last rows on the page colour.
     */
-    <Flex direction="column" bg="brand.secondary" minH="100%" flex="1 0 auto">
+    <Flex
+      direction="column"
+      bg="brand.secondary"
+      minH="100%"
+      flex="1 0 auto"
+      sx={selectionSx}
+    >
       {/* Mobile (#816): back + name + an overflow menu for everything secondary. */}
       <Flex
         display={{ base: "flex", md: "none" }}
