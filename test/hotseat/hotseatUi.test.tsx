@@ -126,7 +126,13 @@ const addOpponent = async () => {
   await waitFor(() => expect(screen.queryByText("Choose the opposing deck")).toBeNull());
 };
 
+const press = (init: KeyboardEventInit, target: EventTarget = window) =>
+  act(() => {
+    target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+  });
+
 beforeEach(() => {
+  localStorage.clear();
   mockRoute = { pathname: "/offline", query: { name: "offline" } };
   mockBag = [ALICE, BOB];
   mockReplace.mockClear();
@@ -164,8 +170,14 @@ describe("without hotseat", () => {
     );
     expect(screen.queryByRole("button", { name: "Add opponent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Switch seat" })).toBeNull();
+    // The switch-seat key is not listened for in the sandbox.
+    const spy = jest.spyOn(Storage.prototype, "getItem");
+    press({ key: "s", code: "KeyS" });
+    expect(spy).not.toHaveBeenCalledWith("unbrewed-hotseat-switch-key");
+    spy.mockRestore();
+    expect(mockReplace).not.toHaveBeenCalled();
     openPalette();
-    expect(screen.queryByText("Switch seat")).toBeNull();
+    expect(screen.queryByText(/^Switch seat/)).toBeNull();
   });
 
   it("adds no chrome on /irl, which mounts the same offline provider", () => {
@@ -173,6 +185,11 @@ describe("without hotseat", () => {
     renderOffline();
     expect(game.hotseat).toBeDefined();
     expect(screen.queryByRole("button", { name: "Add opponent" })).toBeNull();
+    // Even with a second seat, the switch-seat key does nothing off /offline.
+    act(() => game.hotseat!.addSeat(BOB));
+    press({ key: "s", code: "KeyS" });
+    expect(game.hotseat?.active).toBe("offline");
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });
 
@@ -184,7 +201,7 @@ describe("hotseat on /offline", () => {
     // The solo seat keeps its raw key, exactly as today.
     expect(screen.getByText("offline")).toBeInTheDocument();
     openPalette();
-    expect(screen.queryByText("Switch seat")).toBeNull();
+    expect(screen.queryByText(/^Switch seat/)).toBeNull();
   });
 
   it("Add opponent seats the picked deck without touching the star; the chip flips to Switch seat", async () => {
@@ -240,7 +257,7 @@ describe("hotseat on /offline", () => {
     renderOffline();
     await addOpponent();
     openPalette();
-    fireEvent.click(screen.getByText("Switch seat"));
+    fireEvent.click(screen.getByText("Switch seat (S)"));
     expect(game.hotseat?.active).toBe("opponent");
     expect(mockRoute.query.name).toBe("opponent");
   });
@@ -256,5 +273,66 @@ describe("hotseat on /offline", () => {
     expect(mockRoute.query.name).toBe("offline");
     expect(screen.getByRole("button", { name: "Add opponent" })).toBeInTheDocument();
     expect(screen.queryByText(/tap to reveal/i)).toBeNull();
+  });
+});
+
+describe("switch-seat keybind on /offline", () => {
+  it("S switches seat, like the chip; it does nothing while solo", async () => {
+    renderOffline();
+    press({ key: "s", code: "KeyS" });
+    expect(game.hotseat?.active).toBe("offline");
+    expect(mockReplace).not.toHaveBeenCalledWith(
+      { query: { name: "opponent" } },
+      undefined,
+      { shallow: true },
+    );
+
+    await addOpponent();
+    press({ key: "s", code: "KeyS" });
+    expect(game.hotseat?.active).toBe("opponent");
+    expect(mockRoute.query.name).toBe("opponent");
+    expect(screen.getByRole("button", { name: /Bob's turn/ })).toBeInTheDocument();
+    press({ key: "S", code: "KeyS" }); // caps lock
+    expect(game.hotseat?.active).toBe("offline");
+  });
+
+  it("shows the key in the chip tooltip and the palette", async () => {
+    renderOffline();
+    await addOpponent();
+    act(() => screen.getByRole("button", { name: "Switch seat" }).focus());
+    expect(await screen.findByText("Hand the device over and play Bob (S)")).toBeInTheDocument();
+    openPalette();
+    expect(screen.getByText("Switch seat (S)")).toBeInTheDocument();
+  });
+
+  it("ignores modifiers, repeats, typing in a field and an open dialog", async () => {
+    renderOffline();
+    await addOpponent();
+    press({ key: "S", code: "KeyS", shiftKey: true });
+    press({ key: "s", code: "KeyS", metaKey: true });
+    press({ key: "s", code: "KeyS", ctrlKey: true });
+    press({ key: "s", code: "KeyS", repeat: true });
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    press({ key: "s", code: "KeyS" }, input);
+    input.remove();
+    openPalette(); // the palette is a modal dialog
+    press({ key: "s", code: "KeyS" });
+    expect(game.hotseat?.active).toBe("offline");
+  });
+
+  it("a localStorage entry overrides the key, and off turns it off", async () => {
+    renderOffline();
+    await addOpponent();
+    localStorage.setItem("unbrewed-hotseat-switch-key", "Shift+Tab");
+    press({ key: "s", code: "KeyS" });
+    expect(game.hotseat?.active).toBe("offline");
+    press({ key: "Tab", code: "Tab", shiftKey: true });
+    expect(game.hotseat?.active).toBe("opponent");
+
+    localStorage.setItem("unbrewed-hotseat-switch-key", "off");
+    press({ key: "Tab", code: "Tab", shiftKey: true });
+    press({ key: "s", code: "KeyS" });
+    expect(game.hotseat?.active).toBe("opponent");
   });
 });

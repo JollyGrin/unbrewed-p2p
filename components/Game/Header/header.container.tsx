@@ -9,7 +9,7 @@ import { buildInviteUrl } from "@/lib/invite";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
 import { HeroRulesPanel } from "./hero-rules.panel";
-import { FC, useState } from "react";
+import { FC, useCallback, useState } from "react";
 import { ChipCluster, HudOverlay } from "./header.styles";
 import { ConnectionStatus } from "@/lib/gamesocket/socket";
 import { ChangeDeckModal } from "@/components/Game/GameMenus/change-deck.modal";
@@ -20,6 +20,10 @@ import {
   useSeatLabel,
   useSwitchSeat,
 } from "@/lib/hotseat/useHotseat";
+import {
+  switchSeatKeyLabel,
+  useSwitchSeatHotkey,
+} from "@/lib/hotseat/switchSeatKey";
 
 /**
  * Popper modifiers shared by the corner-pinned chip tooltips. `preventOverflow`
@@ -177,17 +181,23 @@ const HotseatChip = () => {
   const switchSeat = useSwitchSeat();
   const seatLabel = useSeatLabel();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const next =
+    hotseat && hotseat.seats.length > 1 ? nextSeat(hotseat) : undefined;
+  const switchToNext = useCallback(() => {
+    if (next) switchSeat(next);
+  }, [next, switchSeat]);
+  // Only with an opponent seated, so the sandbox never listens.
+  useSwitchSeatHotkey(!!next, switchToNext);
   if (!hotseat) return null;
 
-  const solo = hotseat.seats.length === 1;
-  const next = solo ? undefined : nextSeat(hotseat);
+  const keyLabel = next ? switchSeatKeyLabel() : undefined;
 
   return (
     <>
       <Tooltip
         label={
           next
-            ? `Hand the device over and play ${seatLabel(next)}`
+            ? `Hand the device over and play ${seatLabel(next)}${keyLabel ? ` (${keyLabel})` : ""}`
             : "Play both sides on this device — pick a second deck from your bag"
         }
         placement="bottom-end"

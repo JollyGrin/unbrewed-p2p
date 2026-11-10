@@ -27,6 +27,7 @@ import {
   useSeatLabel,
   useSwitchSeat,
 } from "@/lib/hotseat/useHotseat";
+import { switchSeatKeyLabel } from "@/lib/hotseat/switchSeatKey";
 
 export const CommandMenu: React.FC<{
   openModal: (type: ModalType) => void;
@@ -154,7 +155,10 @@ export const CommandMenu: React.FC<{
         ? [
             {
               id: "switch-seat",
-              label: "Switch seat",
+              label: (() => {
+                const key = switchSeatKeyLabel();
+                return key ? `Switch seat (${key})` : "Switch seat";
+              })(),
               group: "Game" as const,
               keywords: `hotseat pass device play ${seatLabel(nextSeat(hotseat))}`,
               enabled: () => true,
