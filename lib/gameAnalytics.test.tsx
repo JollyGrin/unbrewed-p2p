@@ -314,8 +314,13 @@ describe("useIrlSession (#1511)", () => {
       { offline: true, has_deck: true, hotseat: false },
     ]);
     expect(track.mock.calls[1][1]).toMatchObject({ players: 1 });
-    expect(track.mock.calls[2][0]).toBe("game_ended");
-    expect(track.mock.calls[2][1]).toMatchObject({ players: 2 });
+    // #1547: the added seat counts the game as two-player right away.
+    expect(track.mock.calls[2]).toEqual([
+      "game_players_joined",
+      { mode: "irl", players: 2, is_host: true },
+    ]);
+    expect(track.mock.calls[3][0]).toBe("game_ended");
+    expect(track.mock.calls[3][1]).toMatchObject({ players: 2 });
   });
 
   it("no deck: the session is reported, no game starts", () => {
