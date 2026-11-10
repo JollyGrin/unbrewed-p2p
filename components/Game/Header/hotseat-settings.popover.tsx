@@ -117,6 +117,9 @@ export const HotseatSettings = () => {
       </PopoverTrigger>
       <Portal>
         <PopoverContent
+          // The popper wrapper defaults to z-index 10, under the activity log
+          // (240) and Report bug (241) that sit right below the chips.
+          rootProps={{ zIndex: "popover" }}
           w="17rem"
           bg="brand.surfaceDim"
           color="brand.parchment"
