@@ -1,9 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+
+import {
+  notifyHotseatSettings,
+  subscribeHotseatSettings,
+} from "./hotseatSettings";
 
 /**
  * Switch-seat keybind (hotseat). One key hands the device over, the same as
- * the "Switch seat" chip. The default is `S`. There is no settings screen yet:
- * a player overrides it with one localStorage entry, e.g. in the console
+ * the "Switch seat" chip. The default is `S`. A player changes it in the
+ * hotseat settings (the gear by the chip), which stores one localStorage
+ * entry; it can also be set by hand, e.g. in the console
  *
  *   localStorage.setItem("unbrewed-hotseat-switch-key", "Shift+Tab")
  *
@@ -127,6 +133,61 @@ const browserStorage = () =>
 export const switchSeatKeyLabel = (): string | undefined => {
   const combo = readSwitchSeatKey(browserStorage());
   return combo && formatKeyCombo(combo);
+};
+
+/**
+ * Saves the key (`"off"` turns it off; undefined goes back to the default)
+ * and tells every label to re-read it.
+ */
+export const writeSwitchSeatKey = (value: string | undefined) => {
+  try {
+    if (value === undefined) {
+      localStorage.removeItem(SWITCH_SEAT_KEY_STORAGE);
+    } else {
+      localStorage.setItem(SWITCH_SEAT_KEY_STORAGE, value);
+    }
+  } catch {
+    // Storage can throw (privacy modes); the key just isn't saved.
+  }
+  notifyHotseatSettings();
+};
+
+/** The keybind's label, kept current as the settings change it. */
+export const useSwitchSeatKeyLabel = (): string | undefined =>
+  useSyncExternalStore(
+    subscribeHotseatSettings,
+    switchSeatKeyLabel,
+    () => DEFAULT_SWITCH_SEAT_KEY,
+  );
+
+const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "OS"]);
+
+/**
+ * The combo text for a key press, as the settings record it; undefined for a
+ * lone modifier (still waiting for the real key). Letters come from the
+ * physical key, so Alt+S on a Mac records `Alt+S`, not `Alt+ß`; a symbol that
+ * needs Shift records without it (`?`, not `Shift+?`).
+ */
+export const comboFromKeyEvent = (
+  e: Pick<
+    KeyboardEvent,
+    "key" | "code" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey"
+  >,
+): string | undefined => {
+  if (!e.key || MODIFIER_KEYS.has(e.key)) return undefined;
+  const letter = /^Key([A-Z])$/.exec(e.code ?? "")?.[1];
+  const key =
+    letter ?? (e.key === " " ? "Space" : e.key);
+  const symbol = !letter && key.length === 1;
+  return [
+    e.ctrlKey && "Ctrl",
+    e.altKey && "Alt",
+    e.shiftKey && !symbol && "Shift",
+    e.metaKey && "Cmd",
+    key,
+  ]
+    .filter(Boolean)
+    .join("+");
 };
 
 /** Typing in a field, or a dialog (command menu, deck picker) is open. */

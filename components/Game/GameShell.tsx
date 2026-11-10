@@ -40,6 +40,7 @@ import {
 } from "@/components/Positions/tokenCounter";
 import { iconToSvg, useGameIcons } from "@/lib/icons/gameIcons";
 import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
+import { useBoardRotated } from "@/lib/hotseat/useHotseat";
 import { Box, Button, useDisclosure } from "@chakra-ui/react";
 import { PlusSquareIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
@@ -243,6 +244,10 @@ const BoardContainer = ({
   // Only fetch the 2.8 MB icon chunk when the board actually has an icon token.
   const hasIconToken = useMemo(() => allTokens.some((t) => t.icon), [allTokens]);
   const icons = useGameIcons(hasIconToken);
+
+  // Hotseat (/offline, two seats): with "Rotate board" on, the second seat
+  // plays on a board turned 180°. Never set anywhere else.
+  const boardRotated = useBoardRotated();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Foreign card token whose pickup panel is open (id only — the live token
@@ -541,6 +546,7 @@ const BoardContainer = ({
         iconSvg={iconSvg}
         centerRef={centerRef}
         screenToBoardRef={screenToBoardRef}
+        rotated={boardRotated}
       />
       {peek && <CardPeek card={peek.card} anchor={peek.anchor} />}
       {/* Sits in the pill stack above the ⌘ Actions trigger (bottom-right). */}

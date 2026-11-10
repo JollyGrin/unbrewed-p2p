@@ -2,6 +2,7 @@ import "@testing-library/jest-dom";
 import { ChakraProvider } from "@chakra-ui/react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
+import { within } from "@testing-library/react";
 
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { initPool } from "@/lib/sandbox/initGame";
@@ -11,6 +12,7 @@ import { HeaderContainer } from "@/components/Game/Header/header.container";
 import { CommandMenu } from "@/components/Game/CommandMenu/command-menu";
 import { GameMenusProvider, useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { PassDeviceCover } from "@/components/Game/Hand/pass-device.cover";
+import { useBoardRotated } from "@/lib/hotseat/useHotseat";
 
 /**
  * The hotseat UI on /offline (issue #1564): Add opponent → deck picker → a
@@ -45,6 +47,12 @@ jest.mock("next/router", () => ({
 jest.mock("react-focus-lock", () => ({
   __esModule: true,
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+// Same nwsapi bug in the popover's focus-on-open (the settings gear).
+jest.mock("@chakra-ui/react-use-focus-effect", () => ({
+  useFocusOnShow: () => {},
+  useFocusOnHide: () => {},
 }));
 
 const deck = (hero: string): DeckImportType =>
@@ -82,8 +90,10 @@ type Game = ReturnType<typeof useWebGame>;
 let game!: Game;
 
 /** Seeds the first seat's pool the way HandContainer's auto-init would. */
+let rotated = false;
 const Probe = () => {
   game = useWebGame();
+  rotated = useBoardRotated();
   return null;
 };
 
@@ -133,6 +143,7 @@ const press = (init: KeyboardEventInit, target: EventTarget = window) =>
 
 beforeEach(() => {
   localStorage.clear();
+  rotated = false;
   mockRoute = { pathname: "/offline", query: { name: "offline" } };
   mockBag = [ALICE, BOB];
   mockReplace.mockClear();
@@ -170,6 +181,11 @@ describe("without hotseat", () => {
     );
     expect(screen.queryByRole("button", { name: "Add opponent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Switch seat" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hotseat settings" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rotate board" })).toBeNull();
+    // Settings left on from /offline never reach the sandbox board.
+    localStorage.setItem("unbrewed-hotseat-rotate-board", "1");
+    expect(rotated).toBe(false);
     // The switch-seat key is not listened for in the sandbox.
     const spy = jest.spyOn(Storage.prototype, "getItem");
     press({ key: "s", code: "KeyS" });
@@ -190,6 +206,11 @@ describe("without hotseat", () => {
     press({ key: "s", code: "KeyS" });
     expect(game.hotseat?.active).toBe("offline");
     expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Hotseat settings" })).toBeNull();
+    // Nor does the board turn there, even for the second seat.
+    localStorage.setItem("unbrewed-hotseat-rotate-board", "1");
+    act(() => game.hotseat!.setActive("opponent"));
+    expect(rotated).toBe(false);
   });
 });
 
@@ -334,5 +355,99 @@ describe("switch-seat keybind on /offline", () => {
     press({ key: "Tab", code: "Tab", shiftKey: true });
     press({ key: "s", code: "KeyS" });
     expect(game.hotseat?.active).toBe("opponent");
+  });
+});
+
+const openSettings = async () => {
+  fireEvent.click(screen.getByRole("button", { name: "Hotseat settings" }));
+  return screen.findByText("Hotseat settings");
+};
+
+describe("hotseat settings and chip controls", () => {
+  it("shows the key on the chip and a gear, solo or not", async () => {
+    renderOffline();
+    expect(screen.getByRole("button", { name: "Hotseat settings" })).toBeInTheDocument();
+    // Solo: no key badge and no rotate toggle yet.
+    expect(screen.queryByRole("button", { name: "Rotate board" })).toBeNull();
+    await addOpponent();
+    const chip = screen.getByRole("button", { name: "Switch seat" });
+    expect(within(chip).getByText("S").tagName).toBe("KBD");
+  });
+
+  it("records a new key; the chip, palette and keybind all follow at once", async () => {
+    renderOffline();
+    await addOpponent();
+    await openSettings();
+    const recorder = screen.getByRole("button", { name: "Change switch seat key" });
+    fireEvent.click(recorder);
+    expect(recorder).toHaveTextContent("Press a key…");
+    // A lone modifier waits; the press itself never switches seat.
+    fireEvent.keyDown(recorder, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+    expect(recorder).toHaveTextContent("Press a key…");
+    fireEvent.keyDown(recorder, { key: "Tab", code: "Tab", shiftKey: true });
+    expect(localStorage.getItem("unbrewed-hotseat-switch-key")).toBe("Shift+Tab");
+    expect(game.hotseat?.active).toBe("offline");
+
+    const chip = screen.getByRole("button", { name: "Switch seat" });
+    expect(within(chip).getByText("Shift+Tab")).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Escape" }); // close the popover
+    press({ key: "Tab", code: "Tab", shiftKey: true });
+    expect(game.hotseat?.active).toBe("opponent");
+    openPalette();
+    expect(screen.getByText("Switch seat (Shift+Tab)")).toBeInTheDocument();
+  });
+
+  it("Esc cancels recording; Turn off and Reset to S", async () => {
+    renderOffline();
+    await addOpponent();
+    await openSettings();
+    const recorder = screen.getByRole("button", { name: "Change switch seat key" });
+    fireEvent.click(recorder);
+    fireEvent.keyDown(recorder, { key: "Escape", code: "Escape" });
+    expect(localStorage.getItem("unbrewed-hotseat-switch-key")).toBeNull();
+    expect(screen.getByText("Hotseat settings")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Turn off" }));
+    expect(recorder).toHaveTextContent("Off");
+    const chip = screen.getByRole("button", { name: "Switch seat" });
+    expect(chip.querySelector("kbd")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to S" }));
+    expect(localStorage.getItem("unbrewed-hotseat-switch-key")).toBeNull();
+    expect(within(chip).getByText("S")).toBeInTheDocument();
+  });
+
+  it("Rotate board: the chip toggle and the settings switch are one setting; only the second seat turns", async () => {
+    renderOffline();
+    await addOpponent();
+    const toggle = screen.getByRole("button", { name: "Rotate board" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem("unbrewed-hotseat-rotate-board")).toBe("1");
+    // The first seat plays the board as it is.
+    expect(rotated).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Switch seat" }));
+    expect(rotated).toBe(true);
+
+    await openSettings();
+    const setting = screen.getByRole("checkbox", { name: /Rotate board/ });
+    expect(setting).toBeChecked();
+    fireEvent.click(setting);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(rotated).toBe(false);
+  });
+
+  it("Reveal hand right away skips the pass-the-device cover (off by default)", async () => {
+    renderOffline();
+    await addOpponent();
+    await openSettings();
+    const setting = screen.getByRole("checkbox", { name: /Reveal hand right away/ });
+    expect(setting).not.toBeChecked();
+    fireEvent.click(setting);
+    expect(localStorage.getItem("unbrewed-hotseat-auto-reveal")).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Switch seat" }));
+    expect(game.hotseat?.active).toBe("opponent");
+    expect(screen.queryByRole("button", { name: /Bob's turn/ })).toBeNull();
   });
 });

@@ -89,3 +89,21 @@ describe("formatKeyCombo", () => {
     expect(formatKeyCombo(parseKeyCombo("cmd+space")!)).toBe("Cmd+Space");
   });
 });
+
+describe("comboFromKeyEvent", () => {
+  const { comboFromKeyEvent } = jest.requireActual("./switchSeatKey");
+  it("records letters by physical key, named keys with Shift, symbols without", () => {
+    expect(comboFromKeyEvent(key("s", {}, "KeyS"))).toBe("S");
+    expect(comboFromKeyEvent(key("ß", { altKey: true }, "KeyS"))).toBe("Alt+S");
+    expect(comboFromKeyEvent(key("Tab", { shiftKey: true }, "Tab"))).toBe("Shift+Tab");
+    expect(comboFromKeyEvent(key("?", { shiftKey: true }, "Slash"))).toBe("?");
+    expect(comboFromKeyEvent(key(" ", { ctrlKey: true }, "Space"))).toBe("Ctrl+Space");
+    expect(comboFromKeyEvent(key("Shift", { shiftKey: true }, "ShiftLeft"))).toBeUndefined();
+  });
+
+  it("round-trips through parse and format", () => {
+    for (const text of ["S", "Alt+S", "Shift+Tab", "?", "Ctrl+Space", "Cmd+Enter"]) {
+      expect(formatKeyCombo(parseKeyCombo(text)!)).toBe(text);
+    }
+  });
+});

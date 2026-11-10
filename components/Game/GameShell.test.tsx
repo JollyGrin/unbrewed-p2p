@@ -101,6 +101,8 @@ let mockStarred: unknown;
 let mockGame: Record<string, unknown>;
 jest.mock("../../lib/contexts/WebGameProvider", () => ({
   useWebGame: () => mockGame,
+  // Read by the hotseat hooks (board rotation); no provider = no hotseat.
+  WebGameContext: jest.requireActual("react").createContext(undefined),
 }));
 
 const sendBlob = jest.fn();

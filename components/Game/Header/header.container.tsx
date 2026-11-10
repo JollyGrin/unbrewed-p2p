@@ -21,9 +21,11 @@ import {
   useSwitchSeat,
 } from "@/lib/hotseat/useHotseat";
 import {
-  switchSeatKeyLabel,
   useSwitchSeatHotkey,
+  useSwitchSeatKeyLabel,
 } from "@/lib/hotseat/switchSeatKey";
+import { useHotseatFlag } from "@/lib/hotseat/hotseatSettings";
+import { HotseatSettings, KeyBadge } from "./hotseat-settings.popover";
 
 /**
  * Popper modifiers shared by the corner-pinned chip tooltips. `preventOverflow`
@@ -188,9 +190,9 @@ const HotseatChip = () => {
   }, [next, switchSeat]);
   // Only with an opponent seated, so the sandbox never listens.
   useSwitchSeatHotkey(!!next, switchToNext);
+  const keyLabel = useSwitchSeatKeyLabel();
+  const [rotateBoard, setRotateBoard] = useHotseatFlag("rotateBoard");
   if (!hotseat) return null;
-
-  const keyLabel = next ? switchSeatKeyLabel() : undefined;
 
   return (
     <>
@@ -226,8 +228,49 @@ const HotseatChip = () => {
           >
             {next ? "⇄ Switch seat" : "+ Add opponent"}
           </Text>
+          {next && keyLabel && <KeyBadge label={keyLabel} />}
         </Flex>
       </Tooltip>
+      {next && (
+        <Tooltip
+          label={
+            rotateBoard
+              ? `Board turns 180° on ${seatLabel(hotseat.seats[1])}'s turn — click to stop`
+              : `Turn the board 180° on ${seatLabel(hotseat.seats[1])}'s turn`
+          }
+          placement="bottom-end"
+          maxW="220px"
+          modifiers={CHIP_TOOLTIP_MODIFIERS}
+        >
+          <Flex
+            as="button"
+            aria-label="Rotate board"
+            aria-pressed={rotateBoard}
+            onClick={() => setRotateBoard(!rotateBoard)}
+            alignItems="center"
+            gap="0.25rem"
+            px="0.5rem"
+            py="0.15rem"
+            borderRadius="1rem"
+            bg={rotateBoard ? "rgba(231, 204, 152, 0.3)" : "rgba(20, 8, 24, 0.55)"}
+            cursor="pointer"
+            transition="background 0.15s ease"
+            _hover={{
+              bg: rotateBoard ? "rgba(231, 204, 152, 0.4)" : "rgba(20, 8, 24, 0.85)",
+            }}
+          >
+            <Text
+              fontSize="0.65rem"
+              color="brand.highlight"
+              fontFamily="SpaceGrotesk"
+              whiteSpace="nowrap"
+            >
+              ↻ 180°
+            </Text>
+          </Flex>
+        </Tooltip>
+      )}
+      <HotseatSettings />
       <ChangeDeckModal
         mode="opponent"
         isOpen={pickerOpen}

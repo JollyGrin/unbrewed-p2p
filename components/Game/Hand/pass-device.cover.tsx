@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { useHotseat, useSeatLabel } from "@/lib/hotseat/useHotseat";
+import { useHotseatFlag } from "@/lib/hotseat/hotseatSettings";
 
 /**
  * Pass-the-device cover (hotseat, issue #1564). After a seat switch the hand
  * drawer would show the new seat's hand the instant the previous player hands
  * the device over, so it sits under a one-tap "<Hero>'s turn" cover until
- * the new player reveals it. Always on in hotseat; never rendered otherwise.
+ * the new player reveals it. On in hotseat unless the "Reveal hand right
+ * away" setting is on; never rendered otherwise.
  */
 export const PassDeviceCover = () => {
   const hotseat = useHotseat();
@@ -16,6 +18,7 @@ export const PassDeviceCover = () => {
   const seated = (hotseat?.seats.length ?? 0) > 1;
   const [covered, setCovered] = useState(false);
   const seen = useRef(active);
+  const [autoReveal] = useHotseatFlag("autoReveal");
 
   // Only a switch between two seated players covers — not adding the
   // opponent (the active seat stays put) and not going back to solo.
@@ -28,7 +31,7 @@ export const PassDeviceCover = () => {
     if (!seated) setCovered(false);
   }, [seated]);
 
-  if (!hotseat || !seated || !covered) return null;
+  if (!hotseat || !seated || !covered || autoReveal) return null;
 
   return (
     <Cover
