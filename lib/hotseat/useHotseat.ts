@@ -5,6 +5,7 @@ import {
   HotseatControls,
   WebGameContext,
 } from "@/lib/contexts/WebGameProvider";
+import { useHotseatFlag } from "./hotseatSettings";
 
 /**
  * Hotseat UI helpers (issue #1564): two players sharing one device on
@@ -80,4 +81,15 @@ export const useSeatLabel = () => {
     (name: string) => heroOf(deckFor?.(name)) ?? name,
     [deckFor],
   );
+};
+
+/**
+ * Whether the board is turned 180° right now: the "Rotate board" setting is
+ * on and the second seat is playing. Always false outside an active hotseat,
+ * so the sandbox board never turns.
+ */
+export const useBoardRotated = (): boolean => {
+  const hotseat = useActiveHotseat();
+  const [rotateBoard] = useHotseatFlag("rotateBoard");
+  return !!hotseat && rotateBoard && hotseat.active !== hotseat.seats[0];
 };

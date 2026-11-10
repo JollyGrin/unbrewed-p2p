@@ -21,6 +21,8 @@ type BoardProps = {
   screenToBoardRef?: MutableRefObject<
     (sx: number, sy: number) => { x: number; y: number }
   >;
+  /** Turn the board 180° (hotseat, the second seat's turn). */
+  rotated?: boolean;
 };
 
 export const BoardCanvas: React.FC<BoardProps> = ({
@@ -36,6 +38,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
   iconSvg,
   centerRef,
   screenToBoardRef,
+  rotated,
 }) => {
   const parentRef: RefObject<any> = useRef();
   const canvasRef: RefObject<SVGSVGElement> = useRef(null);
@@ -73,6 +76,7 @@ export const BoardCanvas: React.FC<BoardProps> = ({
     iconSvg,
     centerRef,
     screenToBoardRef,
+    rotated,
   });
 
   return (

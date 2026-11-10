@@ -9,7 +9,7 @@ import { buildInviteUrl } from "@/lib/invite";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { PlayerBox } from "./header.components";
 import { HeroRulesPanel } from "./hero-rules.panel";
-import { FC, useState } from "react";
+import { FC, useCallback, useState } from "react";
 import { ChipCluster, HudOverlay } from "./header.styles";
 import { ConnectionStatus } from "@/lib/gamesocket/socket";
 import { ChangeDeckModal } from "@/components/Game/GameMenus/change-deck.modal";
@@ -20,6 +20,12 @@ import {
   useSeatLabel,
   useSwitchSeat,
 } from "@/lib/hotseat/useHotseat";
+import {
+  useSwitchSeatHotkey,
+  useSwitchSeatKeyLabel,
+} from "@/lib/hotseat/switchSeatKey";
+import { useHotseatFlag } from "@/lib/hotseat/hotseatSettings";
+import { HotseatSettings, KeyBadge } from "./hotseat-settings.popover";
 
 /**
  * Popper modifiers shared by the corner-pinned chip tooltips. `preventOverflow`
@@ -177,17 +183,23 @@ const HotseatChip = () => {
   const switchSeat = useSwitchSeat();
   const seatLabel = useSeatLabel();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const next =
+    hotseat && hotseat.seats.length > 1 ? nextSeat(hotseat) : undefined;
+  const switchToNext = useCallback(() => {
+    if (next) switchSeat(next);
+  }, [next, switchSeat]);
+  // Only with an opponent seated, so the sandbox never listens.
+  useSwitchSeatHotkey(!!next, switchToNext);
+  const keyLabel = useSwitchSeatKeyLabel();
+  const [rotateBoard, setRotateBoard] = useHotseatFlag("rotateBoard");
   if (!hotseat) return null;
-
-  const solo = hotseat.seats.length === 1;
-  const next = solo ? undefined : nextSeat(hotseat);
 
   return (
     <>
       <Tooltip
         label={
           next
-            ? `Hand the device over and play ${seatLabel(next)}`
+            ? `Hand the device over and play ${seatLabel(next)}${keyLabel ? ` (${keyLabel})` : ""}`
             : "Play both sides on this device — pick a second deck from your bag"
         }
         placement="bottom-end"
@@ -216,8 +228,49 @@ const HotseatChip = () => {
           >
             {next ? "⇄ Switch seat" : "+ Add opponent"}
           </Text>
+          {next && keyLabel && <KeyBadge label={keyLabel} />}
         </Flex>
       </Tooltip>
+      {next && (
+        <Tooltip
+          label={
+            rotateBoard
+              ? `Board turns 180° on ${seatLabel(hotseat.seats[1])}'s turn — click to stop`
+              : `Turn the board 180° on ${seatLabel(hotseat.seats[1])}'s turn`
+          }
+          placement="bottom-end"
+          maxW="220px"
+          modifiers={CHIP_TOOLTIP_MODIFIERS}
+        >
+          <Flex
+            as="button"
+            aria-label="Rotate board"
+            aria-pressed={rotateBoard}
+            onClick={() => setRotateBoard(!rotateBoard)}
+            alignItems="center"
+            gap="0.25rem"
+            px="0.5rem"
+            py="0.15rem"
+            borderRadius="1rem"
+            bg={rotateBoard ? "rgba(231, 204, 152, 0.3)" : "rgba(20, 8, 24, 0.55)"}
+            cursor="pointer"
+            transition="background 0.15s ease"
+            _hover={{
+              bg: rotateBoard ? "rgba(231, 204, 152, 0.4)" : "rgba(20, 8, 24, 0.85)",
+            }}
+          >
+            <Text
+              fontSize="0.65rem"
+              color="brand.highlight"
+              fontFamily="SpaceGrotesk"
+              whiteSpace="nowrap"
+            >
+              ↻ 180°
+            </Text>
+          </Flex>
+        </Tooltip>
+      )}
+      <HotseatSettings />
       <ChangeDeckModal
         mode="opponent"
         isOpen={pickerOpen}

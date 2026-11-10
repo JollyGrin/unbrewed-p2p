@@ -27,6 +27,7 @@ import {
   useSeatLabel,
   useSwitchSeat,
 } from "@/lib/hotseat/useHotseat";
+import { useSwitchSeatKeyLabel } from "@/lib/hotseat/switchSeatKey";
 
 export const CommandMenu: React.FC<{
   openModal: (type: ModalType) => void;
@@ -46,6 +47,7 @@ export const CommandMenu: React.FC<{
   const hotseat = useActiveHotseat();
   const switchSeat = useSwitchSeat();
   const seatLabel = useSeatLabel();
+  const switchKey = useSwitchSeatKeyLabel();
   const players = gameState?.content?.players as
     | Record<string, { pool?: PoolType }>
     | undefined;
@@ -154,7 +156,7 @@ export const CommandMenu: React.FC<{
         ? [
             {
               id: "switch-seat",
-              label: "Switch seat",
+              label: switchKey ? `Switch seat (${switchKey})` : "Switch seat",
               group: "Game" as const,
               keywords: `hotseat pass device play ${seatLabel(nextSeat(hotseat))}`,
               enabled: () => true,
@@ -167,7 +169,7 @@ export const CommandMenu: React.FC<{
         : []),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pool, deckLen, discardLen, handLen, menus, hotseat, switchSeat, seatLabel],
+    [pool, deckLen, discardLen, handLen, menus, hotseat, switchSeat, seatLabel, switchKey],
   );
 
   const filtered = useMemo(() => {

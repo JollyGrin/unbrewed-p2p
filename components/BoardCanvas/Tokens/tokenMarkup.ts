@@ -20,6 +20,17 @@ const isCardAspect = (w: number, h: number) =>
 
 const safeId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "");
 
+/** A token's drawn width and height (its box starts at its x, y). */
+export const tokenSize = (d: OwnedToken): { w: number; h: number } => {
+  const w = d.size ?? DEFAULT_TOKEN_SIZE;
+  const h = d.card
+    ? d.h ?? cardTokenHeight(w)
+    : d.imageUrl
+      ? d.h ?? w
+      : w;
+  return { w, h };
+};
+
 /**
  * The inner svg of one board token. There is no kind field: the face is
  * chosen by which fields are present — `card` → `imageUrl` (whole image or a
@@ -39,12 +50,7 @@ export function tokenMarkup(
     brokenImage?: boolean;
   },
 ): string {
-  const w = d.size ?? DEFAULT_TOKEN_SIZE;
-  const h = d.card
-    ? d.h ?? cardTokenHeight(w)
-    : d.imageUrl
-      ? d.h ?? w
-      : w;
+  const { w, h } = tokenSize(d);
   const round = !d.card && Boolean(d.imageUrl) && d.clip === "circle";
   let inner: string;
   if (d.card) {
