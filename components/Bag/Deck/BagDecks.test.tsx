@@ -225,6 +225,76 @@ describe("BagDecks", () => {
     ]);
   });
 
+  /*
+    The desktop row (#1579) is `display: none` at jest's base breakpoint, so its
+    controls are found with `hidden: true`. Both rows' menus are lazy, so only
+    the one that was opened has items in the DOM.
+  */
+  it("desktop toolbar: Edit menu, Share, and an overflow holding Copy JSON and Toss", () => {
+    bag([deck("a", "Alpha", { tags: ["image-deck"] })], {
+      cloudIdOf: () => "row-1",
+    });
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
+
+    // the old row of seven is gone: no standalone Edit cardback / Copy JSON / Toss buttons
+    for (const name of [
+      "Edit hero info",
+      "Edit cardback",
+      "Copy JSON",
+      "Toss",
+    ]) {
+      expect(screen.queryByRole("button", { name, hidden: true })).toBeNull();
+    }
+    expect(
+      screen.getByRole("button", { name: "Share", hidden: true }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit", hidden: true }));
+    expect(menuItems().map((item) => item.textContent)).toEqual([
+      "Edit hero info",
+      "Edit cardback",
+      "Tokens",
+    ]);
+  });
+
+  it("desktop Edit menu leaves out Edit hero info for a non-image deck; Share needs an account deck", () => {
+    bag([deck("a", "Alpha")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
+    expect(
+      screen.queryByRole("button", { name: "Share", hidden: true }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit", hidden: true }));
+    expect(menuItems().map((item) => item.textContent)).toEqual([
+      "Edit cardback",
+      "Tokens",
+    ]);
+  });
+
+  it("desktop overflow: Copy JSON, then Toss from bag behind the confirm strip", () => {
+    const { removeDeckbyId } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Edit deck" }));
+
+    // the desktop overflow is the second "More deck actions" (mobile row comes first in the DOM)
+    const overflow = screen.getAllByRole("button", {
+      name: "More deck actions",
+      hidden: true,
+    });
+    expect(overflow).toHaveLength(2);
+    fireEvent.click(overflow[1]);
+    expect(menuItems().map((item) => item.textContent)).toEqual([
+      "Copy JSON",
+      "Toss from bag",
+    ]);
+    fireEvent.click(menuItem("Toss from bag"));
+    expect(removeDeckbyId).not.toHaveBeenCalled();
+    expect(screen.getByText("Toss Alpha from your bag?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, toss it" }));
+    expect(removeDeckbyId).toHaveBeenCalledWith("a");
+  });
+
   it("tossing from the detail menu asks first, then drops the deck and returns to the shelf", () => {
     const { removeDeckbyId } = bag([deck("a", "Alpha"), deck("b", "Bravo")]);
     renderBag();

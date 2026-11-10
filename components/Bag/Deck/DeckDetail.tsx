@@ -11,6 +11,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import {
+  FaChevronDown,
   FaChevronLeft,
   FaCopy,
   FaEdit,
@@ -22,15 +23,14 @@ import {
 import { toast } from "react-hot-toast";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { GiPawn } from "@/components/Icons/gi";
-import { ShareItemButton } from "@/components/Bag/Account";
 import { shareUrl } from "@/lib/account/bagCloud";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { applyHeroCardFlag } from "@/components/Positions/heroCardTokens";
-import { DangerConfirm } from "./DangerConfirm";
 import { DeckCards } from "./DeckCards";
-import { EditHeroInfo, EditHeroModal } from "./EditHeroInfo";
-import { EditCardback, EditCardbackModal } from "./EditCardback";
-import { EditSavedTokens, EditSavedTokensModal } from "./EditSavedTokens";
+import { selectionSx } from "./selection";
+import { EditHeroModal } from "./EditHeroInfo";
+import { EditCardbackModal } from "./EditCardback";
+import { EditSavedTokensModal } from "./EditSavedTokens";
 
 /** Matches the house dropdown (components/Account/AccountChip.tsx). */
 const menuItemStyles = {
@@ -42,13 +42,22 @@ const menuItemStyles = {
   _focus: { bg: "brand.surface" },
 } as const;
 
+const menuListStyles = {
+  bg: "brand.surfaceDim",
+  borderColor: "brand.accent",
+  color: "brand.primary",
+  minW: "13rem",
+  py: "0.25rem",
+} as const;
+
 type EditKind = "hero" | "cardback" | "tokens";
 
 /**
  * "Edit deck" (#1538): the deck's card list with hero info, cardback, tokens,
  * share link, copy JSON and toss — a full-height screen with its own way
- * back, on every breakpoint (the #816 list/detail swap). On a phone the
- * secondary actions sit behind an overflow menu; on desktop they are a row.
+ * back, on every breakpoint (the #816 list/detail swap). Desktop (#1579):
+ * back, name, an Edit menu, Share, and an overflow with Copy JSON and Toss.
+ * On a phone one overflow menu carries the same items in the same order.
  */
 export const DeckDetail = ({
   deck,
@@ -77,6 +86,44 @@ export const DeckDetail = ({
     toast.success("Copied JSON for: " + deck.name);
   };
 
+  // account decks only: a device deck has no server-side row to link to (#644)
+  const copyShareLink = () => {
+    if (!cloudId) return;
+    copy(shareUrl("decks", cloudId));
+    toast.success("Share link copied");
+  };
+
+  const editItems = (
+    <>
+      {isImageDeck && (
+        <MenuItem {...menuItemStyles} icon={<FaEdit />} onClick={() => setEditing("hero")}>
+          Edit hero info
+        </MenuItem>
+      )}
+      <MenuItem {...menuItemStyles} icon={<FaImage />} onClick={() => setEditing("cardback")}>
+        Edit cardback
+      </MenuItem>
+      <MenuItem {...menuItemStyles} icon={<GiPawn />} onClick={() => setEditing("tokens")}>
+        Tokens{tokenCount > 0 ? ` (${tokenCount})` : ""}
+      </MenuItem>
+    </>
+  );
+  const copyJsonItem = (
+    <MenuItem {...menuItemStyles} icon={<FaCopy />} onClick={copyJson}>
+      Copy JSON
+    </MenuItem>
+  );
+  const tossItem = (
+    <MenuItem
+      {...menuItemStyles}
+      color="brand.danger"
+      icon={<FaTrash />}
+      onClick={() => setConfirmingToss(true)}
+    >
+      Toss from bag
+    </MenuItem>
+  );
+
   const toggleCharacterCard = async (cardIndex: number) => {
     const cards = deck.deck_data.cards.map((card, i) =>
       i === cardIndex ? { ...card, isCharacterCard: !card.isCharacterCard } : card,
@@ -99,7 +146,13 @@ export const DeckDetail = ({
       list, so the purple runs the full height of a long deck instead of
       stopping at the viewport and leaving the last rows on the page colour.
     */
-    <Flex direction="column" bg="brand.secondary" minH="100%" flex="1 0 auto">
+    <Flex
+      direction="column"
+      bg="brand.secondary"
+      minH="100%"
+      flex="1 0 auto"
+      sx={selectionSx}
+    >
       {/* Mobile (#816): back + name + an overflow menu for everything secondary. */}
       <Flex
         display={{ base: "flex", md: "none" }}
@@ -135,7 +188,7 @@ export const DeckDetail = ({
         >
           {deck.name}
         </Text>
-        <Menu placement="bottom-end" autoSelect={false}>
+        <Menu placement="bottom-end" autoSelect={false} isLazy>
           <MenuButton
             as={IconButton}
             aria-label="More deck actions"
@@ -145,49 +198,16 @@ export const DeckDetail = ({
             _hover={{ bg: "rgba(255,255,255,0.08)" }}
             _active={{ bg: "rgba(255,255,255,0.12)" }}
           />
-          <MenuList
-            bg="brand.surfaceDim"
-            borderColor="brand.accent"
-            color="brand.primary"
-            minW="13rem"
-            py="0.25rem"
-          >
-            {isImageDeck && (
-              <MenuItem {...menuItemStyles} icon={<FaEdit />} onClick={() => setEditing("hero")}>
-                Edit hero info
-              </MenuItem>
-            )}
-            <MenuItem {...menuItemStyles} icon={<FaImage />} onClick={() => setEditing("cardback")}>
-              Edit cardback
-            </MenuItem>
-            <MenuItem {...menuItemStyles} icon={<GiPawn />} onClick={() => setEditing("tokens")}>
-              Tokens{tokenCount > 0 ? ` (${tokenCount})` : ""}
-            </MenuItem>
-            {/* same rule as the desktop ShareItemButton: account decks only */}
+          <MenuList {...menuListStyles}>
+            {editItems}
             {cloudId && (
-              <MenuItem
-                {...menuItemStyles}
-                icon={<FaLink />}
-                onClick={() => {
-                  copy(shareUrl("decks", cloudId));
-                  toast.success("Share link copied");
-                }}
-              >
+              <MenuItem {...menuItemStyles} icon={<FaLink />} onClick={copyShareLink}>
                 Share link
               </MenuItem>
             )}
-            <MenuItem {...menuItemStyles} icon={<FaCopy />} onClick={copyJson}>
-              Copy JSON
-            </MenuItem>
+            {copyJsonItem}
             <MenuDivider borderColor="whiteAlpha.300" />
-            <MenuItem
-              {...menuItemStyles}
-              color="brand.danger"
-              icon={<FaTrash />}
-              onClick={() => setConfirmingToss(true)}
-            >
-              Toss from bag
-            </MenuItem>
+            {tossItem}
           </MenuList>
         </Menu>
       </Flex>
@@ -239,37 +259,53 @@ export const DeckDetail = ({
         >
           {deck.name}
         </Text>
-        {isImageDeck && <EditHeroInfo deck={deck} onSave={updateDeck} />}
-        <EditCardback deck={deck} onSave={updateDeck} />
-        <EditSavedTokens deck={deck} onSave={updateDeck} />
-        {/*
-          Share link for a deck that lives in the account (#644). A device deck
-          has no server-side row to link to, so the button isn't offered.
-        */}
-        <ShareItemButton kind="decks" cloudId={cloudId} />
-        <Button
-          size="sm"
-          variant="outline"
-          color="brand.primary"
-          borderColor="rgba(255,255,255,0.25)"
-          _hover={{ bg: "rgba(255,255,255,0.08)" }}
-          onClick={copyJson}
-        >
-          Copy JSON
-        </Button>
-        <DangerConfirm
-          label="Toss"
-          question={`Toss ${deck.name}?`}
-          onConfirm={onToss}
-          trigger={{
-            variant: "solid",
-            bg: "brand.danger",
-            color: "white",
-            textDecoration: "none",
-            px: "0.75rem",
-            _hover: { opacity: 0.9 },
-          }}
-        />
+        <Menu placement="bottom-end" autoSelect={false} isLazy>
+          <MenuButton
+            as={Button}
+            size="sm"
+            variant="outline"
+            color="brand.primary"
+            borderColor="rgba(255,255,255,0.25)"
+            _hover={{ bg: "rgba(255,255,255,0.08)" }}
+            _active={{ bg: "rgba(255,255,255,0.12)" }}
+            leftIcon={<FaEdit size="0.7rem" />}
+            rightIcon={<FaChevronDown size="0.6rem" />}
+          >
+            Edit
+          </MenuButton>
+          <MenuList {...menuListStyles}>{editItems}</MenuList>
+        </Menu>
+        {/* Same gate as ShareItemButton: only an account deck has a row to link to. */}
+        {cloudId && (
+          <Button
+            size="sm"
+            variant="outline"
+            color="brand.primary"
+            borderColor="rgba(255,255,255,0.25)"
+            _hover={{ bg: "rgba(255,255,255,0.08)" }}
+            leftIcon={<FaLink size="0.7rem" />}
+            onClick={copyShareLink}
+          >
+            Share
+          </Button>
+        )}
+        <Menu placement="bottom-end" autoSelect={false} isLazy>
+          <MenuButton
+            as={IconButton}
+            aria-label="More deck actions"
+            icon={<FaEllipsisV />}
+            size="sm"
+            variant="ghost"
+            color="brand.primary"
+            _hover={{ bg: "rgba(255,255,255,0.08)" }}
+            _active={{ bg: "rgba(255,255,255,0.12)" }}
+          />
+          <MenuList {...menuListStyles}>
+            {copyJsonItem}
+            <MenuDivider borderColor="whiteAlpha.300" />
+            {tossItem}
+          </MenuList>
+        </Menu>
       </Flex>
       {/* The menu's "Toss from bag" asks here, where there is room for the answer. */}
       {confirmingToss && (
@@ -309,6 +345,7 @@ export const DeckDetail = ({
         decks={[deck]}
         selectedDeckId={deck.id}
         onToggleCharacterCard={toggleCharacterCard}
+        onUpdateDeck={updateDeck}
       />
     </Flex>
   );
