@@ -14,6 +14,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Card } from "@/components/CardFactory/Card";
+import { selectionSx } from "./selection";
 import { CardTilt } from "@/components/CardFactory/CardTilt";
 import { actions as cardText } from "@/components/CardFactory/card.helpers";
 import {
@@ -135,6 +136,7 @@ export const CardInspector = ({
         aria-label={card ? `Inspect ${card.title}` : "Inspect card"}
         bg="transparent"
         boxShadow="none"
+        sx={selectionSx}
         maxW="min(860px, 100vw)"
         w="auto"
         mx="auto"
