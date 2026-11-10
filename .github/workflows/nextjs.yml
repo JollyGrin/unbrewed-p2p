@@ -116,6 +116,47 @@ jobs:
         run: ${{ steps.detect-package-manager.outputs.runner }} node lib/buildTools/prefixFonts.js
       - name: Static HTML export with Next.js
         run: ${{ steps.detect-package-manager.outputs.runner }} next export
+      # Source maps for PostHog Error Tracking (issue #1548). next.config.js
+      # sets productionBrowserSourceMaps, so ./out/_next/static has a .map per
+      # chunk. `inject` stamps each chunk with the chunk id PostHog matches
+      # $exception frames on (and registers the release), `upload` sends the
+      # maps. Release = unbrewed-p2p @ github.sha, the same commit the client
+      # reports as app_commit (app_version is package.json's version).
+      #
+      # Needs the POSTHOG_CLI_TOKEN secret (a PostHog personal API key with
+      # error tracking write) and the POSTHOG_CLI_ENV_ID variable (306568).
+      # Without the token (forks, or before it is added) the step warns and
+      # skips. An upload failure warns too, rather than blocking the deploy.
+      - name: Upload source maps to PostHog
+        continue-on-error: true
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_TOKEN }}
+          POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_ENV_ID || '306568' }}
+          POSTHOG_CLI_HOST: https://eu.posthog.com
+        run: |
+          if [ -z "$POSTHOG_CLI_API_KEY" ]; then
+            echo "::warning title=Source maps not uploaded::POSTHOG_CLI_TOKEN secret is not set; PostHog stack traces for this deploy stay minified."
+            exit 0
+          fi
+          cli="npx --yes @posthog/cli@0.19.0"
+          release="--release-name unbrewed-p2p --release-version ${{ github.sha }}"
+          if ! $cli sourcemap inject --directory ./out/_next/static $release \
+            || ! $cli sourcemap upload --directory ./out/_next/static $release; then
+            echo "::warning title=Source map upload failed::posthog-cli failed; PostHog stack traces for this deploy stay minified."
+            exit 1
+          fi
+      # Never publish source: drop every .map and the comments pointing at
+      # them, whether or not the upload ran, then make sure none are left.
+      - name: Remove source maps from the Pages artifact
+        run: |
+          find ./out -name '*.map' -type f -delete
+          find ./out/_next/static -type f \( -name '*.js' -o -name '*.css' \) \
+            -exec sed -i -E '/^\/[/*]# sourceMappingURL=/d' {} +
+          left=$(find ./out -name '*.map' -type f | wc -l)
+          if [ "$left" -ne 0 ]; then
+            echo "::error::$left .map files still in ./out"
+            exit 1
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

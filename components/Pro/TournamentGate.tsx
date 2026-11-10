@@ -236,7 +236,10 @@ export const TournamentGate = ({
   }
   if (screen) return <>{screen}</>;
   if (router.isReady) liveRef.current = true;
-  return <>{game()}</>;
+  // The same (layout-neutral) wrapper as above: the server always renders that
+  // branch (no router yet), and a URL with no query is ready on the client's very
+  // first render, so a bare `/pro/game` load would otherwise hydrate a different tree.
+  return <Box display="contents">{game()}</Box>;
 };
 
 /** The live game's state the tournament side reads and drives. */

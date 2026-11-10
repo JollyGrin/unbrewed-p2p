@@ -35,6 +35,7 @@ import {
   GameEvent,
   HeroListing,
   LobbyListing,
+  MatchedVia,
   PlayerView,
   PlayerId,
   ProMapDef,
@@ -64,6 +65,7 @@ import {
   RematchOfferState,
   rematchOfferReducer,
 } from "./rematchOffer";
+import { isClientStale, markClientStale, serverIsNewer, useClientStale } from "./staleClient";
 import { engineSpeaksRematch, forgetEngineVersion, rememberEngineVersion, wireVersionFor } from "./wireVersion";
 
 /** `hero_picked.mode` (#1512). */
@@ -106,6 +108,12 @@ export interface ProRoomInfo {
    *  waiting room announce the rule before the game starts, and the draining bar
    *  size its window. */
   turnTimerSeconds?: number;
+  /** how the room formed (engine #1035, additive) — absent on an older engine. */
+  matchedVia?: MatchedVia;
+  /** the XP multiplier this room's game locked in at start (engine #1035). Absent
+   *  = 1: every room before its game starts, and every non-bonus game. Once seen
+   *  it is kept for the room — the server never lowers it mid-game. */
+  xpMultiplier?: number;
 }
 
 /** A live move-timer snapshot from the server (issue #223, protocol TURN_TIMER).
@@ -139,6 +147,10 @@ export interface ProGameSnapshot {
 
 export interface UseProSocketReturn {
   status: ProConnectionStatus;
+  /** the engine refused this bundle's protocol version (p2p #1549): sticky until
+   *  reload; nothing is sent or reconnected any more. The page-wide
+   *  StaleClientBanner shows the "reload" notice. */
+  stale: boolean;
   /**
    * The signed-in player's cosmetics as this hook's `useCosmetics` holds them
    * (p2p #1399): the post-game card's pre-game baseline. Read-only — the
@@ -785,9 +797,23 @@ export function useProSocket(
     }
   }, []);
 
+  // Stale client (p2p #1549): the engine refused this bundle's protocol version.
+  // Sticky for the page: nothing more goes out and no socket is reopened —
+  // every frame would only be refused again. `lastSentTypeRef` names the frame
+  // the refusal most likely answers (ERROR frames don't say).
+  const staleRef = useRef(isClientStale());
+  const stale = useClientStale();
+  const lastSentTypeRef = useRef<string | null>(null);
+  // Drops the "reload when visible" listener a hidden stale tab left armed.
+  const disposeStaleRef = useRef<() => void>(() => {});
+
   const send = useCallback((msg: ClientMsg) => {
+    if (staleRef.current) return;
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      lastSentTypeRef.current = msg.type;
+      ws.send(JSON.stringify(msg));
+    }
   }, []);
 
   // Every message that binds a seat (CREATE/JOIN/RECONNECT/RESUME) goes out at
@@ -860,7 +886,7 @@ export function useProSocket(
   );
 
   const connect = useCallback(() => {
-    if (!wsUrl || closedForGoodRef.current) return;
+    if (!wsUrl || closedForGoodRef.current || staleRef.current) return;
     setStatus((s) => (s === "idle" || s === "connecting" ? "connecting" : "reconnecting"));
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -924,7 +950,7 @@ export function useProSocket(
           // so the panel can name who has joined. `you` is preserved from the seat
           // we learned on ROOM_CREATED/JOINED (ROOM_STATUS omits it). Destructure
           // first: msg is not narrowed inside the setState callback closure.
-          const { formatId, requiredPlayers, seats, turnTimerSeconds } = msg;
+          const { formatId, requiredPlayers, seats, turnTimerSeconds, matchedVia, xpMultiplier } = msg;
           const bots: RoomBots = {};
           for (const seat of seats) if (seat.bot) bots[seat.player] = seat.bot;
           setRoomBots(msg.roomId, bots);
@@ -936,6 +962,8 @@ export function useProSocket(
             roster: seats,
             bots,
             turnTimerSeconds,
+            matchedVia: matchedVia ?? prev?.matchedVia,
+            xpMultiplier: xpMultiplier ?? prev?.xpMultiplier,
           }));
           break;
         }
@@ -956,7 +984,7 @@ export function useProSocket(
           {
             const bots = getRoomBots(msg.roomId) ?? undefined;
             // Destructure first: msg is not narrowed inside the setState callback.
-            const { formatId, seats, requiredPlayers, you, turnTimerSeconds } = msg;
+            const { formatId, seats, requiredPlayers, you, turnTimerSeconds, matchedVia, xpMultiplier } = msg;
             setRoomInfo((prev) => ({
               formatId: formatId ?? "duel",
               seats: seats ?? [you],
@@ -967,6 +995,10 @@ export function useProSocket(
               roster: prev?.roster,
               bots,
               turnTimerSeconds,
+              // #1035: a fresh seat starts from what this frame says (a revive's
+              // ROOM_JOINED carries the multiplier its resume token kept).
+              matchedVia,
+              xpMultiplier,
             }));
           }
           setRoomPublic(false); // fresh rooms are private until acked otherwise
@@ -1220,6 +1252,26 @@ export function useProSocket(
             sendBind(lastBindRef.current, PROTOCOL_VERSION);
             break;
           }
+          // Any other VERSION refusal from an engine NEWER than this bundle
+          // (p2p #1549; the frame's `v` is the engine's own version): this tab
+          // is out of date. Stop talking — the lobby poll and every reconnect
+          // would only be refused again — close the socket, and let the
+          // page-wide banner say "reload". No seat and no game on screen:
+          // reload outright (guarded). An engine OLDER than this bundle (Pages
+          // deployed first, or a rollback) is not this tab's fault: no banner,
+          // no reload, keep retrying as before. Either way, fall through: the
+          // terminal path below is what it always was.
+          if (msg.code === "VERSION" && serverIsNewer((msg as { v?: unknown }).v)) {
+            staleRef.current = true;
+            if (retryRef.current.timer) clearTimeout(retryRef.current.timer);
+            retryRef.current.timer = 0;
+            disposeStaleRef.current();
+            disposeStaleRef.current = markClientStale(
+              lastSentTypeRef.current,
+              () => !hadStateRef.current && !roomRef.current && !seatReplacedRef.current
+            );
+            ws.close(); // its onclose sees staleRef and never reconnects
+          }
           if (msg.code === "UNDO_UNAVAILABLE") {
             setUndoPending(false);
             setUndoUnavailable(true);
@@ -1357,6 +1409,7 @@ export function useProSocket(
         setSeatReplaced(true);
         return;
       }
+      if (staleRef.current) return; // a stale client never reconnects (p2p #1549)
       reportSocketClose(opened, e, restartWindowRef.current);
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
@@ -1381,7 +1434,10 @@ export function useProSocket(
     }
     connect();
     const retry = retryRef.current;
+    const disposeStale = disposeStaleRef;
     return () => {
+      disposeStale.current();
+      disposeStale.current = () => {};
       if (retry.timer) clearTimeout(retry.timer);
       clearResumeDeadline();
       clearResumeReplyDeadline();
@@ -1767,6 +1823,7 @@ export function useProSocket(
 
   return {
     identitySettled,
+    stale,
     // The pre-game cosmetics, read-only, for the post-game "What you earned"
     // card (p2p #1399): one `/me/cosmetics` request per page lives here, so
     // the page diffs against THIS copy rather than mounting a second hook.

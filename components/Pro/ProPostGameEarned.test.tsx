@@ -134,3 +134,23 @@ describe("casual and forfeit", () => {
     expect(screen.queryByTestId("post-game-level")).toBeNull();
   });
 });
+
+describe("Quick Play multiplier (#1542)", () => {
+  it("captions a quick-play game's XP with its multiplier, waiting or landed", () => {
+    const { unmount } = render(<ProPostGameEarned view={landed()} heroName="Hollow Oak" xpMultiplier={2} />);
+    expect(screen.getByTestId("post-game-xp-multiplier")).toHaveTextContent("2× Quick Play");
+    // The number is still the server's (it already paid the bonus).
+    expect(screen.getByTestId("post-game-xp-delta")).toHaveTextContent("+40 XP");
+    unmount();
+    render(<ProPostGameEarned view={waiting()} heroName="Hollow Oak" xpMultiplier={2} />);
+    expect(screen.getByTestId("post-game-xp-multiplier")).toHaveTextContent("2× Quick Play");
+  });
+
+  it("says nothing for an ordinary (Create room / bot) game", () => {
+    const { unmount } = render(<ProPostGameEarned view={landed()} heroName="Hollow Oak" xpMultiplier={1} />);
+    expect(screen.queryByTestId("post-game-xp-multiplier")).toBeNull();
+    unmount();
+    draw(landed());
+    expect(screen.queryByTestId("post-game-xp-multiplier")).toBeNull();
+  });
+});

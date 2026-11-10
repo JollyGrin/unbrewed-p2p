@@ -5,8 +5,9 @@ import { GameState } from "@/lib/gamesocket/message";
 import { useGameSession } from "@/lib/gameAnalytics";
 
 /**
- * `game_started` / `game_ended` (#1511) for a sandbox room on /game. The game
- * starts at the first room state; whoever found nobody else in it is the host.
+ * `game_started` / `game_players_joined` / `game_ended` (#1511, #1547) for a
+ * sandbox room on /game. The game starts at the first room state; whoever
+ * found nobody else in it is the host.
  */
 export const SandboxGameAnalytics = () => {
   const { gameState } = useWebGame();

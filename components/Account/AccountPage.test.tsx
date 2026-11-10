@@ -149,6 +149,20 @@ describe("AccountPage — signed in", () => {
     );
   });
 
+  it("hides the Discord server perks card for now (#1571)", async () => {
+    signedInWith({ "": { games: [], nextBefore: null } });
+
+    renderPage();
+
+    expect(await screen.findByText("JollyGrin")).toBeInTheDocument();
+    expect(screen.queryByText("Discord server perks")).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.filter(([url]: [string]) =>
+        url.includes("/me/discord"),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("falls back to a placeholder when the Discord avatar 404s", async () => {
     install((url) => {
       if (url.endsWith("/me"))

@@ -1,7 +1,9 @@
 /**
- * The "Discord server perks" card (#578), rendered through the real /account
- * page so the guest gate and the "card doesn't exist" rule are exercised where
- * they actually live.
+ * The "Discord server perks" card (#578), rendered alongside the real /account
+ * page so the guest gate and the "card doesn't exist" rule are exercised with
+ * the page's own account probe. The page stopped mounting the card for now
+ * (#1571), so the test mounts it next to the page; once it's restored as
+ * ProfileView's child again, go back to rendering just `<AccountPage />`.
  *
  * What these pin:
  *  - the four states: unlinked, linked, stale (re-link), and hidden;
@@ -17,6 +19,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 
+import { AccountDiscord } from "./AccountDiscord";
 import { AccountPage } from "./AccountPage";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 
@@ -76,6 +79,8 @@ const renderPage = () =>
   render(
     <ChakraProvider>
       <AccountPage />
+      {/* #1571: hidden on the page for now; mounted here so its tests keep running. */}
+      <AccountDiscord />
     </ChakraProvider>,
   );
 

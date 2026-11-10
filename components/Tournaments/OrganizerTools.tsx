@@ -271,7 +271,7 @@ export const MatchupForm = ({
   entries: readonly EntryName[];
   onDone: () => void;
 }) => {
-  const { heroes } = useProLiveRosterState(PRO_WS_URL);
+  const { heroes } = useProLiveRosterState(PRO_WS_URL, false, false); // no auto-reload over a half-filled form (#1549)
   const decks = useMemo(() => proDeckOptions(heroes ?? []), [heroes]);
   const maps = useMemo(() => proMapOptions(), []);
   const cur = match.matchupRule;

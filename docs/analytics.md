@@ -20,6 +20,23 @@ Both are set as GitHub Actions repository variables and passed to the build step
 Analytics are off in dev and test (`NODE_ENV !== "production"`), on `/dev/*` and `/debug`, and whenever the key is unset.
 Everything goes through `lib/analytics.ts` (the only importer of `posthog-js`, loaded by dynamic `import()` only once analytics starts, so nothing downloads when it is off/declined). The notice and first start are skipped on in-game routes (`/pro/game`, `/game`, `/irl`, `/offline`, `/table`): a new visitor starts on the first normal route. The account probe for identify mounts only when analytics is available.
 
+### Source maps (Error Tracking, #1548)
+`next.config.js` sets `productionBrowserSourceMaps`, so the build writes a `.map` beside every chunk. After
+`next export`, the deploy workflow runs `posthog-cli sourcemap inject` and then `upload` on `./out/_next/static`
+(CLI pinned to 0.19.0, EU host). `inject` adds a chunk id to each chunk, which posthog-js sends with every
+`$exception` frame, and registers the release `unbrewed-p2p` @ the full commit sha (`app_commit`). Then a
+separate step deletes every `.map` from `./out` and the `sourceMappingURL` comments, so the Pages site never serves
+source. It fails the deploy if any `.map` is left.
+
+| Name | Kind | Value |
+|---|---|---|
+| `POSTHOG_CLI_TOKEN` | Actions **secret** | PostHog personal API key, scope `error_tracking:write` (EU, project 306568). |
+| `POSTHOG_CLI_ENV_ID` | Actions variable (optional) | `306568`; the workflow falls back to this value. |
+
+Without the secret (forks, or before it is added) the upload step logs a warning and the deploy goes on with
+minified traces. A CLI or API failure also warns and does not block the deploy. Note that `inject` calls the
+PostHog API too (it creates the release), so it cannot run without a key: CLI 0.19 has no offline inject.
+
 ## Privacy model
 - No cookie; anonymous id in localStorage. Notice (`AnalyticsNotice`) renders first, capture starts after it
   has painted; `Decline` persists and calls `opt_out_capturing`. `/privacy` explains and lets users flip it.
@@ -126,18 +143,26 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    | `lobby_joined` | mode `sandbox` | `/join` (the "Invite a friend" link): the relay answered and the deck is starred, just before the `/game` push (`components/Join/index.tsx`). Also `/connect` when the lobby name was typed rather than rolled; typing a fresh name to start a room counts as a join. |
    | `lobby_created` | mode `sandbox-table`, deck_source? | `/table`: table.place created the lobby (after the dry run), `components/TablePlace/TablePage.tsx`. The friend's seat link goes straight to table.place, so `sandbox-table` has no `lobby_joined`. |
    | `tableplace_handoff` | from_mode `sandbox-table`, deck_source?, deck_count | Each click that leaves for table.place: "Open your seat" (`InviteScreen.tsx`) and the "Your last table" seat links (`TablePage.tsx`). Properties describe the table as it was created. |
-   | `game_started` | mode, players, is_host | `sandbox`: the first room state arrives on `/game`; `players` counts the seats in it, and `is_host` is true when nobody else was in the room. `irl`: the deck is on the table on `/irl` or `/offline` (players 1, is_host always true). `sandbox-table` games run on table.place, so none are sent. |
+   | `game_started` | mode, players, is_host | `sandbox`: the first room state arrives on `/game`; `players` is the seat count at that moment (so always 1 for a host; use `game_players_joined` for multiplayer), and `is_host` is true when nobody else was in the room. `irl`: the deck is on the table on `/irl` or `/offline` (players 1, is_host always true). `sandbox-table` games run on table.place, so none are sent. |
    | `game_ended` | mode, duration_s, players, is_host, end_reason | At most one per `game_started`. `left`: the page unmounts (in-app navigation). `closed`: `pagehide`, sent with `sendBeacon` (`track(…, { beacon: true })`). `players` is the most seats seen. A page restored from the back/forward cache sends a new `game_started`. No client mode has a game over, so `finished` is never sent today. A dropped socket does not end the game. |
+   | `game_players_joined` | mode, players, is_host | #1547. One per seat threshold, 2 and then 3 (`MAX_JOINED_SEATS`; a 4th seat sends nothing), the first time the seat count reaches it. A jump (two guests at once, 1 → 3) sends every step it crossed: `players: 2`, then `players: 3`. A seat that leaves and comes back sends nothing. A host sends it when the second seat appears; a joiner, whose first room state already holds the host, sends it right after its `game_started`. Thresholds count once per page load: a back/forward-cache restore sends a new `game_started` but no repeat `game_players_joined`. Only `sandbox` and a hotseat `irl` game (`/offline` with an opponent added: `players: 2`, `is_host: true`) have more than one seat. |
    | `irl_session_started` | offline, has_deck, hotseat | Once per visit to `/irl` (offline false) or `/offline` (offline true), when the deck loads (has_deck true) or the page settles without one (no starred deck / couldn't load). `hotseat` is true when a second local seat is already seated; /offline always starts solo, so the hotseat signal is the `irl` game's `players` (2 once an opponent is added; `game_ended` reports the peak, #1564). |
 
    A `/game` reload sends `game_ended` (`closed`), then a new `game_started` with `is_host: false`, because the relay
-   replays the other seats' state. Room counts (`is_host = true`) stay right; per-player game counts go up by one per
-   refresh.
+   replays the other seats' state (and, with a friend in the room, a `game_players_joined` with `is_host: false`).
+   Room counts (`is_host = true`) stay right; per-player game counts go up by one per refresh.
+
+   **Counting multiplayer sandbox games:** count `game_players_joined` with `mode = 'sandbox'`, `is_host = true` and
+   `players = 2` (one per room that got a second player). It is sent when the friend joins, so a game that never sends
+   `game_ended` (killed tab, crash, lost beacon) still counts. Do not use `game_ended.players`: it misses those games.
+   `game_started.players` is always 1 for a host. Rooms that reached 3 or more seats: the same filter with
+   `players = 3` (no event goes above 3). A back/forward-cache restore does not count the room again, but a host's
+   `game_started` count does go up by one per restore.
 
    `deck_source` uses the decks ticket's (#1512) source names, only when the deck records it: its stored `addSource`
    (section 2), else `unmatched-labs` for a Labs deck id. Otherwise it is left out: a deck's `sourceUrl` is set on the curated popular decks whatever the add path, so it
-   says nothing about the source. Budget: 3 events per player per
-   sandbox or irl game, plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
+   says nothing about the source. Budget per player per game:
+   2 for a solo sandbox or irl game, 3 for two players, 4 for three or more (at most 4), plus one `tableplace_handoff` per click on `/table`. All of these routes except `/connect` and `/join` are game
    routes (`GAME_PREFIXES`): a first-time visitor who lands straight on one has not been started yet, so their events are
    dropped until they reach a normal route. This is accepted.
 4. **Errors.** Two layers:
@@ -147,8 +172,8 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
      protection, `error_tracking.exceptionRateLimiter*`). Boundary-caught render crashes,
      which React swallows so autocapture never sees them, are sent by `reportClientError` via
      `captureException(error, { boundary })`, once per boundary per page load. Messages are scrubbed (see the privacy
-     model). Stack traces stay minified until source maps are uploaded (separate ticket); grouping by type and
-     message works without them. Server-side suppression rules apply; client-side ones arrive via remote config, so
+     model). Stack frames resolve to source through source maps uploaded on each deploy (#1548, see "Source maps"
+     above); grouping by type and message works without them. Server-side suppression rules apply; client-side ones arrive via remote config, so
      they don't.
    - **Named events** for the "Errors" dashboard. They fire at most once per key per page load
      (`lib/analyticsErrors.ts`), so a crash loop or a redeploy reconnect storm costs one event.
@@ -165,6 +190,11 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
      superseded before its close lands), a close inside a `SERVER_RESTARTING` window (the planned redeploy path,
      which also suppresses `ws_connect_failed` while the new instance boots), and a tournament seat taken over by
      another tab (code 4001). `code` is null for the synthetic close of a half-open socket on tab return.
+   - `client_version_stale` {client_version, message_type} (#1549): the engine refused this tab's protocol version
+     and its ERROR frame's `v` is newer than ours, so the bundle is out of date. `client_version` is this bundle's
+     `PROTOCOL_VERSION` (the engine's own `protocol_rejected` carries both sides); `message_type` is the last frame
+     the socket sent (ERROR frames don't say which they answer; `LIST_HEROES` for the roster fetch). Once per page
+     load, sent as a beacon because a guarded auto-reload may follow. A client NEWER than the engine is not reported.
    - Engine: `server_error`, `rate_limited`.
    - Dismissed: `toast_error_shown` (toasts are free text with no key and can carry user text).
 5. **Funnels/paths:** built from the above (visitor → first game, deck-add per source, lobby funnel, retention).

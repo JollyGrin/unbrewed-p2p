@@ -31,6 +31,10 @@ const nextConfig = {
     NEXT_PUBLIC_COMMIT_SHA: commitSha,
   },
   reactStrictMode: true,
+  // Emit browser source maps so the deploy workflow can upload them to
+  // PostHog Error Tracking (issue #1548). The workflow deletes every .map
+  // from ./out before publishing, so source is never served from Pages.
+  productionBrowserSourceMaps: true,
 };
 
 module.exports = nextConfig;

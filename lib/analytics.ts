@@ -51,11 +51,13 @@ export type AnalyticsEvent =
   | "lobby_joined"
   | "game_started"
   | "game_ended"
+  | "game_players_joined"
   | "irl_session_started"
   | "tableplace_handoff"
   | "ws_connect_failed"
   | "ws_closed_unexpected"
-  | "client_error";
+  | "client_error"
+  | "client_version_stale";
 
 export type AnalyticsProps = Record<string, string | number | boolean | null | undefined>;
 
