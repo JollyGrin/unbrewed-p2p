@@ -110,6 +110,27 @@ describe("HandFan drag-to-table", () => {
     expect(play).toHaveBeenCalledWith(0, { screenPos: { x: 60, y: 0 } });
   });
 
+  it("a drop off the board plays nothing and flies the card back", () => {
+    jest.useFakeTimers(); // drives requestAnimationFrame
+    const play = jest.fn();
+    const elementFromPoint = document.elementFromPoint;
+    render(<HandFan cards={[ACE, BOLT]} functions={fns(play)} />);
+    startDrag("Ace");
+    expect(screen.getAllByText("Ace")).toHaveLength(2); // card + ghost
+
+    document.elementFromPoint = () => document.body; // released over UI
+    pointer("pointerup", 50);
+    document.elementFromPoint = elementFromPoint;
+    expect(play).not.toHaveBeenCalled();
+
+    // the ghost springs home and then goes away
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+    expect(screen.getAllByText("Ace")).toHaveLength(1);
+    jest.useRealTimers();
+  });
+
   it("plays the original slot when nothing changed", () => {
     const play = jest.fn();
     render(<HandFan cards={[ACE, BOLT]} functions={fns(play)} />);
