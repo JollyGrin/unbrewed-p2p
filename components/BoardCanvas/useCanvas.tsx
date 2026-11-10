@@ -1,8 +1,20 @@
 import * as d3 from "d3";
 import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react";
 import { OwnedToken } from "../Positions/position.type";
-import { IconSvg, tokenMarkup } from "./Tokens/tokenMarkup";
+import { IconSvg, tokenMarkup, tokenSize } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
+
+/** The map image's size; the first render fits it to the viewport. */
+const MAP_W = 1200;
+const MAP_H = 1000;
+
+/**
+ * Turns the board 180° about the map's centre (hotseat, the second seat's
+ * turn). It sits INSIDE the zoom transform, so pan and zoom are untouched and
+ * d3's pointer maths (getScreenCTM) keeps drags in board coords. A point maps
+ * to (MAP_W − x, MAP_H − y), which is its own inverse.
+ */
+const ROTATE_180 = ` rotate(180 ${MAP_W / 2} ${MAP_H / 2})`;
 
 type CanvasProps = {
   canvasRef: RefObject<SVGSVGElement>;
@@ -30,6 +42,8 @@ type CanvasProps = {
   screenToBoardRef?: MutableRefObject<
     (sx: number, sy: number) => { x: number; y: number }
   >;
+  /** Turn the board 180° (hotseat); token faces and labels stay upright. */
+  rotated?: boolean;
 };
 
 /**
@@ -53,6 +67,7 @@ export const useCanvas = ({
   iconSvg,
   centerRef,
   screenToBoardRef,
+  rotated = false,
 }: CanvasProps) => {
   // Token being dragged right now: it follows the pointer locally, so echo
   // re-renders must not snap it back to the (throttled, ≤50ms stale) wire
@@ -89,14 +104,24 @@ export const useCanvas = ({
     const gPieces = g.select<SVGGElement>("g.pieces");
 
     const isOwn = (d: OwnedToken) => d.owner === self;
+    const rotation = rotated ? ROTATE_180 : "";
+    // Zoom-space point → board point (undoes the rotation).
+    const unrotate = ([x, y]: [number, number]) =>
+      rotated ? { x: MAP_W - x, y: MAP_H - y } : { x, y };
 
-    const markup = (d: OwnedToken): string =>
-      tokenMarkup(d, {
+    const markup = (d: OwnedToken): string => {
+      const inner = tokenMarkup(d, {
         own: isOwn(d),
         selected: d.id === selectedId,
         iconSvg,
         brokenImage: !!d.imageUrl && brokenImages.has(d.imageUrl),
       });
+      if (!rotated) return inner;
+      // On a turned board each token turns back about its own centre, so
+      // faces and labels read upright and the token keeps its spot.
+      const { w, h } = tokenSize(d);
+      return `<g class="upright" transform="rotate(180 ${w / 2} ${h / 2})">${inner}</g>`;
+    };
 
     const markBroken = (url: string) =>
       setBrokenImages((prev) =>
@@ -237,8 +262,10 @@ export const useCanvas = ({
       ])
       .scaleExtent([0.25, 4])
       .on("zoom", ({ transform }) => {
-        g.attr("transform", transform);
-        canvas.select("image.background").attr("transform", transform);
+        g.attr("transform", `${transform}${rotation}`);
+        canvas
+          .select("image.background")
+          .attr("transform", `${transform}${rotation}`);
         // Broadcast so the dice overlay can ride the map.
         publishBoardTransform({ x: transform.x, y: transform.y, k: transform.k });
       });
@@ -250,8 +277,7 @@ export const useCanvas = ({
     if (centerRef) {
       centerRef.current = () => {
         const t = d3.zoomTransform(canvasRef.current as SVGSVGElement);
-        const [x, y] = t.invert([width / 2, height / 2]);
-        return { x, y };
+        return unrotate(t.invert([width / 2, height / 2]));
       };
     }
 
@@ -260,15 +286,12 @@ export const useCanvas = ({
         const svg = canvasRef.current as SVGSVGElement;
         const rect = svg.getBoundingClientRect();
         const t = d3.zoomTransform(svg);
-        const [x, y] = t.invert([sx - rect.left, sy - rect.top]);
-        return { x, y };
+        return unrotate(t.invert([sx - rect.left, sy - rect.top]));
       };
     }
 
     // fit + center the map on first render (moves map and tokens together)
     if (isFirstRender) {
-      const MAP_W = 1200;
-      const MAP_H = 1000;
       const scale = Math.min(width / MAP_W, height / MAP_H, 1);
       const tx = (width - MAP_W * scale) / 2;
       const ty = (height - MAP_H * scale) / 2;
@@ -282,6 +305,9 @@ export const useCanvas = ({
     // so a freshly-mounted overlay gets the current value without a zoom event.
     const t0 = d3.zoomTransform(canvasRef.current);
     publishBoardTransform({ x: t0.x, y: t0.y, k: t0.k });
+    // A turn of the board (no zoom event) re-applies the current view.
+    g.attr("transform", `${t0}${rotation}`);
+    canvas.select("image.background").attr("transform", `${t0}${rotation}`);
   }, [
     tokens,
     size,
@@ -299,6 +325,7 @@ export const useCanvas = ({
     centerRef,
     screenToBoardRef,
     brokenImages,
+    rotated,
   ]);
 
   // Clear the shared svg reference when the board unmounts.

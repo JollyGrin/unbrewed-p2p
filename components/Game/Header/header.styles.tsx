@@ -203,3 +203,26 @@ export const ChipCluster = styled(Flex)`
   align-items: center;
   gap: 0.3rem;
 `;
+
+/** Hotseat (issue #1564): the "Play this side" link under a seat's name. */
+export const PlaySideButton = styled.button`
+  display: block;
+  margin-top: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 1rem;
+  font-family: ${fonts.SpaceGrotesk};
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: ${colors.brand.highlight};
+  background: rgba(20, 8, 24, 0.55);
+  border: 1px solid rgba(231, 204, 152, 0.3);
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba(20, 8, 24, 0.85);
+  }
+`;

@@ -40,6 +40,7 @@ import {
 } from "@/components/Positions/tokenCounter";
 import { iconToSvg, useGameIcons } from "@/lib/icons/gameIcons";
 import { DEFAULT_MAP_URL } from "@/lib/maps/defaultMap";
+import { useBoardRotated } from "@/lib/hotseat/useHotseat";
 import { Box, Button, useDisclosure } from "@chakra-ui/react";
 import { PlusSquareIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
@@ -198,7 +199,11 @@ const BoardContainer = ({
     gameState,
     logAction,
     claimTableCard,
+    deckFor,
   } = useWebGame();
+  // The seat's own deck under hotseat (#1563); online `deckFor` is undefined,
+  // so this is the starred deck exactly as before.
+  const seatDeck = deckFor?.(self) ?? starredDeck;
 
   const players = (gameState?.content as GameState | undefined)?.players;
 
@@ -239,6 +244,10 @@ const BoardContainer = ({
   // Only fetch the 2.8 MB icon chunk when the board actually has an icon token.
   const hasIconToken = useMemo(() => allTokens.some((t) => t.icon), [allTokens]);
   const icons = useGameIcons(hasIconToken);
+
+  // Hotseat (/offline, two seats): with "Rotate board" on, the second seat
+  // plays on a board turned 180°. Never set anywhere else.
+  const boardRotated = useBoardRotated();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Foreign card token whose pickup panel is open (id only — the live token
@@ -474,9 +483,14 @@ const BoardContainer = ({
     if (blobs[self]) return;
     // Same helper the reset re-seeds with, so a rematch board is identical to
     // a fresh join's (lib/sandbox/initGame.ts).
-    const timer = setTimeout(() => sendBlob(initPositionBlob(starredDeck, self)), 1500);
+    // Resolved inside the effect so a changing `deckFor` result can't re-arm
+    // the timer on every render; the seat's deck under hotseat (#1563).
+    const timer = setTimeout(
+      () => sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self)),
+      1500,
+    );
     return () => clearTimeout(timer);
-  }, [blobs, self, gameState, sendBlob, starredDeck]);
+  }, [blobs, self, gameState, sendBlob, starredDeck, deckFor]);
 
   const iconSvg = useCallback(
     (
@@ -532,6 +546,7 @@ const BoardContainer = ({
         iconSvg={iconSvg}
         centerRef={centerRef}
         screenToBoardRef={screenToBoardRef}
+        rotated={boardRotated}
       />
       {peek && <CardPeek card={peek.card} anchor={peek.anchor} />}
       {/* Sits in the pill stack above the ⌘ Actions trigger (bottom-right). */}
@@ -617,14 +632,14 @@ const BoardContainer = ({
             hp: c.hero.hp,
           })),
         }}
-        heroTokens={heroTokenSources(starredDeck?.deck_data)}
+        heroTokens={heroTokenSources(seatDeck?.deck_data)}
         onAdd={addToken}
         onPatch={patchToken}
         onDelete={deleteToken}
         footer={
-          starredDeck && (
+          seatDeck && (
             <SaveTokensToDeck
-              deck={starredDeck}
+              deck={seatDeck}
               tokens={myTokens}
               color={myColor}
               onSave={updateDeck}

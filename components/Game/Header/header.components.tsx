@@ -16,6 +16,7 @@ import {
   Pip,
   PlayerName,
   PlayerTitleBar,
+  PlaySideButton,
   StatContainer,
   StatLine,
   StatsPanel,
@@ -55,6 +56,10 @@ import { DiscardModalReadOnly } from "./discard.modal";
 export const PlayerBox: React.FC<{
   isLocal: boolean;
   name: string;
+  /** Shown in place of `name` — a hotseat seat's hero (issue #1564). */
+  displayName?: string;
+  /** Hotseat: take over this seat on this device ("Play this side"). */
+  onPlaySide?: () => void;
   playerState: { pool: PoolType };
   setGameState: (pool: PoolType) => void;
   openPositionModal?: () => void;
@@ -63,7 +68,9 @@ export const PlayerBox: React.FC<{
   rulesOpen?: boolean;
 }> = ({
   isLocal,
-  name,
+  name: seatName,
+  displayName,
+  onPlaySide,
   playerState,
   setGameState,
   openPositionModal,
@@ -71,6 +78,7 @@ export const PlayerBox: React.FC<{
   rulesOpen,
 }) => {
   const { hand, deck, discard, hero, sidekick } = playerState.pool;
+  const name = displayName ?? seatName;
 
   const updateHealth = (
     adjustAmount: number,
@@ -108,7 +116,12 @@ export const PlayerBox: React.FC<{
             >
               <PlayerName>{name}</PlayerName>
             </Tooltip>
-            {hero?.name && <HeroName>{hero.name}</HeroName>}
+            {hero?.name && hero.name !== displayName && (
+              <HeroName>{hero.name}</HeroName>
+            )}
+            {onPlaySide && (
+              <PlaySideButton onClick={onPlaySide}>Play this side</PlaySideButton>
+            )}
           </Box>
           <HStack gap="0.25rem" flexShrink={0}>
             {/* Not gated on isLocal: opponents' extended rules matter just as

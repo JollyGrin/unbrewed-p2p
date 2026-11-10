@@ -28,7 +28,8 @@ import {
 } from "@chakra-ui/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { WebGameContext } from "@/lib/contexts/WebGameProvider";
 import { useDebounce } from "use-debounce";
 
 /** Source buckets the segmented filter offers, in display order. */
@@ -88,6 +89,12 @@ export const MapPickerModal = (props: {
 }) => {
   const { data: localMaps } = useBagMaps();
   const { starredDeck } = useBagDecks();
+  // Read softly: this modal also renders outside a game provider. Under
+  // hotseat, the active seat's deck; otherwise the starred deck (#1563).
+  const game = useContext(WebGameContext);
+  const seatDeck =
+    (game?.hotseat ? game.deckFor?.(game.hotseat.active) : undefined) ??
+    starredDeck;
 
   const queryUrl = props.selectedUrl;
 
@@ -237,7 +244,7 @@ export const MapPickerModal = (props: {
             alignItems="start"
           >
             <Box minW={0}>
-              <DeckMapEntry deck={starredDeck} onUse={useDeckMap} />
+              <DeckMapEntry deck={seatDeck} onUse={useDeckMap} />
               {visible.length === 0 ? (
                 <Text opacity={0.7} py="2rem" textAlign="center">
                   No maps match that search.
