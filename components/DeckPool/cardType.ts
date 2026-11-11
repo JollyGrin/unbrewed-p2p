@@ -20,8 +20,9 @@ const CARD_TYPES: Record<string, UnmatchedCardType> = {
 export const normalizeCardType = (type: unknown): UnmatchedCardType => {
   if (typeof type !== "string") return "versatile";
   const key = type.trim().toLowerCase();
-  // own keys only: "constructor", "toString", "__proto__" … are not types
-  return Object.hasOwn(CARD_TYPES, key) ? CARD_TYPES[key] : "versatile";
+  // own keys only: "constructor", "toString", "__proto__" … are not types.
+  // Not Object.hasOwn: it is missing before Safari 15.4 (#1606).
+  return Object.prototype.hasOwnProperty.call(CARD_TYPES, key) ? CARD_TYPES[key] : "versatile";
 };
 
 /** The card with its type normalized; the same object when it already was. */
