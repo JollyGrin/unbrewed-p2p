@@ -1,6 +1,7 @@
 import { Flex, Select, Spinner, Tag, Text } from "@chakra-ui/react";
 
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import Link from "next/link";
 
 type Props = {
@@ -29,7 +30,9 @@ type Props = {
 };
 
 export const SelectedDeckContainer = (props: Props) => {
-  const { isLoading, error, starredDeck, decks, setStar } = props;
+  const { isLoading, error, starredDeck, setStar } = props;
+  // A malformed deck (#1609) is never offered to pick.
+  const decks = props.decks?.filter(isPlayableDeck);
   const bagIds = new Set(decks?.map((deck) => deck.id));
   const pro = props.proDecks?.filter((deck) => !bagIds.has(deck.id)) ?? [];
   const options = (

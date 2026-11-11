@@ -23,6 +23,7 @@ const mockDeck = {
   name: "Alice",
   deck_data: {
     hero: { name: "Alice" },
+    cards: [],
     appearance: { highlightColour: "#fff", borderColour: "#000" },
   },
 };
@@ -98,6 +99,7 @@ const seatDeck = {
   name: "Bob",
   deck_data: {
     hero: { name: "Bob the Hero" },
+    cards: [],
     appearance: { highlightColour: "#fff", borderColour: "#000" },
   },
 };

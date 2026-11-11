@@ -49,7 +49,7 @@ jest.mock("../../lib/hooks/useLocalStorage", () => ({
 // The bag is account-first now (#644); this page only reads from it.
 jest.mock("../../lib/bag/useBag", () => ({
   useBagDecks: () => ({
-    decks: [{ id: "d1", name: "A deck" }],
+    decks: [{ id: "d1", name: "A deck", deck_data: { hero: {}, cards: [] } }],
     star: "d1",
     setStar: jest.fn(),
   }),

@@ -8,7 +8,7 @@ import { useGenericImport } from "@/lib/hooks/useGenericImport";
 import { track } from "@/lib/analytics";
 import { trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { isImportBlocked } from "@/lib/decks/blockedAuthors";
-import { InvalidDecksNote, reportInvalidDecks } from "@/components/Bag/InvalidDecksNote";
+import { InvalidDecksNote, reportInvalidDecks, useReportAllInvalid } from "@/components/Bag/InvalidDecksNote";
 import {
   Box,
   Button,
@@ -183,6 +183,7 @@ const ImportPanel = ({
     [rawText],
   );
 
+  useReportAllInvalid(bundle);
   const existingDeckIds = new Set((decks ?? []).map((deck) => deck.id));
   const existingMapUrls = new Set(maps.map((map) => map.imgUrl));
   const newDecks =

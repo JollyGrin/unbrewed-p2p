@@ -8,6 +8,8 @@ const deck = (id: string, name: string): DeckImportType =>
     name,
     version_id: `${id}-v1`,
     deck_data: {
+      hero: {},
+      cards: [],
       appearance: {
         highlightColour: "#ffdddd",
         borderColour: "#8b0000",
@@ -175,4 +177,17 @@ describe("SelectedDeckContainer — a malformed starred deck (#1609)", () => {
     );
     expect(screen.getByLabelText("Choose your deck")).toBeTruthy();
   });
+});
+
+it("never offers a malformed deck in the /connect picker (#1609)", () => {
+  const broken = { id: "broken", deck_data: {} } as unknown as DeckImportType;
+  render(
+    <SelectedDeckContainer
+      starredDeck={undefined}
+      decks={[broken, alpha, bravo]}
+      setStar={jest.fn()}
+    />,
+  );
+  const select = screen.getByLabelText("Choose your deck") as HTMLSelectElement;
+  expect([...select.options].map((o) => o.value)).toEqual(["", "deck-alpha", "deck-bravo"]);
 });

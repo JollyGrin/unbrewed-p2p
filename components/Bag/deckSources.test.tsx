@@ -287,6 +287,16 @@ describe("BagBulkContainer", () => {
     ]);
   });
 
+  it("a backup of only malformed decks reports invalid_shape, not parse_error (#1609 review)", async () => {
+    wrap(<BagBulkContainer />);
+    fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
+      target: { value: JSON.stringify({ decks: [{ id: "x", deck_data: {} }, { id: "y", deck_data: {} }], maps: [] }) },
+    });
+    expect(await screen.findByText(/Skipped 2 decks with no name, hero or cards/)).toBeInTheDocument();
+    expect(screen.queryByText(/doesn.t look like Unbrewed backup JSON/)).toBeNull();
+    expect(mockTrack.mock.calls).toEqual([["deck_add_failed", { source: "bulk", reason: "invalid_shape" }]]);
+  });
+
   it("reports blocked_author when every new deck is by a blocked author", async () => {
     mockImportDecks.mockResolvedValueOnce(0);
     wrap(<BagBulkContainer />);

@@ -8,7 +8,7 @@ import { BulkBundle } from "@/lib/bag/bundle";
 import { track } from "@/lib/analytics";
 import { trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { isImportBlocked } from "@/lib/decks/blockedAuthors";
-import { InvalidDecksNote, reportInvalidDecks } from "@/components/Bag/InvalidDecksNote";
+import { InvalidDecksNote, reportInvalidDecks, useReportAllInvalid } from "@/components/Bag/InvalidDecksNote";
 import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { DeckPreview, goldButton } from "@/components/Bag/AddDeckHub/DeckPreview";
 import { FoundLine } from "@/components/Bag/AddDeckHub/FoundLine";
@@ -48,6 +48,7 @@ export const AddJson = ({
     return single.id;
   };
 
+  useReportAllInvalid(bundle);
   const existingDeckIds = useMemo(() => new Set((decks ?? []).map((d) => d.id)), [decks]);
   const existingMapUrls = useMemo(() => new Set(maps.map((m) => m.imgUrl)), [maps]);
   const newDecks = bundle.decks.filter((deck) => !existingDeckIds.has(deck.id));

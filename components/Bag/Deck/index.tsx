@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useRouter } from "next/router";
 import { Box, Flex, Grid, Spinner, Text } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
@@ -53,7 +54,9 @@ export const BagDecks = () => {
   const pasteRef = useRef<HTMLInputElement>(null);
 
   const count = decks?.length ?? 0;
-  const upNext = decks?.find((deck) => deck.id === star);
+  // A malformed starred deck (#1609) is not Up next, matching /connect,
+  // where useBagDecks().starredDeck ignores it too.
+  const upNext = decks?.find((deck) => deck.id === star && isPlayableDeck(deck));
   // Every deck keeps its place in the grid, the starred one included (it is
   // highlighted there and shown above as Up next): starring must never
   // reflow the tiles under the player's thumb.

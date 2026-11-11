@@ -376,4 +376,11 @@ describe("BagDecks", () => {
     expect(screen.queryByTestId("up-next")).toBeNull();
     expect(screen.getAllByRole("button", { name: /make it up next/ })).toHaveLength(2);
   });
+
+  it("a malformed starred deck is not Up next, as on /connect (#1609)", () => {
+    const broken = { id: "x", name: "Broken", version_id: "1", deck_data: {} } as unknown as DeckImportType;
+    bag([broken, deck("a", "Alpha")], { star: "x" });
+    renderBag();
+    expect(screen.queryByTestId("up-next")).toBeNull();
+  });
 });

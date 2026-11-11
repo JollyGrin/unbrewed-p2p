@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { SelectedDeckContainer } from "@/components/Connect/SelectedDeck";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { gameModeOfPath, trackDeckSelected } from "@/lib/deckAnalytics";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { SOLO_SEAT, heroOf, useHotseat } from "@/lib/hotseat/useHotseat";
@@ -53,9 +54,11 @@ export const ChangeDeckModal = (props: {
   // The opponent picks from the rest of the bag: everything but the deck the
   // first seat is playing.
   const mine = isOpponent ? (deckFor?.(SOLO_SEAT) ?? starredDeck) : undefined;
-  const choices = isOpponent
-    ? decks?.filter((deck) => deck.id !== mine?.id)
-    : decks;
+  // A malformed deck (#1609) is never offered: switching to one throws in
+  // `newPool` after the star has already moved.
+  const choices = decks?.filter(
+    (deck) => isPlayableDeck(deck) && (!isOpponent || deck.id !== mine?.id),
+  );
   const firstChoice = choices?.[0]?.id;
 
   // Open on whatever is starred right now (the first other deck, picking an

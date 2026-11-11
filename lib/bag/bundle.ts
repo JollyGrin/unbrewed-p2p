@@ -5,7 +5,9 @@ import { MapData } from "@/lib/hooks/useLocalStorage";
 /**
  * `invalidDecks`: entries that looked like decks (an object with `deck_data`
  * and `id`) but fail {@link isPlayableDeck} (#1609). They are left out of
- * `decks`; the import panels say how many were skipped.
+ * `decks`; the import panels say how many were skipped. A backup whose decks
+ * are ALL malformed still comes back, with `decks: []`. A lone malformed
+ * deck (not in an array or bundle) is not a bundle at all.
  */
 export type BulkBundle = { decks: DeckImportType[]; maps: MapData[]; invalidDecks?: number };
 
@@ -21,7 +23,9 @@ export const normalizeBundle = (parsed: unknown): BulkBundle | undefined => {
   if (Array.isArray(parsed)) {
     const candidates = parsed.filter(looksLikeDeck);
     const decks = candidates.filter(isPlayableDeck);
-    return decks.length
+    // Every entry malformed still returns a (deckless) bundle, so the panel
+    // can say how many it skipped rather than "not backup JSON".
+    return candidates.length
       ? { decks, maps: [], invalidDecks: candidates.length - decks.length }
       : undefined;
   }
@@ -35,7 +39,7 @@ export const normalizeBundle = (parsed: unknown): BulkBundle | undefined => {
   const maps = Array.isArray(obj.maps)
     ? obj.maps.filter((m: any) => typeof m?.imgUrl === "string")
     : [];
-  if (!decks.length && !maps.length) return undefined;
+  if (!candidates.length && !maps.length) return undefined;
   return { decks, maps, invalidDecks: candidates.length - decks.length };
 };
 

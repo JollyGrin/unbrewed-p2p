@@ -89,6 +89,18 @@ describe("detectDeckPaste", () => {
     });
   });
 
+  it("a backup whose decks are all malformed still says how many it skipped (#1609 review)", () => {
+    const bad = { id: "y", deck_data: {} };
+    expect(detectDeckPaste(JSON.stringify([bad, bad]))).toMatchObject({
+      kind: "bundle",
+      bundle: { decks: [], invalidDecks: 2 },
+    });
+    expect(detectDeckPaste(JSON.stringify({ decks: [bad], maps: [] }))).toMatchObject({
+      kind: "bundle",
+      bundle: { decks: [], invalidDecks: 1 },
+    });
+  });
+
   it("JSON that is a Tabletop Simulator export (how club decks arrive)", () => {
     const found = detectDeckPaste(JSON.stringify(ttsSave));
     expect(found).toMatchObject({ kind: "tts" });
