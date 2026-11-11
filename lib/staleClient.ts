@@ -33,14 +33,19 @@ const subscribe = (fn: () => void) => {
     listeners.delete(fn);
   };
 };
-const getSnapshot = () => stale;
 const getServerSnapshot = () => false;
 
-/** True once anything on this page found the bundle out of date. */
-export const isClientStale = (): boolean => stale;
+/**
+ * True once anything on this page found the bundle out of date, or, given a
+ * `reason`, once that reason did. The banner reads any reason; Pro sockets
+ * read only `protocol` ("the engine refuses us"): a build-stale page can
+ * still talk to the engine.
+ */
+export const isClientStale = (reason?: StaleReason): boolean => (reason ? reasons.has(reason) : stale);
 
 /** React view of {@link isClientStale}; false during SSR/hydration. */
-export const useClientStale = (): boolean => useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+export const useClientStale = (reason?: StaleReason): boolean =>
+  useSyncExternalStore(subscribe, () => isClientStale(reason), getServerSnapshot);
 
 /** Indirection so tests can observe a reload (jsdom's location.reload is not configurable). */
 export const reloadPage = {
@@ -72,17 +77,19 @@ export const reloadIfGuardAllows = (now = Date.now()): boolean => {
  * `reason` is reported on this page (its analytics event; it must not throw
  * past here). `canAutoReload` is the caller's "nothing is lost" verdict; the tab
  * must also be visible, and a hidden tab reloads when it next becomes visible.
+ * `null`: this reason never reloads by itself, so nothing is armed at all.
  * Every call may try to reload; the guard keeps it to once per 10 minutes.
  * Returns a disposer for that pending visibility listener: call it on unmount.
  */
 export const markStale = (
   reason: StaleReason,
-  canAutoReload: () => boolean,
+  canAutoReload: (() => boolean) | null,
   onFirst?: () => void,
 ): (() => void) => {
   const noop = () => {};
   if (typeof window === "undefined") return noop;
-  if (!reasons.has(reason)) {
+  const firstForReason = !reasons.has(reason);
+  if (firstForReason) {
     reasons.add(reason);
     try {
       onFirst?.();
@@ -90,10 +97,11 @@ export const markStale = (
       /* analytics must never break the caller */
     }
   }
-  if (!stale) {
+  if (!stale || firstForReason) {
     stale = true;
     listeners.forEach((fn) => fn());
   }
+  if (!canAutoReload) return noop;
   const tryReload = () => {
     if (document.visibilityState !== "visible") return false;
     if (canAutoReload()) reloadIfGuardAllows();

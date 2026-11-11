@@ -129,7 +129,7 @@ export async function loadChunk<T>(load: () => Promise<T>): Promise<T> {
       if (!isChunkLoadError(second)) throw second;
       const stale = isClientStale() || (await checkForNewBuild());
       report(second, stale, false);
-      if (stale) markStale("build", () => false);
+      if (stale) markStale("build", null);
       throw first;
     }
   }

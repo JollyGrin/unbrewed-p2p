@@ -77,6 +77,20 @@ describe("useGameIcons", () => {
     expect(result.current.failed).toBe(false);
   });
 
+  it("a new retryKey is not 'failed' even in its first render (no flash before the retry)", async () => {
+    mockFailNext = 2;
+    const seen: { key: number; failed: boolean }[] = [];
+    const { result, rerender } = renderHook(({ key }) => {
+      const r = useGameIconsLoad(true, key);
+      seen.push({ key, failed: r.failed });
+      return r;
+    }, { initialProps: { key: 1 } });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    rerender({ key: 2 });
+    expect(seen.find((s) => s.key === 2)).toEqual({ key: 2, failed: false });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+  });
+
   it("an unchanged retryKey does not retry", async () => {
     mockFailNext = 1;
     const { rerender } = renderHook(({ key }) => useGameIconsLoad(true, key), { initialProps: { key: 1 } });

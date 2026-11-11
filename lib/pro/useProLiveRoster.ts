@@ -38,8 +38,9 @@ export function useProLiveRosterState(
 
   useEffect(() => {
     if (!wsUrl) return;
-    // A stale bundle (p2p #1549) would only be refused again: don't ask.
-    if (isClientStale()) {
+    // A bundle the engine refused (p2p #1549) would only be refused again: don't
+    // ask. A build-stale page (p2p #1605) still can, so only the protocol reason.
+    if (isClientStale("protocol")) {
       setState({ heroes: null, offline: true });
       return;
     }

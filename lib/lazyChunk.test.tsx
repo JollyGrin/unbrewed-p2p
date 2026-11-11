@@ -191,12 +191,23 @@ describe("loadChunk", () => {
     setPath("/bag");
     global.fetch = serve(page("build-new"));
     const load = jest.fn().mockRejectedValue(chunkError());
-    for (let i = 0; i < 3; i++) {
-      await settle(loadChunk(load));
-      // A hidden tab coming back is no reload trigger either.
-      act(() => {
-        document.dispatchEvent(new Event("visibilitychange"));
-      });
+    const vis = jest.spyOn(document, "visibilityState", "get");
+    const addListener = jest.spyOn(document, "addEventListener");
+    try {
+      for (let i = 0; i < 3; i++) {
+        // Failing in a hidden tab, then coming back to it, is no reload trigger.
+        vis.mockReturnValue("hidden");
+        await settle(loadChunk(load));
+        vis.mockReturnValue("visible");
+        act(() => {
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+      }
+      // ...and nothing was armed to wait for the tab to come back.
+      expect(addListener.mock.calls.filter(([type]) => type === "visibilitychange")).toHaveLength(0);
+    } finally {
+      vis.mockRestore();
+      addListener.mockRestore();
     }
     jest.setSystemTime(Date.now() + 11 * 60 * 1000);
     await settle(loadChunk(load));

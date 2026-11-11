@@ -50,7 +50,9 @@ export function useGameIconsLoad(
   retryKey?: unknown,
 ): { icons: GameIconSet | null; failed: boolean } {
   const [icons, setIcons] = useState<GameIconSet | null>(loadedIcons);
-  const [failed, setFailed] = useState(false);
+  // The attempt that failed, by its inputs: a new `retryKey` (or re-enabling)
+  // reads as "not failed" in that very render, before the retry effect runs.
+  const [failedFor, setFailedFor] = useState<{ enabled: boolean; retryKey: unknown } | null>(null);
   useEffect(() => {
     if (loadedIcons) setIcons(loadedIcons);
     iconListeners.add(setIcons);
@@ -61,14 +63,15 @@ export function useGameIconsLoad(
   useEffect(() => {
     if (!enabled || loadedIcons) return;
     let alive = true;
-    setFailed(false);
+    setFailedFor(null);
     // Failure: icons stay off. loadChunk already reported it.
-    loadGameIcons().catch(() => alive && setFailed(true));
+    loadGameIcons().catch(() => alive && setFailedFor({ enabled, retryKey }));
     return () => {
       alive = false;
     };
   }, [enabled, retryKey]);
-  return { icons, failed: failed && !icons };
+  const failed = !icons && !!failedFor && failedFor.enabled === enabled && Object.is(failedFor.retryKey, retryKey);
+  return { icons, failed };
 }
 
 /** {@link useGameIconsLoad} for callers that only need the set. */

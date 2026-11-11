@@ -89,3 +89,30 @@ it("a failed load says so instead of spinning", () => {
   expect(screen.getByText(/couldn't load icons/i)).toBeTruthy();
   expect(screen.getByText(/Close and reopen this window to try again/)).toBeTruthy();
 });
+
+it("reopening after a failure never commits the old failure text before the retry", () => {
+  // The mock fails for the first opening's key only.
+  let failedKey: unknown;
+  mockLoad.mockImplementation((enabled: boolean, key: unknown) => {
+    if (enabled && failedKey === undefined) failedKey = key;
+    return { icons: null, failed: enabled && key === failedKey };
+  });
+  const { rerender } = render(modal(true));
+  expect(screen.getByText(/Close and reopen this window/)).toBeTruthy();
+  rerender(modal(false));
+
+  // Every node or text the reopening commits, including any it later removes.
+  const seen: string[] = [];
+  const collect = (records: MutationRecord[]) =>
+    records.forEach((r) => {
+      r.addedNodes.forEach((n) => seen.push(n.textContent ?? ""));
+      if (r.type === "characterData") seen.push(r.target.textContent ?? "");
+    });
+  const observer = new MutationObserver(collect);
+  observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+  rerender(modal(true));
+  collect(observer.takeRecords());
+  observer.disconnect();
+  expect(document.body.textContent).not.toMatch(/Close and reopen this window/);
+  expect(seen.some((t) => /Close and reopen this window/.test(t))).toBe(false);
+});

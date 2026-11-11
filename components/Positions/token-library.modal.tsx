@@ -21,7 +21,7 @@ import {
   Tooltip,
 } from "@chakra-ui/react";
 import { DeleteIcon, LockIcon, UnlockIcon } from "@chakra-ui/icons";
-import { FC, ReactNode, useEffect, useMemo, useState } from "react";
+import { FC, ReactNode, useMemo, useState } from "react";
 //@ts-ignore
 import { CirclePicker } from "react-color";
 import { ImageFace } from "@/components/CardFactory/Card";
@@ -110,10 +110,15 @@ export const TokenLibraryModal: FC<{
 }) => {
   // Fetch the big icon chunk only when the picker opens or a token needs it.
   // Each opening retries a load that failed; closing does not (p2p #1605).
-  const [opens, setOpens] = useState(0);
-  useEffect(() => {
-    if (isOpen) setOpens((n) => n + 1);
-  }, [isOpen]);
+  // Counted during render (React's "adjust state on a prop change"), so the
+  // reopening render already carries the new key: no stale "couldn't load"
+  // frame before the retry's spinner.
+  const [opens, setOpens] = useState(isOpen ? 1 : 0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setOpens(opens + 1);
+  }
   const { icons, failed: iconsFailed } = useGameIconsLoad(isOpen || tokens.some((t) => t.icon), opens);
   const [query, setQuery] = useState("");
   const [asCutout, setAsCutout] = useState(false);
