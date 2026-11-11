@@ -7,6 +7,7 @@ import { calculateProps, getMeasureCanvas } from "../CardFactory/card.helpers";
 import { normalizeCardType, withNormalizedType } from "./cardType";
 import { DeckImportCardType, DeckImportType } from "./deck-import.type";
 import { newPool } from "./PoolFns";
+import { cardTokenMarkup } from "../BoardCanvas/Tokens/cardFace";
 
 // IconSvg is `@ts-nocheck`, so its props are untyped
 const IconSvg = IconSvgClass as unknown as React.FC<{
@@ -34,7 +35,17 @@ describe("normalizeCardType", () => {
     expect(normalizeCardType(t)).toBe(want);
   });
 
-  it.each([undefined, null, "", "hybrid", 3])("%j -> versatile", (t) => {
+  it.each([
+    undefined,
+    null,
+    "",
+    "hybrid",
+    3,
+    "constructor",
+    "toString",
+    "__proto__",
+    "hasOwnProperty",
+  ])("%j -> versatile", (t) => {
     expect(normalizeCardType(t)).toBe("versatile");
   });
 
@@ -98,5 +109,27 @@ describe("card face", () => {
 
   it("CardFactory renders a defense card without throwing", () => {
     expect(() => render(<CardFactory card={card} />)).not.toThrow();
+  });
+});
+
+describe("board token face", () => {
+  // a mixed-case type gets the same layout and icon as the canonical one
+  it("draws a SCHEME card exactly like a scheme card", () => {
+    const card = {
+      ...mockDeck.deck_data.cards[0],
+      cardImage: undefined,
+      imageUrl: undefined,
+      basicText: "Draw 2 cards.",
+    } as unknown as DeckImportCardType;
+    const markup = (type: string, id: string) =>
+      cardTokenMarkup({
+        id,
+        card: { ...card, type: type as DeckImportCardType["type"] },
+        w: 100,
+        h: 140,
+      }).replaceAll(id, "ID");
+    const upper = markup("SCHEME", "tokA");
+    expect(upper).toBe(markup("scheme", "tokB"));
+    expect(upper).toContain('viewBox="0 0 5190 12910"');
   });
 });

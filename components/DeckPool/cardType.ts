@@ -17,9 +17,12 @@ const CARD_TYPES: Record<string, UnmatchedCardType> = {
  * Any incoming card type as one of the four the client draws: case-insensitive,
  * trimmed, `defense` -> `defence`, anything unknown or missing -> `versatile`.
  */
-export const normalizeCardType = (type: unknown): UnmatchedCardType =>
-  (typeof type === "string" ? CARD_TYPES[type.trim().toLowerCase()] : undefined) ??
-  "versatile";
+export const normalizeCardType = (type: unknown): UnmatchedCardType => {
+  if (typeof type !== "string") return "versatile";
+  const key = type.trim().toLowerCase();
+  // own keys only: "constructor", "toString", "__proto__" … are not types
+  return Object.hasOwn(CARD_TYPES, key) ? CARD_TYPES[key] : "versatile";
+};
 
 /** The card with its type normalized; the same object when it already was. */
 export const withNormalizedType = <T extends { type: UnmatchedCardType }>(card: T): T => {
