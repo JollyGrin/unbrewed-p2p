@@ -1,8 +1,8 @@
 import {
   DeckImportCardType,
   DeckImportType,
-  UnmatchedCardType,
 } from "@/components/DeckPool/deck-import.type";
+import { normalizeCardType } from "@/components/DeckPool/cardType";
 import {
   LabsAbility,
   LabsCard,
@@ -37,14 +37,6 @@ export type LabsImport = {
    * Labs panel offers it as an opt-in checkbox; deep links never add it.
    */
   map?: LabsMapOffer;
-};
-
-const CARD_TYPES: Record<string, UnmatchedCardType> = {
-  attack: "attack",
-  defense: "defence",
-  defence: "defence",
-  versatile: "versatile",
-  scheme: "scheme",
 };
 
 const heroName = (c: LabsCharacter) => c.printedName?.trim() || c.name.trim();
@@ -181,7 +173,7 @@ const mapCard = (
     sections[last] = [sections[last], ...extras].filter(Boolean).join("\n");
   }
 
-  const type = CARD_TYPES[card.symbol ?? ""] ?? "versatile";
+  const type = normalizeCardType(card.symbol);
   // The face to draw as a whole image. Labs' finished render wins over the
   // author's replacement: Labs renders the replacement too (so it is the same
   // picture), but the render has the author's crop/zoom applied and a fixed

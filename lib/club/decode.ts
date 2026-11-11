@@ -17,8 +17,8 @@ import { API_URL } from "@/lib/account/apiUrl";
 import {
   DeckImportCardType,
   DeckImportType,
-  UnmatchedCardType,
 } from "@/components/DeckPool/deck-import.type";
+import { normalizeCardType } from "@/components/DeckPool/cardType";
 import { ParsedTtsCard, buildImageDeck } from "@/lib/tts/parse-tts";
 
 export const CLUB_ORIGIN = "https://www.the-unmatched.club";
@@ -206,14 +206,6 @@ export const absoluteClubUrl = (url: unknown): string | undefined => {
   return trimmed.startsWith("/") ? `${CLUB_ORIGIN}${trimmed}` : trimmed;
 };
 
-const CARD_TYPES: Record<string, UnmatchedCardType> = {
-  attack: "attack",
-  defense: "defence",
-  defence: "defence",
-  scheme: "scheme",
-  versatile: "versatile",
-};
-
 const num = (v: unknown, fallback: number): number => {
   const n = typeof v === "string" ? parseInt(v, 10) : v;
   return typeof n === "number" && Number.isFinite(n) ? n : fallback;
@@ -308,7 +300,7 @@ export const decodeClubExport = (body: unknown, id?: string): ClubDeck => {
       ...card,
       // an imageless card falls back to the template draw
       cardImage: noImage ? undefined : card.cardImage,
-      type: CARD_TYPES[source.type ?? ""] ?? "versatile",
+      type: normalizeCardType(source.type),
       value: typeof source.value === "number" ? source.value : null,
       boost: num(source.boostValue, 0),
       characterName: str(source.bannerName) ?? heroName,

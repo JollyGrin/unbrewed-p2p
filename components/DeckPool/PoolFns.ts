@@ -4,6 +4,7 @@ import {
   DeckImportRuleCardType,
   DeckImportType,
 } from "./deck-import.type";
+import { withNormalizedType } from "./cardType";
 
 export type PoolType = {
   author: string;
@@ -153,8 +154,10 @@ export const newPool = (deckData: DeckImportType): PoolType => {
   // Pooled cards detach from deck_data and sync whole over the websocket, so the
   // back must live on the card or the board renders the house back face-down.
   // An existing per-card value wins, keeping TTS decks unchanged.
+  // Card types are normalized here too ("defense" -> "defence", unknown ->
+  // "versatile", issue #1604) so decks already saved in a bag are covered.
   const backfilledCards = cards.map((c) => ({
-    ...normalizeCardText(c),
+    ...withNormalizedType(normalizeCardText(c)),
     cardBackUrl: c.cardBackUrl ?? (deck_data.appearance?.cardbackUrl || undefined),
   }));
   return {

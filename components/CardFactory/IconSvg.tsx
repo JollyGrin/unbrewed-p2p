@@ -65,6 +65,9 @@ export default class IconSvg extends Component {
         return setTypes.versatile;
       case "scheme":
         return setTypes.scheme;
+      default:
+        // an unknown type (e.g. "defense", issue #1604) draws no icon
+        return undefined;
     }
   };
 
@@ -114,8 +117,9 @@ export default class IconSvg extends Component {
   };
   render() {
     const { cardType, width, x, y, fill } = this.iconDetails;
-    const transform = this.actions.transform();
     const params = this.actions.params();
+    if (!params) return null;
+    const transform = this.actions.transform();
     const renderIcon = this.renderIcon();
     return (
       <Fragment>
