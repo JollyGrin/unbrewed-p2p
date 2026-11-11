@@ -414,7 +414,9 @@ export const ProMobileMenu = ({
               onClick={onToggleBoardView}
               isDisabled={!!boardViewLockedHint}
             >
-              Board — {BOARD_VIEW_LABEL[boardView]}
+              {/* Own element (#1608): the hint appearing beside bare, translated
+                  text nodes trips React under browser translation. */}
+              <span>{`Board — ${BOARD_VIEW_LABEL[boardView]}`}</span>
               {boardViewLockedHint && (
                 <Text as="span" display="block" fontSize="0.65rem" opacity={0.75}>
                   {boardViewLockedHint}

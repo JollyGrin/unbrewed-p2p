@@ -861,10 +861,10 @@ export const SeatPlate = ({
             <Text as="span" fontWeight="bold" color="brand.accent">
               Sidekick:
             </Text>{" "}
-            {s.name} — {s.hp}/{s.maxHp} HP,{" "}
-            {s.reach === "RANGED" ? "ranged" : "melee"}
-            {isLargeFighter(s) ? " · large" : ""}
-            {s.defeated ? " (defeated)" : ""}
+            {/* One text node (#1608, browser translation). */}
+            {`${s.name} — ${s.hp}/${s.maxHp} HP, ${s.reach === "RANGED" ? "ranged" : "melee"}${
+              isLargeFighter(s) ? " · large" : ""
+            }${s.defeated ? " (defeated)" : ""}`}
           </Text>
         ))}
       </Box>
@@ -1030,14 +1030,17 @@ export const SeatPlate = ({
       color="brand.parchment"
     >
       <Text fontSize="0.68rem" fontFamily="SpaceGrotesk" letterSpacing="0.03em" noOfLines={1}>
-        reconnecting…
+        {/* Label and countdown each in their own element (#1608): the
+            countdown appearing beside a bare, translated text node trips
+            React under browser translation. */}
+        <span>reconnecting…</span>
         {presence.autoForfeitAt != null && (
-          <>
+          <span>
             {" "}
             <Text as="span" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
               <ForfeitCountdown deadline={presence.autoForfeitAt} />
             </Text>
-          </>
+          </span>
         )}
       </Text>
     </Flex>
@@ -1085,8 +1088,7 @@ export const SeatPlate = ({
         noOfLines={1}
         textDecoration={s.defeated ? "line-through" : undefined}
       >
-        {s.name}
-        {markedFighters?.has(s.id) ? " (marked)" : ""}
+        {`${s.name}${markedFighters?.has(s.id) ? " (marked)" : ""}`}
       </Text>
       <GiHearts color="#C0392B" size="11px" />
       <Text fontSize="0.72rem" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>

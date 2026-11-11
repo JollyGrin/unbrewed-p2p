@@ -1498,8 +1498,9 @@ const CombatSlot = ({
           }
           sx={comparePulse || valueFx?.displayValue != null ? NO_MOTION : undefined}
         >
-          {valueFx?.displayValue ?? card.effectiveValue}
-          {card.boosts.length ? ` (+${card.boosts.length} boost)` : ""}
+          {/* One text node (#1608): the boost suffix appearing beside a bare
+              value node trips React under browser translation. */}
+          {`${valueFx?.displayValue ?? card.effectiveValue}${card.boosts.length ? ` (+${card.boosts.length} boost)` : ""}`}
         </Text>
       </Flex>
     )}
@@ -2325,7 +2326,7 @@ const RosterTile = ({
           boxShadow={partnerPick.ready ? "0 0 0 2px rgba(47,158,104,0.45), 0 0 12px rgba(47,158,104,0.8)" : "0 2px 5px rgba(0,0,0,0.5)"}
           sx={{ transform: "rotate(8deg)", animation: `${tokenStamp} 0.22s ease`, ...NO_MOTION }}
         >
-          P2{partnerPick.ready ? " ✓" : ""}
+          {`P2${partnerPick.ready ? " ✓" : ""}`}
         </Flex>
       )}
       {pip && !partnerPick && (
@@ -3064,8 +3065,7 @@ const SeatPlate = ({
         color={you ? "brand.accent" : "whiteAlpha.600"}
         noOfLines={1}
       >
-        {tag}
-        {role ? ` · ${role}` : ""}
+        {`${tag}${role ? ` · ${role}` : ""}`}
       </Text>
       {/* Only your own seat names a fighter; every other seat is described by
           its chips (which one is lit says human / which bot tier). */}
@@ -4064,8 +4064,7 @@ const HeroSelectLobby = ({
                 {summary}
                 {(!fixedSetup || pairMode) && (
                   <Box as="span" display="block" data-testid="quick-play-rules">
-                    {pairMode ? "Quick Play duel" : "Quick Match"}: ⏱ {QUICK_PLAY_TIMER_SECONDS}s timer
-                    {pairMode ? "" : " · random board"}
+                    {`${pairMode ? "Quick Play duel" : "Quick Match"}: ⏱ ${QUICK_PLAY_TIMER_SECONDS}s timer${pairMode ? "" : " · random board"}`}
                   </Box>
                 )}
                 {bonusSummary && !fixedSetup && (
@@ -6595,8 +6594,7 @@ const LiveGame = ({
           </Text>
           {myWaitingHeroName && (
             <Text fontFamily="BebasNeueRegular" fontSize="1.3rem" letterSpacing="0.05em" color="brand.accent">
-              You are {myWaitingHeroName}
-              {rolledHero ? " 🎲" : ""}
+              {`You are ${myWaitingHeroName}${rolledHero ? " 🎲" : ""}`}
             </Text>
           )}
           <Text opacity={0.8} textAlign="center">
@@ -6707,9 +6705,7 @@ const LiveGame = ({
                       color={isYou ? "brand.surfaceDim" : "brand.parchment"}
                       opacity={s.connected ? 1 : 0.5}
                     >
-                      {name}
-                      {s.bot ? " (bot)" : ""}
-                      {s.connected ? "" : " — reconnecting…"}
+                      {`${name}${s.bot ? " (bot)" : ""}${s.connected ? "" : " — reconnecting…"}`}
                     </Tag>
                   );
                 })}
@@ -6806,8 +6802,9 @@ const LiveGame = ({
             ever seeing a STATE — e.g. a reconnect still climbing back onto the
             room — reads the same status words here as it does in a live game,
             instead of the raw internal status string. */}
-        waiting for game state… ({(STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting).label}
-        {roomId ? `, room ${roomId}` : ""})
+        {`waiting for game state… (${(STATUS_DISPLAY[status] ?? STATUS_DISPLAY.connecting).label}${
+          roomId ? `, room ${roomId}` : ""
+        })`}
       </Text>
     );
   }
