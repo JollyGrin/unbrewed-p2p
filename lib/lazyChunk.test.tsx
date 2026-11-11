@@ -8,7 +8,7 @@ import {
   loadChunk,
   readBuildId,
 } from "./lazyChunk";
-import { RELOAD_GUARD_KEY, RELOAD_GUARD_MS, isClientStale, reloadPage, resetClientStale } from "./staleClient";
+import { RELOAD_GUARD_KEY, isClientStale, reloadPage, resetClientStale } from "./staleClient";
 import { resetOncePerPageLoad } from "./analyticsErrors";
 import { StaleClientBanner } from "@/components/StaleClientBanner";
 
@@ -115,7 +115,7 @@ describe("loadChunk", () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(global.fetch).not.toHaveBeenCalled();
     expect(chunkEvents()).toEqual([
-      ["chunk_load_failed", { chunk: "4980", variant: "error", stale: false, recovered: true }, { beacon: false }],
+      ["chunk_load_failed", { chunk: "4980", variant: "error", stale: false, recovered: true }, undefined],
     ]);
   });
 
@@ -151,7 +151,7 @@ describe("loadChunk", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(reload).not.toHaveBeenCalled();
     expect(chunkEvents()).toEqual([
-      ["chunk_load_failed", { chunk: "4980", variant: "timeout", stale: false, recovered: false }, { beacon: false }],
+      ["chunk_load_failed", { chunk: "4980", variant: "timeout", stale: false, recovered: false }, undefined],
     ]);
   });
 
@@ -166,7 +166,7 @@ describe("loadChunk", () => {
     expect(reload).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(RELOAD_GUARD_KEY)).toBeNull();
     expect(chunkEvents()).toEqual([
-      ["chunk_load_failed", { chunk: "4980", variant: "error", stale: true, recovered: false }, { beacon: true }],
+      ["chunk_load_failed", { chunk: "4980", variant: "error", stale: true, recovered: false }, undefined],
     ]);
 
     render(<StaleClientBanner />);
@@ -175,55 +175,59 @@ describe("loadChunk", () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["/offline", "/irl", "/table", "/pro/game"])("newer build on %s: banner only", async (path) => {
-    setPath(path);
-    global.fetch = serve(page("build-new"));
-    await settle(loadChunk(jest.fn().mockRejectedValue(chunkError())));
-    expect(isClientStale()).toBe(true);
-    expect(reload).not.toHaveBeenCalled();
-  });
-
-  it("no table on screen: two failures in a row reload at most once in 10 minutes", async () => {
-    setPath("/decks");
-    global.fetch = serve(page("build-new"));
-    const load = jest.fn().mockRejectedValue(chunkError());
-
-    await settle(loadChunk(load));
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(Number(window.sessionStorage.getItem(RELOAD_GUARD_KEY))).toBeGreaterThan(0);
-
-    // The "reloaded" page still runs the old bundle (Pages cache) and fails again.
-    resetClientStale();
-    resetOncePerPageLoad();
-    await settle(loadChunk(load));
-    expect(isClientStale()).toBe(true);
-    expect(reload).toHaveBeenCalledTimes(1);
-
-    // Still inside the window, a third failure is held too.
-    jest.setSystemTime(Date.now() + RELOAD_GUARD_MS - 10_000);
-    resetClientStale();
-    await settle(loadChunk(load));
-    expect(reload).toHaveBeenCalledTimes(1);
-
-    // Past it, one more try is allowed.
-    jest.setSystemTime(Date.now() + 20_000);
-    await settle(loadChunk(load));
-    expect(reload).toHaveBeenCalledTimes(2);
-  });
-
-  it("unreadable sessionStorage: banner, no reload", async () => {
-    setPath("/decks");
-    global.fetch = serve(page("build-new"));
-    const get = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("SecurityError");
-    });
-    try {
+  it.each(["/offline", "/irl", "/table", "/pro/game", "/game.html", "/decks", "/bag", "/"])(
+    "newer build on %s: banner only, never an automatic reload",
+    async (path) => {
+      setPath(path);
+      global.fetch = serve(page("build-new"));
       await settle(loadChunk(jest.fn().mockRejectedValue(chunkError())));
       expect(isClientStale()).toBe(true);
       expect(reload).not.toHaveBeenCalled();
-    } finally {
-      get.mockRestore();
+      expect(window.sessionStorage.getItem(RELOAD_GUARD_KEY)).toBeNull();
+    },
+  );
+
+  it("no table on screen (/bag token editor): repeated failures never reload, the banner stays", async () => {
+    setPath("/bag");
+    global.fetch = serve(page("build-new"));
+    const load = jest.fn().mockRejectedValue(chunkError());
+    for (let i = 0; i < 3; i++) {
+      await settle(loadChunk(load));
+      // A hidden tab coming back is no reload trigger either.
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
     }
+    jest.setSystemTime(Date.now() + 11 * 60 * 1000);
+    await settle(loadChunk(load));
+    expect(reload).not.toHaveBeenCalled();
+    render(<StaleClientBanner />);
+    expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
+  it("a stale verdict is reported even after the chunk was reported as not stale", async () => {
+    const load = jest.fn().mockRejectedValue(chunkError());
+    await settle(loadChunk(load));
+    // A deploy lands; the same chunk fails again.
+    global.fetch = serve(page("build-new"));
+    await settle(loadChunk(load));
+    await settle(loadChunk(load));
+    expect(chunkEvents().map(([, props]) => props)).toEqual([
+      { chunk: "4980", variant: "error", stale: false, recovered: false },
+      { chunk: "4980", variant: "error", stale: true, recovered: false },
+    ]);
+  });
+
+  it("a stale verdict is reported even after the chunk recovered once", async () => {
+    const load = jest.fn().mockRejectedValueOnce(chunkError()).mockResolvedValueOnce("mod");
+    await settle(loadChunk(load));
+    global.fetch = serve(page("build-new"));
+    load.mockRejectedValue(chunkError());
+    await settle(loadChunk(load));
+    expect(chunkEvents().map(([, props]) => props)).toEqual([
+      { chunk: "4980", variant: "error", stale: false, recovered: true },
+      { chunk: "4980", variant: "error", stale: true, recovered: false },
+    ]);
   });
 });
 

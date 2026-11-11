@@ -21,7 +21,7 @@ import {
   Tooltip,
 } from "@chakra-ui/react";
 import { DeleteIcon, LockIcon, UnlockIcon } from "@chakra-ui/icons";
-import { FC, ReactNode, useMemo, useState } from "react";
+import { FC, ReactNode, useEffect, useMemo, useState } from "react";
 //@ts-ignore
 import { CirclePicker } from "react-color";
 import { ImageFace } from "@/components/CardFactory/Card";
@@ -31,7 +31,7 @@ import {
   GameIconSet,
   iconLabel,
   searchIcons,
-  useGameIcons,
+  useGameIconsLoad,
 } from "@/lib/icons/gameIcons";
 import {
   BoardToken,
@@ -109,8 +109,12 @@ export const TokenLibraryModal: FC<{
   offBoard = false,
 }) => {
   // Fetch the big icon chunk only when the picker opens or a token needs it.
-  // Reopening the picker retries a load that failed (p2p #1605).
-  const icons = useGameIcons(isOpen || tokens.some((t) => t.icon), isOpen);
+  // Each opening retries a load that failed; closing does not (p2p #1605).
+  const [opens, setOpens] = useState(0);
+  useEffect(() => {
+    if (isOpen) setOpens((n) => n + 1);
+  }, [isOpen]);
+  const { icons, failed: iconsFailed } = useGameIconsLoad(isOpen || tokens.some((t) => t.icon), opens);
   const [query, setQuery] = useState("");
   const [asCutout, setAsCutout] = useState(false);
 
@@ -232,7 +236,8 @@ export const TokenLibraryModal: FC<{
           <Divider my="0.9rem" borderColor="rgba(72, 40, 79, 0.3)" />
 
           <SectionLabel>
-            Add icon token — {icons ? "4,000+ icons, search away" : "loading…"}
+            Add icon token —{" "}
+            {icons ? "4,000+ icons, search away" : iconsFailed ? "couldn't load icons" : "loading…"}
           </SectionLabel>
           <HStack mt="0.5rem" align="center">
             <Input
@@ -285,7 +290,11 @@ export const TokenLibraryModal: FC<{
             border="1px solid rgba(72, 40, 79, 0.2)"
             p="0.4rem"
           >
-            {!icons ? (
+            {!icons && iconsFailed ? (
+              <Text fontSize="0.85rem" opacity={0.7} p="0.5rem">
+                Couldn&apos;t load the icons. Close and reopen this window to try again.
+              </Text>
+            ) : !icons ? (
               <Flex justify="center" py="2rem">
                 <Spinner />
               </Flex>

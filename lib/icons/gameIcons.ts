@@ -41,12 +41,16 @@ export function loadGameIcons(): Promise<GameIconSet> {
  * `enabled` gates the download: the 6.8 MB chunk is only fetched once a caller
  * actually needs icons (an icon token on the board, or the picker opening).
  * Once loaded it stays cached module-side. A failed load leaves icons off
- * (null); it is tried again when `enabled` or `retryKey` changes (the token
- * library passes its open state, so reopening it retries), and a load started
+ * (null) and sets `failed`; it is tried again when `enabled` or `retryKey`
+ * changes (the token library bumps it each time it opens), and a load started
  * by any caller fills every mounted hook.
  */
-export function useGameIcons(enabled = true, retryKey?: unknown): GameIconSet | null {
+export function useGameIconsLoad(
+  enabled = true,
+  retryKey?: unknown,
+): { icons: GameIconSet | null; failed: boolean } {
   const [icons, setIcons] = useState<GameIconSet | null>(loadedIcons);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (loadedIcons) setIcons(loadedIcons);
     iconListeners.add(setIcons);
@@ -56,10 +60,20 @@ export function useGameIcons(enabled = true, retryKey?: unknown): GameIconSet | 
   }, []);
   useEffect(() => {
     if (!enabled || loadedIcons) return;
+    let alive = true;
+    setFailed(false);
     // Failure: icons stay off. loadChunk already reported it.
-    loadGameIcons().catch(() => {});
+    loadGameIcons().catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
   }, [enabled, retryKey]);
-  return icons;
+  return { icons, failed: failed && !icons };
+}
+
+/** {@link useGameIconsLoad} for callers that only need the set. */
+export function useGameIcons(enabled = true, retryKey?: unknown): GameIconSet | null {
+  return useGameIconsLoad(enabled, retryKey).icons;
 }
 
 /** Tests only: a fresh page. */

@@ -6,12 +6,13 @@
  *   newer protocol version (`lib/pro/staleClient.ts`).
  * - `build` (p2p #1605): a lazy chunk failed to load twice and the page's HTML
  *   on the server now names a different Next `buildId` (`lib/lazyChunk.ts`).
+ *   Banner only: this reason never reloads by itself.
  *
  * One page-wide sticky flag, read by `<StaleClientBanner />` mounted in _app, so
  * every surface shows the same banner without each page wiring it.
  *
  * Auto-reload only when the caller says nothing is lost by it and the tab is
- * visible, at most once per RELOAD_GUARD_MS per tab (shared by both reasons): a
+ * visible, at most once per RELOAD_GUARD_MS per tab (only `protocol` asks): a
  * GitHub Pages cache that serves the old bundle for a few minutes after a
  * deploy must not turn into a reload loop.
  */

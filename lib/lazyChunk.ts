@@ -11,10 +11,10 @@
  * back (icons stay off, dice show only the banner), and it never caches a
  * rejection: the next call starts a fresh import.
  *
- * A chunk failure never reloads the page while a table is on screen; elsewhere
- * a reload goes through the shared once-per-10-minutes guard.
+ * A chunk failure never reloads the page by itself, on any page: the banner's
+ * Reload button is enough, and an automatic reload would throw away whatever
+ * the player had open (the deck token editor on /bag, a game on /game).
  */
-import { isGameRoute } from "@/lib/analytics";
 import { trackOncePerPageLoad } from "@/lib/analyticsErrors";
 import { isClientStale, markStale } from "@/lib/staleClient";
 
@@ -96,17 +96,18 @@ export const checkForNewBuild = (): Promise<boolean> => {
   return pendingCheck;
 };
 
-/** No automatic reload while a table (sandbox, IRL, hotseat, Pro game) is on screen. */
-const canAutoReloadAfterChunkFailure = (): boolean => !isGameRoute(window.location.pathname);
-
+/**
+ * Once per chunk per page load, plus once more for that chunk's first stale
+ * verdict: a failure first reported as recovered or not stale must not hide a
+ * later one that finds a newer build.
+ */
 const report = (err: unknown, stale: boolean, recovered: boolean) =>
-  trackOncePerPageLoad(
-    `chunk_load_failed:${chunkIdOf(err)}`,
-    "chunk_load_failed",
-    { chunk: chunkIdOf(err), variant: chunkFailureVariant(err), stale, recovered },
-    // A guarded auto-reload may follow a stale verdict, before a batched send.
-    { beacon: stale },
-  );
+  trackOncePerPageLoad(`chunk_load_failed:${chunkIdOf(err)}${stale ? ":stale" : ""}`, "chunk_load_failed", {
+    chunk: chunkIdOf(err),
+    variant: chunkFailureVariant(err),
+    stale,
+    recovered,
+  });
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -128,7 +129,7 @@ export async function loadChunk<T>(load: () => Promise<T>): Promise<T> {
       if (!isChunkLoadError(second)) throw second;
       const stale = isClientStale() || (await checkForNewBuild());
       report(second, stale, false);
-      if (stale) markStale("build", canAutoReloadAfterChunkFailure);
+      if (stale) markStale("build", () => false);
       throw first;
     }
   }

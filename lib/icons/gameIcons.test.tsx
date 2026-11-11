@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { loadGameIcons, resetGameIcons, useGameIcons } from "./gameIcons";
+import { loadGameIcons, resetGameIcons, useGameIcons, useGameIconsLoad } from "./gameIcons";
 
 // p2p #1605: a failed icon chunk is not cached; a later load can succeed.
 
@@ -65,6 +65,25 @@ describe("useGameIcons", () => {
     const library = renderHook(() => useGameIcons(true, true));
     await waitFor(() => expect(library.result.current).not.toBeNull());
     expect(board.result.current).toBe(library.result.current);
+  });
+
+  it("reports a failed load, and clears it when a retry succeeds", async () => {
+    mockFailNext = 1;
+    const { result, rerender } = renderHook(({ key }) => useGameIconsLoad(true, key), { initialProps: { key: 1 } });
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    expect(result.current.icons).toBeNull();
+    rerender({ key: 2 });
+    await waitFor(() => expect(result.current.icons).not.toBeNull());
+    expect(result.current.failed).toBe(false);
+  });
+
+  it("an unchanged retryKey does not retry", async () => {
+    mockFailNext = 1;
+    const { rerender } = renderHook(({ key }) => useGameIconsLoad(true, key), { initialProps: { key: 1 } });
+    await act(async () => {});
+    rerender({ key: 1 });
+    await act(async () => {});
+    expect(mockLoadChunk).toHaveBeenCalledTimes(1);
   });
 
   it("disabled: no download", async () => {
