@@ -1,3 +1,6 @@
+// First: Array/String.prototype.at for Safari < 15.4, before any app code
+// or lazy chunk (dice-box-threejs) can call it (#1606).
+import "@/lib/polyfills/arrayAt";
 import React from "react";
 import { DocumentHeader } from "@/components/Helmet/Head";
 import "@/styles/globals.css";
