@@ -17,6 +17,17 @@
  *    and the component stack to the console for diagnostics, and reports one
  *    `client_error` analytics event per page load (issue #1514).
  *
+ * One exception (#1608, as #1528 did for GameErrorBoundary): a DOM-reconcile
+ * `NotFoundError` (React's insertBefore/removeChild hit a node that is no
+ * longer there, usually because browser translation swapped a text node for a
+ * <font>) is fixed by a fresh mount, which is what "Try re-render" does. So the
+ * boundary presses it for the player: it remounts the children with no panel,
+ * reports `client_error` with `auto_recovered`, and still fires `onCaught`.
+ * The guard is by time, not count, because a long game can hit this several
+ * times: a silent remount is allowed unless the previous one was less than
+ * AUTO_REMOUNT_WINDOW_MS ago. A second one inside that window shows the panel,
+ * so it can never loop.
+ *
  * Deliberately NOT auto-resetting on a new `view`: a reconnect delivers the same
  * throwing state, so auto-retrying it would reintroduce the infinite crash. The
  * panel stays put until the user acts. `resetKeys` is offered for callers that
@@ -39,6 +50,10 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Box, Button, Code, Flex, Text } from "@chakra-ui/react";
 import { reportClientError } from "@/lib/analyticsErrors";
+import { isDomReconcileError } from "@/components/ErrorBoundary/GameErrorBoundary";
+
+/** A DOM-reconcile error this soon after the last silent remount shows the panel. */
+export const AUTO_REMOUNT_WINDOW_MS = 10_000;
 
 export interface ProErrorBoundaryProps {
   children: ReactNode;
@@ -90,6 +105,16 @@ export class ProErrorBoundary extends Component<
 > {
   state: ProErrorBoundaryState = { error: null, caught: null };
 
+  /** When the last silent remount happened (#1608), for the loop guard. */
+  private lastAutoRemountAt: number | null = null;
+
+  /** This error gets a silent remount instead of the panel. */
+  private willAutoRecover(error: Error | null): boolean {
+    if (!isDomReconcileError(error)) return false;
+    const last = this.lastAutoRemountAt;
+    return last === null || Date.now() - last >= AUTO_REMOUNT_WINDOW_MS;
+  }
+
   static getDerivedStateFromError(error: Error): Partial<ProErrorBoundaryState> {
     // getDerivedStateFromError is static — no `this.props` here. Just flip into
     // the error state; the throw-time context is snapshotted in componentDidCatch.
@@ -97,6 +122,17 @@ export class ProErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
+    if (this.willAutoRecover(error)) {
+      // eslint-disable-next-line no-console
+      console.warn("[pro] DOM was changed outside React, remounting:", error);
+      // The render-fuzz seam must see every catch, recovered or not.
+      this.props.onCaught?.(error, { componentStack: info.componentStack ?? undefined });
+      const { roomId, seat, stateHash } = this.props;
+      reportClientError("pro", error, { roomId, seat, stateHash, autoRecovered: true });
+      this.lastAutoRemountAt = Date.now();
+      this.setState({ error: null, caught: null });
+      return;
+    }
     // Never swallow: surface the message AND the component stack so a crash is
     // diagnosable from the console even when the panel only shows the message.
     // eslint-disable-next-line no-console
@@ -129,6 +165,8 @@ export class ProErrorBoundary extends Component<
   render(): ReactNode {
     const { error, caught } = this.state;
     if (!error) return this.props.children;
+    // Between the catch and the remount in componentDidCatch: no panel flash.
+    if (this.willAutoRecover(error)) return null;
 
     // Prefer the throw-time snapshot; fall back to live props only until the
     // componentDidCatch snapshot lands (one render) or if it never captured.

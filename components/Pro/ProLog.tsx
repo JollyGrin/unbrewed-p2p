@@ -276,8 +276,8 @@ export const ProLog = ({
                   letterSpacing="0.06em"
                   textTransform="uppercase"
                 >
-                  {section.turn != null ? `Turn ${section.turn}` : "Log"}
-                  {section.actor ? ` — ${section.actor}` : ""}
+                  {/* One text node (#1608, browser translation). */}
+                  {`${section.turn != null ? `Turn ${section.turn}` : "Log"}${section.actor ? ` — ${section.actor}` : ""}`}
                 </Text>
               </TurnHeader>
               {!collapsed &&

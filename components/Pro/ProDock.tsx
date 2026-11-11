@@ -476,7 +476,10 @@ export const ProDock = ({
             turn {view.turnNumber}
           </Tag>
           <Tag size="sm" bg="whiteAlpha.300" color="brand.parchment">
-            {view.actionsRemaining} action{view.actionsRemaining === 1 ? "" : "s"} left
+            {/* One string, one text node (#1608): browser translation swaps bare
+                text nodes for <font>, so React must never remove or insert one
+                beside another (the old "s" node did both, every turn). */}
+            {`${view.actionsRemaining} action${view.actionsRemaining === 1 ? "" : "s"} left`}
           </Tag>
         </>
       )}
@@ -982,8 +985,7 @@ export const ProDock = ({
           p="0.6rem"
         >
           <Text fontSize="0.8rem" color="brand.accent" fontWeight={700}>
-            stepping {stepping.fighterName} — {stepping.movesLeft} move
-            {stepping.movesLeft === 1 ? "" : "s"} left
+            {`stepping ${stepping.fighterName} — ${stepping.movesLeft} move${stepping.movesLeft === 1 ? "" : "s"} left`}
           </Text>
           <Text fontSize="0.7rem" color="brand.parchment" opacity={0.85}>
             click a gold space to step (moving back counts too), or:

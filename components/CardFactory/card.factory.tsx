@@ -11,13 +11,18 @@ import {
   roundNumber,
 } from "./card.helpers";
 import IconSvg from "./IconSvg";
+import { withNormalizedType } from "../DeckPool/cardType";
 
 /**
  * Memoized: layout (text measurement + wrapping) is expensive, and
  * hands/grids render dozens of these — parent re-renders must not
  * re-layout every card.
  */
-const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({ card }) => {
+const CardFactoryBase: React.FC<{ card: DeckImportCardType }> = ({
+  card: rawCard,
+}) => {
+  // "defense" / unknown types draw as defence / versatile (issue #1604)
+  const card = useMemo(() => rawCard && withNormalizedType(rawCard), [rawCard]);
   // set after mount so server render and first client render match
   const [canvas, setCanvas] = useState<MeasureCanvas>();
   useEffect(() => {
@@ -101,13 +106,14 @@ export const CardSvg: React.FC<{
    * tokens, which keep the self-contained all-SVG art path. */
   htmlArt?: boolean;
 }> = ({
-  card,
+  card: rawCard,
   props,
   width = "100%",
   height = "100%",
   idPrefix = "",
   htmlArt = false,
 }) => {
+  const card = withNormalizedType(rawCard);
   const { width: W, height: H, cornerRadius: R, innerCornerRadius: r } = conprops;
   const b = conprops.outerBorderWidth;
   // Top-panel window (root svg coords), used by htmlArt to punch the art hole.

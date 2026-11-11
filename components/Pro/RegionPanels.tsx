@@ -2102,8 +2102,9 @@ export const useRegionPanels = ({
             opacity={0.85}
             whiteSpace="nowrap"
           >
-            {r.label}
-            {closed ? " — closed" : ""}
+            {/* One text node (#1608): an undo can reopen a region, and removing
+                a bare " — closed" node trips React under browser translation. */}
+            {`${r.label}${closed ? " — closed" : ""}`}
           </Text>
           <Box
             as="button"

@@ -21,6 +21,7 @@ import {
   DeckImportCardType,
   UnmatchedCardType,
 } from "@/components/DeckPool/deck-import.type";
+import { normalizeCardType } from "@/components/DeckPool/cardType";
 
 /** Pill colour per card type (the mockup's palette). */
 export const CARD_TYPE_COLOURS: Record<UnmatchedCardType, string> = {
@@ -297,7 +298,7 @@ export const ruleBlocks = (card: DeckImportCardType): RuleBlock[] => {
     if (text && text.trim()) blocks.push({ heading, text: text.trim() });
   };
   add(undefined, card.basicText);
-  if (!cardText.isScheme(card.type)) {
+  if (!cardText.isScheme(normalizeCardType(card.type))) {
     add("IMMEDIATELY", card.immediateText);
     add("DURING COMBAT", card.duringText);
     add("AFTER COMBAT", card.afterText);
@@ -313,7 +314,8 @@ const InfoPanel = ({
   children?: ReactNode;
 }) => {
   const blocks = ruleBlocks(card);
-  const isScheme = cardText.isScheme(card.type);
+  const type = normalizeCardType(card.type);
+  const isScheme = cardText.isScheme(type);
   return (
     <Box
       w={{ base: "min(340px, 92vw)", md: "300px" }}
@@ -342,14 +344,14 @@ const InfoPanel = ({
         px="9px"
         py="2px"
         borderRadius="999px"
-        bg={CARD_TYPE_COLOURS[card.type] ?? "gray.500"}
+        bg={CARD_TYPE_COLOURS[type]}
         color="white"
         fontSize="0.75rem"
         fontWeight={700}
         letterSpacing="0.06em"
         textTransform="uppercase"
       >
-        {card.type}
+        {type}
       </Box>
 
       <Flex gap="0.5rem" mb="0.75rem">
