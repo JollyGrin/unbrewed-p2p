@@ -77,3 +77,19 @@ it("shows the loading state, not the board, before the router is ready", () => {
   expect(screen.queryByTestId("web-game-provider")).toBeNull();
   expect(screen.getByTestId("game-loading")).toBeTruthy();
 });
+
+it("mounts a valid link once the router becomes ready, without redirecting", () => {
+  const { rerender } = renderPage({ name: "x", gid: "abc" }, false);
+  expect(screen.getByTestId("game-loading")).toBeTruthy();
+  expect(screen.queryByTestId("web-game-provider")).toBeNull();
+
+  mockRouter = { isReady: true, query: { name: "x", gid: "abc" } };
+  rerender(
+    <ChakraProvider>
+      <GamePage />
+    </ChakraProvider>,
+  );
+  expect(screen.queryByTestId("game-loading")).toBeNull();
+  expect(screen.getByTestId("game-shell")).toBeTruthy();
+  expect(mockReplace).not.toHaveBeenCalled();
+});
