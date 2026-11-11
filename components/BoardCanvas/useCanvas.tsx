@@ -73,6 +73,13 @@ export const useCanvas = ({
   // re-renders must not snap it back to the (throttled, ≤50ms stale) wire
   // position mid-drag.
   const draggingIdRef = useRef<string | null>(null);
+  // The board's zoom behaviour, built once per <svg> (see the effect).
+  const zoomRef = useRef<{
+    svg: SVGSVGElement;
+    zoom: d3.ZoomBehavior<SVGSVGElement, unknown>;
+  } | null>(null);
+  // The current turn suffix, read by the long-lived zoom listener.
+  const rotationRef = useRef("");
   // Image urls that failed to load here (#1029: an expired Labs hosted-save
   // image). Their tokens draw a placeholder until the url changes — a deck
   // refresh swaps in the new image — or the page reloads.
@@ -254,22 +261,31 @@ export const useCanvas = ({
     // Click on empty board space clears the selection.
     canvas.on("click", () => onSelect?.(null));
 
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .extent([
-        [0, 0],
-        [width, height],
-      ])
-      .scaleExtent([0.25, 4])
-      .on("zoom", ({ transform }) => {
-        g.attr("transform", `${transform}${rotation}`);
-        canvas
-          .select("image.background")
-          .attr("transform", `${transform}${rotation}`);
-        // Broadcast so the dice overlay can ride the map.
-        publishBoardTransform({ x: transform.x, y: transform.y, k: transform.k });
-      });
-    canvas.call(zoom);
+    // One zoom behaviour per <svg> (#1603). d3-zoom keeps double-tap and
+    // wheel/touch timer state in the behaviour's closure, so a new one per
+    // re-render (every token move, every selection) left a gesture started in
+    // one instance to finish in another, which threw on touchend. Later runs
+    // only refresh what changes: the extent here, the turn via rotationRef.
+    rotationRef.current = rotation;
+    const svgNode = canvasRef.current;
+    if (zoomRef.current?.svg !== svgNode) {
+      const created = d3
+        .zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.25, 4])
+        .on("zoom", ({ transform }) => {
+          const view = `${transform}${rotationRef.current}`;
+          d3.select(gRef.current).attr("transform", view);
+          d3.select(svgNode).select("image.background").attr("transform", view);
+          // Broadcast so the dice overlay can ride the map.
+          publishBoardTransform({ x: transform.x, y: transform.y, k: transform.k });
+        });
+      zoomRef.current = { svg: svgNode, zoom: created };
+      canvas.call(created);
+    }
+    const zoom = zoomRef.current.zoom.extent([
+      [0, 0],
+      [width, height],
+    ]);
 
     // Expose the <svg> so overlays (dice) can align to its on-screen rect.
     setBoardSvg(canvasRef.current);
