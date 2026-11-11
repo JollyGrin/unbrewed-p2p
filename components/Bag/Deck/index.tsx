@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { UNPLAYABLE_DECK_MESSAGE, isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useRouter } from "next/router";
 import { Box, Flex, Grid, Spinner, Text } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
@@ -53,7 +54,9 @@ export const BagDecks = () => {
   const pasteRef = useRef<HTMLInputElement>(null);
 
   const count = decks?.length ?? 0;
-  const upNext = decks?.find((deck) => deck.id === star);
+  // A malformed starred deck (#1609) is not Up next, matching /connect,
+  // where useBagDecks().starredDeck ignores it too.
+  const upNext = decks?.find((deck) => deck.id === star && isPlayableDeck(deck));
   // Every deck keeps its place in the grid, the starred one included (it is
   // highlighted there and shown above as Up next): starring must never
   // reflow the tiles under the player's thumb.
@@ -80,7 +83,7 @@ export const BagDecks = () => {
     // Tossing the Up next deck: the star moves to the next deck, so the page
     // keeps its table buttons and never points at a deck that is gone.
     if (id === star) {
-      const next = decks?.find((d) => d.id !== id);
+      const next = decks?.find((d) => d.id !== id && isPlayableDeck(d));
       if (next) setStar(next.id);
       else clearStar();
     }
@@ -96,9 +99,14 @@ export const BagDecks = () => {
 
   const makeUpNext = (id: string) => {
     if (id === star) return;
-    setStar(id);
     const deck = decks?.find((d) => d.id === id);
-    toast.success(`${deck?.name} is up next`, { id: "bag-up-next" });
+    // A malformed deck (#1609) can't be played, so it is never starred.
+    if (!isPlayableDeck(deck)) {
+      toast.error(UNPLAYABLE_DECK_MESSAGE, { id: "bag-deck-invalid" });
+      return;
+    }
+    setStar(id);
+    toast.success(`${deck.name} is up next`, { id: "bag-up-next" });
   };
 
   return (
@@ -121,7 +129,8 @@ export const BagDecks = () => {
         <>
           <Box px={{ base: "1rem", md: "1.5rem" }} pt={{ base: "1rem", md: "1.5rem" }} pb="0.5rem">
             <AddDeckHub
-              deckIds={decks?.map((deck) => deck.id)}
+              // Playable only (#1609): a malformed copy is re-added, not starred.
+              deckIds={decks?.filter(isPlayableDeck).map((deck) => deck.id)}
               pushDeck={pushDeck}
               setStar={setStar}
               star={star}

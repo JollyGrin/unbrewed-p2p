@@ -1,3 +1,5 @@
+import { INVALID_DECK_MESSAGE, isPlayableDeck } from "@/lib/decks/isPlayableDeck";
+import { DeckSource, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { toast } from "react-hot-toast";
 
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
@@ -113,14 +115,24 @@ export const randomPopularDeck = (): PopularDeckMeta => {
  */
 export const persistAndStarDeck = async (
   deck: DeckImportType,
+  source?: DeckSource,
 ): Promise<boolean> => {
+  // A malformed deck (#1609; `fetchDeckById` returns the API body unchecked)
+  // is refused like pushDeck refuses it: toasted, never starred or stored.
+  if (!isPlayableDeck(deck)) {
+    toast.error(INVALID_DECK_MESSAGE, { id: "bag-deck-invalid" });
+    if (source) trackDeckAddFailed(source, "invalid_shape");
+    return false;
+  }
   if (isImportBlocked(deck)) {
     toast.error(blockedAuthorMessage(deck.user));
     return false;
   }
   setStar(deck.id);
   loadLocal(stores.decks);
-  const already = bagItems(stores.decks).some((d) => d?.id === deck.id);
-  if (!already) await addItem(stores.decks, deck);
+  const stored = bagItems(stores.decks).find((d) => d?.id === deck.id);
+  // A malformed stored copy with the same id is replaced by this good one,
+  // so the star never lands on it.
+  if (!stored || !isPlayableDeck(stored)) await addItem(stores.decks, deck);
   return true;
 };

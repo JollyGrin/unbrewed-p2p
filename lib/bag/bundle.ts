@@ -1,7 +1,17 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { MapData } from "@/lib/hooks/useLocalStorage";
 
-export type BulkBundle = { decks: DeckImportType[]; maps: MapData[] };
+/**
+ * `invalidDecks`: entries that looked like decks (an object with `deck_data`
+ * and `id`) but fail {@link isPlayableDeck} (#1609). They are left out of
+ * `decks`; the import panels say how many were skipped. A backup whose decks
+ * are ALL malformed still comes back, with `decks: []`. A lone malformed
+ * deck (not in an array or bundle) is not a bundle at all.
+ */
+export type BulkBundle = { decks: DeckImportType[]; maps: MapData[]; invalidDecks?: number };
+
+const looksLikeDeck = (d: any): boolean => !!(d?.deck_data && d?.id);
 
 /**
  * Accept a full backup bundle ({decks, maps}), a bare array of decks,
@@ -11,21 +21,26 @@ export type BulkBundle = { decks: DeckImportType[]; maps: MapData[] };
 export const normalizeBundle = (parsed: unknown): BulkBundle | undefined => {
   if (!parsed || typeof parsed !== "object") return undefined;
   if (Array.isArray(parsed)) {
-    const decks = parsed.filter((d) => d?.deck_data && d?.id);
-    return decks.length ? { decks, maps: [] } : undefined;
+    const candidates = parsed.filter(looksLikeDeck);
+    const decks = candidates.filter(isPlayableDeck);
+    // Every entry malformed still returns a (deckless) bundle, so the panel
+    // can say how many it skipped rather than "not backup JSON".
+    return candidates.length
+      ? { decks, maps: [], invalidDecks: candidates.length - decks.length }
+      : undefined;
   }
   const obj = parsed as Record<string, any>;
-  if (obj.deck_data && obj.id) {
-    return { decks: [obj as DeckImportType], maps: [] };
+  if (looksLikeDeck(obj)) {
+    // A single malformed deck is not offered as a deck at all.
+    return isPlayableDeck(obj) ? { decks: [obj], maps: [], invalidDecks: 0 } : undefined;
   }
-  const decks = Array.isArray(obj.decks)
-    ? obj.decks.filter((d: any) => d?.deck_data && d?.id)
-    : [];
+  const candidates: unknown[] = Array.isArray(obj.decks) ? obj.decks.filter(looksLikeDeck) : [];
+  const decks = candidates.filter(isPlayableDeck);
   const maps = Array.isArray(obj.maps)
     ? obj.maps.filter((m: any) => typeof m?.imgUrl === "string")
     : [];
-  if (!decks.length && !maps.length) return undefined;
-  return { decks, maps };
+  if (!candidates.length && !maps.length) return undefined;
+  return { decks, maps, invalidDecks: candidates.length - decks.length };
 };
 
 /** `undefined` for text that isn't JSON, never a throw. */

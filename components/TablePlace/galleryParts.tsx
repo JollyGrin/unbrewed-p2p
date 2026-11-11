@@ -188,7 +188,7 @@ export const Cardback = ({
           color={look?.borderColour ?? "brand.primary"}
           opacity={greyed ? 0.5 : 1}
         >
-          {deck.name.substring(0, 2)}
+          {(deck.name ?? "?").substring(0, 2)}
         </Box>
       )}
     </Flex>

@@ -5,7 +5,7 @@
 import ttsSave from "@/lib/labs/fixtures/tts-save.pink-panther.json";
 import { detectDeckPaste } from "./detectPaste";
 
-const DECK = { id: "abc", name: "Mine", deck_data: { cards: [] } };
+const DECK = { id: "abc", name: "Mine", deck_data: { hero: {}, cards: [] } };
 
 describe("detectDeckPaste", () => {
   it("empty", () => {
@@ -74,6 +74,31 @@ describe("detectDeckPaste", () => {
     expect(
       detectDeckPaste(JSON.stringify({ decks: [DECK], maps: [{ imgUrl: "https://x/m.png" }] })),
     ).toMatchObject({ kind: "bundle", bundle: { decks: [DECK], maps: [{ imgUrl: "https://x/m.png" }] } });
+  });
+
+  it("a deck missing name, hero or cards is not offered as a deck (#1609)", () => {
+    expect(detectDeckPaste('{"id":"x","deck_data":{}}')).toEqual({ kind: "unknown", looksLikeJson: true });
+    const bad = { id: "y", deck_data: { cards: [] } };
+    expect(detectDeckPaste(JSON.stringify([DECK, bad]))).toMatchObject({
+      kind: "bundle",
+      bundle: { decks: [DECK], invalidDecks: 1 },
+    });
+    expect(detectDeckPaste(JSON.stringify({ decks: [bad, DECK], maps: [] }))).toMatchObject({
+      kind: "bundle",
+      bundle: { decks: [DECK], invalidDecks: 1 },
+    });
+  });
+
+  it("a backup whose decks are all malformed still says how many it skipped (#1609 review)", () => {
+    const bad = { id: "y", deck_data: {} };
+    expect(detectDeckPaste(JSON.stringify([bad, bad]))).toMatchObject({
+      kind: "bundle",
+      bundle: { decks: [], invalidDecks: 2 },
+    });
+    expect(detectDeckPaste(JSON.stringify({ decks: [bad], maps: [] }))).toMatchObject({
+      kind: "bundle",
+      bundle: { decks: [], invalidDecks: 1 },
+    });
   });
 
   it("JSON that is a Tabletop Simulator export (how club decks arrive)", () => {

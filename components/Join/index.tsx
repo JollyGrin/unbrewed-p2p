@@ -14,7 +14,7 @@ import { RepeatIcon } from "@chakra-ui/icons";
 import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import styled from "@emotion/styled";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
@@ -24,6 +24,7 @@ import {
   useLocalServerStorage,
 } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { trackDeckSelected } from "@/lib/deckAnalytics";
 import {
   fetchDeckById,
@@ -50,7 +51,16 @@ export const JoinPage = () => {
   const invitedDeckId = router.query.deckId as string | undefined;
   const serverParam = router.query.server as string | undefined;
 
-  const { decks, star, setStar } = useBagDecks();
+  const { decks: bagDecks, star, setStar } = useBagDecks();
+  // A malformed deck (#1609) is never picked, starred or offered. `decks`
+  // drives the deck-resolution effect below and `useBagDecks` hands back a new
+  // array every render, so it is keyed on what this page reads (id, version,
+  // name). Keying on the array would let a bag of only malformed decks
+  // re-run the "new player" branch (fresh state each time) forever.
+  const playable = bagDecks?.filter(isPlayableDeck);
+  const playableKey = playable?.map((d) => `${d.id}\u0000${d.version_id}\u0000${d.name}`).join("\u0001");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const decks = useMemo(() => playable, [playableKey]);
   const { activeServer, setActiveServer } = useLocalServerStorage();
 
   const account = useAccount();
@@ -180,7 +190,7 @@ export const JoinPage = () => {
           remoteDeck ??
           (await fetchDeckById(invitedDeckId ?? randomMeta?.id ?? ""));
         // Refused (blocked author, already toasted): stay on the join form.
-        if (!(await persistAndStarDeck(deck))) {
+        if (!(await persistAndStarDeck(deck, "deeplink"))) {
           setJoining(false);
           return;
         }

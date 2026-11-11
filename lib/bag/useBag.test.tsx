@@ -49,7 +49,7 @@ jest.mock("react-hot-toast", () => {
 const USER = { id: "u1", username: "JollyGrin", avatarUrl: null };
 
 const deck = (id: string, name = id) =>
-  ({ id, name, version_id: `${id}-v1`, deck_data: { cards: [] } }) as any;
+  ({ id, name, version_id: `${id}-v1`, deck_data: { hero: {}, cards: [] } }) as any;
 
 const CLOUD_ROW = (id: string, name: string) => ({
   id,
@@ -492,6 +492,77 @@ describe("a blocked-author deck (#790)", () => {
 
     expect(toast.error).not.toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem(LS_KEY.DECKS)!)).toHaveLength(1);
+  });
+});
+
+describe("a malformed deck (#1609)", () => {
+  beforeEach(() => (toast.error as jest.Mock).mockClear());
+  const nameless = () => ({ id: "x", deck_data: { hero: {}, cards: [] } }) as any;
+  const empty = () => ({ id: "y", name: "Empty", deck_data: {} }) as any;
+  const guestBag = async () => {
+    install(() => reply(401, { user: null }));
+    const hook = renderHook(() => useBagDecks());
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    return hook.result;
+  };
+
+  it("is refused by pushDeck: toasted, not stored, not starred, invalid_shape", async () => {
+    const result = await guestBag();
+    await act(async () => {
+      expect(await result.current.pushDeck(nameless(), { source: "json" })).toBe(false);
+      expect(await result.current.pushDeck(empty(), { source: "deeplink" })).toBe(false);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem(LS_KEY.DECKS)).toBeNull();
+    expect(localStorage.getItem(LS_KEY.STAR_DECK)).toBeNull();
+    expect(mockTrack.mock.calls).toEqual([
+      ["deck_add_failed", { source: "json", reason: "invalid_shape" }],
+      ["deck_add_failed", { source: "deeplink", reason: "invalid_shape" }],
+    ]);
+  });
+
+  it("is skipped by importDecks while the valid ones import", async () => {
+    const result = await guestBag();
+    let added = 0;
+    await act(async () => {
+      added = await result.current.importDecks([empty(), deck("d1", "Bruce Lee")]);
+    });
+    expect(added).toBe(1);
+    expect(result.current.decks?.map((d) => d.id)).toEqual(["d1"]);
+    expect(toast.error).toHaveBeenCalledWith("Skipped 1 deck with no name, hero or cards", expect.anything());
+    expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", { source: "bulk", reason: "invalid_shape" });
+  });
+
+  it("is replaced in place by a good re-add with the same id and version, without asking", async () => {
+    localStorage.setItem(
+      LS_KEY.DECKS,
+      JSON.stringify([{ id: "d1", version_id: "d1-v1", deck_data: {}, savedTokenColor: "#f00" }]),
+    );
+    const result = await guestBag();
+    const confirmReplace = jest.fn(async () => false);
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace })).toBe(true);
+    });
+    expect(confirmReplace).not.toHaveBeenCalled();
+    const stored = JSON.parse(localStorage.getItem(LS_KEY.DECKS)!);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ id: "d1", name: "Bruce Lee", deck_data: { hero: {}, cards: [] } });
+  });
+
+  it("is never handed to a game by readStarredDeck, even when starred", () => {
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify([empty(), deck("d1")]));
+    setStar("y");
+    expect(readStarredDeck()).toBeUndefined();
+    setStar("d1");
+    expect(readStarredDeck()?.id).toBe("d1");
+  });
+
+  it("is never the starredDeck, even when its id is starred", async () => {
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify([empty(), deck("d1")]));
+    setStar("y");
+    const result = await guestBag();
+    expect(result.current.star).toBe("y");
+    expect(result.current.starredDeck).toBeUndefined();
   });
 });
 

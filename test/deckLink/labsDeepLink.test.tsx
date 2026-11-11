@@ -201,7 +201,7 @@ describe.each([
 
   it("keeps an unprefixed id on unmatched.cards, exactly as before", async () => {
     const { labsCalls } = network();
-    fetchDeck.mockResolvedValue({ id: "pk1x", name: "Bruce Lee", version_id: "pk1x-v1", deck_data: { cards: [] } });
+    fetchDeck.mockResolvedValue({ id: "pk1x", name: "Bruce Lee", version_id: "pk1x-v1", deck_data: { hero: {}, cards: [] } });
 
     renderPage(Page, "pk1x");
 
@@ -215,7 +215,7 @@ describe.each([
     const { labsCalls } = network();
     localStorage.setItem(
       LS_KEY.DECKS,
-      JSON.stringify([{ id: "pk1x", name: "Bagged Bruce", version_id: "pk1x-v1", deck_data: { cards: [] } }]),
+      JSON.stringify([{ id: "pk1x", name: "Bagged Bruce", version_id: "pk1x-v1", deck_data: { hero: {}, cards: [] } }]),
     );
 
     renderPage(Page, "pk1x-v1");

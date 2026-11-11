@@ -41,7 +41,7 @@ jest.mock("../../lib/hooks/useLocalStorage", () => ({
 }));
 jest.mock("../../lib/bag/useBag", () => ({
   useBagDecks: () => ({
-    decks: [{ id: "d1", name: "A deck" }],
+    decks: [{ id: "d1", name: "A deck", deck_data: { hero: {}, cards: [] } }],
     star: "d1",
     setStar: jest.fn(),
   }),

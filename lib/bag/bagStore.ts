@@ -25,6 +25,7 @@
  * The standing invariant from useAccount holds throughout: an unreachable API
  * must leave the site behaving exactly as it does today.
  */
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { cachedProDeck } from "@/lib/proDecks";
 import {
@@ -535,13 +536,16 @@ export const readStarredDeckFromBag = (): DeckImportType | undefined => {
   if (typeof window === "undefined") return undefined;
   const id = loadStar();
   if (!id) return undefined;
+  // A malformed stored deck (#1609) is never handed to a game: `newPool`
+  // throws on it. Same rule as `useBagDecks().starredDeck`.
   const fromCloud = deckStore.cloud.find((entry) => entry.id === id);
-  if (fromCloud) return fromCloud.data;
+  if (fromCloud) return isPlayableDeck(fromCloud.data) ? fromCloud.data : undefined;
   loadLocal(deckStore);
   const fromDevice = deckStore.local.find((deck) => deck?.id === id);
+  if (fromDevice) return isPlayableDeck(fromDevice) ? fromDevice : undefined;
   // A starred Pro deck that was never in the bag (#1421), once its snapshot
   // has been fetched by the page that picked it.
-  return fromDevice ?? cachedProDeck(id);
+  return cachedProDeck(id);
 };
 
 /** Re-exported for callers that only want to name a failure. */

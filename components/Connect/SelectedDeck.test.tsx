@@ -8,6 +8,8 @@ const deck = (id: string, name: string): DeckImportType =>
     name,
     version_id: `${id}-v1`,
     deck_data: {
+      hero: {},
+      cards: [],
       appearance: {
         highlightColour: "#ffdddd",
         borderColour: "#8b0000",
@@ -157,4 +159,35 @@ describe("SelectedDeckContainer — Pro decks without a bag (issue #1421)", () =
       ["Pro decks", ["Thrall"]],
     ]);
   });
+});
+
+describe("SelectedDeckContainer — a malformed starred deck (#1609)", () => {
+  const cases: [string, DeckImportType][] = [
+    ["no name", { ...alpha, name: undefined } as unknown as DeckImportType],
+    [
+      "no deck_data.appearance",
+      { ...alpha, deck_data: { cards: [] } } as unknown as DeckImportType,
+    ],
+    ["no deck_data", { ...alpha, deck_data: undefined } as unknown as DeckImportType],
+  ];
+
+  it.each(cases)("renders with %s instead of throwing", (_label, starred) => {
+    render(
+      <SelectedDeckContainer starredDeck={starred} decks={[starred, bravo]} setStar={jest.fn()} />,
+    );
+    expect(screen.getByLabelText("Choose your deck")).toBeTruthy();
+  });
+});
+
+it("never offers a malformed deck in the /connect picker (#1609)", () => {
+  const broken = { id: "broken", deck_data: {} } as unknown as DeckImportType;
+  render(
+    <SelectedDeckContainer
+      starredDeck={undefined}
+      decks={[broken, alpha, bravo]}
+      setStar={jest.fn()}
+    />,
+  );
+  const select = screen.getByLabelText("Choose your deck") as HTMLSelectElement;
+  expect([...select.options].map((o) => o.value)).toEqual(["", "deck-alpha", "deck-bravo"]);
 });

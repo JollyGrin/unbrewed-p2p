@@ -61,7 +61,7 @@ jest.mock("../../lib/contexts/OfflineGameProvider", () => ({
 const fetchDeck = fetchDeckById as jest.Mock;
 
 const deck = (id: string, name = id) =>
-  ({ id, name, version_id: `${id}-v1`, deck_data: { cards: [] } }) as any;
+  ({ id, name, version_id: `${id}-v1`, deck_data: { hero: {}, cards: [] } }) as any;
 
 const reply = (status: number, body: unknown) =>
   ({

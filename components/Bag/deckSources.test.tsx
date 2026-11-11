@@ -135,7 +135,7 @@ describe("AddJson (#1538)", () => {
   });
 
   it("imports a multi-deck bundle as one bulk deck_added", async () => {
-    const decks = [1, 2].map((n) => ({ id: `d${n}`, name: `Mine ${n}`, deck_data: {} })) as any[];
+    const decks = [1, 2].map((n) => ({ id: `d${n}`, name: `Mine ${n}`, deck_data: { hero: {}, cards: [] } })) as any[];
     wrap(<AddJson bundle={{ decks, maps: [] }} />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Import 2 new items/ }));
@@ -257,7 +257,7 @@ describe("AddImageDeck", () => {
 describe("BagBulkContainer", () => {
   it("sends one deck_added for the whole import, with the count", async () => {
     wrap(<BagBulkContainer />);
-    const decks = [1, 2, 3].map((n) => ({ id: `d${n}`, name: `Mine ${n}`, deck_data: {} }));
+    const decks = [1, 2, 3].map((n) => ({ id: `d${n}`, name: `Mine ${n}`, deck_data: { hero: {}, cards: [] } }));
     fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
       target: { value: JSON.stringify({ decks, maps: [] }) },
     });
@@ -267,10 +267,46 @@ describe("BagBulkContainer", () => {
     expect(mockTrack.mock.calls).toEqual([["deck_added", { source: "bulk", deck_count: 3 }]]);
   });
 
+  it("imports the valid deck of a mixed backup and reports the malformed one (#1609)", async () => {
+    wrap(<BagBulkContainer />);
+    const decks = [
+      { id: "d1", name: "Mine", deck_data: { hero: {}, cards: [] } },
+      { id: "x", deck_data: {} },
+    ];
+    fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
+      target: { value: JSON.stringify({ decks, maps: [] }) },
+    });
+    expect(screen.getByText(/Skipped 1 deck with no name, hero or cards/)).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Import 1 new item/ }));
+    });
+    expect((mockImportDecks.mock.calls.at(-1)![0] as { id: string }[]).map((d) => d.id)).toEqual(["d1"]);
+    expect(mockTrack.mock.calls).toEqual([
+      ["deck_add_failed", { source: "bulk", reason: "invalid_shape" }],
+      ["deck_added", { source: "bulk", deck_count: 1 }],
+    ]);
+  });
+
+  it("a backup of only malformed decks reports invalid_shape, not parse_error (#1609 review)", async () => {
+    wrap(<BagBulkContainer />);
+    fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
+      target: { value: JSON.stringify({ decks: [{ id: "x", deck_data: {} }, { id: "y", deck_data: {} }], maps: [] }) },
+    });
+    expect(await screen.findByText(/Skipped 2 decks with no name, hero or cards/)).toBeInTheDocument();
+    expect(screen.queryByText(/doesn.t look like Unbrewed backup JSON/)).toBeNull();
+    expect(mockTrack.mock.calls).toEqual([["deck_add_failed", { source: "bulk", reason: "invalid_shape" }]]);
+    // editing it into another all-malformed backup is the same failure, not a second event
+    fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
+      target: { value: JSON.stringify({ decks: [{ id: "z", deck_data: {} }], maps: [] }) },
+    });
+    expect(await screen.findByText(/Skipped 1 deck with no name, hero or cards/)).toBeInTheDocument();
+    expect(mockTrack).toHaveBeenCalledTimes(1);
+  });
+
   it("reports blocked_author when every new deck is by a blocked author", async () => {
     mockImportDecks.mockResolvedValueOnce(0);
     wrap(<BagBulkContainer />);
-    const decks = [{ id: "j1", name: "Death", user: "JOWEE", deck_data: {} }];
+    const decks = [{ id: "j1", name: "Death", user: "JOWEE", deck_data: { hero: {}, cards: [] } }];
     fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
       target: { value: JSON.stringify({ decks, maps: [] }) },
     });

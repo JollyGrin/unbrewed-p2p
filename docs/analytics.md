@@ -98,7 +98,7 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
      `deck_added` {source: `bulk`, deck_count} per import, not one per deck.
    - `deck_add_failed` {source, reason}: `reason` is an HTTP status, a Labs error code (`bad-input`, `not-found`,
      `character-not-found`, `choose-character`, `no-deck`, `no-heroes`, `network`), `parse_error`, `no_cards`,
-     `blocked_author`, `device_full` or `storage_refused`. Never message text. Keeping an edited saved copy is not a failure.
+     `blocked_author`, `device_full`, `storage_refused` or `invalid_shape` (a deck with no string `id`/`name`, no `deck_data.cards` array or no `deck_data.hero`, #1609; a bulk import sends one for all the decks it skipped). Never message text. Keeping an edited saved copy is not a failure.
    - `deck_replaced` {source}: a re-add of a deck already in the bag (sent instead of `deck_added`).
    - `deck_removed` {source?}: tossed in /bag. `source` is the deck's stored `addSource`.
    - `deck_selected_for_game` {mode, deck_id, source?}: a deck picked on /connect or /join (`sandbox`), /table
@@ -120,7 +120,7 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    | `popular` | /bag → Popular decks |
    | `bulk` | /bag → Backup & Share → Import, or a backup bundle / deck array dropped on the Decks tab's paste bar |
    | `json` | /bag → a single deck's JSON pasted or dropped on the paste bar (`AddJson`) |
-   | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`) |
+   | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`). Also `deck_add_failed {reason: "invalid_shape"}` (only) for a malformed deck refused on /join (the host's pick) or the share landing page (#1609) |
    | `pro-hero` | `deck_selected_for_game` only: a Pro roster deck played without adding it to the bag (#1421) |
    | `the-unmatched.club` | /bag → a club hero page link pasted on the paste bar, fetched through the API's `/club/heroes/<id>` proxy (#1538). `reason` on failure: the proxy's HTTP status, `network`, `parse_error`, or `unavailable` (an API without the proxy route) |
    | `unmatched.cards` | Reserved: no add path is distinct from `code` today |

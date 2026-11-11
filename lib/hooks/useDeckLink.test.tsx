@@ -23,13 +23,15 @@ jest.mock("react-hot-toast", () => {
 });
 
 const mockPushDeck = jest.fn(async (..._a: unknown[]) => true);
+const mockSetStar = jest.fn();
+const mockBag: { decks: unknown[] } = { decks: [] };
 jest.mock("../bag/useBag", () => ({
   useBagDecks: () => ({
-    decks: [],
+    decks: mockBag.decks,
     isLoading: false,
     pushDeck: mockPushDeck,
     updateDeck: jest.fn(),
-    setStar: jest.fn(),
+    setStar: mockSetStar,
   }),
 }));
 
@@ -50,6 +52,8 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 );
 
 beforeEach(() => {
+  mockBag.decks = [];
+  mockSetStar.mockClear();
   mockTrack.mockClear();
   mockPushDeck.mockClear();
   jest.spyOn(console, "error").mockImplementation(() => {});
@@ -60,6 +64,15 @@ it("adds a linked deck with source deeplink", async () => {
   mockFetchLinked.mockResolvedValueOnce({ deck, unsupported: [], skipped: [] });
   renderHook(() => useDeckLink("abc", { ready: true }), { wrapper });
   await waitFor(() => expect(mockPushDeck).toHaveBeenCalledWith(deck, { source: "deeplink" }));
+});
+
+it("fetches past a malformed bag copy of the linked deck instead of starring it (#1609)", async () => {
+  mockBag.decks = [{ id: "abc", deck_data: {} }];
+  const deck = { id: "abc", name: "x", deck_data: { hero: {}, cards: [] } };
+  mockFetchLinked.mockResolvedValueOnce({ deck, unsupported: [], skipped: [] });
+  renderHook(() => useDeckLink("abc", { ready: true }), { wrapper });
+  await waitFor(() => expect(mockPushDeck).toHaveBeenCalledWith(deck, { source: "deeplink" }));
+  expect(mockSetStar).toHaveBeenCalledTimes(1); // the fetched copy, once it landed
 });
 
 it("reports a link that can't be fetched", async () => {
@@ -89,5 +102,19 @@ it("/connect ?deckId=: a refetch's re-push reports nothing, but keeps the add so
   await client.refetchQueries();
   await waitFor(() => expect(mockPushDeck).toHaveBeenCalledTimes(2));
   expect(mockPushDeck.mock.calls[1]).toEqual([{ ...updated, addSource: "deeplink" }]);
+  mockFetchLinked.mockReset();
+});
+
+it("/connect ?deckId=: a malformed bag copy is not starred; the fetched deck goes through pushDeck (#1609)", async () => {
+  mockBag.decks = [{ id: "abc", version_id: "abc", deck_data: {} }];
+  const deck = { id: "abc", name: "x", deck_data: { hero: {}, cards: [] } };
+  mockFetchLinked.mockResolvedValue({ deck, unsupported: [], skipped: [] });
+  renderHook(() => useLoadRouterDeck(), { wrapper });
+  await waitFor(() => expect(mockPushDeck).toHaveBeenCalledWith(deck, { source: "deeplink" }), {
+    timeout: 2000,
+  });
+  // Starred only once the good copy was pushed, never the malformed one before.
+  const pushedAt = mockPushDeck.mock.invocationCallOrder[0];
+  expect(mockSetStar.mock.invocationCallOrder.every((at) => at > pushedAt)).toBe(true);
   mockFetchLinked.mockReset();
 });

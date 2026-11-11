@@ -23,6 +23,7 @@ import { useAccount } from "@/lib/account/useAccount";
 import { AnalyticsProps, track } from "@/lib/analytics";
 import { DeckSource, deckAddedProps, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { blockedAuthorMessage, isImportBlocked } from "@/lib/decks/blockedAuthors";
+import { INVALID_DECK_MESSAGE, isPlayableDeck, skippedInvalidMessage } from "@/lib/decks/isPlayableDeck";
 import { MapData } from "@/lib/hooks/useLocalStorage";
 import { useProDeck } from "@/lib/proDecks";
 import {
@@ -146,6 +147,13 @@ export const useBagDecks = (): BagDeckView => {
   const pushDeck = useCallback(
     async (incoming: DeckImportType, options?: PushDeckOptions) => {
       const source = options?.source;
+      // A deck without the fields every deck screen reads (#1609) would crash
+      // /connect once starred, so it never reaches the bag.
+      if (!isPlayableDeck(incoming)) {
+        toast.error(INVALID_DECK_MESSAGE, { id: "bag-deck-invalid" });
+        if (source) trackDeckAddFailed(source, "invalid_shape");
+        return false;
+      }
       const deck = source ? { ...incoming, addSource: source } : incoming;
       // An author who asked not to be importable (#790) is refused before
       // anything is written, whichever add path the deck came through.
@@ -160,7 +168,9 @@ export const useBagDecks = (): BagDeckView => {
       // lose — identical, or only newer source data — goes through quietly.
       loadLocal(store);
       const saved = bagItems(store).find((item) => item?.id === deck.id);
-      const edits = saved ? deckEditsLost(saved, deck) : [];
+      // A malformed saved copy (#1609) holds nothing worth keeping: the good
+      // copy replaces it without asking.
+      const edits = saved && isPlayableDeck(saved) ? deckEditsLost(saved, deck) : [];
       if (saved && edits.length > 0) {
         const replace = (await options?.confirmReplace?.({ saved, edits })) ?? false;
         if (!replace) {
@@ -189,7 +199,9 @@ export const useBagDecks = (): BagDeckView => {
   // A starred Pro deck that isn't in the bag (#1421): the star points at the
   // repo-hosted snapshot, so a bag-less visitor can still play it. The bag's
   // own copy wins a duplicate id, and nothing is ever written to the bag.
-  const bagStarred = decks?.find((deck) => deck.id === star);
+  // A malformed stored deck (#1609) is never the starred deck: /connect then
+  // shows "No deck selected yet" with the picker instead of crashing.
+  const bagStarred = decks?.find((deck) => deck?.id === star && isPlayableDeck(deck));
   const pro = useProDeck(decks && !bagStarred ? star : "");
 
   return {
@@ -214,7 +226,17 @@ export const useBagDecks = (): BagDeckView => {
       [store],
     ),
     importDecks: useCallback(
-      async (incoming: DeckImportType[]) => {
+      async (given: DeckImportType[]) => {
+        // Malformed decks (#1609) are skipped and the rest imported. The
+        // import panels already drop them via normalizeBundle; this is the
+        // backstop for any other caller.
+        const incoming = given.filter(isPlayableDeck);
+        const invalid = given.length - incoming.length;
+        if (invalid > 0) {
+          toast.error(skippedInvalidMessage(invalid), { id: "bag-deck-invalid" });
+          trackDeckAddFailed("bulk", "invalid_shape");
+          if (incoming.length === 0) return 0;
+        }
         // A backup can mix allowed decks with blocked-author ones (#790):
         // import the rest, and say once per author what was left out.
         const blocked = incoming.filter(isImportBlocked);

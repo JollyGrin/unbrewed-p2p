@@ -15,6 +15,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useEffect, useRef, useState } from "react";
 import { useLocalServerStorage } from "@/lib/hooks/useLocalStorage";
 import { useBagDecks } from "@/lib/bag/useBag";
@@ -408,7 +409,7 @@ export const ConnectPage = () => {
           {/* Optional — invite a friend with a one-click join link */}
           <InviteLink
             lobby={lobby}
-            decks={decks}
+            decks={decks?.filter(isPlayableDeck)}
             activeServer={activeServer}
             gidRef={gidRef}
           />
