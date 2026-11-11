@@ -12,6 +12,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { BagDecks } from ".";
+import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 
 const mockTrack = jest.fn();
 jest.mock("../../../lib/analytics", () => ({
@@ -35,6 +36,11 @@ jest.mock("../../../lib/account/useAccount", () => ({
 }));
 jest.mock("../../../lib/storage/breakdown", () => ({
   useStorageBreakdown: () => ({}),
+}));
+const mockFetchDeck = jest.fn((_id: string) => new Promise(() => {}));
+jest.mock("../../../lib/evergreenDecks", () => ({
+  ...jest.requireActual("../../../lib/evergreenDecks"),
+  fetchDeckById: (id: string) => mockFetchDeck(id),
 }));
 jest.mock("./Stats", () => ({ DeckStats: () => null }));
 jest.mock("./DeckCards", () => ({ DeckCards: () => <p>deck cards</p> }));
@@ -384,6 +390,17 @@ describe("BagDecks", () => {
     const buttons = screen.getAllByRole("button", { name: /make it up next/ });
     buttons.forEach((button) => fireEvent.click(button));
     expect(b.setStar).not.toHaveBeenCalledWith("x");
+  });
+
+  it("Popular decks fetches a deck whose bag copy is malformed instead of starring it (#1609 review)", () => {
+    const meta = POPULAR_DECKS.find((d) => d.tier !== "reflavored" && d.tier !== "lab")!;
+    const broken = { id: meta.id, name: meta.name, version_id: "1", deck_data: {} } as unknown as DeckImportType;
+    const b = bag([deck("a", "Alpha"), broken]);
+    renderBag();
+    fireEvent.click(screen.getByRole("button", { name: "Browse decks" }));
+    fireEvent.click(screen.getByText(meta.name, { selector: "[data-testid='deck-browser'] *" }));
+    expect(mockFetchDeck).toHaveBeenCalledWith(meta.id);
+    expect(b.setStar).not.toHaveBeenCalled();
   });
 
   it("a malformed starred deck is not Up next, as on /connect (#1609)", () => {

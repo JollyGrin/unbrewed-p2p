@@ -111,7 +111,8 @@ export const TablePage = () => {
     [proRoster, proFaces],
   );
   const proEntries = useMemo(() => {
-    const bagIds = new Set(decks?.map((deck) => deck.id));
+    // A malformed bag copy (#1609) is not listed, so it must not hide the Pro deck.
+    const bagIds = new Set(decks?.filter(isPlayableDeck).map((deck) => deck.id));
     return proReady?.filter((entry) => !bagIds.has(entry.deck.id));
   }, [proReady, decks]);
   // eslint-disable-next-line react-hooks/exhaustive-deps

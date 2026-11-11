@@ -1,4 +1,5 @@
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/router";
@@ -87,13 +88,15 @@ export const useLoadRouterDeck = () => {
   useEffect(() => {
     if (!deckId) return;
 
-    // check if query.deckId is one of the existing local decks
-    const deckIdsInStorage = decks
+    // check if query.deckId is one of the existing local decks. A malformed
+    // bag copy (#1609) counts as absent: the fetched deck replaces it.
+    const playable = decks?.filter(isPlayableDeck);
+    const deckIdsInStorage = playable
       ?.map((deck) => [deck.id, deck.version_id])
       .flat();
     if (deckIdsInStorage?.includes(deckId)) {
       // if it is, check the local decks for a matching id
-      const localDeck = decks?.find(
+      const localDeck = playable?.find(
         (deck) => deck.version_id === deckId || deck.id === deckId,
       );
 

@@ -533,6 +533,22 @@ describe("a malformed deck (#1609)", () => {
     expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", { source: "bulk", reason: "invalid_shape" });
   });
 
+  it("is replaced in place by a good re-add with the same id and version, without asking", async () => {
+    localStorage.setItem(
+      LS_KEY.DECKS,
+      JSON.stringify([{ id: "d1", version_id: "d1-v1", deck_data: {}, savedTokenColor: "#f00" }]),
+    );
+    const result = await guestBag();
+    const confirmReplace = jest.fn(async () => false);
+    await act(async () => {
+      expect(await result.current.pushDeck(deck("d1", "Bruce Lee"), { confirmReplace })).toBe(true);
+    });
+    expect(confirmReplace).not.toHaveBeenCalled();
+    const stored = JSON.parse(localStorage.getItem(LS_KEY.DECKS)!);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ id: "d1", name: "Bruce Lee", deck_data: { hero: {}, cards: [] } });
+  });
+
   it("is never handed to a game by readStarredDeck, even when starred", () => {
     localStorage.setItem(LS_KEY.DECKS, JSON.stringify([empty(), deck("d1")]));
     setStar("y");

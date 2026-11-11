@@ -129,7 +129,8 @@ export const BagDecks = () => {
         <>
           <Box px={{ base: "1rem", md: "1.5rem" }} pt={{ base: "1rem", md: "1.5rem" }} pb="0.5rem">
             <AddDeckHub
-              deckIds={decks?.map((deck) => deck.id)}
+              // Playable only (#1609): a malformed copy is re-added, not starred.
+              deckIds={decks?.filter(isPlayableDeck).map((deck) => deck.id)}
               pushDeck={pushDeck}
               setStar={setStar}
               star={star}

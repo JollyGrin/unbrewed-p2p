@@ -104,3 +104,17 @@ it("/connect ?deckId=: a refetch's re-push reports nothing, but keeps the add so
   expect(mockPushDeck.mock.calls[1]).toEqual([{ ...updated, addSource: "deeplink" }]);
   mockFetchLinked.mockReset();
 });
+
+it("/connect ?deckId=: a malformed bag copy is not starred; the fetched deck goes through pushDeck (#1609)", async () => {
+  mockBag.decks = [{ id: "abc", version_id: "abc", deck_data: {} }];
+  const deck = { id: "abc", name: "x", deck_data: { hero: {}, cards: [] } };
+  mockFetchLinked.mockResolvedValue({ deck, unsupported: [], skipped: [] });
+  renderHook(() => useLoadRouterDeck(), { wrapper });
+  await waitFor(() => expect(mockPushDeck).toHaveBeenCalledWith(deck, { source: "deeplink" }), {
+    timeout: 2000,
+  });
+  // Starred only once the good copy was pushed, never the malformed one before.
+  const pushedAt = mockPushDeck.mock.invocationCallOrder[0];
+  expect(mockSetStar.mock.invocationCallOrder.every((at) => at > pushedAt)).toBe(true);
+  mockFetchLinked.mockReset();
+});
