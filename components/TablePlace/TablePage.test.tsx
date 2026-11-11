@@ -951,3 +951,17 @@ describe("TablePage — a Labs deck's own map (issue #1056)", () => {
     expect(mockValidate.mock.calls[0][0].snapPoints).toHaveLength(4);
   });
 });
+
+describe("TablePage — a malformed deck in the bag (#1609)", () => {
+  it("renders, and leaves the deck off the picker, with or without deck_data", () => {
+    const good = labsDeck();
+    const noData = { id: "no-data", name: "No data" } as unknown as DeckImportType;
+    const emptyData = { id: "empty", name: "Empty", deck_data: {} } as unknown as DeckImportType;
+    bag([noData, good, emptyData], good.id);
+    render(<TablePage />);
+    fireEvent.click(tab("them"));
+    const ids = tiles("deck").map((t) => t.dataset.deck);
+    expect(ids).not.toContain("no-data");
+    expect(ids).not.toContain("empty");
+  });
+});

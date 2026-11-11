@@ -218,7 +218,7 @@ const DeckPreview = ({ preview }: { preview: SharedDeckPreview }) => {
               // moment the user navigates on — the account's copy when they
               // are signed in, this browser's when they aren't.
               // False = refused (blocked author), already toasted.
-              if (!(await persistAndStarDeck(preview.deck))) return;
+              if (!(await persistAndStarDeck(preview.deck, "deeplink"))) return;
               setAdded(true);
               toast.success(`${preview.name} is in your bag, ready to play`);
             }}

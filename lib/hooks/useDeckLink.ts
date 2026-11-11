@@ -1,3 +1,4 @@
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -79,7 +80,9 @@ export const useDeckLink = (
 
   useEffect(() => {
     if (!ready || !deckId || !decks) return;
-    const local = decks.find((d) => deckMatchesLink(d, deckId));
+    // A malformed bag copy (#1609) counts as absent: fetch the good one,
+    // which replaces it, rather than star it and wait forever.
+    const local = decks.find((d) => deckMatchesLink(d, deckId) && isPlayableDeck(d));
     if (local) {
       setStar(local.id);
       if (!requestedFor.current && isLabsLink(deckId)) {

@@ -533,6 +533,14 @@ describe("a malformed deck (#1609)", () => {
     expect(mockTrack).toHaveBeenCalledWith("deck_add_failed", { source: "bulk", reason: "invalid_shape" });
   });
 
+  it("is never handed to a game by readStarredDeck, even when starred", () => {
+    localStorage.setItem(LS_KEY.DECKS, JSON.stringify([empty(), deck("d1")]));
+    setStar("y");
+    expect(readStarredDeck()).toBeUndefined();
+    setStar("d1");
+    expect(readStarredDeck()?.id).toBe("d1");
+  });
+
   it("is never the starredDeck, even when its id is starred", async () => {
     localStorage.setItem(LS_KEY.DECKS, JSON.stringify([empty(), deck("d1")]));
     setStar("y");

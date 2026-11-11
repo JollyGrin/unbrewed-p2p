@@ -377,6 +377,15 @@ describe("BagDecks", () => {
     expect(screen.getAllByRole("button", { name: /make it up next/ })).toHaveLength(2);
   });
 
+  it("tapping a malformed tile never stars it (#1609 review)", () => {
+    const broken = { id: "x", name: "Broken", version_id: "1", deck_data: {} } as unknown as DeckImportType;
+    const b = bag([deck("a", "Alpha"), broken]);
+    renderBag();
+    const buttons = screen.getAllByRole("button", { name: /make it up next/ });
+    buttons.forEach((button) => fireEvent.click(button));
+    expect(b.setStar).not.toHaveBeenCalledWith("x");
+  });
+
   it("a malformed starred deck is not Up next, as on /connect (#1609)", () => {
     const broken = { id: "x", name: "Broken", version_id: "1", deck_data: {} } as unknown as DeckImportType;
     bag([broken, deck("a", "Alpha")], { star: "x" });

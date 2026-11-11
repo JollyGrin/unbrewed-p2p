@@ -295,6 +295,12 @@ describe("BagBulkContainer", () => {
     expect(await screen.findByText(/Skipped 2 decks with no name, hero or cards/)).toBeInTheDocument();
     expect(screen.queryByText(/doesn.t look like Unbrewed backup JSON/)).toBeNull();
     expect(mockTrack.mock.calls).toEqual([["deck_add_failed", { source: "bulk", reason: "invalid_shape" }]]);
+    // editing it into another all-malformed backup is the same failure, not a second event
+    fireEvent.change(screen.getByPlaceholderText(/paste backup JSON/), {
+      target: { value: JSON.stringify({ decks: [{ id: "z", deck_data: {} }], maps: [] }) },
+    });
+    expect(await screen.findByText(/Skipped 1 deck with no name, hero or cards/)).toBeInTheDocument();
+    expect(mockTrack).toHaveBeenCalledTimes(1);
   });
 
   it("reports blocked_author when every new deck is by a blocked author", async () => {

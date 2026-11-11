@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
+import { UNPLAYABLE_DECK_MESSAGE, isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useRouter } from "next/router";
 import { Box, Flex, Grid, Spinner, Text } from "@chakra-ui/react";
 import { toast } from "react-hot-toast";
@@ -83,7 +83,7 @@ export const BagDecks = () => {
     // Tossing the Up next deck: the star moves to the next deck, so the page
     // keeps its table buttons and never points at a deck that is gone.
     if (id === star) {
-      const next = decks?.find((d) => d.id !== id);
+      const next = decks?.find((d) => d.id !== id && isPlayableDeck(d));
       if (next) setStar(next.id);
       else clearStar();
     }
@@ -99,9 +99,14 @@ export const BagDecks = () => {
 
   const makeUpNext = (id: string) => {
     if (id === star) return;
-    setStar(id);
     const deck = decks?.find((d) => d.id === id);
-    toast.success(`${deck?.name} is up next`, { id: "bag-up-next" });
+    // A malformed deck (#1609) can't be played, so it is never starred.
+    if (!isPlayableDeck(deck)) {
+      toast.error(UNPLAYABLE_DECK_MESSAGE, { id: "bag-deck-invalid" });
+      return;
+    }
+    setStar(id);
+    toast.success(`${deck.name} is up next`, { id: "bag-up-next" });
   };
 
   return (

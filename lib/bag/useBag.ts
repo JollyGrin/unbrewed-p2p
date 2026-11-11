@@ -23,7 +23,7 @@ import { useAccount } from "@/lib/account/useAccount";
 import { AnalyticsProps, track } from "@/lib/analytics";
 import { DeckSource, deckAddedProps, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { blockedAuthorMessage, isImportBlocked } from "@/lib/decks/blockedAuthors";
-import { isPlayableDeck, skippedInvalidMessage } from "@/lib/decks/isPlayableDeck";
+import { INVALID_DECK_MESSAGE, isPlayableDeck, skippedInvalidMessage } from "@/lib/decks/isPlayableDeck";
 import { MapData } from "@/lib/hooks/useLocalStorage";
 import { useProDeck } from "@/lib/proDecks";
 import {
@@ -125,8 +125,6 @@ export type PushDeckOptions = {
   addedProps?: AnalyticsProps;
 };
 
-const INVALID_DECK_MESSAGE = "That isn't a complete deck (it has no name, hero or cards), so it wasn't added";
-
 export const useBagDecks = (): BagDeckView => {
   const store = stores.decks;
   const { isLoading } = useKindStore(store);
@@ -170,7 +168,9 @@ export const useBagDecks = (): BagDeckView => {
       // lose — identical, or only newer source data — goes through quietly.
       loadLocal(store);
       const saved = bagItems(store).find((item) => item?.id === deck.id);
-      const edits = saved ? deckEditsLost(saved, deck) : [];
+      // A malformed saved copy (#1609) holds nothing worth keeping: the good
+      // copy replaces it without asking.
+      const edits = saved && isPlayableDeck(saved) ? deckEditsLost(saved, deck) : [];
       if (saved && edits.length > 0) {
         const replace = (await options?.confirmReplace?.({ saved, edits })) ?? false;
         if (!replace) {

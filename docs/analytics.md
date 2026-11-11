@@ -120,7 +120,7 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    | `popular` | /bag → Popular decks |
    | `bulk` | /bag → Backup & Share → Import, or a backup bundle / deck array dropped on the Decks tab's paste bar |
    | `json` | /bag → a single deck's JSON pasted or dropped on the paste bar (`AddJson`) |
-   | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`) |
+   | `deeplink` | `?deckId=` on /irl, /offline (`useDeckLink`) and /connect (`useLoadRouterDeck`). Also `deck_add_failed {reason: "invalid_shape"}` (only) for a malformed deck refused on /join (the host's pick) or the share landing page (#1609) |
    | `pro-hero` | `deck_selected_for_game` only: a Pro roster deck played without adding it to the bag (#1421) |
    | `the-unmatched.club` | /bag → a club hero page link pasted on the paste bar, fetched through the API's `/club/heroes/<id>` proxy (#1538). `reason` on failure: the proxy's HTTP status, `network`, `parse_error`, or `unavailable` (an API without the proxy route) |
    | `unmatched.cards` | Reserved: no add path is distinct from `code` today |

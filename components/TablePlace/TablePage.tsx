@@ -9,6 +9,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useRouter } from "next/router";
+import { isPlayableDeck } from "@/lib/decks/isPlayableDeck";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SiteNav } from "@/components/SiteNav";
@@ -76,9 +77,13 @@ export const TablePage = () => {
   const mapSize = useImageSize(map?.imgUrl);
 
   // Which decks can go on a table. The bag hands back a new array on every
-  // render, so the work is kept per deck (`previewOf`), not per array.
+  // render, so the work is kept per deck (`previewOf`), not per array. A
+  // malformed deck (#1609) is left out: `previewOf` throws on it.
   const entries = useMemo(
-    () => decks?.map((deck) => ({ deck, preview: previewOf(deck) })),
+    () =>
+      decks
+        ?.filter(isPlayableDeck)
+        .map((deck) => ({ deck, preview: previewOf(deck) })),
     [decks],
   );
   // The Pro roster (#1421): the snapshots' action cards carry finished images
@@ -162,7 +167,7 @@ export const TablePage = () => {
   };
   const pickTheirs = (id: string) => {
     opponent.pickBag(id, [
-      ...(decks ?? []),
+      ...(decks?.filter(isPlayableDeck) ?? []),
       ...(proEntries?.map((entry) => entry.deck) ?? []),
     ]);
     advance(!map ? "map" : "them");

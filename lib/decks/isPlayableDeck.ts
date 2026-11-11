@@ -27,3 +27,11 @@ export const isPlayableDeck = (deck: unknown): deck is DeckImportType => {
 /** The toast for decks a bulk import skipped as malformed (#1609). */
 export const skippedInvalidMessage = (count: number): string =>
   `Skipped ${count} ${count === 1 ? "deck" : "decks"} with no name, hero or cards`;
+
+/** The toast for a single deck refused as malformed (#1609). */
+export const INVALID_DECK_MESSAGE =
+  "That isn't a complete deck (it has no name, hero or cards), so it wasn't added";
+
+/** The toast for a malformed deck already in the bag that can't be starred. */
+export const UNPLAYABLE_DECK_MESSAGE =
+  "That deck has no name, hero or cards, so it can't be played";

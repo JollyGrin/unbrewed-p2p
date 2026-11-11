@@ -1,5 +1,5 @@
 import { Text } from "@chakra-ui/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 
 import { BulkBundle } from "@/lib/bag/bundle";
@@ -30,8 +30,15 @@ export const reportInvalidDecks = (bundle: BulkBundle | undefined): void => {
  */
 export const useReportAllInvalid = (bundle: BulkBundle | undefined): void => {
   const allInvalid = !!bundle?.invalidDecks && !bundle.decks.length && !bundle.maps.length;
+  // Once per run: editing the paste into another all-malformed bundle is the
+  // same failure, not a new one. Anything else re-arms it.
+  const reported = useRef(false);
   useEffect(() => {
-    if (allInvalid) reportInvalidDecks(bundle);
+    if (!allInvalid) reported.current = false;
+    else if (!reported.current) {
+      reported.current = true;
+      reportInvalidDecks(bundle);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle, allInvalid]);
 };
