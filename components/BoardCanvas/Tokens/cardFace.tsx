@@ -6,6 +6,7 @@ import {
   getMeasureCanvas,
 } from "@/components/CardFactory/card.helpers";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import { withNormalizedType } from "@/components/DeckPool/cardType";
 import { cardAppearance } from "@/lib/pro/cardAppearance";
 import type { SheetCrop } from "@/components/Positions/position.type";
 import { escapeAttr } from "./index";
@@ -147,10 +148,12 @@ const faceMarkup = (t: {
   }
   const canvas = getMeasureCanvas();
   if (!canvas) return placeholderMarkup(t);
+  // normalize before layout so icon and layout agree on the type (#1604)
+  const card = withNormalizedType(t.card);
   return renderToStaticMarkup(
     <CardSvg
-      card={t.card}
-      props={calculateProps(t.card, canvas)}
+      card={card}
+      props={calculateProps(card, canvas)}
       width={t.w}
       height={t.h}
       idPrefix={`card-${safeId(t.id)}-`}

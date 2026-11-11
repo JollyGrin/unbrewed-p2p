@@ -22,6 +22,7 @@ import {
   hasFieldedSidekick,
   toPoolExtraCharacters,
 } from "@/components/DeckPool/PoolFns";
+import { normalizeCardType } from "@/components/DeckPool/cardType";
 import { httpsUpgrade } from "@/lib/tts/parse-tts";
 import { EditCardbackModal } from "./EditCardback";
 import { EditHeroModal } from "./EditHeroInfo";
@@ -65,7 +66,7 @@ export const deckComposition = (cards: DeckImportCardType[] = []) => {
     const quantity = card.quantity ?? 1;
     unique += 1;
     total += quantity;
-    if (card.type in counts) counts[card.type] += quantity;
+    counts[normalizeCardType(card.type)] += quantity;
   }
   return { counts, total, unique };
 };
