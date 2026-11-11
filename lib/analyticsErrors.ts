@@ -18,10 +18,15 @@ const sent = new Set<string>();
  * are dropped. A call `track` drops (analytics not started) keeps the slot free.
  * Never throws: callers run it before a setState or a reconnect backoff.
  */
-export const trackOncePerPageLoad = (key: string, event: AnalyticsEvent, props?: AnalyticsProps): void => {
+export const trackOncePerPageLoad = (
+  key: string,
+  event: AnalyticsEvent,
+  props?: AnalyticsProps,
+  opts?: { beacon?: boolean },
+): void => {
   if (sent.has(key)) return;
   try {
-    if (track(event, props)) sent.add(key);
+    if (track(event, props, opts)) sent.add(key);
   } catch {
     /* analytics must never break the caller */
   }

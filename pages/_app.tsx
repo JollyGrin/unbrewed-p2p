@@ -16,7 +16,7 @@ import { Toaster } from "react-hot-toast";
 import { Global } from "@emotion/react";
 import { AnalyticsProvider } from "@/components/Analytics/AnalyticsProvider";
 import { AnalyticsNotice } from "@/components/Analytics/AnalyticsNotice";
-import { StaleClientBanner } from "@/components/Pro/StaleClientBanner";
+import { StaleClientBanner } from "@/components/StaleClientBanner";
 // Before any navigation: entry events tell a landing from an in-app link.
 import "@/lib/growthAnalytics";
 import { Space_Grotesk } from "next/font/google";

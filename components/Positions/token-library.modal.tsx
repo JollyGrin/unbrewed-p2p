@@ -109,7 +109,8 @@ export const TokenLibraryModal: FC<{
   offBoard = false,
 }) => {
   // Fetch the big icon chunk only when the picker opens or a token needs it.
-  const icons = useGameIcons(isOpen || tokens.some((t) => t.icon));
+  // Reopening the picker retries a load that failed (p2p #1605).
+  const icons = useGameIcons(isOpen || tokens.some((t) => t.icon), isOpen);
   const [query, setQuery] = useState("");
   const [asCutout, setAsCutout] = useState(false);
 

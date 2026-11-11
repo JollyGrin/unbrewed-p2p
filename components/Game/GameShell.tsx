@@ -45,12 +45,17 @@ import { Box, Button, useDisclosure } from "@chakra-ui/react";
 import { PlusSquareIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
+import { loadChunk } from "@/lib/lazyChunk";
 import { throttle } from "lodash";
 
 // dice-box-threejs touches window/document on load, so render it client-only.
-const DiceOverlay = dynamic(() => import("@/components/Game/Dice/DiceOverlay"), {
-  ssr: false,
-});
+// If its chunk still fails after loadChunk's retry, the board goes on without
+// dice animation instead of crashing into the error boundary (p2p #1605).
+const NoDiceOverlay = () => null;
+const DiceOverlay = dynamic(
+  () => loadChunk(() => import("@/components/Game/Dice/DiceOverlay")).catch(() => NoDiceOverlay),
+  { ssr: false },
+);
 import {
   MutableRefObject,
   useCallback,
@@ -241,7 +246,7 @@ const BoardContainer = ({
     [blobs, players, claimByTokenId],
   );
 
-  // Only fetch the 2.8 MB icon chunk when the board actually has an icon token.
+  // Only fetch the 6.8 MB icon chunk when the board actually has an icon token.
   const hasIconToken = useMemo(() => allTokens.some((t) => t.icon), [allTokens]);
   const icons = useGameIcons(hasIconToken);
 

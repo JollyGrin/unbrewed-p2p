@@ -1,12 +1,14 @@
 import { Button, Flex, Text } from "@chakra-ui/react";
 import { proErrorMessage } from "@/lib/pro/proErrors";
-import { reloadPage, useClientStale } from "@/lib/pro/staleClient";
+import { reloadPage, useClientStale } from "@/lib/staleClient";
 
 /**
- * Page-wide "new version — reload" banner (p2p #1549). Mounted once in _app so
- * every surface that talks to the Pro engine (picker, waiting room, game, /pro
- * and home rosters) shows it the moment any socket is refused for its protocol
- * version. Sticky: there is no dismiss, because nothing works until a reload.
+ * Page-wide "new version — reload" banner. Mounted once in _app so every
+ * surface shows it the moment the bundle is known to be out of date, for
+ * either reason in `lib/staleClient.ts`: a Pro socket refused for its protocol
+ * version (p2p #1549), or a lazy chunk that failed while a newer build is
+ * deployed (p2p #1605, e.g. the token icons on /game). Sticky: there is no
+ * dismiss, because the page is missing code until a reload.
  */
 export const StaleClientBanner = () => {
   const stale = useClientStale();

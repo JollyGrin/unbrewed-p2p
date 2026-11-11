@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
+import { loadChunk } from "@/lib/lazyChunk";
 
 /**
  * Bundled token icon library: the full game-icons.net set (~4k icons) that
@@ -12,31 +13,59 @@ export type GameIconSet = Record<string, IconType>;
 
 let loadedIcons: GameIconSet | null = null;
 let iconsPromise: Promise<GameIconSet> | null = null;
+/** Every mounted useGameIcons: one successful load reaches all of them. */
+const iconListeners = new Set<(icons: GameIconSet) => void>();
 
+/**
+ * The icon chunk, through loadChunk (retry once, stale-build check, p2p #1605).
+ * A failed load is not cached: the next call starts a fresh download.
+ */
 export function loadGameIcons(): Promise<GameIconSet> {
-  iconsPromise ??= import("react-icons/gi").then((mod) => {
-    loadedIcons = mod as unknown as GameIconSet;
-    return loadedIcons;
-  });
+  if (loadedIcons) return Promise.resolve(loadedIcons);
+  iconsPromise ??= loadChunk(() => import("react-icons/gi")).then(
+    (mod) => {
+      const icons = mod as unknown as GameIconSet;
+      loadedIcons = icons;
+      iconListeners.forEach((fn) => fn(icons));
+      return icons;
+    },
+    (err) => {
+      iconsPromise = null;
+      throw err;
+    },
+  );
   return iconsPromise;
 }
 
 /**
- * `enabled` gates the download: the 2.8 MB chunk is only fetched once a caller
+ * `enabled` gates the download: the 6.8 MB chunk is only fetched once a caller
  * actually needs icons (an icon token on the board, or the picker opening).
- * Once loaded it stays cached module-side.
+ * Once loaded it stays cached module-side. A failed load leaves icons off
+ * (null); it is tried again when `enabled` or `retryKey` changes (the token
+ * library passes its open state, so reopening it retries), and a load started
+ * by any caller fills every mounted hook.
  */
-export function useGameIcons(enabled = true): GameIconSet | null {
+export function useGameIcons(enabled = true, retryKey?: unknown): GameIconSet | null {
   const [icons, setIcons] = useState<GameIconSet | null>(loadedIcons);
   useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    loadGameIcons().then((set) => alive && setIcons(set));
+    if (loadedIcons) setIcons(loadedIcons);
+    iconListeners.add(setIcons);
     return () => {
-      alive = false;
+      iconListeners.delete(setIcons);
     };
-  }, [enabled]);
+  }, []);
+  useEffect(() => {
+    if (!enabled || loadedIcons) return;
+    // Failure: icons stay off. loadChunk already reported it.
+    loadGameIcons().catch(() => {});
+  }, [enabled, retryKey]);
   return icons;
+}
+
+/** Tests only: a fresh page. */
+export function resetGameIcons(): void {
+  loadedIcons = null;
+  iconsPromise = null;
 }
 
 /** "GiFireShield" -> "fire shield", used for search + display. */

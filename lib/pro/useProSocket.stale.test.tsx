@@ -3,7 +3,7 @@ import { useProSocket } from "./useProSocket";
 import { PROTOCOL_VERSION } from "./protocol";
 import { RELOAD_GUARD_KEY, reloadPage, resetClientStale } from "./staleClient";
 import { useProLiveRosterState } from "./useProLiveRoster";
-import { StaleClientBanner } from "@/components/Pro/StaleClientBanner";
+import { StaleClientBanner } from "@/components/StaleClientBanner";
 
 // Stale client (p2p #1549). Same stubs as useProSocket.test.tsx: no test may
 // reach `/me`, `/me/badges` or `/me/cosmetics`.

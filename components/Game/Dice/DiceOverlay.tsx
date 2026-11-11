@@ -6,6 +6,7 @@ import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { DiceRoll } from "@/lib/gamesocket/message";
 import { colors, fonts, shadows } from "@/styles/style";
 import { toPredeterminedNotation } from "./rollDice";
+import { loadChunk } from "@/lib/lazyChunk";
 import {
   getBoardSvg,
   getBoardTransform,
@@ -76,7 +77,8 @@ export const DiceOverlay = () => {
   useEffect(() => {
     let disposed = false;
     (async () => {
-      const { default: DiceBox } = await import("@3d-dice/dice-box-threejs");
+      // On failure the roll banner still shows; only the 3D dice are missing.
+      const { default: DiceBox } = await loadChunk(() => import("@3d-dice/dice-box-threejs"));
       if (disposed) return;
       const box = new DiceBox(`#${CONTAINER_ID}`, {
         sounds: false,
