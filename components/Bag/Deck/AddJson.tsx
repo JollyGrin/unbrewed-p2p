@@ -8,6 +8,7 @@ import { BulkBundle } from "@/lib/bag/bundle";
 import { track } from "@/lib/analytics";
 import { trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { isImportBlocked } from "@/lib/decks/blockedAuthors";
+import { InvalidDecksNote, reportInvalidDecks } from "@/components/Bag/InvalidDecksNote";
 import { useReplaceConfirm } from "@/components/Bag/ReplaceDeckConfirm";
 import { DeckPreview, goldButton } from "@/components/Bag/AddDeckHub/DeckPreview";
 import { FoundLine } from "@/components/Bag/AddDeckHub/FoundLine";
@@ -30,7 +31,12 @@ export const AddJson = ({
   const { data: maps, importMaps } = useBagMaps();
   const { confirmReplace, asking, prompt } = useReplaceConfirm();
 
-  const single = bundle.decks.length === 1 && bundle.maps.length === 0 ? bundle.decks[0] : undefined;
+  // A backup that also held malformed decks takes the backup path, so the
+  // skipped ones are reported (#1609).
+  const single =
+    bundle.decks.length === 1 && bundle.maps.length === 0 && !bundle.invalidDecks
+      ? bundle.decks[0]
+      : undefined;
 
   const saveSingle = async (): Promise<string | undefined> => {
     if (!single) return undefined;
@@ -48,6 +54,7 @@ export const AddJson = ({
   const newMaps = bundle.maps.filter((map) => !existingMapUrls.has(map.imgUrl));
 
   const importAll = async () => {
+    reportInvalidDecks(bundle);
     const addedDecks = await importDecks(newDecks);
     const addedMaps = await importMaps(newMaps);
     // One event per import, not per deck (#1512).
@@ -95,6 +102,7 @@ export const AddJson = ({
           .join(" · ")}
         {bundle.decks.length > 12 && ` · +${bundle.decks.length - 12} more`}
       </Text>
+      <InvalidDecksNote bundle={bundle} />
       <Flex mt="0.75rem" gap="0.75rem" align="center" flexWrap="wrap">
         <Button {...goldButton} isDisabled={total === 0} onClick={importAll}>
           Import {total} new {total === 1 ? "item" : "items"}

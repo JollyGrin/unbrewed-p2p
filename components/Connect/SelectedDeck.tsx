@@ -60,6 +60,9 @@ export const SelectedDeckContainer = (props: Props) => {
       )}
     </>
   );
+  // A malformed deck (#1609) may lack `deck_data` or its `appearance`: fall
+  // back to the theme colours rather than crash the page.
+  const look = starredDeck?.deck_data?.appearance;
   const linkToBag = props.linkToBag ?? true;
   const bagLink = linkToBag ? { as: Link, href: "/bag", cursor: "pointer" } : {};
   return (
@@ -203,11 +206,12 @@ export const SelectedDeckContainer = (props: Props) => {
             {...bagLink}
             w="200px"
             h="300px"
-            bg={starredDeck.deck_data.appearance.highlightColour}
-            bgImage={starredDeck.deck_data?.appearance?.cardbackUrl}
+            bg={look?.highlightColour ?? "brand.secondary"}
+            bgImage={look?.cardbackUrl}
             bgSize="cover"
             bgPosition="center"
-            border={`0.25rem solid ${starredDeck.deck_data.appearance.borderColour}`}
+            border="0.25rem solid"
+            borderColor={look?.borderColour ?? "brand.primary"}
             justifyContent="center"
             alignItems="center"
             boxShadow="0 0 5px rgba(0,0,0,0.5)"
@@ -220,17 +224,13 @@ export const SelectedDeckContainer = (props: Props) => {
             }}
           >
             <Text
-              display={
-                starredDeck?.deck_data?.appearance?.cardbackUrl
-                  ? "none"
-                  : "inline"
-              }
+              display={look?.cardbackUrl ? "none" : "inline"}
               fontSize="4xl"
               fontFamily={"monospace"}
-              color={starredDeck.deck_data.appearance.borderColour}
+              color={look?.borderColour ?? "brand.primary"}
               _hover={{ color: "gold" }}
             >
-              {starredDeck.name.substring(0, 2)}
+              {(starredDeck.name ?? "?").substring(0, 2)}
             </Text>
           </Flex>
           <Tag

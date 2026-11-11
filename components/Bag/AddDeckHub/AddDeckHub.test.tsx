@@ -235,9 +235,9 @@ describe("AddDeckHub paste bar", () => {
 
   it("deck JSON and a backup bundle open the JSON panel", () => {
     renderHub();
-    paste(JSON.stringify({ id: "a", name: "Alpha", deck_data: {} }));
+    paste(JSON.stringify({ id: "a", name: "Alpha", deck_data: { hero: {}, cards: [] } }));
     expect(screen.getByText("json panel: Alpha")).toBeInTheDocument();
-    paste(JSON.stringify({ decks: [{ id: "a", name: "Alpha", deck_data: {} }, { id: "b", name: "Bravo", deck_data: {} }], maps: [] }));
+    paste(JSON.stringify({ decks: [{ id: "a", name: "Alpha", deck_data: { hero: {}, cards: [] } }, { id: "b", name: "Bravo", deck_data: { hero: {}, cards: [] } }], maps: [] }));
     expect(screen.getByText("json panel: Alpha,Bravo")).toBeInTheDocument();
   });
 

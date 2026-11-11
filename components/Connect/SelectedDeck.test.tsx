@@ -158,3 +158,21 @@ describe("SelectedDeckContainer — Pro decks without a bag (issue #1421)", () =
     ]);
   });
 });
+
+describe("SelectedDeckContainer — a malformed starred deck (#1609)", () => {
+  const cases: [string, DeckImportType][] = [
+    ["no name", { ...alpha, name: undefined } as unknown as DeckImportType],
+    [
+      "no deck_data.appearance",
+      { ...alpha, deck_data: { cards: [] } } as unknown as DeckImportType,
+    ],
+    ["no deck_data", { ...alpha, deck_data: undefined } as unknown as DeckImportType],
+  ];
+
+  it.each(cases)("renders with %s instead of throwing", (_label, starred) => {
+    render(
+      <SelectedDeckContainer starredDeck={starred} decks={[starred, bravo]} setStar={jest.fn()} />,
+    );
+    expect(screen.getByLabelText("Choose your deck")).toBeTruthy();
+  });
+});

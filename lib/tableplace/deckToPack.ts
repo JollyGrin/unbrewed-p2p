@@ -307,7 +307,7 @@ export const deckToPlayerPack = (
   if (skipped.length) return { pack: null, pieces: [], skipped, notes: [] };
 
   const rawBack =
-    data.appearance.cardbackUrl ||
+    data.appearance?.cardbackUrl ||
     data.cards.find((c) => c.cardBackUrl)?.cardBackUrl;
   const back = rawBack && absoluteUrl(rawBack);
   const withBack = (d: Omit<PackDeck, "back">): PackDeck => ({
