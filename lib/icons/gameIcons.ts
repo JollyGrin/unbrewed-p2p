@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
+import { loadChunk } from "@/lib/lazyChunk";
 
 /**
  * Bundled token icon library: the full game-icons.net set (~4k icons) that
@@ -12,31 +13,76 @@ export type GameIconSet = Record<string, IconType>;
 
 let loadedIcons: GameIconSet | null = null;
 let iconsPromise: Promise<GameIconSet> | null = null;
+/** Every mounted useGameIcons: one successful load reaches all of them. */
+const iconListeners = new Set<(icons: GameIconSet) => void>();
 
+/**
+ * The icon chunk, through loadChunk (retry once, stale-build check, p2p #1605).
+ * A failed load is not cached: the next call starts a fresh download.
+ */
 export function loadGameIcons(): Promise<GameIconSet> {
-  iconsPromise ??= import("react-icons/gi").then((mod) => {
-    loadedIcons = mod as unknown as GameIconSet;
-    return loadedIcons;
-  });
+  if (loadedIcons) return Promise.resolve(loadedIcons);
+  iconsPromise ??= loadChunk(() => import("react-icons/gi")).then(
+    (mod) => {
+      const icons = mod as unknown as GameIconSet;
+      loadedIcons = icons;
+      iconListeners.forEach((fn) => fn(icons));
+      return icons;
+    },
+    (err) => {
+      iconsPromise = null;
+      throw err;
+    },
+  );
   return iconsPromise;
 }
 
 /**
- * `enabled` gates the download: the 2.8 MB chunk is only fetched once a caller
+ * `enabled` gates the download: the 6.8 MB chunk is only fetched once a caller
  * actually needs icons (an icon token on the board, or the picker opening).
- * Once loaded it stays cached module-side.
+ * Once loaded it stays cached module-side. A failed load leaves icons off
+ * (null) and sets `failed`; it is tried again when `enabled` or `retryKey`
+ * changes (the token library bumps it each time it opens), and a load started
+ * by any caller fills every mounted hook.
  */
-export function useGameIcons(enabled = true): GameIconSet | null {
+export function useGameIconsLoad(
+  enabled = true,
+  retryKey?: unknown,
+): { icons: GameIconSet | null; failed: boolean } {
   const [icons, setIcons] = useState<GameIconSet | null>(loadedIcons);
+  // The attempt that failed, by its inputs: a new `retryKey` (or re-enabling)
+  // reads as "not failed" in that very render, before the retry effect runs.
+  const [failedFor, setFailedFor] = useState<{ enabled: boolean; retryKey: unknown } | null>(null);
   useEffect(() => {
-    if (!enabled) return;
+    if (loadedIcons) setIcons(loadedIcons);
+    iconListeners.add(setIcons);
+    return () => {
+      iconListeners.delete(setIcons);
+    };
+  }, []);
+  useEffect(() => {
+    if (!enabled || loadedIcons) return;
     let alive = true;
-    loadGameIcons().then((set) => alive && setIcons(set));
+    setFailedFor(null);
+    // Failure: icons stay off. loadChunk already reported it.
+    loadGameIcons().catch(() => alive && setFailedFor({ enabled, retryKey }));
     return () => {
       alive = false;
     };
-  }, [enabled]);
-  return icons;
+  }, [enabled, retryKey]);
+  const failed = !icons && !!failedFor && failedFor.enabled === enabled && Object.is(failedFor.retryKey, retryKey);
+  return { icons, failed };
+}
+
+/** {@link useGameIconsLoad} for callers that only need the set. */
+export function useGameIcons(enabled = true, retryKey?: unknown): GameIconSet | null {
+  return useGameIconsLoad(enabled, retryKey).icons;
+}
+
+/** Tests only: a fresh page. */
+export function resetGameIcons(): void {
+  loadedIcons = null;
+  iconsPromise = null;
 }
 
 /** "GiFireShield" -> "fire shield", used for search + display. */

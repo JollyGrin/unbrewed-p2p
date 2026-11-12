@@ -195,6 +195,14 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
      `PROTOCOL_VERSION` (the engine's own `protocol_rejected` carries both sides); `message_type` is the last frame
      the socket sent (ERROR frames don't say which they answer; `LIST_HEROES` for the roster fetch). Once per page
      load, sent as a beacon because a guarded auto-reload may follow. A client NEWER than the engine is not reported.
+   - `chunk_load_failed` {chunk, variant: `error` | `timeout`, stale, recovered} (#1605): a lazy webpack chunk
+     (`lib/lazyChunk.ts` `loadChunk`: the token-icon set, the dice overlay, dice-box-threejs) failed to load, in
+     place of the raw unhandled `ChunkLoadError`. `chunk` is webpack's chunk id (`4980` is the 6.8 MB icon set);
+     `variant` is `timeout` when the script missed webpack's 120 s limit, `error` for a failed request. `recovered:
+     true`: the one retry after 2 s worked. Otherwise `stale` says whether the page's HTML, fetched with
+     `no-store`, now names a different Next `buildId` (a deploy since this tab loaded): then the reload banner shows.
+     A chunk failure never reloads the page by itself. Once per chunk per page load, plus once more for that
+     chunk's first `stale: true`, so a deploy found later is reported even after a `recovered` or not-stale event.
    - Engine: `server_error`, `rate_limited`.
    - Dismissed: `toast_error_shown` (toasts are free text with no key and can carry user text).
 5. **Funnels/paths:** built from the above (visitor → first game, deck-add per source, lobby funnel, retention).

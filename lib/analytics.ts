@@ -57,7 +57,8 @@ export type AnalyticsEvent =
   | "ws_connect_failed"
   | "ws_closed_unexpected"
   | "client_error"
-  | "client_version_stale";
+  | "client_version_stale"
+  | "chunk_load_failed";
 
 export type AnalyticsProps = Record<string, string | number | boolean | null | undefined>;
 

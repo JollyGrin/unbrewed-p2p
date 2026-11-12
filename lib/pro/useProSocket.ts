@@ -801,8 +801,9 @@ export function useProSocket(
   // Sticky for the page: nothing more goes out and no socket is reopened —
   // every frame would only be refused again. `lastSentTypeRef` names the frame
   // the refusal most likely answers (ERROR frames don't say).
-  const staleRef = useRef(isClientStale());
-  const stale = useClientStale();
+  // Only the protocol reason: a build-stale page (p2p #1605) can still play.
+  const staleRef = useRef(isClientStale("protocol"));
+  const stale = useClientStale("protocol");
   const lastSentTypeRef = useRef<string | null>(null);
   // Drops the "reload when visible" listener a hidden stale tab left armed.
   const disposeStaleRef = useRef<() => void>(() => {});

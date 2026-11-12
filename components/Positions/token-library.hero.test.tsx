@@ -5,7 +5,7 @@ import { TokenLibraryModal } from "./token-library.modal";
 jest.mock("../../lib/icons/gameIcons", () => ({
   iconLabel: (n: string) => n,
   searchIcons: () => [],
-  useGameIcons: () => null,
+  useGameIconsLoad: () => ({ icons: null, failed: false }),
 }));
 jest.mock("react-hot-toast", () => ({ toast: { success: jest.fn() } }));
 // jsdom cannot parse the tabbable selector focus-lock uses.

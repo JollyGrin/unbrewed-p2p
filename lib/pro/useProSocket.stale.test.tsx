@@ -3,7 +3,8 @@ import { useProSocket } from "./useProSocket";
 import { PROTOCOL_VERSION } from "./protocol";
 import { RELOAD_GUARD_KEY, reloadPage, resetClientStale } from "./staleClient";
 import { useProLiveRosterState } from "./useProLiveRoster";
-import { StaleClientBanner } from "@/components/Pro/StaleClientBanner";
+import { StaleClientBanner } from "@/components/StaleClientBanner";
+import { markStale } from "@/lib/staleClient";
 
 // Stale client (p2p #1549). Same stubs as useProSocket.test.tsx: no test may
 // reach `/me`, `/me/badges` or `/me/cosmetics`.
@@ -274,5 +275,43 @@ describe("stale client (p2p #1549)", () => {
     act(() => FakeWebSocket.last!.open());
     act(() => FakeWebSocket.last!.emit(VERSION_ERROR));
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  // p2p #1605: a build-stale page (a lazy chunk failed after a deploy) shows the
+  // banner, but the engine has not refused it: Pro sockets must still work.
+  describe("after a build-stale verdict", () => {
+    beforeEach(() => {
+      act(() => {
+        markStale("build", null);
+      });
+    });
+
+    it("the banner shows, and the Pro socket still connects and sends", () => {
+      render(<StaleClientBanner />);
+      expect(screen.getByRole("alert")).toBeTruthy();
+      const { result } = renderHook(() => useProSocket("ws://test"));
+      expect(FakeWebSocket.all).toHaveLength(1);
+      act(() => FakeWebSocket.last!.open());
+      expect(FakeWebSocket.last!.sent.map((m) => m.type)).toEqual(["LIST_HEROES"]);
+      act(() => result.current.joinRoom("ROOM1", "alice"));
+      expect(FakeWebSocket.last!.sent.at(-1)).toMatchObject({ type: "JOIN_ROOM" });
+      expect(result.current.stale).toBe(false);
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("the roster fetch still asks the engine", () => {
+      const { result } = renderHook(() => useProLiveRosterState("ws://test"));
+      expect(FakeWebSocket.all).toHaveLength(1);
+      expect(result.current.offline).toBe(false);
+    });
+
+    it("a later protocol refusal is still stale, reported and reloads as before", () => {
+      const { result } = renderHook(() => useProSocket("ws://test"));
+      act(() => FakeWebSocket.last!.open());
+      act(() => FakeWebSocket.last!.emit(VERSION_ERROR));
+      expect(result.current.stale).toBe(true);
+      expect(staleEvents()).toHaveLength(1);
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
   });
 });
