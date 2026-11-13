@@ -21,10 +21,11 @@ describe("tournament pickers", () => {
     ]);
   });
   it("drops the heroes the player picker treats as lab, spice decks stay", () => {
-    const labs = ["batman", "clone-troopers", "doppelganger", "appa", "the-narrator"];
+    const labs = ["batman", "clone-troopers", "doppelganger", "the-narrator"];
     const spice = ["king-taranis-spice", "piper-of-the-underroads-spice", "the-hollow-oak-spice", "thetis-spice"];
-    const out = proDeckOptions([...labs, ...spice, "kenshiro"].map((id) => hero(id, "community", "recommended")));
-    expect(out.map((d) => d.heroId).sort()).toEqual([...spice, "kenshiro"].sort());
+    // Appa (jw9q) graduated out of the lab in #1621, so it is listed now.
+    const out = proDeckOptions([...labs, ...spice, "kenshiro", "appa"].map((id) => hero(id, "community", "recommended")));
+    expect(out.map((d) => d.heroId).sort()).toEqual([...spice, "kenshiro", "appa"].sort());
   });
   it("lists Pro catalog maps only, never the hidden arena", () => {
     const maps = proMapOptions();
