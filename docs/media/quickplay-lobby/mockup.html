@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unbrewed Pro — /pro/game with Quick Play + presence (UX mockup v2)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=League+Gothic&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --surface: #3A2140; --surface-dim: #2C1831; --surface-deep: #1E0F22;
+    --parchment: #FAEBD7; --primary: #E7CC98; --accent: #E0A82E; --accent-deep: #C48F1E;
+    --teal: #39B7A8; --positive: #2F9E68; --human: #9A55B5;
+    --dim: rgba(250,235,215,.6); --muted: rgba(250,235,215,.4); --line: rgba(255,255,255,.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; color: var(--parchment); font-family: "Space Grotesk", system-ui, sans-serif; font-size: 15px; }
+  .page { background: var(--surface) radial-gradient(900px 500px at 50% -150px, #4a2a54, var(--surface) 70%); border-radius: 12px; overflow: hidden; min-height: 760px; }
+  button { font: inherit; cursor: pointer; }
+  .lg { font-family: "League Gothic"; letter-spacing: .08em; }
+  .bn { font-family: "Bebas Neue"; letter-spacing: .06em; }
+  .lbl { font: 600 .62rem "Space Grotesk"; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+
+  /* demo bar + notes (not product UI) */
+  .demo { position: sticky; top: 0; z-index: 50; display: flex; gap: .5rem; align-items: center; padding: .5rem 1rem; background: #0f070f; border-bottom: 1px solid #333; font-size: .75rem; color: #bbb; flex-wrap: wrap; }
+  .demo b { color: #fff; letter-spacing: .08em; text-transform: uppercase; font-size: .68rem; }
+  .demo button { background: #222; color: #ddd; border: 1px solid #444; border-radius: 4px; padding: .3rem .6rem; }
+  .demo button.on { background: var(--accent); color: #1E0F22; border-color: var(--accent); font-weight: 600; }
+  .demo .sp { flex: 1; }
+  .note { display: none; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #ff3d7f; color: #fff; font: 700 11px/20px "Space Grotesk"; text-align: center; box-shadow: 0 0 0 3px rgba(255,61,127,.3); z-index: 20; }
+  body.notes .note { display: block; }
+  .notes-panel { display: none; margin: .8rem 1.25rem 0; padding: .9rem 1.1rem; background: #140814; border: 1px dashed #ff3d7f; border-radius: 10px; font-size: .8rem; line-height: 1.45; }
+  body.notes .notes-panel { display: block; }
+  .notes-panel ol { margin: .3rem 0 0; padding-left: 1.3rem; } .notes-panel li { margin: .25rem 0; } .notes-panel li::marker { color: #ff3d7f; font-weight: 700; }
+
+  /* fixed account chip lane (as today) */
+  .acct { position: absolute; top: .55rem; right: 1.25rem; display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .6rem .25rem .3rem; border-radius: 999px; border: 1px solid var(--line); background: rgba(0,0,0,.35); font-size: .72rem; }
+  .av { border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-weight: 600; }
+  .acct .av { width: 20px; height: 20px; font-size: .6rem; background: var(--human); }
+
+  .wrap { position: relative; max-width: 78rem; margin: 0 auto; padding: 2.75rem 1.25rem .75rem; }
+
+  /* ---------- rules strip (existing) + presence (new) ---------- */
+  .strip { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; padding: .6rem 1rem; margin-bottom: 1.1rem; border-radius: .75rem; background: rgba(0,0,0,.28); border: 1px solid var(--line); position: relative; }
+  .strip .title { font-size: 1.35rem; }
+  .ctl { display: flex; align-items: center; gap: .5rem; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg span { padding: .22rem .55rem; font-size: .68rem; letter-spacing: .04em; color: rgba(255,255,255,.65); border-right: 1px solid var(--line); }
+  .seg span:last-child { border-right: 0; }
+  .seg span.on { background: var(--primary); color: var(--surface-deep); font-weight: 600; }
+  .strip .sp { flex: 1; }
+  .presence { display: inline-flex; align-items: center; gap: .6rem; padding: .3rem .4rem .3rem .75rem; border-radius: 999px; border: 1px solid rgba(57,183,168,.45); background: rgba(57,183,168,.08); font-size: .72rem; }
+  .presence .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--positive); box-shadow: 0 0 8px var(--positive); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .presence b { color: var(--teal); font-weight: 600; }
+  .presence .gold { color: var(--accent); font-weight: 600; }
+  .presence .stack { display: flex; margin-left: .1rem; }
+  .presence .stack .av { width: 20px; height: 20px; font-size: .55rem; border: 2px solid var(--surface-dim); margin-left: -7px; }
+  .presence .stack .av:first-child { margin-left: 0; }
+  .conn { font-size: .66rem; color: rgba(255,255,255,.45); }
+
+  /* ---------- main grid (existing areas) ---------- */
+  .grid { display: grid; grid-template-areas: "splash roster" "stage roster" "gap roster" "seats roster"; grid-template-columns: 20rem 1fr; grid-template-rows: auto auto 1fr auto; column-gap: 1.4rem; row-gap: 1rem; height: 640px; }
+  @media (max-width: 900px) { .grid { grid-template-areas: "splash" "stage" "roster" "seats"; grid-template-columns: 1fr; grid-template-rows: auto; height: auto; } }
+
+  /* splash */
+  .splash { grid-area: splash; position: relative; border-radius: .75rem; overflow: hidden; height: 190px; background: linear-gradient(160deg, #5a1c1c 0%, #b51a00 60%, #e24a2a 100%); border: 1px solid rgba(231,204,152,.35); display: flex; flex-direction: column; justify-content: flex-end; padding: .8rem .9rem; }
+  .splash::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 80% at 70% 30%, rgba(255,255,255,.18), transparent 60%), linear-gradient(180deg, transparent 30%, rgba(0,0,0,.75)); }
+  .splash > * { position: relative; }
+  .splash .nm { font-size: 2.1rem; line-height: .95; }
+  .splash .sub { font-size: .7rem; color: rgba(255,255,255,.75); margin-top: .2rem; display: flex; gap: .6rem; align-items: center; }
+  .splash .link { color: var(--accent); font-size: .68rem; text-decoration: underline; }
+  .splash .locked { position: absolute; top: .6rem; left: .7rem; font: 600 .58rem "Space Grotesk"; letter-spacing: .1em; text-transform: uppercase; background: var(--accent); color: var(--surface-deep); padding: .15rem .4rem; border-radius: 3px; transform: skewX(-6deg); }
+
+  /* stage */
+  .stage { grid-area: stage; }
+  .stage .hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
+  .stage .hd a { color: var(--accent); font-size: 11px; }
+  .boards { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
+  .bt { aspect-ratio: 4/3; border-radius: 5px; border: 1px solid var(--line); background: #2a1830; display: grid; place-items: center; font-size: .58rem; color: rgba(255,255,255,.75); text-align: center; padding: 2px; position: relative; overflow: hidden; }
+  .bt.img { background: linear-gradient(135deg, #3b4a2e, #6b5a3a); }
+  .bt.img::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(0,0,0,.12) 6px 7px); }
+  .bt span { position: relative; z-index: 1; text-shadow: 0 1px 2px #000; }
+  .bt.dashed { border-style: dashed; }
+  .bt.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .stage .fine { font-size: .6rem; color: rgba(255,255,255,.5); margin-top: .35rem; }
+
+  /* seats dock */
+  .seats { grid-area: seats; display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .plates { display: flex; gap: 8px; }
+  .plate { flex: 1; border-radius: 7px; border: 1px solid var(--line); background: rgba(0,0,0,.28); padding: .45rem .55rem; min-width: 0; }
+  .plate .tag { font: 600 .55rem "Space Grotesk"; letter-spacing: .12em; color: rgba(255,255,255,.5); display: flex; justify-content: space-between; }
+  .plate .tag i { font-style: normal; color: var(--teal); }
+  .plate .who { font-family: "Bebas Neue"; letter-spacing: .05em; font-size: 1rem; margin-top: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .plate .mini { display: inline-flex; gap: 3px; margin-top: .3rem; }
+  .plate .mini span { font-size: .55rem; padding: .08rem .3rem; border-radius: 3px; border: 1px solid var(--line); color: rgba(255,255,255,.6); }
+  .plate .mini span.on { background: var(--primary); color: var(--surface-deep); border-color: var(--primary); font-weight: 600; }
+
+  .create { width: 100%; border: 0; border-radius: 6px; padding: 10px 16px; background: linear-gradient(180deg, #F2BE4A, var(--accent)); color: var(--surface-deep); font-family: "League Gothic"; font-size: 1.15rem; letter-spacing: .1em; text-transform: uppercase; box-shadow: 0 4px 0 #8a6420; }
+  .create:active { transform: translateY(2px); box-shadow: 0 2px 0 #8a6420; }
+
+  /* Quick Match — upgraded, same slot as today */
+  .qm { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .6rem; border-radius: 6px; padding: 7px 10px 7px 12px; background: rgba(224,168,46,.08); color: var(--accent); border: 1px solid var(--accent); box-shadow: 0 0 14px rgba(224,168,46,.3); text-align: left; position: relative; }
+  .qm:hover { background: rgba(224,168,46,.16); }
+  .qm .l { font-family: "League Gothic"; font-size: 1rem; letter-spacing: .08em; text-transform: uppercase; line-height: 1; }
+  .qm .l small { display: block; font: 500 .6rem "Space Grotesk"; letter-spacing: .04em; text-transform: none; color: var(--dim); margin-top: .2rem; }
+  .qm .x { font-family: "Bebas Neue"; letter-spacing: .06em; font-size: .95rem; background: var(--accent); color: var(--surface-deep); padding: .25rem .5rem; border-radius: 4px; white-space: nowrap; transform: skewX(-6deg); }
+  .qm .x > span { display: inline-block; transform: skewX(6deg); }
+  .summary { text-align: center; font-size: .66rem; color: rgba(255,255,255,.55); }
+  .summary .gold { color: var(--accent); }
+
+  /* searching panel: replaces the create/quick buttons in the dock */
+  .searching, .found { display: none; border-radius: 7px; padding: .65rem .75rem; }
+  .searching { border: 1px solid var(--accent); background: rgba(224,168,46,.08); }
+  body[data-state="searching"] .searching { display: block; }
+  body[data-state="searching"] .create, body[data-state="searching"] .qm, body[data-state="searching"] .summary { display: none; }
+  .searching .row { display: flex; align-items: center; gap: .5rem; }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(224,168,46,.3); border-top-color: var(--accent); animation: spin .9s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .searching .t { font-family: "Bebas Neue"; letter-spacing: .06em; font-size: 1rem; }
+  .searching .t span { color: var(--accent); }
+  .searching p { margin: .4rem 0 0; font-size: .66rem; color: var(--dim); line-height: 1.4; }
+  .searching .acts { display: flex; gap: .3rem; margin-top: .5rem; flex-wrap: wrap; }
+  .mini-btn { border: 1px solid var(--line); background: transparent; color: var(--primary); border-radius: 5px; padding: .25rem .45rem; font: 600 .58rem "Space Grotesk"; letter-spacing: .05em; text-transform: uppercase; }
+  .found { border: 1px solid var(--teal); background: linear-gradient(135deg, rgba(57,183,168,.2), rgba(224,168,46,.15)); }
+  body[data-state="found"] .found { display: block; }
+  body[data-state="found"] .create, body[data-state="found"] .qm, body[data-state="found"] .summary { display: none; }
+  .found .t { font-family: "Bebas Neue"; letter-spacing: .06em; font-size: 1.05rem; color: var(--teal); }
+  .found p { margin: .25rem 0 0; font-size: .68rem; color: var(--dim); }
+  .found p b { color: var(--parchment); }
+  .found .cd { display: flex; justify-content: space-between; align-items: center; margin-top: .45rem; font-size: .66rem; color: var(--dim); }
+  .found .cd b { font-family: "Bebas Neue"; font-size: 1.2rem; color: var(--parchment); }
+  body[data-state="found"] .plate.p2 .who { color: var(--teal); }
+
+  /* ---------- roster (existing) + here-now ribbon (new) ---------- */
+  .roster { grid-area: roster; display: flex; flex-direction: column; gap: .7rem; min-height: 0; min-width: 0; position: relative; }
+  .roster .hd { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+  .roster .hd .h { display: flex; align-items: baseline; gap: .5rem; }
+  .roster .hd .h .lg { font-size: 1.25rem; letter-spacing: .1em; color: var(--accent); }
+  .roster .hd .h small { font-size: .72rem; color: rgba(255,255,255,.6); }
+  .tools { display: flex; gap: .4rem; align-items: center; }
+  .search { display: flex; align-items: center; gap: .3rem; width: 150px; height: 28px; border: 1px solid var(--line); border-radius: 5px; padding: 0 .5rem; font-size: .7rem; color: rgba(255,255,255,.45); }
+  .tools .seg span { padding: .2rem .45rem; font-size: .62rem; }
+
+  .ribbon { display: flex; align-items: center; gap: .5rem; padding: .45rem .55rem; border-radius: .6rem; background: rgba(0,0,0,.28); border: 1px solid rgba(224,168,46,.3); position: relative; overflow: hidden; }
+  .ribbon .k { display: flex; flex-direction: column; gap: .1rem; flex: none; padding-right: .5rem; border-right: 1px solid var(--line); }
+  .ribbon .k .lg { font-size: 1rem; line-height: 1; color: var(--teal); }
+  .ribbon .k .lbl { font-size: .55rem; }
+  .ribbon .scroll { display: flex; gap: .4rem; overflow-x: auto; flex: 1; scrollbar-width: none; }
+  .ribbon .scroll::-webkit-scrollbar { display: none; }
+  .pc { flex: none; display: flex; align-items: center; gap: .45rem; padding: .3rem .35rem .3rem .4rem; border-radius: 7px; border: 1px solid var(--line); background: rgba(255,255,255,.04); }
+  .pc.open { border-color: rgba(224,168,46,.5); background: rgba(224,168,46,.07); }
+  .pc .av { width: 24px; height: 24px; font-size: .6rem; position: relative; }
+  .pc .av::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); border: 2px solid var(--surface); }
+  .pc .av.away::after { background: #888; }
+  .pc .w { display: flex; flex-direction: column; line-height: 1.15; }
+  .pc .w .n { font-size: .72rem; font-weight: 600; white-space: nowrap; }
+  .pc .w .n i { font-style: normal; font-size: .58rem; color: var(--accent); margin-left: .2rem; }
+  .pc .w .s { font-size: .6rem; color: var(--dim); white-space: nowrap; }
+  .pc .w .s em { font-style: normal; color: var(--primary); }
+  .join { border: 0; border-radius: 5px; padding: .3rem .5rem; background: var(--accent); color: var(--surface-deep); font-family: "League Gothic"; letter-spacing: .08em; font-size: .85rem; text-transform: uppercase; line-height: 1; box-shadow: 0 2px 0 #8a6420; }
+  .join small { display: block; font: 600 .5rem "Space Grotesk"; letter-spacing: .05em; opacity: .75; margin-top: .1rem; }
+  .wave { border: 1px solid var(--line); background: transparent; color: var(--primary); border-radius: 5px; padding: .3rem .4rem; font-size: .62rem; }
+  .pc.tail { border-style: dashed; color: var(--dim); font-size: .62rem; padding: .3rem .55rem; gap: .35rem; }
+  .pc.tail .stack { display: flex; } .pc.tail .stack .av { width: 18px; height: 18px; font-size: .5rem; margin-left: -6px; border: 2px solid var(--surface); } .pc.tail .stack .av:first-child { margin-left: 0; } .pc.tail .stack .av::after { display: none; }
+  .ribbon .bonus { flex: none; display: flex; align-items: center; gap: .4rem; padding: .3rem .55rem; border-radius: 6px; background: var(--accent); color: var(--surface-deep); transform: skewX(-6deg); font-family: "Bebas Neue"; letter-spacing: .06em; font-size: .8rem; margin-left: .25rem; }
+  .ribbon .bonus > * { transform: skewX(6deg); }
+  .ribbon .bonus .x2 { font-family: "League Gothic"; font-size: 1.2rem; line-height: 1; background: var(--surface-deep); color: var(--accent); padding: 0 .3rem; border-radius: 3px; }
+  .ribbon .bonus small { font: 500 .52rem "Space Grotesk"; letter-spacing: .08em; opacity: .75; display: block; }
+
+  .tiles-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .tiles { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: .5rem; align-content: start; align-items: start; grid-auto-rows: max-content; overflow-y: auto; height: 100%; padding-right: .4rem; padding-bottom: 1.5rem; }
+  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr)); height: auto; } }
+  .tiles::-webkit-scrollbar { width: 5px; } .tiles::-webkit-scrollbar-thumb { background: rgba(255,255,255,.28); border-radius: 3px; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 2.5rem; background: linear-gradient(180deg, transparent, var(--surface)); pointer-events: none; }
+  .ht { aspect-ratio: 1; border-radius: .5rem; border: 1px solid var(--line); position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: .35rem .4rem; font-family: "Bebas Neue"; letter-spacing: .04em; font-size: .78rem; line-height: 1; text-shadow: 0 1px 2px #000; cursor: pointer; }
+  .ht::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,.8)); }
+  .ht span { position: relative; }
+  .ht.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(224,168,46,.45), 0 0 16px rgba(224,168,46,.35); }
+  .ht .badge { position: absolute; top: .3rem; left: .3rem; font: 600 .5rem "Space Grotesk"; letter-spacing: .06em; padding: .1rem .28rem; border-radius: 3px; background: rgba(0,0,0,.6); color: #fff; }
+  .ht .badge.lf { background: var(--accent); color: var(--surface-deep); }
+  .ht .badge.lab { background: rgba(255,255,255,.18); }
+  .ht .pip { position: absolute; top: .3rem; right: .3rem; width: 18px; height: 18px; border-radius: 50%; font-size: .5rem; border: 2px solid rgba(0,0,0,.6); }
+  .ht.lab { filter: saturate(.5) brightness(.8); border-style: dashed; }
+  .sect { grid-column: 1 / -1; font: 600 .6rem "Space Grotesk"; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.45); margin-top: .3rem; }
+  .sect:first-child { margin-top: 0; }
+</style>
+</head>
+<body data-state="idle">
+<div class="page">
+
+<div class="demo">
+  <b>Mockup state</b>
+  <button class="on" data-st="idle">Hero picked · idle</button>
+  <button data-st="searching">Quick Match · searching</button>
+  <button data-st="found">Match found</button>
+  <span class="sp"></span>
+  <button id="notesBtn">Show design notes</button>
+</div>
+
+<div class="notes-panel">
+  <b style="color:#ff3d7f;letter-spacing:.1em;font-size:.66rem;text-transform:uppercase">Design notes — same page, four additions</b>
+  <ol>
+    <li><b>Presence pill in the rules strip.</b> Right end of the existing strip: "7 here · 3 looking" with a stacked avatar row. It's the cheapest possible "is anyone here?" answer and it sits on the line people already read for FORMAT / TIMER.</li>
+    <li><b>"Here now" ribbon between the roster header and the tiles.</b> One row, horizontally scrollable, ~48px. Gold chips are open lobbies (today's LIST_LOBBIES rows) with an inline Join; dim chips are people on the page with a 👋 wave; a dashed tail counts tables in play. The roster loses ~60px of height and nothing else moves.</li>
+    <li><b>2× XP lives in two places.</b> The skewed gold tag at the end of the ribbon (with "ends Sun") and on the Quick Match button itself. No banner, no hero card.</li>
+    <li><b>Quick Match keeps its slot under Create but earns its keep.</b> Gold outline + glow (today's "armed" style, always on during the bonus), a live subline ("3 looking · ~40s"), and the 2× tag. Create stays the gold primary. The summary line under both says which one pays the bonus.</li>
+    <li><b>Roster tiles get a tiny pip</b> when someone in the lobby is playing that hero (the avatar) or when it's your last pick ("LAST"). Lets the roster itself hint at who's around without a new panel.</li>
+    <li><b>Searching / found replace only the two buttons in the dock.</b> Splash, stage, plates, roster all stay interactive — so while you wait you can still browse heroes, or just click Join on a chip in the ribbon. On match found the P2 plate fills with the opponent's hero.</li>
+  </ol>
+</div>
+
+<div class="wrap">
+  <span class="acct"><span class="av">D</span> dean · Lv 12</span>
+
+  <!-- ===== RULES STRIP ===== -->
+  <div class="strip">
+    <span class="note" style="top:-9px;right:8px">1</span>
+    <span class="lg title">CREATE A ROOM</span>
+    <div class="ctl"><span class="lbl">Format</span><span class="seg"><span class="on">Duel</span><span>FFA 3</span><span>2v2</span></span></div>
+    <div class="ctl"><span class="lbl">⏱ Timer</span><span class="seg"><span class="on">Off</span><span>45s</span><span>90s</span><span>…</span></span></div>
+    <div class="ctl"><span class="lbl">Mulligan</span><span class="seg"><span class="on">On</span><span>Off</span></span></div>
+    <div class="ctl"><span class="lbl">🎁 Items</span><span class="seg"><span class="on">Board</span><span>Off</span></span></div>
+    <span class="sp"></span>
+    <span class="presence"><i class="dot"></i><span><b>7 here</b> · <span class="gold">3 looking</span></span><span class="stack"><span class="av" style="background:#ab224b">K</span><span class="av" style="background:#003761">M</span><span class="av" style="background:#408080">?</span><span class="av" style="background:#9A55B5">S</span><span class="av" style="background:#65a498">J</span><span class="av" style="background:#444">+2</span></span></span>
+    <span class="conn">● connected</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- ===== SPLASH ===== -->
+    <div class="splash">
+      <span class="locked">Locked in</span>
+      <div class="bn nm">SPECTER KNIGHT</div>
+      <div class="sub">Shovel Knight · 14 games · 61% win <a class="link">View deck</a></div>
+    </div>
+
+    <!-- ===== STAGE ===== -->
+    <div class="stage">
+      <div class="hd"><span class="lbl">Stage</span><a>All 11 boards ▾</a></div>
+      <div class="boards">
+        <div class="bt dashed sel"><span>🎲<br/>Random</span></div>
+        <div class="bt img"><span>Sarpedon</span></div>
+        <div class="bt img" style="background:linear-gradient(135deg,#2e3a4a,#4a6b8a)"><span>Mended Drum</span></div>
+        <div class="bt img" style="background:linear-gradient(135deg,#4a2e2e,#8a4a3a)"><span>Marmoreal</span></div>
+      </div>
+      <div class="fine">Random rolls from the duel pool · hover any board to preview it above</div>
+    </div>
+
+    <!-- ===== SEATS / CREATE DOCK ===== -->
+    <div class="seats">
+      <span class="note" style="top:52px;left:-9px">4</span>
+      <div class="plates">
+        <div class="plate"><div class="tag">P1 <i>YOU</i></div><div class="who">Specter Knight</div></div>
+        <div class="plate p2"><div class="tag">P2 <i class="p2who">OPPONENT</i></div><div class="who p2name">Human · invite</div><div class="mini"><span class="on">Human</span><span>Easy</span><span>Med</span><span>Hard</span></div></div>
+      </div>
+      <button class="create">Create room</button>
+      <button class="qm" onclick="setState('searching')">
+        <span class="l">⚡ Quick Match<small>3 looking right now · ~40s wait</small></span>
+        <span class="x"><span>2× XP</span></span>
+      </button>
+
+      <div class="searching">
+        <div class="row"><div class="spinner"></div><div class="t">Finding a match <span>· 2× XP</span></div></div>
+        <p>Kay's table filled a second ago. Trying Moritz… otherwise your table goes public and the next searcher lands here. Waiting <b style="color:var(--parchment)">0:12</b></p>
+        <div class="acts"><button class="mini-btn">🔗 Invite link</button><button class="mini-btn">🔊 Chime</button><button class="mini-btn">Bot instead</button><button class="mini-btn" onclick="setState('idle')">Cancel</button></div>
+      </div>
+      <div class="found">
+        <div class="t">Match found · Moritz</div>
+        <p><b>Nancy Drew</b> · Lv 9 · ⭐ Regular. Board rolled: <b>Sarpedon</b>, untimed, mulligan on.</p>
+        <div class="cd"><span>2× XP match</span><span>Entering table in <b>3</b></span></div>
+      </div>
+
+      <div class="summary">Duel · Random board · untimed · mulligan on<br/><span class="gold">Quick Match pays 2× XP this weekend</span> · Create room is 1×</div>
+    </div>
+
+    <!-- ===== ROSTER ===== -->
+    <div class="roster">
+      <div class="hd">
+        <div class="h"><span class="lg">SELECT YOUR HERO</span><small>24 fighters</small></div>
+        <div class="tools">
+          <span class="search">🔍 Search…</span>
+          <span class="seg"><span class="on">All</span><span>Ready</span><span>Lab</span></span>
+          <span class="seg"><span class="on">A–Z</span><span>♥</span></span>
+        </div>
+      </div>
+
+      <!-- here-now ribbon -->
+      <div class="ribbon">
+        <span class="note" style="top:-9px;left:8px">2</span>
+        <span class="note" style="top:-9px;right:8px">3</span>
+        <div class="k"><span class="lg">HERE NOW</span><span class="lbl">7 · live</span></div>
+        <div class="scroll">
+          <div class="pc open"><span class="av" style="background:#ab224b">K</span><div class="w"><span class="n">Kay<i>⭐</i></span><span class="s"><em>Gingerbread</em> · 1m 42s · ⏱45s</span></div><button class="join">Join<small>2× XP</small></button></div>
+          <div class="pc open"><span class="av" style="background:#003761">M</span><div class="w"><span class="n">Moritz</span><span class="s"><em>Nancy Drew</em> · 0m 31s</span></div><button class="join">Join<small>2× XP</small></button></div>
+          <div class="pc open"><span class="av" style="background:#408080">?</span><div class="w"><span class="n">Anonymous</span><span class="s"><em>Mandalorian</em> · 0m 08s</span></div><button class="join">Join<small>2× XP</small></button></div>
+          <div class="pc"><span class="av" style="background:#9A55B5">S</span><div class="w"><span class="n">Sam_B</span><span class="s">picking a fighter…</span></div><button class="wave" title="Want to play?">👋</button></div>
+          <div class="pc"><span class="av away" style="background:#65a498">J</span><div class="w"><span class="n">jwick88</span><span class="s">idle · 4 min</span></div><button class="wave" title="Want to play?">👋</button></div>
+          <div class="pc tail"><span class="stack"><span class="av" style="background:#b80000">F</span><span class="av" style="background:#7a0000">T</span></span>1 table in play · 31 games today</div>
+        </div>
+        <div class="bonus"><span class="x2">2×</span><span>XP on Quick Match<small>ends Sun 23:59</small></span></div>
+      </div>
+
+      <div class="tiles-wrap">
+        <div class="tiles">
+          <div class="sect">Recently played</div>
+          <div class="ht sel" style="background:linear-gradient(160deg,#6b2d2d,#b51a00)"><span class="badge lf">Last</span><span>Specter Knight</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#1e3b4a,#408080)"><span class="av pip" style="background:#408080">?</span><span>Mandalorian</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#001c33,#003761)"><span>Batman</span></div>
+
+          <div class="sect">Battle-ready · 15</div>
+          <div class="ht" style="background:linear-gradient(160deg,#5a0f22,#ab224b)"><span class="note" style="top:-8px;right:-8px">5</span><span class="av pip" style="background:#ab224b">K</span><span>Gingerbread Man</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#7a6b05,#fada0b)"><span class="av pip" style="background:#003761">M</span><span>Nancy Drew</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#0a0a0a,#2b2b2b)"><span>John Wick</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#3a0700,#831000)"><span>The Devil</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#2b4a44,#65a498)"><span>Schrödinger's Cat</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#355a55,#7bcebb)"><span>Goldhorn</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#4a0000,#b80000)"><span>The Flash</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#2a0000,#7a0000)"><span>Jason Voorhees</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#333,#828282)"><span>Darth Vader</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#4a2e0a,#8a5a1a)"><span>Victor Frankenstein</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#2a1a3a,#5a3a7a)"><span>Voldemort</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#0a2a3a,#1a5a7a)"><span>Luke Skywalker</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#3a3a0a,#7a7a1a)"><span>Boba Fett</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#2a0a2a,#6a1a5a)"><span>Ellen Ripley</span></div>
+          <div class="ht" style="background:linear-gradient(160deg,#0a3a2a,#1a7a5a)"><span>Kenshiro</span></div>
+
+          <div class="sect">In the lab · 9</div>
+          <div class="ht lab" style="background:linear-gradient(160deg,#3a2a4a,#5a4a6a)"><span class="badge lab">Lab</span><span>Taranis</span></div>
+          <div class="ht lab" style="background:linear-gradient(160deg,#2a3a2a,#4a6a4a)"><span class="badge lab">Lab</span><span>Hollow Oak</span></div>
+          <div class="ht lab" style="background:linear-gradient(160deg,#3a3a3a,#6a6a6a)"><span class="badge lab">Lab</span><span>King Kong</span></div>
+          <div class="ht lab" style="background:linear-gradient(160deg,#2a2a3a,#4a4a7a)"><span class="badge lab">Lab</span><span>Narrator</span></div>
+          <div class="ht lab" style="background:linear-gradient(160deg,#3a2a2a,#7a4a4a)"><span class="badge lab">Lab</span><span>Skull Kid</span></div>
+          <div class="ht lab" style="background:linear-gradient(160deg,#2a3a3a,#4a7a7a)"><span class="badge lab">Lab</span><span>Cecil Palmer</span></div>
+        </div>
+        <div class="fade"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+  function setState(s) {
+    document.body.dataset.state = s;
+    document.querySelectorAll('.demo [data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === s));
+    const who = document.querySelector('.p2who'), nm = document.querySelector('.p2name');
+    if (s === 'found') { who.textContent = 'MORITZ'; nm.textContent = 'Nancy Drew'; }
+    else { who.textContent = 'OPPONENT'; nm.textContent = s === 'searching' ? 'Searching…' : 'Human · invite'; }
+  }
+  document.querySelectorAll('.demo [data-st]').forEach(b => b.addEventListener('click', () => setState(b.dataset.st)));
+  document.getElementById('notesBtn').addEventListener('click', e => {
+    const on = document.body.classList.toggle('notes');
+    e.target.textContent = on ? 'Hide design notes' : 'Show design notes';
+    e.target.classList.toggle('on', on);
+  });
+</script>
+</body>
+</html>
