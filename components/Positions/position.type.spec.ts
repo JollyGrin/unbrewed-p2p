@@ -43,3 +43,41 @@ describe("migrateBlob", () => {
     });
   });
 });
+
+describe("card token sizes", () => {
+  const {
+    CARD_TOKEN_MAX_WIDTH,
+    CARD_TOKEN_MIN_WIDTH,
+    COMPACT_CARD_TOKEN_WIDTH,
+    DEFAULT_CARD_TOKEN_WIDTH,
+    cardTokenHeight,
+    cardTokenSizeRange,
+  } = jest.requireActual("./position.type");
+
+  it("lands a played card at 180, the middle of the slider", () => {
+    expect(DEFAULT_CARD_TOKEN_WIDTH).toBe(180);
+    expect(cardTokenHeight(DEFAULT_CARD_TOKEN_WIDTH)).toBe(251);
+    expect((CARD_TOKEN_MIN_WIDTH + CARD_TOKEN_MAX_WIDTH) / 2).toBe(
+      DEFAULT_CARD_TOKEN_WIDTH,
+    );
+    expect(cardTokenSizeRange(DEFAULT_CARD_TOKEN_WIDTH)).toEqual({
+      min: 90,
+      max: 270,
+    });
+  });
+
+  it("keeps reference cards smaller than played ones, inside the slider", () => {
+    expect(COMPACT_CARD_TOKEN_WIDTH).toBe(130);
+    expect(COMPACT_CARD_TOKEN_WIDTH).toBeLessThan(DEFAULT_CARD_TOKEN_WIDTH);
+    expect(COMPACT_CARD_TOKEN_WIDTH).toBeGreaterThanOrEqual(
+      CARD_TOKEN_MIN_WIDTH,
+    );
+  });
+
+  it("holds the old default and the old slider's extremes without resizing them", () => {
+    // 260 was the default before; 50 was the old slider's minimum
+    expect(cardTokenSizeRange(260)).toEqual({ min: 90, max: 270 });
+    expect(cardTokenSizeRange(50)).toEqual({ min: 50, max: 270 });
+    expect(cardTokenSizeRange(400)).toEqual({ min: 90, max: 400 });
+  });
+});
