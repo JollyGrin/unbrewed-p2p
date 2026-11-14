@@ -10,11 +10,12 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { CloseIcon, RepeatIcon } from "@chakra-ui/icons";
-import { FC } from "react";
+import { FC, useMemo } from "react";
 import {
   BoardToken,
   DEFAULT_CARD_TOKEN_WIDTH,
   cardTokenHeight,
+  cardTokenSizeRange,
 } from "./position.type";
 import { KeyHint } from "@/components/Game/Keybinds/key-hint";
 
@@ -44,6 +45,14 @@ export const CardTokenPanel: FC<{
   onClose,
 }) => {
   const size = token.size ?? DEFAULT_CARD_TOKEN_WIDTH;
+  // Stretched once per card, from the size it had when its panel opened: a
+  // range that followed the slider would close in behind it, and a card
+  // stored at 50 could never get back below 90 (#1629 review).
+  const range = useMemo(
+    () => cardTokenSizeRange(size),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token.id],
+  );
 
   return (
     <Box
@@ -117,8 +126,8 @@ export const CardTokenPanel: FC<{
       </Text>
       <Slider
         aria-label="Card size"
-        min={50}
-        max={260}
+        min={range.min}
+        max={range.max}
         value={size}
         onChange={(next) => onResize(next, cardTokenHeight(next))}
       >

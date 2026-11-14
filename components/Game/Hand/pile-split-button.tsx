@@ -5,6 +5,7 @@ import { colors, fonts } from "@/styles/style";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { DeckCommand } from "@/components/Game/CommandMenu/deckCommands";
 import { KeyHint, useKeyLabels } from "@/components/Game/Keybinds/key-hint";
+import { useValueTick } from "./useValueTick";
 
 /**
  * A pile pill that splits into two hit targets: the wide left segment fires the
@@ -18,12 +19,17 @@ export const PileSplitButton: React.FC<{
   onPrimary: () => void;
   commands: DeckCommand[];
   pool: PoolType | undefined;
+  /** Which pile this is: cards flying to or from it aim at `data-pile`. */
+  pile?: "deck" | "discard";
+  /** Cards in the pile; the button pulses once when it changes. */
+  count?: number;
   /** Command id whose shortcut the pill shows (it does what the pill does). */
   shortcut?: string;
-}> = ({ label, onPrimary, commands, pool, shortcut }) => {
+}> = ({ label, onPrimary, commands, pool, pile, count, shortcut }) => {
+  const pulse = useValueTick<HTMLDivElement>(count, { kind: "pulse" });
   const keyLabel = useKeyLabels();
   return (
-    <Split>
+    <Split ref={pulse} data-pile={pile}>
       <Primary onClick={onPrimary}>
         {label}
         {shortcut && <KeyHint action={shortcut} />}

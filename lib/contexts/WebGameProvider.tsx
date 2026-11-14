@@ -1,3 +1,4 @@
+import { ACTION_LOG_LIMIT } from "@/lib/sandbox/gameLog";
 import {
   useEffect,
   useState,
@@ -47,6 +48,7 @@ import { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import {
   initPool,
   initPositionBlob,
+  seatAmong,
   readStarredDeck,
 } from "@/lib/sandbox/initGame";
 import {
@@ -167,7 +169,6 @@ const CLAIM_TTL_MS = 60_000;
 export const JOIN_REPLAY_GRACE_MS = 1500;
 
 // How many recent actions each player keeps on their blob.
-const ACTION_LOG_LIMIT = 25;
 
 /** Cheap equality for the waiting-on list, so a snapshot with no reset news
  *  doesn't hand the UI a fresh object every time. */
@@ -311,6 +312,21 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
   // every time it changes (e.g. counting the voters for a reset).
   const latestGameStateRef = useRef<WebsocketMessage | undefined>();
   latestGameStateRef.current = gameState;
+  const latestPositionsRef = useRef<WebsocketMessage | undefined>();
+  latestPositionsRef.current = gamePositions;
+  // My seat for a re-seed (New game, Change my deck): my rank among everyone
+  // with a pool or a board, so no two players' fighters land in one corner.
+  const seatOf = useCallback((self: string) => {
+    const players = (latestGameStateRef.current?.content as GameState | undefined)
+      ?.players;
+    const boards = latestPositionsRef.current?.content as
+      | PositionState
+      | undefined;
+    return seatAmong(
+      [...Object.keys(players ?? {}), ...Object.keys(boards ?? {})],
+      self,
+    );
+  }, []);
 
   // Stamp every outgoing player blob with our current view of the shared map,
   // so the map survives normal pool updates and is present for late joiners.
@@ -571,11 +587,11 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
       // 2. Position blob, via the same helper the join path uses. Sending
       // `{ tokens: [] }` is NOT enough: blobs[self] stays truthy, so the join
       // seed never re-fires and the player is left with an empty board.
-      setPlayerPosition.current(initPositionBlob(deck, self));
+      setPlayerPosition.current(initPositionBlob(deck, self, seatOf(self)));
 
       setResetStatus({ epoch, appliedAt: Date.now() });
     },
-    [broadcast, slug?.name],
+    [broadcast, slug?.name, seatOf],
   );
 
   // Propose a new game — or just do it, when nobody else is playing (solo
@@ -652,9 +668,9 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         },
       ].slice(-ACTION_LOG_LIMIT);
       broadcast({ pool: initPool(deck) });
-      setPlayerPosition.current(initPositionBlob(deck, self));
+      setPlayerPosition.current(initPositionBlob(deck, self, seatOf(self)));
     },
-    [broadcast, slug?.name],
+    [broadcast, slug?.name, seatOf],
   );
 
   // Inbound: the reset epoch/consent reconcile. Runs on every snapshot; every

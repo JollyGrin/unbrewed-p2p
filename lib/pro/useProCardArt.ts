@@ -363,8 +363,9 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // William Afton / Springtrap (the-unmatched.club 14750 by bobafettIG88, lab tier; issue
   // #1530 ↔ engine #1018 HeroDef.revive / #1019 deck, William Afton train). Club-only, so
   // the id is unbrewed-minted (Ripley/Xenomorph precedent). ART: 16 files self-hosted under
-  // public/evergreen-decks/art/william-afton/ (q80 webp, ≤1600w): the 13 club full-card
-  // renders (cardImage, full-bleed), the club cover as cardback, and the author's two
+  // public/evergreen-decks/art/william-afton/ (q80 webp, ≤1600w): the 13 card faces are the
+  // author's club `replacementImage` overrides (2026-11-14; the auto renders said "Spring
+  // Trap"), corners flattened onto black; the club cover as cardback, and the author's two
   // character avatars as square top-anchored board tokens — token-william-afton (deck
   // default) and token-springtrap (swapped in by the SPRINGTRAP flag, heroStateFlags.ts).
   "william-afton": "william-afton",

@@ -54,6 +54,20 @@ export type BoardToken = {
    * old client keeps drawing the first face rather than a broken one. */
   flipped?: boolean;
   /**
+   * Fighter medallion (the hero and sidekick pieces a fresh table starts
+   * with): a hex colour for the rim, usually the deck's border colour. Set =
+   * the token is drawn round with that rim, and its `counter` as a heart
+   * plate instead of the corner badge. Display-only like the fields above:
+   * an older client draws the same round image (or the player's disc), its
+   * label and the plain badge.
+   */
+  rim?: string;
+  /**
+   * One to three letters for a token with no image, or whose image failed to
+   * load: drawn large on a disc in the `rim` colour (else the player's).
+   */
+  initials?: string;
+  /**
    * A card played from the owner's hand onto the table. The whole card rides
    * in the token (URLs only, never base64) so it can return to hand/deck/
    * discard intact — a card token is the card while it sits on the board.
@@ -178,10 +192,37 @@ export type LegacyPositionType = {
 
 export const DEFAULT_TOKEN_SIZE = 72;
 
-/** Card tokens keep the 63x88 card aspect; size = width in board px.
- * Cards land at full size (the resize slider's max) — readable first,
- * shrink later if the table gets crowded. */
-export const DEFAULT_CARD_TOKEN_WIDTH = 260;
+/**
+ * Card tokens keep the 63x88 card aspect; size = width in board px.
+ *
+ * A played card lands at 180: about a space and a half of the 1200x1000 map,
+ * so its title and value read at the default zoom without burying the spaces
+ * around it. (It was 260, which covered about four spaces.) Tokens already on
+ * a table carry their own `size` and are never resized by this.
+ */
+export const DEFAULT_CARD_TOKEN_WIDTH = 180;
+
+/**
+ * Cards that are put on the table for reference rather than played there:
+ * a boost flipped off the deck, a revealed hand, the hero and rule cards.
+ */
+export const COMPACT_CARD_TOKEN_WIDTH = 130;
+
+/** The size slider's range: the default sits in the middle of it. */
+export const CARD_TOKEN_MIN_WIDTH = 90;
+export const CARD_TOKEN_MAX_WIDTH = 270;
+
+/**
+ * Slider bounds for a card token of this width. A token sized outside the
+ * usual range (an older table: the slider used to run 50 to 260) keeps its
+ * size, and the slider stretches to hold it instead of clamping it.
+ */
+export const cardTokenSizeRange = (
+  size: number,
+): { min: number; max: number } => ({
+  min: Math.min(CARD_TOKEN_MIN_WIDTH, size),
+  max: Math.max(CARD_TOKEN_MAX_WIDTH, size),
+});
 
 export const cardTokenHeight = (width: number) =>
   Math.round((width * 88) / 63);
@@ -198,6 +239,12 @@ export type PlayCardToTable = (
     screenPos?: { x: number; y: number };
     /** Rendered width in board px; defaults to DEFAULT_CARD_TOKEN_WIDTH. */
     size?: number;
+    /**
+     * Where on screen the card is drawn as it is played (the drag ghost, its
+     * hand slot, the deck button), so the token arrives from there. Motion
+     * only: the token is placed by `screenPos` or the viewport centre.
+     */
+    from?: { x: number; y: number; width: number; rot?: number };
   },
 ) => void;
 
@@ -253,6 +300,64 @@ export function migrateBlob(raw: unknown): PositionBlob {
 export const SPAWN_ORIGIN = { x: 150, y: 100 };
 const SPAWN_GAP = 24;
 const SPAWN_ROW_MAX_X = 1050;
+
+/** The map every board draws on (BoardCanvas/useCanvas fits this box). */
+export const BOARD_SIZE = { w: 1200, h: 1000 };
+
+/** Width of a token's name pill (TokenMarkup.labelPlate draws to this). */
+export const labelWidth = (text: string): number => text.length * 6.2 + 14;
+
+/**
+ * Top of the first fighter row. Lower than SPAWN_ORIGIN so the pieces clear
+ * the HUD panels, which cover the map's top-left on a laptop-sized window
+ * (two panels side by side in hotseat).
+ */
+export const FIGHTER_ROW_TOP = 170;
+
+/**
+ * Lay a player's fighters out as one row in their corner of the map, hero
+ * first. Seat 0 gets the top-left corner the starter disc always used; seat 1
+ * the bottom-right (the same spot once the board is turned 180° for the
+ * second hotseat seat), then top-right and bottom-left. Later seats reuse the
+ * corners one row further in.
+ *
+ * Tokens are spaced by whichever is wider, the piece or its name pill, so
+ * neither pieces nor names overlap.
+ */
+export function spawnFighterRow(
+  fighters: SavedToken[],
+  owner: string,
+  seat = 0,
+): BoardToken[] {
+  const corner = ((seat % 4) + 4) % 4;
+  const ring = Math.floor(Math.max(0, seat) / 4);
+  const flipX = corner === 1 || corner === 2;
+  const flipY = corner === 1 || corner === 3;
+  const top = FIGHTER_ROW_TOP + ring * 150;
+
+  // pieces of different sizes stand on one line, so their names line up too
+  const rowH = Math.max(0, ...fighters.map((t) => t.h ?? t.size ?? DEFAULT_TOKEN_SIZE));
+  const rowTop = flipY ? BOARD_SIZE.h - top - rowH : top;
+
+  let left = SPAWN_ORIGIN.x;
+  let prevHalf = 0;
+  let centre = 0;
+  return fighters.map((token, i) => {
+    const w = token.size ?? DEFAULT_TOKEN_SIZE;
+    const h = token.h ?? w;
+    const label = typeof token.label === "string" ? token.label.trim() : "";
+    const half = Math.max(w, label ? labelWidth(label) : 0) / 2;
+    centre = i === 0 ? left + w / 2 : centre + prevHalf + SPAWN_GAP / 2 + half;
+    prevHalf = half;
+    left = centre - w / 2;
+    return {
+      ...token,
+      id: newTokenId(owner),
+      x: Math.round(flipX ? BOARD_SIZE.w - left - w : left),
+      y: Math.round(rowTop + rowH - h),
+    };
+  });
+}
 
 /**
  * Lay a deck's saved loadout out near the player's edge of the board: a row
