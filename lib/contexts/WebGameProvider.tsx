@@ -1,3 +1,4 @@
+import { ACTION_LOG_LIMIT } from "@/lib/sandbox/gameLog";
 import {
   useEffect,
   useState,
@@ -167,7 +168,6 @@ const CLAIM_TTL_MS = 60_000;
 export const JOIN_REPLAY_GRACE_MS = 1500;
 
 // How many recent actions each player keeps on their blob.
-const ACTION_LOG_LIMIT = 25;
 
 /** Cheap equality for the waiting-on list, so a snapshot with no reset news
  *  doesn't hand the UI a fresh object every time. */

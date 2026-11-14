@@ -1,3 +1,4 @@
+import { ACTION_LOG_LIMIT } from "@/lib/sandbox/gameLog";
 import {
   FC,
   PropsWithChildren,
@@ -38,7 +39,6 @@ import {
 } from "@/lib/sandbox/initGame";
 
 // Keep the local feed bounded exactly like the online provider does.
-const ACTION_LOG_LIMIT = 25;
 
 // The first (and, without hotseat, the lone) player's key. `?name=offline` is
 // set on the URL so BoardContainer, HandContainer, HeaderContainer, and
