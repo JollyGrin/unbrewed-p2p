@@ -1,3 +1,5 @@
+import { statSync } from "fs";
+
 import {
   FATIGUE_MS,
   MAX_BURST,
@@ -188,8 +190,6 @@ describe("sound pack manifest", () => {
   });
 
   it("ships the file the manifest describes, under the size budget", () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { statSync } = require("fs");
     const size = statSync("public/sounds/table/table-sounds.mp3").size;
     expect(size).toBe(SOUND_PACK_BYTES);
     expect(size).toBeLessThan(150 * 1024);
