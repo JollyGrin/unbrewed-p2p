@@ -21,6 +21,7 @@ import {
   OwnedToken,
   PlayCardToTable,
   PositionBlob,
+  canFlip,
   cardTokenHeight,
   migrateBlob,
   newTokenId,
@@ -76,6 +77,9 @@ import {
 import { GameMenusProvider } from "@/components/Game/GameMenus/game-menus";
 import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
 import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
+import { KeybindLayer } from "@/components/Game/Keybinds/keybind-layer";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
+import { useBoardKeybinds } from "@/components/Game/Keybinds/use-board-keybinds";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
@@ -145,6 +149,7 @@ export const GameShell = () => {
           openModal={requestModal}
           openTokenLibrary={tokenLibraryDisclosure.onOpen}
         />
+        <KeybindLayer />
       </GameMenusProvider>
     </GameLayout>
   );
@@ -574,6 +579,52 @@ const BoardContainer = ({
     logAction(`Asked to pick up ${pickupToken.owner}'s card`);
   }, [pickupToken, claimTableCard, logAction]);
 
+  // What can be done with the selection. Built once and handed to BOTH the
+  // panel buttons below and the keyboard shortcuts (lib/keybinds), so a key
+  // press runs the very closure its button runs: same motion, same log line.
+  const selectedCard = selected?.card ? selected : null;
+  const selectedPiece = !selectedCard && selected?.imageUrl ? selected : null;
+  const cardActions = selectedCard && {
+    flip: () => flipTableCard(selectedCard),
+    toHand: () =>
+      returnTableCard(
+        selectedCard,
+        addCardToHand,
+        "Returned a card to hand",
+        "hand",
+      ),
+    toDiscard: () =>
+      returnTableCard(
+        selectedCard,
+        addCardToDiscard,
+        "Discarded a card from the table",
+        "discard",
+      ),
+  };
+  const pieceActions = selectedPiece && {
+    flip: () => flipPiece(selectedPiece),
+    remove: () => deleteToken(selectedPiece.id),
+  };
+  useBoardKeybinds({
+    flip:
+      cardActions?.flip ??
+      // The piece panel only shows Flip for a two-faced piece.
+      (selectedPiece && !selectedPiece.overlay && canFlip(selectedPiece)
+        ? pieceActions?.flip
+        : undefined),
+    toHand: cardActions?.toHand,
+    remove: cardActions?.toDiscard ?? pieceActions?.remove,
+    discardCard: cardActions?.toDiscard,
+    clear:
+      selectedId || pickupId
+        ? () => {
+            setSelectedId(null);
+            setPickupId(null);
+            setPeek(null);
+          }
+        : undefined,
+  });
+
   return (
     <Box h={"100%"} minH={0} overflow="hidden" position="relative">
       <BoardCanvas
@@ -600,6 +651,7 @@ const BoardContainer = ({
         zIndex={250}
         size="sm"
         leftIcon={<PlusSquareIcon />}
+        rightIcon={<KeyHint action="addToken" />}
         bg="brand.parchment"
         color="brand.surfaceDim"
         fontFamily="SpaceGrotesk"
@@ -619,29 +671,15 @@ const BoardContainer = ({
           onPickup={requestPickup}
           onClose={() => setPickupId(null)}
         />
-      ) : selected?.card ? (
+      ) : selectedCard && cardActions ? (
         <CardTokenPanel
-          token={selected}
-          onFlip={() => flipTableCard(selected)}
-          onToHand={() =>
-            returnTableCard(
-              selected,
-              addCardToHand,
-              "Returned a card to hand",
-              "hand",
-            )
-          }
-          onToDiscard={() =>
-            returnTableCard(
-              selected,
-              addCardToDiscard,
-              "Discarded a card from the table",
-              "discard",
-            )
-          }
+          token={selectedCard}
+          onFlip={cardActions.flip}
+          onToHand={cardActions.toHand}
+          onToDiscard={cardActions.toDiscard}
           onToDeckTop={() =>
             returnTableCard(
-              selected,
+              selectedCard,
               addCardToDeckTop,
               "Placed a table card on top of deck",
               "deck",
@@ -649,21 +687,21 @@ const BoardContainer = ({
           }
           onToDeckBottom={() =>
             returnTableCard(
-              selected,
+              selectedCard,
               addCardToDeckBottom,
               "Placed a table card on bottom of deck",
               "deck",
             )
           }
-          onResize={(size, h) => patchToken(selected.id, { size, h })}
+          onResize={(size, h) => patchToken(selectedCard.id, { size, h })}
           onClose={() => setSelectedId(null)}
         />
-      ) : selected?.imageUrl ? (
+      ) : selectedPiece && pieceActions ? (
         <TokenEditPanel
-          token={selected}
-          onChange={(patch) => patchToken(selected.id, patch)}
-          onFlip={() => flipPiece(selected)}
-          onDelete={() => deleteToken(selected.id)}
+          token={selectedPiece}
+          onChange={(patch) => patchToken(selectedPiece.id, patch)}
+          onFlip={pieceActions.flip}
+          onDelete={pieceActions.remove}
           onClose={() => setSelectedId(null)}
         />
       ) : null}

@@ -4,6 +4,7 @@ import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { DeckCommand } from "@/components/Game/CommandMenu/deckCommands";
+import { KeyHint, useKeyLabels } from "@/components/Game/Keybinds/key-hint";
 import { useValueTick } from "./useValueTick";
 
 /**
@@ -22,11 +23,17 @@ export const PileSplitButton: React.FC<{
   pile?: "deck" | "discard";
   /** Cards in the pile; the button pulses once when it changes. */
   count?: number;
-}> = ({ label, onPrimary, commands, pool, pile, count }) => {
+  /** Command id whose shortcut the pill shows (it does what the pill does). */
+  shortcut?: string;
+}> = ({ label, onPrimary, commands, pool, pile, count, shortcut }) => {
   const pulse = useValueTick<HTMLDivElement>(count, { kind: "pulse" });
+  const keyLabel = useKeyLabels();
   return (
     <Split ref={pulse} data-pile={pile}>
-      <Primary onClick={onPrimary}>{label}</Primary>
+      <Primary onClick={onPrimary}>
+        {label}
+        {shortcut && <KeyHint action={shortcut} />}
+      </Primary>
       <Menu placement="top-end" isLazy>
         <MenuButton as={Chevron} aria-label={`${label} actions`}>
           <ChevronUpIcon boxSize="1rem" />
@@ -48,6 +55,7 @@ export const PileSplitButton: React.FC<{
                 key={cmd.id}
                 onClick={cmd.run}
                 isDisabled={disabled}
+                command={keyLabel(cmd.id)}
                 bg="transparent"
                 _hover={{ bg: colors.brand.highlight }}
                 _focus={{ bg: colors.brand.highlight }}

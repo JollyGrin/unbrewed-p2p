@@ -17,6 +17,7 @@ import {
   cardTokenHeight,
   cardTokenSizeRange,
 } from "./position.type";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
 
 /**
  * Floating controls for a selected card token. Only ever opens for the
@@ -98,14 +99,17 @@ export const CardTokenPanel: FC<{
         onClick={onFlip}
       >
         {token.faceDown ? "Flip face-up" : "Flip face-down"}
+        <KeyHint action="flipSelected" />
       </Button>
 
       <Flex gap="0.5rem" mb="0.5rem">
         <Button size="sm" flex={1} onClick={onToHand}>
           To hand
+          <KeyHint action="handSelected" />
         </Button>
         <Button size="sm" flex={1} onClick={onToDiscard}>
           Discard
+          <KeyHint action="removeSelected" />
         </Button>
       </Flex>
       <Flex gap="0.5rem" mb="0.75rem">

@@ -19,6 +19,8 @@ import { colors, fonts } from "@/styles/style";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
 import { GameState, PlayerState } from "@/lib/gamesocket/message";
 import { mergeActionLog } from "@/lib/sandbox/gameLog";
+import { useKeybindHandler } from "@/lib/keybinds/handlers";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
 
 import {
   GROUP_GAP_MS,
@@ -257,6 +259,7 @@ const Line: React.FC<LineProps> = ({ group, self, now, detail, entering }) => {
 export const ActionLog: React.FC = () => {
   const [open, setOpen] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
+  useKeybindHandler("toggleLog", () => setOpen((o) => !o));
   const { gameState } = useWebGame();
   const localName = useRouter().query?.name;
   const self = Array.isArray(localName) ? localName[0] : localName;
@@ -323,6 +326,7 @@ export const ActionLog: React.FC = () => {
             textTransform="uppercase"
           >
             Activity
+            <KeyHint action="toggleLog" />
           </Text>
           {open ? (
             <ChevronUpIcon boxSize="1rem" />

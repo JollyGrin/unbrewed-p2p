@@ -25,6 +25,7 @@ import {
   canFlip,
   clampLabel,
 } from "./position.type";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
 
 /**
  * Floating controls for a selected image piece (picture token or map
@@ -114,6 +115,7 @@ export const TokenEditPanel: FC<{
               onClick={onFlip}
             >
               {token.flipped ? "Flip to front" : "Flip to back"}
+              <KeyHint action="flipSelected" />
             </Button>
           )}
           <Flex gap="0.5rem" mb="0.75rem">
@@ -168,6 +170,7 @@ export const TokenEditPanel: FC<{
           onClick={onDelete}
         >
           Delete
+          <KeyHint action="removeSelected" />
         </Button>
       </Flex>
     </Box>

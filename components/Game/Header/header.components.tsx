@@ -53,6 +53,8 @@ import { useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { MapModal } from "./map.modal";
 import { DiceModal } from "./dice.modal";
 import { DiscardModalReadOnly } from "./discard.modal";
+import { useKeybindHandler } from "@/lib/keybinds/handlers";
+import { useKeyTip } from "@/components/Game/Keybinds/key-hint";
 
 export const PlayerBox: React.FC<{
   isLocal: boolean;
@@ -96,6 +98,10 @@ export const PlayerBox: React.FC<{
   const diceDisclosure = useDisclosure();
   const discardDisclosure = useDisclosure();
   const menus = useGameMenus();
+  // Keyboard shortcut (lib/keybinds): only the local seat's box rolls.
+  useKeybindHandler("openDice", isLocal && diceDisclosure.onOpen);
+  const diceTip = useKeyTip("Roll dice", "openDice");
+  const tokensTip = useKeyTip("Add tokens to the board", "addToken");
 
   const sidekickQty = sidekick?.quantity ?? 0;
   // Deliberately looser than `hasSidekick()`: this row is the HP/count control,
@@ -156,7 +162,7 @@ export const PlayerBox: React.FC<{
                   <FaMap size="15px" />
                 </ControlButton>
               </Tooltip>
-              <Tooltip label="Add tokens to the board" hasArrow>
+              <Tooltip label={tokensTip} hasArrow>
                 <ControlButton
                   as="button"
                   aria-label="Add tokens to the board"
@@ -168,7 +174,7 @@ export const PlayerBox: React.FC<{
                   <IconToken size="14px" />
                 </ControlButton>
               </Tooltip>
-              <Tooltip label="Roll dice" hasArrow>
+              <Tooltip label={diceTip} hasArrow>
                 <ControlButton
                   as="button"
                   aria-label="Roll dice"
