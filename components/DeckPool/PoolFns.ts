@@ -1,3 +1,4 @@
+import { deckSourceOf, type DeckSource } from "@/lib/deckSource";
 import {
   DeckImportCardType,
   DeckImportExtraCharacterType,
@@ -11,6 +12,11 @@ export type PoolType = {
   deckid: string;
   deckName: string;
   deckNote: string;
+  /** where the deck was imported from + its page there; both or neither.
+   *  Read by the relay for sandbox telemetry (see lib/deckSource.ts). Absent
+   *  for a deck with no recorded source, and on pools built before this. */
+  deckSource?: DeckSource;
+  deckUrl?: string;
   cards: DeckImportCardType[];
   deck: DeckImportCardType[] | null;
   hero: PoolHero;
@@ -165,6 +171,7 @@ export const newPool = (deckData: DeckImportType): PoolType => {
     deckid: family_id,
     deckName: name,
     deckNote: note,
+    ...deckSourceOf(deckData),
     cards: backfilledCards,
     deck: null,
     hero: {

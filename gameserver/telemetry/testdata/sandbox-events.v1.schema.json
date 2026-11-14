@@ -29,6 +29,8 @@
         "playerHash": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
         "connections": { "$ref": "#/$defs/count" },
         "heroName": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "deckSource": { "enum": ["unmatched-club", "unmatched-cards", "labs"] },
+        "deckUrl": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 512 },
         "reason": { "enum": ["inactive", "shutdown"] },
         "lifetimeMs": { "$ref": "#/$defs/count" },
         "distinctPlayers": { "$ref": "#/$defs/count" },
@@ -49,6 +51,18 @@
         {
           "if": { "properties": { "type": { "const": "hero_seen" } } },
           "then": { "required": ["playerHash", "heroName"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "hero_seen" } } },
+          "else": { "not": { "anyOf": [{ "required": ["deckSource"] }, { "required": ["deckUrl"] }] } }
+        },
+        {
+          "if": { "required": ["deckSource"] },
+          "then": { "required": ["deckUrl"] }
+        },
+        {
+          "if": { "required": ["deckUrl"] },
+          "then": { "required": ["deckSource"] }
         },
         {
           "if": { "properties": { "type": { "const": "room_closed" } } },

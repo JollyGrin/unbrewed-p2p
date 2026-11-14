@@ -16,6 +16,7 @@
  */
 import axios from "axios";
 import { DeckImportType } from "@/components/DeckPool/deck-import.type";
+import { POPULAR_DECKS } from "@/lib/constants/top-decks";
 import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 
 export const EVERGREEN_DECK_IDS = new Set<string>(Object.values(HERO_DECK_IDS));
@@ -34,19 +35,35 @@ const fromSnapshot = (id: string) =>
 const fromApi = (id: string) =>
   axios.get<DeckImportType>(DEFAULT_DECK_API + id).then((r) => r.data);
 
+// Unbrewed evergreen originals: ids that are ours, with no unmatched.cards page.
+const ORIGINAL_DECK_IDS = new Set(
+  POPULAR_DECKS.filter((d) => d.original).map((d) => d.id),
+);
+
+/**
+ * Record where an unmatched.cards deck lives, so sandbox telemetry can link it
+ * (lib/deckSource.ts). An existing `sourceUrl` (a the-unmatched.club
+ * attribution) is kept, and an original never gets a link to a page that
+ * doesn't exist.
+ */
+const withSourceUrl = (deck: DeckImportType): DeckImportType =>
+  deck.sourceUrl || !deck.family_id || ORIGINAL_DECK_IDS.has(deck.id) || ORIGINAL_DECK_IDS.has(deck.family_id)
+    ? deck
+    : { ...deck, sourceUrl: `https://unmatched.cards/decks/${deck.family_id}` };
+
 export const fetchDeckById = async (id: string): Promise<DeckImportType> => {
   if (EVERGREEN_DECK_IDS.has(id)) {
     try {
-      return await fromSnapshot(id);
+      return withSourceUrl(await fromSnapshot(id));
     } catch (err) {
       console.warn("evergreen snapshot missing, falling back to deck api", err);
-      return fromApi(id);
+      return withSourceUrl(await fromApi(id));
     }
   }
   try {
-    return await fromApi(id);
+    return withSourceUrl(await fromApi(id));
   } catch (err) {
     console.warn("deck api failed, trying bundled snapshot", err);
-    return fromSnapshot(id);
+    return withSourceUrl(await fromSnapshot(id));
   }
 };

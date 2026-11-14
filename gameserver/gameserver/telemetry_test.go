@@ -353,3 +353,60 @@ func TestSandboxTelemetryOmitsAccountAndDiscord(t *testing.T) {
 		t.Fatalf("event types = %v, want player_joined and player_left", types)
 	}
 }
+
+// A hero's deck source and page ride on hero_seen when the client stamped a
+// valid pair on pool.deckSource / pool.deckUrl; a lone, off-site or malformed
+// one is dropped (the hero still goes out) so it cannot get a batch rejected.
+func TestSandboxTelemetryHeroSeenDeckSource(t *testing.T) {
+	sk := &sink{}
+	sinkSrv := httptest.NewServer(sk)
+	t.Cleanup(sinkSrv.Close)
+	_, srv, em := startTelemetryServer(t, sinkSrv.URL)
+
+	zelda := dialLobby(t, srv, "ZeldaQuill")
+	next(t, zelda, MsgTypePlayerPosition)
+
+	const club = "https://www.the-unmatched.club/c/heroes/general-grievous.9861"
+	const cards = "https://unmatched.cards/decks/pk1x"
+	const labs = "https://www.unmatchedlabs.com/shared/0123456789abcdef01234567?character=char_ce316d14-0000-4000-8000-000000000000"
+	cases := []struct {
+		hero, source, url string
+		keep              bool
+	}{
+		{"Grievous", "unmatched-club", club, true},
+		{"Medusa", "unmatched-cards", cards, true},
+		{"Tinker", "labs", labs, true},
+		{"NoSource", "", "", false},
+		{"LoneSource", "labs", "", false},
+		{"WrongHost", "unmatched-cards", club, false},
+		{"HttpOnly", "unmatched-cards", "http://unmatched.cards/decks/pk1x", false},
+		{"Spaces", "unmatched-cards", "https://unmatched.cards/decks/a b", false},
+	}
+	for _, c := range cases {
+		send(t, zelda, MsgTypePlayerState, fmt.Sprintf(
+			`{"pool":{"hero":{"name":%q},"deckSource":%q,"deckUrl":%q}}`, c.hero, c.source, c.url))
+		next(t, zelda, MsgTypeGameState)
+	}
+	flush(t, em)
+
+	got := map[string][2]string{}
+	for _, e := range sk.events(t) {
+		if e.Type == telemetry.TypeHeroSeen {
+			got[e.HeroName] = [2]string{e.DeckSource, e.DeckURL}
+		}
+	}
+	for _, c := range cases {
+		want := [2]string{}
+		if c.keep {
+			want = [2]string{c.source, c.url}
+		}
+		if g, ok := got[c.hero]; !ok || g != want {
+			t.Errorf("%s: hero_seen deck = %v (seen %v), want %v", c.hero, g, ok, want)
+		}
+	}
+	for _, c := range cases {
+		if c.keep {
+			t.Logf("payload: hero_seen %s deckSource=%s deckUrl=%s", c.hero, got[c.hero][0], got[c.hero][1])
+		}
+	}
+}
