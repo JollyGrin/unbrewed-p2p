@@ -384,14 +384,27 @@ export interface HeroStateCounter {
    *  pile was before POMNI's EXILE: cards removed from the game are under nobody's
    *  hero card, and "" drops the brackets altogether. */
   pileNote?: string;
+  /** For a `hostedOnAnySeat` pile whose KEY is not this deck's alone. `EXILE` is the
+   *  engine's generic removed-from-the-game pile: Kenshiro has used it since before
+   *  POMNI (his Vacuum Finger Strike exiles an opponent's discards onto THEIR seat,
+   *  his Death Omen Star onto his own). The bare key therefore says nothing about
+   *  which deck is at the table, so the row renders only in a game where one of
+   *  `heroes` is SEATED. A game without one keeps exactly what it had before the
+   *  row existed: no pill. */
+  onlyWithHeroSeated?: boolean;
   /** The pill's reading on a seat whose hero is NOT in `heroes` — only reachable
    *  with `hostedOnAnySeat`. POMNI's Reward 2 removes cards from an OPPONENT's
    *  discard pile into an EXILE pile on THAT opponent's seat, with nothing on the
    *  wire saying who did it (the entries are the host's own cards, so `controller`
    *  is no help). The host needs to read "removed by Pomni", not a pile of its own.
    *  Same substitutions as `nameplate`. `pileLabel` is what the overlay title uses
-   *  on such a seat. */
-  foreign?: { labelTemplate: string; longLabelTemplate?: string; pileLabel: string };
+   *  on such a seat.
+   *
+   *  The credit is only TRUE while nobody else at the table can fill the same pile.
+   *  `unlessSeated` lists the other decks that write this key: with one of them in
+   *  the game the pile's contents cannot be attributed from the view, so the seat
+   *  falls back to the neutral `nameplate` / `pileLabel`. */
+  foreign?: { labelTemplate: string; longLabelTemplate?: string; pileLabel: string; unlessSeated?: string[] };
   /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
    *  (e.g. "CLUES: {n}" -> "CLUES: 3"). Omit for token-only counters. */
   nameplate?: {
@@ -657,15 +670,17 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   // count: it is drawn by its own plate row from the PILE_TRACKS registry
   // (lib/pro/pileTracks.ts). Only two things come through this registry:
   //
-  //  - `ADV_DONE` as a TOKEN BADGE only — the number of completed Adventures, which
-  //    three of her cards add to their value (*ricochet super move*, *Fear not*,
+  //  - `ADV_DONE` as a TOKEN BADGE only — the rewards she HOLDS, which is the number
+  //    three of her cards read as "completed Adventures" and add to their value (*ricochet super move*, *Fear not*,
   //    *Welcome*), so it belongs on the board where the opponent weighs an attack.
   //    No pill: the plate row already says which rewards are held. Hidden at 0.
-  //  - `EXILE`, the removed-from-the-game pile, on WHICHEVER seat carries it. On
-  //    Pomni's own seat it holds a used Reward 3 and played *ricochet super move*s.
-  //    On an OPPONENT's seat it holds the cards her Reward 2 took out of their
-  //    discard pile — the one place this deck reads wrong if the client guesses, so
-  //    that seat's pill and overlay say who removed them (`foreign`).
+  //  - `EXILE`, the removed-from-the-game pile, on whichever seat carries it — IN A
+  //    GAME WITH A POMNI SEATED. On Pomni's own seat it holds a used Reward 3 and
+  //    played *ricochet super move*s. On an OPPONENT's seat it holds the cards her
+  //    Reward 2 took out of their discard pile — the one place this deck reads wrong
+  //    if the client guesses, so that seat's pill and overlay say who removed them
+  //    (`foreign`). EXILE is NOT hers alone (Kenshiro): a game without Pomni keeps
+  //    its pre-#1623 no-pill behaviour, and Pomni vs Kenshiro reads neutral.
   //
   // ADV_PENDING / ADV_ACTIVE have no row (the track row draws them); ADV_REWARDS /
   // ADV_FLIPPED are the hidden backs of the cards and render nowhere. The deck's
@@ -676,12 +691,14 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     pile: "ADV_DONE",
     heroes: ["pomni"],
     // Circus gold on the deck's own deep blue, clear of every other badge here.
-    token: { icon: "⭐", title: "ADVENTURES COMPLETED", bg: "#2B3A8C", color: "#FFE58A" },
+    token: { icon: "⭐", title: "REWARDS HELD", bg: "#2B3A8C", color: "#FFE58A" },
   },
   {
     pile: "EXILE",
     heroes: ["pomni"],
     hostedOnAnySeat: true,
+    // The key is the engine's generic one — see `onlyWithHeroSeated`.
+    onlyWithHeroSeated: true,
     pileLabel: "Removed from the game",
     pileNote: "",
     nameplate: { labelTemplate: "🚫 {n}", longLabelTemplate: "REMOVED FROM THE GAME: {n}" },
@@ -689,6 +706,9 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
       labelTemplate: "🚫 {n} BY POMNI",
       longLabelTemplate: "REMOVED FROM THE GAME BY POMNI: {n}",
       pileLabel: "Removed from the game by Pomni's Reward 2",
+      // Kenshiro (kenshiro.rules.ts: Vacuum Finger Strike, Death Omen Star) writes
+      // EXILE too. Pomni vs Kenshiro: neutral on every seat.
+      unlessSeated: ["kenshiro"],
     },
   },
 ];
@@ -733,10 +753,29 @@ const counterEntriesForHero = (heroId: string) =>
 
 /** Player-facing name for a pile's inspection overlay: the entry's `pileLabel`
  *  when it declares one, else the raw engine key. */
-export const pileDisplayName = (pile: string, hostHeroId?: string): string => {
+/**
+ * Does the `foreign` ("removed by <the deck>") reading apply to this entry on a seat
+ * playing `hostHeroId`? Only when the host is not the mechanic's own hero, a hero
+ * that IS is seated, and no other deck that writes the same pile is (`unlessSeated`).
+ * `table` is every seat's hero id; without it nothing can be credited.
+ */
+const foreignReadingApplies = (
+  e: HeroStateCounter,
+  hostHeroId: string | undefined,
+  table: readonly string[] | undefined
+): boolean =>
+  !!e.foreign &&
+  hostHeroId !== undefined &&
+  !e.heroes.includes(hostHeroId) &&
+  !!table &&
+  table.some((h) => e.heroes.includes(h)) &&
+  !table.some((h) => e.foreign!.unlessSeated?.includes(h));
+
+/** `table` = every seat's hero id, for the entries that depend on who is playing. */
+export const pileDisplayName = (pile: string, hostHeroId?: string, table?: readonly string[]): string => {
   const e = HERO_STATE_COUNTERS.find((x) => x.pile === pile);
   if (!e) return pile;
-  if (e.foreign && hostHeroId !== undefined && !e.heroes.includes(hostHeroId)) return e.foreign.pileLabel;
+  if (foreignReadingApplies(e, hostHeroId, table)) return e.foreign!.pileLabel;
   return e.pileLabel ?? pile;
 };
 
@@ -802,17 +841,21 @@ export const pileCreditFor = (
 export const counterChipsFor = (
   heroId: string,
   counters: Record<string, number> | undefined,
-  piles?: Record<string, PileEntry[]>
+  piles?: Record<string, PileEntry[]>,
+  /** every seat's hero id — needed by entries whose pile key is shared between
+   *  decks (`onlyWithHeroSeated`); such an entry renders nothing without it */
+  table?: readonly string[]
 ): { chip: FlagHudChip; on: boolean }[] => {
   const chips: { chip: FlagHudChip; on: boolean }[] = [];
   for (const e of counterEntriesForHero(heroId)) {
     if (!e.nameplate) continue;
+    if (e.onlyWithHeroSeated && !table?.some((h) => e.heroes.includes(h))) continue;
     const n = valueOf(e, counters, piles);
     if (!rendersAt(e, n)) continue; // hidden at 0 unless the entry opts in
     const fill = (t: string) =>
       t.replace("{n}", String(n)).replace("{max}", String(e.outOf ?? ""));
     // On a seat that does not own the mechanic the pill says whose doing it is.
-    const reading = e.foreign && !e.heroes.includes(heroId) ? e.foreign : e.nameplate;
+    const reading = foreignReadingApplies(e, heroId, table) ? e.foreign! : e.nameplate;
     chips.push({
       chip: {
         flag: `${e.pile ? "pile" : "counter"}:${sourceKey(e)}`,

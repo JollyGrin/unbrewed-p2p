@@ -78,3 +78,17 @@ describe("TableHudPlate", () => {
     expect(container.querySelector("[data-table-hud-plate]")?.getAttribute("data-active")).toBe("");
   });
 });
+
+describe("TableHudPlate — quest-track tag (#1623)", () => {
+  test("a track hero's plate carries the compact reading; no other plate grows one", () => {
+    plate({ seat: "p2", name: "POMNI", trackTag: { text: "A3★2", spoken: "Adventure 3 active; 2 Adventures completed · 2 Rewards held" } });
+    const tag = screen.getByTestId("table-hud-track-p2");
+    expect(tag.textContent).toBe("A3★2");
+    expect(tag.getAttribute("aria-label")).toContain("Adventure 3 active");
+  });
+
+  test("no tag without a track", () => {
+    plate();
+    expect(screen.queryByTestId("table-hud-track-p1")).toBeNull();
+  });
+});

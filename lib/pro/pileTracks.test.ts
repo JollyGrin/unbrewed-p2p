@@ -83,7 +83,9 @@ describe("pileTrackFor", () => {
       EXILE: [R(3), "pomni/ricochet-super-move#1"],
     })!;
     expect(t.steps.map((s) => s.state)).toEqual(["held", "upcoming", "spent", "active", "upcoming"]);
-    expect(t.completed).toBe(1);
+    // two cards show their reward side; only one reward still counts for her cards
+    expect(t.completed).toBe(2);
+    expect(t.held.map((s) => s.n)).toEqual([1]);
     expect(t.steps[2].faceUp).toBe(R(3));
   });
 
@@ -138,18 +140,20 @@ describe("trackTuckLine (feed)", () => {
     "darth-vader/form-v": "Form V (0/1)",
     "pomni/ricochet-super-move": "ricochet super move (3/1)",
   };
-  // p1 is the viewer; p2 plays POMNI unless a case says otherwise.
-  const ctx = (you = "p1") => ({
+  // p1 is the viewer. Default table: p1 Darth Vader, p2 POMNI.
+  const DUEL: Record<string, string> = { p1: "darth-vader", p2: "pomni" };
+  const ctx = (you = "p1", table: Record<string, string> | null = DUEL) => ({
     you,
     label: (c: string) => titles[c.split("#")[0]] ?? c,
     seat: (p: string) => (p === you ? "You" : "Opponent"),
+    ...(table ? { heroOf: (p: string) => table[p] } : {}),
   });
   const tuck = (player: string, card: string, pile: string): GameEvent =>
     ({ type: "CARD_TUCKED", player, card, pile }) as GameEvent;
-  const line = (events: GameEvent[], i: number, you?: string) => {
+  const line = (events: GameEvent[], i: number, you?: string, table?: Record<string, string> | null) => {
     const e = events[i];
     if (e.type !== "CARD_TUCKED") throw new Error("not a tuck");
-    return trackTuckLine(e, events, i, ctx(you));
+    return trackTuckLine(e, events, i, ctx(you, table));
   };
 
   it("names a placed Adventure, with its title cleaned up and no card-stats suffix", () => {
@@ -205,6 +209,65 @@ describe("trackTuckLine (feed)", () => {
       text: "Opponent: ricochet super move is removed from the game",
       actor: "p2",
       cards: ["pomni/ricochet-super-move#2"],
+    });
+  });
+
+  // EXILE is the engine's GENERIC removed pile: Kenshiro (live before POMNI) exiles an
+  // opponent's discards with Vacuum Finger Strike and his own Death Omen Star.
+  describe("the EXILE key is not POMNI's alone", () => {
+    const vacuum = (actor: string, victim: string, card: string): GameEvent[] => [
+      { type: "PROMPT_RESOLVED", player: actor, promptId: "p9", optionId: card } as GameEvent,
+      { type: "EFFECT_RESOLVING", source: "kenshiro/hokuto-vacuum-finger-strike#1", window: "AFTER", player: actor } as GameEvent,
+      tuck(victim, card, "EXILE"),
+    ];
+
+    it("Kenshiro vs Darth Vader: his removals are NOT narrated as a Reward 2, from either seat", () => {
+      const table = { p1: "darth-vader", p2: "kenshiro" };
+      const batch = vacuum("p2", "p1", "darth-vader/form-v#2");
+      expect(line(batch, 2, "p1", table)).toBeUndefined();
+      expect(line(batch, 2, "p2", table)).toBeUndefined();
+      // his own Death Omen Star leaving the game is his deck's business too
+      const own: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "kenshiro/death-omen-star#1", window: "AFTER", player: "p2" } as GameEvent,
+        tuck("p2", "kenshiro/death-omen-star#1", "EXILE"),
+      ];
+      expect(line(own, 1, "p1", table)).toBeUndefined();
+    });
+
+    it("Pomni vs Kenshiro: only the removals HER effect did carry her reward's name", () => {
+      const table = { p1: "kenshiro", p2: "pomni" };
+      // Kenshiro (p1) exiles a card out of Pomni's discard pile: not a Reward 2
+      expect(line(vacuum("p1", "p2", "pomni/ricochet-super-move#1"), 2, "p1", table)).toBeUndefined();
+      expect(line(vacuum("p1", "p2", "pomni/ricochet-super-move#1"), 2, "p2", table)).toBeUndefined();
+      // Pomni (p2) uses Reward 2 on Kenshiro's discard pile: hers
+      const hers: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "hero:p2", window: "TRIGGER", player: "p2" } as GameEvent,
+        tuck("p1", "darth-vader/form-v#2", "EXILE"),
+      ];
+      expect(line(hers, 1, "p1", table)?.text).toBe("Opponent removed your Form V from the game (Reward 2)");
+      // her own track faces are recognised by card id whoever else is seated
+      expect(line([tuck("p2", R(3), "EXILE")], 0, "p1", table)?.text).toBe(
+        "Opponent used Reward 3 — it is removed from the game"
+      );
+    });
+
+    it("with no way to know who is seated, an ordinary card's removal is left alone", () => {
+      const batch: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "hero:p2", window: "TRIGGER", player: "p2" } as GameEvent,
+        tuck("p1", "darth-vader/form-v#2", "EXILE"),
+      ];
+      expect(line(batch, 1, "p1", null)).toBeUndefined();
+    });
+
+    it("a Pomni mirror credits the seat whose effect it was", () => {
+      const table = { p1: "pomni", p2: "pomni" };
+      const batch: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "hero:p2", window: "TRIGGER", player: "p2" } as GameEvent,
+        tuck("p1", "pomni/ricochet-super-move#1", "EXILE"),
+      ];
+      expect(line(batch, 1, "p1", table)?.text).toBe(
+        "Opponent removed your ricochet super move from the game (Reward 2)"
+      );
     });
   });
 

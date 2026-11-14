@@ -61,9 +61,6 @@ export interface PileTrackDef {
   /** The step whose REWARD removes cards from OTHER seats' piles into `spent` on
    *  those seats (POMNI's Reward 2), named in the feed line for such a removal. */
   removesFromOthers?: number;
-  /** The faces are landscape cards uploaded a quarter turn round in a portrait
-   *  frame; the track turns them upright. */
-  landscapeFaces?: boolean;
 }
 
 export const PILE_TRACKS: PileTrackDef[] = [
@@ -86,7 +83,6 @@ export const PILE_TRACKS: PileTrackDef[] = [
     })),
     repeatable: { step: 2, lapFlag: "POMNI_ADV2_ONCE" },
     removesFromOthers: 2,
-    landscapeFaces: true,
   },
 ];
 
@@ -117,9 +113,12 @@ export interface PileTrackView {
   /** always in card order 1..n — the row of cards as they lie on the table */
   steps: PileTrackStep[];
   active: PileTrackStep | null;
-  /** rewards in force, in card order */
+  /** Rewards in force, in card order. Its LENGTH is the number her cards read as
+   *  "completed Adventures" (the engine counts ADV_DONE): a reward that was used up
+   *  and removed, or flipped back, no longer counts. */
   held: PileTrackStep[];
-  /** the engine's "completed Adventures" number: rewards currently held */
+  /** Cards showing their reward side: held or spent. This is "Adventures completed"
+   *  as the table reads it, and it can exceed `held.length` by a used Reward 3. */
   completed: number;
   /** the goal the next placement will pick, when nothing is active */
   next: PileTrackStep | null;
@@ -189,7 +188,7 @@ export const pileTrackFor = (
     steps,
     active,
     held,
-    completed: held.length,
+    completed: steps.filter((x) => x.state === "held" || x.state === "spent").length,
     next: active ? null : upcoming[0] ?? null,
   };
 };
@@ -261,12 +260,21 @@ const stripLabelStats = (label: string): string =>
  * `EFFECT_RESOLVING` before it in the batch, and its `player` is the actor. A card
  * the host removed itself (a used reward, a played *ricochet super move*) has the
  * host's own effect there instead.
+ *
+ * The track's own faces are recognised by card id and need no context. Everything
+ * else in the removed pile needs `ctx.heroOf`: see the note at that branch.
  */
 export const trackTuckLine = (
   e: TuckEvent,
   batch: GameEvent[],
   index: number,
-  ctx: { label: (card: CardInstanceId) => string; seat: (p: PlayerId) => string; you: string }
+  ctx: {
+    label: (card: CardInstanceId) => string;
+    seat: (p: PlayerId) => string;
+    you: string;
+    /** a seat's hero id; without it no ordinary card's removal is narrated here */
+    heroOf?: (p: PlayerId) => string | undefined;
+  }
 ): TrackTuckLine | null | undefined => {
   const hit = stepOfCard(e.card);
   const name = (p: PlayerId) => ctx.seat(p);
@@ -311,7 +319,10 @@ export const trackTuckLine = (
   }
   const def = PILE_TRACKS.find((t) => t.piles.spent === e.pile);
   if (!def) return undefined;
-  // An ordinary card removed from the game: by whom?
+  // An ordinary card removed from the game. The pile KEY is not this deck's alone
+  // (EXILE is the engine's generic one — Kenshiro exiles cards too), so the tuck is
+  // a track move only if the seat whose effect did it plays a track hero. Anyone
+  // else's removal is left to the caller, worded as it was before this deck.
   let actor: PlayerId = e.player;
   for (let i = index - 1; i >= 0; i--) {
     const b = batch[i];
@@ -320,6 +331,8 @@ export const trackTuckLine = (
       break;
     }
   }
+  const actorHero = ctx.heroOf?.(actor);
+  if (!actorHero || !def.heroes.includes(actorHero)) return undefined;
   const title = stripLabelStats(ctx.label(e.card));
   if (actor !== e.player) {
     const via = def.removesFromOthers ? ` (${def.rewardWord} ${def.removesFromOthers})` : "";

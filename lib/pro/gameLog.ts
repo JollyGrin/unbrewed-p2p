@@ -786,6 +786,11 @@ export interface EnrichContext {
    *  the STATE view's fighter list — used by the nested-combat events (issue #288)
    *  that carry attacker/target fighter ids rather than a card source. */
   fighter: (id: FighterId) => string;
+  /** A seat's hero id, from the STATE view's players. Lets a tuck into a pile key
+   *  that two decks share (`EXILE`: POMNI and Kenshiro) be narrated as the deck
+   *  that actually did it (#1623). Omitted = unknown: such tucks keep the generic
+   *  "tucked under … hero card" wording. */
+  heroOf?: (player: PlayerId) => string | undefined;
   /** Chain progress for the n-th (0-based) SUB_ATTACK_INITIATED event in THIS
    *  batch — "Hundred-Fist Rush — chain hit 2 of up to 3" — or null when there is
    *  no chain worth naming (issue #596 ↔ engine #359). The ordinal is passed
@@ -1105,7 +1110,7 @@ export function enrichLines(
         // game. "Tucked under their hero card (ADV_FLIPPED)" would be wrong on every
         // count — and for a card Reward 2 removes from an OPPONENT's discard pile it
         // would credit the victim. `null` is the silent half of a card flip.
-        const tracked = trackTuckLine(e, events, i, { label: ctx.label, seat: ctx.seat, you: ctx.you });
+        const tracked = trackTuckLine(e, events, i, { label: ctx.label, seat: ctx.seat, you: ctx.you, heroOf: ctx.heroOf });
         if (tracked !== undefined) {
           if (tracked) added.push({ text: tracked.text, who: whoOf(tracked.actor), cards: tracked.cards });
           break;

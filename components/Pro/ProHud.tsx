@@ -103,6 +103,7 @@ import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/li
 import { useCardPreview } from "./CardPreview";
 import { PileTrackModal, PileTrackRow, PileTrackTag } from "./PileTrack";
 import { pileTrackFor } from "@/lib/pro/pileTracks";
+import { fighterMoveReading, fighterMoveTitle } from "@/lib/pro/fighterMove";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
 import { Pace, paceOption } from "@/lib/pro/pace";
@@ -641,6 +642,7 @@ export const SeatPlate = ({
   flags,
   counters,
   piles,
+  tableHeroIds,
   nameOfPlayer,
   wonCombat,
   isLocal,
@@ -697,6 +699,10 @@ export const SeatPlate = ({
    *  instance id: ids are minted per seat, so two same-deck seats can put the SAME
    *  id in one pile (that is the bug #481 fixed). */
   piles?: Record<string, PileEntry[]>;
+  /** Every seat's hero id. A few pile keys are shared between decks (`EXILE`:
+   *  POMNI and Kenshiro), so what such a pile means on THIS plate depends on who
+   *  else is playing. Omitted = unknown, and those piles then render nothing. */
+  tableHeroIds?: readonly string[];
   /** seat label for a PlayerId — used only to attribute a foreign-controlled pile
    *  ("2 by Boba Fett"). Omitted by callers with no seat table. */
   nameOfPlayer?: (id: PlayerId) => string;
@@ -769,6 +775,10 @@ export const SeatPlate = ({
   const rules = ruleCards.filter((r) => r.content?.trim());
   const ranged = heroFighter ? heroFighter.reach === "RANGED" : hero?.isRanged;
   const heroHp = heroFighter ? `${heroFighter.hp}/${heroFighter.maxHp}` : "–";
+  // The engine's current move stat (v40, #1059) when the view carries one; before
+  // that the plate could only show the deck's printed number, with a flag-driven
+  // transform's override (Springtrap) on top.
+  const heroMove = fighterMoveReading(heroFighter, flagStatOverridesFor(heroId, flags).move ?? hero?.move);
   const isLargeHero = !!heroFighter && isLargeFighter(heroFighter);
   const collapsed = layout.collapsed;
   const moved = layout.x !== 0 || layout.y !== 0;
@@ -941,7 +951,7 @@ export const SeatPlate = ({
   const flagTags = [
     ...flagChipsFor(heroId, flags),
     ...offBoardChipsFor(heroFighter, flags),
-    ...counterChipsFor(heroId, counters, piles),
+    ...counterChipsFor(heroId, counters, piles, tableHeroIds),
   ].map(({ chip, on }) => (
     <FlagChip
       key={`${chip.flag}-${chip.onLabel}-${on ? "on" : "off"}`}
@@ -1069,10 +1079,17 @@ export const SeatPlate = ({
         </Text>
         {ranged ? <TbBow size="15px" /> : <TbSword size="15px" />}
       </StatLine>
-      <MoveChip>
+      <MoveChip
+        title={fighterMoveTitle(heroMove)}
+        aria-label={fighterMoveTitle(heroMove)}
+        data-move-changed={heroMove.changed ? "" : undefined}
+        // A move that is not the printed one right now (engine #1059) is lit amber,
+        // the same colour as the token's MOVE_SET badge.
+        style={heroMove.changed ? { boxShadow: "0 0 0 2px #D98A1F", background: "#FFE9C2" } : undefined}
+      >
         <GiFootprint size="13px" />
         <Text fontSize="0.8rem" fontWeight="bold" data-testid="plate-move">
-          {flagStatOverridesFor(heroId, flags).move ?? hero?.move ?? "–"}
+          {heroMove.value ?? "–"}
         </Text>
       </MoveChip>
     </StatsPanel>
@@ -1102,6 +1119,26 @@ export const SeatPlate = ({
         {s.hp}/{s.maxHp}
       </Text>
       {s.reach === "RANGED" ? <TbBow size="11px" /> : <TbSword size="11px" />}
+      {/* A sidekick row shows no move — unless the engine says it is not the printed
+          one right now (King Kong's "movement 0" can land on a sidekick). */}
+      {fighterMoveReading(s).changed && (
+        <Flex
+          data-testid="plate-sidekick-move"
+          alignItems="center"
+          gap="0.15rem"
+          px="0.3rem"
+          borderRadius="0.3rem"
+          bg="#FFE9C2"
+          color="#2C1831"
+          title={fighterMoveTitle(fighterMoveReading(s))}
+          aria-label={fighterMoveTitle(fighterMoveReading(s))}
+        >
+          <GiFootprint size="10px" />
+          <Text fontSize="0.7rem" fontWeight="bold" sx={{ fontVariantNumeric: "tabular-nums" }}>
+            {s.move}
+          </Text>
+        </Flex>
+      )}
     </Flex>
   ));
 
@@ -1268,7 +1305,7 @@ export const SeatPlate = ({
           hero name alone can't say whose pile you opened. */}
       <CardListModal
         title={`${label} · ${heroName} — ${
-          openPile ? pileDisplayName(openPile, heroId) : ""
+          openPile ? pileDisplayName(openPile, heroId, tableHeroIds) : ""
         }${openPileCredit}${openPile && pileDisplayNote(openPile) ? ` (${pileDisplayNote(openPile)})` : ""}`}
         cards={openPileCards}
         resolveCard={resolveCard}
@@ -1721,6 +1758,8 @@ export const ProHud = ({
   // render exactly as before. The fallback duel `seats` above carry no `team`,
   // which also derives inactive.
   const teams = deriveTeams(seats, view.you);
+  // Who is playing — some pile keys mean different things at different tables.
+  const tableHeroIds = seats.map((s) => s.heroId);
 
   const { plates, hydrated, update } = useHudPlates();
   const seatUpdate = (seat: PlateSeat) => (partial: Partial<PlateLayout>) =>
@@ -1773,6 +1812,7 @@ export const ProHud = ({
             flags={seat.flags}
             counters={seat.counters}
             piles={seat.piles}
+            tableHeroIds={tableHeroIds}
             nameOfPlayer={nameOfPlayer}
             wonCombat={seat.wonCombatThisTurn}
             isLocal={seat.you}

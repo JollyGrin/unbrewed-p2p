@@ -61,9 +61,14 @@ export const ImageFace = ({
   height = "100%",
   clipId: clipIdProp,
   rimTier,
+  frame = "portrait",
 }: {
   image: CardImageRef;
   title: string;
+  /** "landscape" draws an 88x63 frame for a caller that has a landscape slot (the
+   *  Adventure track); only meaningful for a turned image. Every card slot in the
+   *  app is portrait, where a turned image is letterboxed upright instead. */
+  frame?: "portrait" | "landscape";
   /** Explicit sizing + clip id for string-rendered board tokens, where
    * percentages resolve against the board svg and useId can't be unique. */
   width?: string | number;
@@ -84,9 +89,21 @@ export const ImageFace = ({
   const col = index % cols;
   const row = Math.floor(index / cols);
 
+  // A turned upload (`image.turn`): the file is a landscape card lying on its side.
+  // Turn it back about the frame's centre. In the usual portrait frame the upright
+  // card is 88 wide, so it is scaled to the frame's 63 and sits letterboxed; in a
+  // landscape frame it fills it.
+  const turned = !isSheet && image.turn === "ccw";
+  const landscape = turned && frame === "landscape";
+  const [vw, vh] = landscape ? [88, 63] : [63, 88];
+  const fit = landscape ? 1 : 63 / 88;
+  const turn = turned
+    ? `translate(${vw / 2} ${vh / 2}) rotate(-90) scale(${fit}) translate(-31.5 -44)`
+    : undefined;
+
   return (
     <svg
-      viewBox="0 0 63 88"
+      viewBox={`0 0 ${vw} ${vh}`}
       preserveAspectRatio="xMidYMid meet"
       height={height}
       width={width}
@@ -96,9 +113,10 @@ export const ImageFace = ({
       xmlns="http://www.w3.org/2000/svg"
     >
       <clipPath id={clipId}>
-        <rect width={63} height={88} rx={2.5} />
+        <rect width={vw} height={vh} rx={2.5} />
       </clipPath>
       <g clipPath={`url(#${clipId})`}>
+        {turned && !landscape && <rect width={63} height={88} fill="#150b19" />}
         {isSheet ? (
           // draw the whole sheet scaled so each cell is 63x88, shifted
           // to put the wanted cell in the viewBox
@@ -116,11 +134,12 @@ export const ImageFace = ({
             width={63}
             height={88}
             preserveAspectRatio="xMidYMid meet"
+            transform={turn}
           />
         )}
       </g>
       {/* Last child: paints over the (clipped) face, inside the same viewBox. */}
-      <CardRim tier={rimTier} />
+      {!turned && <CardRim tier={rimTier} />}
     </svg>
   );
 };

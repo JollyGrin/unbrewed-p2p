@@ -5415,6 +5415,7 @@ const LiveGame = ({
             you: next.you,
             seat: (player) => seatLabel(next, player),
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
+            heroOf: (player) => next.players.find((p) => p.id === player)?.heroId,
             chain: (ordinal) =>
               subAttackChainProgress(chainTitle, before.hits + ordinal + 1)?.text ?? null,
           })

@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProHud } from "./ProHud";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
-import { CardInstanceId, PileEntry, PlayerId, PlayerView, ProMapDef, ViewPlayer } from "@/lib/pro/protocol";
+import { CardInstanceId, PileEntry, PlayerId, PlayerView, ProMapDef, ViewFighter, ViewPlayer } from "@/lib/pro/protocol";
 
 /**
  * POMNI's Adventure track on the HUD plates (issue #1623 ↔ engine #1056).
@@ -205,6 +205,37 @@ describe("POMNI's Adventure track on the HUD plates", () => {
     expect(screen.queryByLabelText(/^REMOVED FROM THE GAME: /)).not.toBeInTheDocument();
   });
 
+  // The #1624 review's regression: EXILE is not POMNI's pile alone.
+  it("Kenshiro vs Darth Vader shows NO removed-from-the-game pill, on either plate", () => {
+    const { container } = renderHud(
+      makeView(
+        [
+          seat("p1", true, "darth-vader", { piles: { EXILE: ["darth-vader/form-v#2"] } }),
+          seat("p2", false, "kenshiro", { piles: { EXILE: ["kenshiro/death-omen-star#1"] } }),
+        ],
+        "p1"
+      )
+    );
+    expect(container.textContent).not.toMatch(/POMNI|🚫/);
+    expect(screen.queryByLabelText(/REMOVED FROM THE GAME/)).not.toBeInTheDocument();
+  });
+
+  it("Pomni vs Kenshiro: both plates carry a NEUTRAL pill, neither says 'by Pomni'", () => {
+    renderHud(
+      makeView(
+        [
+          seat("p1", true, "kenshiro", { piles: { EXILE: ["kenshiro/death-omen-star#1", "kenshiro/feint#2"] } }),
+          pomni("p2", false, { ...MID_GAME, EXILE: [R(3), "pomni/anxiety#1"] }),
+        ],
+        "p1"
+      )
+    );
+    expect(screen.getAllByLabelText("REMOVED FROM THE GAME: 2")).toHaveLength(2);
+    expect(screen.queryByText(/BY POMNI/)).not.toBeInTheDocument();
+    // her track is still drawn: it is keyed on her hero and her card ids
+    expect(screen.getByTestId("pile-track-row")).toBeInTheDocument();
+  });
+
   it("her own removed cards (a used Reward 3, ricochet super move) read as a plain removed pile", () => {
     renderHud(
       makeView(
@@ -214,5 +245,74 @@ describe("POMNI's Adventure track on the HUD plates", () => {
     );
     expect(screen.getByLabelText("REMOVED FROM THE GAME: 2")).toHaveTextContent("🚫 2");
     expect(screen.queryByText(/BY POMNI/)).not.toBeInTheDocument();
+  });
+});
+
+// Protocol v40 / engine #1059: the plate's move chip reads the engine's current move.
+describe("plate move chip — ViewFighter.move", () => {
+  const printed = { name: "POMNI", hp: 13, move: 2, isRanged: false } as unknown as ReturnType<
+    React.ComponentProps<typeof ProHud>["resolveHero"]
+  >;
+  const fighter = (over: Partial<ViewFighter>): ViewFighter => ({
+    id: "p2/hero",
+    owner: "p2",
+    kind: "HERO",
+    name: "POMNI",
+    space: "s1",
+    tailSpace: null,
+    hp: 13,
+    maxHp: 13,
+    reach: "MELEE",
+    size: "NORMAL",
+    defeated: false,
+    ...over,
+  });
+  const renderWith = (fighters: ViewFighter[]) =>
+    render(
+      <ChakraProvider>
+        <ProHud
+          view={{ ...makeView([seat("p1", true, "darth-vader"), pomni("p2", false)], "p1"), fighters }}
+          status="open"
+          roomId="room-1"
+          resolveCard={resolveCard}
+          resolveHero={(id) => (id === "pomni" ? printed : null)}
+          labelFor={(id: CardInstanceId) => id}
+        />
+      </ChakraProvider>
+    );
+  const pomniChip = () => screen.getAllByTestId("plate-move").find((el) => el.textContent !== "–")!;
+
+  it("an older server (no move on the view) still shows the printed move, unmarked", () => {
+    renderWith([fighter({})]);
+    expect(pomniChip()).toHaveTextContent("2");
+    expect(pomniChip().parentElement).not.toHaveAttribute("data-move-changed");
+  });
+
+  it("Reward 4: shows 4, marked as changed, and says until when", () => {
+    renderWith([fighter({ move: 4, statuses: [{ kind: "MOVE_SET", expiresAtTurn: 9, expiresAt: "END" }] })]);
+    expect(pomniChip()).toHaveTextContent("4");
+    const chip = pomniChip().parentElement!;
+    expect(chip).toHaveAttribute("data-move-changed");
+    expect(chip).toHaveAttribute("title", "Move 4 — changed from its printed value, until the end of turn 9");
+  });
+
+  it("back at the printed 2 nothing is marked", () => {
+    renderWith([fighter({ move: 2, statuses: [] })]);
+    expect(pomniChip()).toHaveTextContent("2");
+    expect(pomniChip().parentElement).not.toHaveAttribute("data-move-changed");
+  });
+
+  it("a 'cannot move' 0 shows as 0; a sidekick's changed move gets its own reading", () => {
+    renderWith([
+      fighter({ move: 0, statuses: [{ kind: "MOVE_SET", expiresAtTurn: 4, expiresAt: "END" }] }),
+      fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", name: "JAX", hp: 7, maxHp: 7, move: 0, statuses: [{ kind: "MOVE_SET", expiresAtTurn: 4, expiresAt: "END" }] }),
+    ]);
+    expect(pomniChip()).toHaveTextContent("0");
+    expect(screen.getByTestId("plate-sidekick-move")).toHaveTextContent("0");
+  });
+
+  it("an unchanged sidekick row shows no move at all", () => {
+    renderWith([fighter({ move: 2 }), fighter({ id: "p2/sidekick-1", kind: "SIDEKICK", name: "JAX", move: 2 })]);
+    expect(screen.queryByTestId("plate-sidekick-move")).not.toBeInTheDocument();
   });
 });

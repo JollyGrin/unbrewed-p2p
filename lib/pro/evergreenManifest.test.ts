@@ -1608,7 +1608,10 @@ describe("POMNI (pomni → 1y_5) deck data", () => {
       expect(face.title).toBe(title);
       expect(face.cardImage?.url).toBe(`${ART}${file}.webp`);
       expect(face.basicText.trim().length).toBeGreaterThan(10);
+      // a landscape card saved on its side: the renderer turns it upright
+      expect((face.cardImage as { turn?: string }).turn).toBe("ccw");
     });
+    for (const card of cards) expect((card.cardImage as { turn?: string }).turn).toBeUndefined();
     // none of them is a deck card, and no two titles collide once normalised
     const deckTitles = new Set(cards.map((c) => norm(c.title)));
     for (const face of faces) expect(deckTitles.has(norm(face.title))).toBe(false);

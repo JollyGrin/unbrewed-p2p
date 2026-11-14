@@ -209,6 +209,7 @@
         "basicText": "Deal 2 or more damage to an opposing fighter in a single turn.\n\n",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/adventure-1.webp"
         },
         "characterName": "ADVENTURE",
@@ -225,6 +226,7 @@
         "basicText": "Win a combat on defense, or at the end of your opponents turn you may return a card from their discard pile of your choice to their hands.",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/adventure-2.webp"
         },
         "characterName": "ADVENTURE",
@@ -241,6 +243,7 @@
         "basicText": "Attack twice in a single turn.",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/adventure-3.webp"
         },
         "characterName": "ADVENTURE",
@@ -257,6 +260,7 @@
         "basicText": "Enter 5 different zones on your turn. (You may count zones both Jax and Pomni move through)\n\n",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/adventure-4.webp"
         },
         "characterName": "ADVENTURE",
@@ -273,6 +277,7 @@
         "basicText": "At the end of your turn, if one of your fighters is in a starting space, you may discard a card with value 3 or more to complete this adventure.",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/adventure-5.webp"
         },
         "characterName": "ADVENTURE",
@@ -289,6 +294,7 @@
         "basicText": "Reward: Flip your charcter card. Pomni is a ranged fighter.",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/reward-1.webp"
         },
         "characterName": "REWARD",
@@ -305,6 +311,7 @@
         "basicText": "REWARD: On your turn, choose an opponent. Remove up to 3 cards of your choice from their discard pile from the game. Then flip this card and place it on the bottom of the adventure deck, or shuffle 1 random card from your discard pile in your deck, then flip this card and place it on the bottom of the adventure deck",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/reward-2.webp"
         },
         "characterName": "REWARD",
@@ -321,6 +328,7 @@
         "basicText": "Reward: On your turn, choose a friendly fighter who has been defeated. Place that fighter in any space in a friendly fighter's zone and set their health to 3. Remove this card from the game.",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/reward-3.webp"
         },
         "characterName": "REWARD",
@@ -337,6 +345,7 @@
         "basicText": "REWARD: Once per turn if Pomni shares no zones with any opposing fighter Pomni's movement is 4.",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/reward-4.webp"
         },
         "characterName": "REWARD",
@@ -353,6 +362,7 @@
         "basicText": "REWARD: You may BLIND BOOST Pomni's attacks, if Jax is adjacent to Pomni Return the boosted card to the bottom of the deck. (If you have other DURING COMBAT effects, ignore those effects).",
         "boost": 0,
         "cardImage": {
+          "turn": "ccw",
           "url": "/evergreen-decks/art/1y_5/reward-5.webp"
         },
         "characterName": "REWARD",
@@ -397,7 +407,7 @@
   "liked": false,
   "likes": 0,
   "name": "POMNI",
-  "note": "Rules-enforced Pro deck (server hero pomni), mirrored from unmatched.cards deck 1y_5 \"POMNI\" by Calton_White (Discord .andregea), version NVDqtJ4W- \"final balance patch\" \u2014 the SAME source the engine converted from (data/heroes/pomni.rules.ts, engine JollyGrin/unbrewed-engine#1056 on the feature/pomni train, DSL 0.94.0 / PROTOCOL 40), so every rules-relevant field is engine-exact. A LAB deck; 18 author rulings are still open engine-side. Titles are verbatim, including the author's lowercase (ricochet super move, harmless \"prank\", the funny one!, Relative chaos, reward 2), the U+00AE in Stupid Burger, the embedded newline in the Adventure 4 and 5 titles, the U+2019 in Adventure 4 and the U+00A0 in Adventure 5 \u2014 art matches on the lowercased verbatim title, so never retype them (this file is written with \\u escapes for that reason). THE ADVENTURE SIDE DECK: the five double-sided Adventure cards are ten faces (Adventure n / Reward n). The engine seeds them into public piles and never shuffles or draws them, so they live in `extraCards`, not `cards`: the 30-card deck stays 30 for the sandbox pool, the stats and the rules lock, and the faces still resolve art and show as linked cards in the preview. 1y_5 itself lists them as ten 0-boost schemes with no image. ART is all the AUTHOR'S own work (\"all art was created by me\") and comes from his other publication of this deck, the-unmatched.club 8881 (https://www.the-unmatched.club/c/heroes/pomni.8881), where every card carries a finished full-card render as `replacementImage`: the ten faces are the club entries \"ADV n front\" / \"ADV n back\" (mapped by card number, not by title \u2014 the club gives them no titles), and the 12 main-deck faces are the club renders too, because they carry the current card text where the images 1y_5 hotlinks still print older wording. All are mirrored into public/evergreen-decks/art/1y_5 (i.imgur.com / i.ibb.co hotlinks upstream; #446 standard, q80 webp, at most 1600 px) and drawn full-bleed via cardImage \u2014 never through the generated template and never through the art-generation pipeline. The Adventure faces are LANDSCAPE cards stored the way the author uploaded them (rotated a quarter turn in a portrait frame); the Pro Adventure track turns them upright. reward-4 is a 458x640 upload, shipped as-is. cardback.webp is his `cardsBack`, token-pomni.webp / token-jax.webp his two character avatars. His two character cards (melee, and the ranged flip side Reward 1 turns to) are NOT mirrored: Pro draws no character card, and a hero-card.webp in this folder would also list the deck on /table. Hand-edits against the API payload: the faces moved to `extraCards`; three of the four rule cards dropped (two are blank, one is a braille drawing that reads as noise in a tooltip); art URLs. Where the two publications disagree on text (harmless \"prank\" DURING vs IMMEDIATELY, Relative chaos' retrieve) the snapshot keeps 1y_5, which is what the engine encodes. Engine serves the hero at tier `lab`.",
+  "note": "Rules-enforced Pro deck (server hero pomni), mirrored from unmatched.cards deck 1y_5 \"POMNI\" by Calton_White (Discord .andregea), version NVDqtJ4W- \"final balance patch\" \u2014 the SAME source the engine converted from (data/heroes/pomni.rules.ts, engine JollyGrin/unbrewed-engine#1056 on the feature/pomni train, DSL 0.94.0 / PROTOCOL 40), so every rules-relevant field is engine-exact. A LAB deck; 18 author rulings are still open engine-side. Titles are verbatim, including the author's lowercase (ricochet super move, harmless \"prank\", the funny one!, Relative chaos, reward 2), the U+00AE in Stupid Burger, the embedded newline in the Adventure 4 and 5 titles, the U+2019 in Adventure 4 and the U+00A0 in Adventure 5 \u2014 art matches on the lowercased verbatim title, so never retype them (this file is written with \\u escapes for that reason). THE ADVENTURE SIDE DECK: the five double-sided Adventure cards are ten faces (Adventure n / Reward n). The engine seeds them into public piles and never shuffles or draws them, so they live in `extraCards`, not `cards`: the 30-card deck stays 30 for the sandbox pool, the stats and the rules lock, and the faces still resolve art and show as linked cards in the preview. 1y_5 itself lists them as ten 0-boost schemes with no image. ART is all the AUTHOR'S own work (\"all art was created by me\") and comes from his other publication of this deck, the-unmatched.club 8881 (https://www.the-unmatched.club/c/heroes/pomni.8881), where every card carries a finished full-card render as `replacementImage`: the ten faces are the club entries \"ADV n front\" / \"ADV n back\" (mapped by card number, not by title \u2014 the club gives them no titles), and the 12 main-deck faces are the club renders too, because they carry the current card text where the images 1y_5 hotlinks still print older wording. All are mirrored into public/evergreen-decks/art/1y_5 (i.imgur.com / i.ibb.co hotlinks upstream; #446 standard, q80 webp, at most 1600 px) and drawn full-bleed via cardImage \u2014 never through the generated template and never through the art-generation pipeline. The Adventure faces are LANDSCAPE cards stored the way the author uploaded them (rotated a quarter turn in a portrait frame); each carries `cardImage.turn: \"ccw\"` and the card renderer turns it upright in every slot. reward-4 is a 458x640 upload, shipped as-is. cardback.webp is his `cardsBack`, token-pomni.webp / token-jax.webp his two character avatars. His two character cards (melee, and the ranged flip side Reward 1 turns to) are NOT mirrored: Pro draws no character card, and a hero-card.webp in this folder would also list the deck on /table. Hand-edits against the API payload: the faces moved to `extraCards`; three of the four rule cards dropped (two are blank, one is a braille drawing that reads as noise in a tooltip); art URLs. Where the two publications disagree on text (harmless \"prank\" DURING vs IMMEDIATELY, Relative chaos' retrieve) the snapshot keeps 1y_5, which is what the engine encodes. Engine serves the hero at tier `lab`.",
   "published": true,
   "published_on": "Sun, 29 Mar 2026 14:34:02 GMT",
   "sourceUrl": "https://unmatched.cards/decks/1y_5/versions/NVDqtJ4W-",

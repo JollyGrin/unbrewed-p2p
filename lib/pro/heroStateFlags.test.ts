@@ -1422,11 +1422,11 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
     }
   });
 
-  it("the board token carries the number of completed Adventures, hidden at 0", () => {
+  it("the board token carries the rewards HELD (what her cards count), hidden at 0", () => {
     expect(fighterTokenCounterBadgeFor("pomni", {}, midGame)).toMatchObject({
       icon: "⭐",
       label: "2",
-      title: "ADVENTURES COMPLETED: 2",
+      title: "REWARDS HELD: 2",
       showLabel: true,
     });
     expect(fighterTokenCounterBadgeFor("pomni", {}, { ...midGame, ADV_DONE: [] })).toBeNull();
@@ -1434,8 +1434,15 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
     expect(fighterTokenCounterBadgeFor("king-kong", {}, midGame)).toBeNull();
   });
 
+  const DUEL = ["pomni", "darth-vader"];
+
   it("EXILE on Pomni's own seat is a plain 'removed from the game' pill that opens the pile", () => {
-    const chips = counterChipsFor("pomni", {}, { ...midGame, EXILE: ["pomni/reward-3#1", "pomni/ricochet-super-move#1"] });
+    const chips = counterChipsFor(
+      "pomni",
+      {},
+      { ...midGame, EXILE: ["pomni/reward-3#1", "pomni/ricochet-super-move#1"] },
+      DUEL
+    );
     expect(chips).toHaveLength(1);
     expect(chips[0].chip).toMatchObject({
       flag: "pile:EXILE",
@@ -1444,13 +1451,14 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
       pile: "EXILE",
       cards: ["pomni/reward-3#1", "pomni/ricochet-super-move#1"],
     });
-    expect(pileDisplayName("EXILE", "pomni")).toBe("Removed from the game");
+    expect(pileDisplayName("EXILE", "pomni", DUEL)).toBe("Removed from the game");
   });
 
   it("EXILE on an OPPONENT's seat reads as removed BY POMNI, never as that hero's own pile", () => {
-    const victim = { EXILE: ["darth-vader/form-v#2", "darth-vader/feint#1", "darth-vader/dash#3"] };
     for (const heroId of ["darth-vader", "king-kong", "boba-fett"]) {
-      const chips = counterChipsFor(heroId, {}, victim);
+      const victim = { EXILE: [`${heroId}/a#2`, `${heroId}/b#1`, `${heroId}/c#3`] };
+      const table = ["pomni", heroId];
+      const chips = counterChipsFor(heroId, {}, victim, table);
       expect(chips).toHaveLength(1);
       expect(chips[0].chip).toMatchObject({
         onLabel: "🚫 3 BY POMNI",
@@ -1458,12 +1466,56 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
         pile: "EXILE",
         cards: victim.EXILE,
       });
-      expect(pileDisplayName("EXILE", heroId)).toBe("Removed from the game by Pomni's Reward 2");
+      expect(pileDisplayName("EXILE", heroId, table)).toBe("Removed from the game by Pomni's Reward 2");
       // no board badge on the victim: the cards are gone, nothing on the board changed
       expect(fighterTokenCounterBadgeFor(heroId, {}, victim)).toBeNull();
     }
     // a seat with no EXILE pile shows nothing
-    expect(counterChipsFor("darth-vader", {}, {})).toEqual([]);
+    expect(counterChipsFor("darth-vader", {}, {}, DUEL)).toEqual([]);
+    // ffa-3: each seat is read against the whole table
+    expect(counterChipsFor("darth-vader", {}, { EXILE: ["darth-vader/a#1"] }, ["the-mandalorian", "pomni", "darth-vader"])[0].chip.onLabel).toBe(
+      "🚫 1 BY POMNI"
+    );
+  });
+
+  // The regression the #1624 review reproduced: EXILE is the engine's GENERIC pile and
+  // Kenshiro has used it since before POMNI (Vacuum Finger Strike onto the opponent's
+  // seat, Death Omen Star onto his own).
+  it("Kenshiro vs Darth Vader (no Pomni seated): NO pill on either plate, as before #1623", () => {
+    const table = ["kenshiro", "darth-vader"];
+    expect(counterChipsFor("darth-vader", {}, { EXILE: ["darth-vader/form-v#2"] }, table)).toEqual([]);
+    expect(counterChipsFor("kenshiro", {}, { EXILE: ["kenshiro/death-omen-star#1"] }, table)).toEqual([]);
+    // and the overlay name never credits a deck that is not playing
+    expect(pileDisplayName("EXILE", "darth-vader", table)).toBe("Removed from the game");
+    expect(pileDisplayName("EXILE", "kenshiro", table)).toBe("Removed from the game");
+  });
+
+  it("a caller that does not say who is seated gets no EXILE pill at all", () => {
+    expect(counterChipsFor("darth-vader", {}, { EXILE: ["darth-vader/form-v#2"] })).toEqual([]);
+    expect(counterChipsFor("pomni", {}, { EXILE: ["pomni/reward-3#1"] })).toEqual([]);
+    expect(pileDisplayName("EXILE", "darth-vader")).toBe("Removed from the game");
+  });
+
+  it("Pomni vs Kenshiro: both seats read NEUTRAL — the pile cannot say who removed what", () => {
+    const table = ["pomni", "kenshiro"];
+    // his seat: his own Death Omen Star and whatever her Reward 2 took, indistinguishable
+    const his = counterChipsFor("kenshiro", {}, { EXILE: ["kenshiro/death-omen-star#1", "kenshiro/feint#2"] }, table);
+    expect(his).toHaveLength(1);
+    expect(his[0].chip).toMatchObject({ onLabel: "🚫 2", fullLabel: "REMOVED FROM THE GAME: 2" });
+    expect(pileDisplayName("EXILE", "kenshiro", table)).toBe("Removed from the game");
+    // her seat: her used Reward 3 and whatever his Vacuum Finger Strike took
+    const hers = counterChipsFor("pomni", {}, { EXILE: ["pomni/reward-3#1", "pomni/anxiety#1"] }, table);
+    expect(hers[0].chip).toMatchObject({ onLabel: "🚫 2", fullLabel: "REMOVED FROM THE GAME: 2" });
+    expect(JSON.stringify([his, hers])).not.toMatch(/BY POMNI/);
+    // a third seat in the same game is neutral too
+    expect(
+      counterChipsFor("darth-vader", {}, { EXILE: ["darth-vader/a#1"] }, [...table, "darth-vader"])[0].chip.onLabel
+    ).toBe("🚫 1");
+  });
+
+  it("a Pomni mirror reads neutral on both seats (each pile mixes her own and the other's doing)", () => {
+    const chips = counterChipsFor("pomni", {}, { EXILE: ["pomni/anxiety#1"] }, ["pomni", "pomni"]);
+    expect(chips[0].chip.onLabel).toBe("🚫 1");
   });
 
   it("the EXILE overlay drops the 'tucked under hero card' note; every other pile keeps it", () => {

@@ -584,9 +584,11 @@ export const ProMobileHud = ({
 
   const plateOf = (seat: ViewPlayer, side: "left" | "right") => {
     const hero = heroOf(seat.id);
+    const track = pileTrackFor(seat.heroId, seat.piles, seat.flags);
     return (
       <TableHudPlate
         key={seat.id}
+        trackTag={track ? { text: pileTrackTagText(track, true), spoken: pileTrackSpoken(track) } : null}
         seat={seat.id}
         name={hero?.name ?? seatLabel(seat)}
         heroHp={hero ? hero.hp : null}
@@ -786,6 +788,7 @@ export const ProMobileHud = ({
               flags={sheetSeat.flags}
               counters={sheetSeat.counters}
               piles={sheetSeat.piles}
+              tableHeroIds={seats.map((s) => s.heroId)}
               nameOfPlayer={nameOfPlayer}
               wonCombat={sheetSeat.wonCombatThisTurn}
               isLocal={sheetSeat.you}

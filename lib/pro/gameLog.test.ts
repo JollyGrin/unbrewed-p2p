@@ -2341,7 +2341,12 @@ describe("diffViews — a HERO revive (William Afton → Springtrap, issue #1530
 
 // POMNI (issue #1623 ↔ engine #1053 / #1057 / #1056, PROTOCOL 40).
 describe("enrichLines — POMNI's Adventure track, reach change and deck-bottom boost return", () => {
-  const text = (events: GameEvent[], you = "p1") => enrichLines([], events, ctx(you)).map((l) => l.text);
+  // p1 Darth Vader, p2 POMNI unless a case seats someone else.
+  const seated = (you = "p1", table: Record<string, string> = { p1: "darth-vader", p2: "pomni" }): EnrichContext => ({
+    ...ctx(you),
+    heroOf: (p) => table[p],
+  });
+  const text = (events: GameEvent[], you = "p1") => enrichLines([], events, seated(you)).map((l) => l.text);
 
   it("REACH_CHANGED says what the fighter is now, coloured as its owner's line", () => {
     expect(enrichLines([], [{ type: "REACH_CHANGED", fighter: "p2/hero", reach: "RANGED" }], ctx())).toEqual([
@@ -2380,7 +2385,7 @@ describe("enrichLines — POMNI's Adventure track, reach change and deck-bottom 
       { type: "CARD_TUCKED", player: "p2", card: "pomni/reward-2#1", pile: "ADV_REWARDS" },
       { type: "CARD_TUCKED", player: "p2", card: "pomni/adventure-2#1", pile: "ADV_PENDING" },
     ];
-    expect(enrichLines([], batch, ctx("p1"))).toEqual([
+    expect(enrichLines([], batch, seated("p1"))).toEqual([
       { text: "Opponent removed your feint from the game (Reward 2)", who: "opp", cards: ["a/feint#1"] },
       {
         text: "Opponent used Reward 2 — Adventure 2 goes back to the bottom of the Adventure deck",
@@ -2389,6 +2394,32 @@ describe("enrichLines — POMNI's Adventure track, reach change and deck-bottom 
       },
     ]);
     expect(text(batch, "p2")[0]).toBe("You removed Opponent's feint from the game (Reward 2)");
+  });
+
+  it("Kenshiro's EXILE tucks keep the wording they had before POMNI (no Pomni seated)", () => {
+    // Vacuum Finger Strike: Kenshiro (p2) exiles a card from Darth Vader's (p1) discard pile
+    const batch: GameEvent[] = [
+      { type: "EFFECT_RESOLVING", source: "kenshiro/hokuto-vacuum-finger-strike#1", window: "AFTER", player: "p2" },
+      { type: "CARD_TUCKED", player: "p1", card: "a/feint#1", pile: "EXILE" },
+    ];
+    const kenshiroGame = seated("p1", { p1: "darth-vader", p2: "kenshiro" });
+    expect(enrichLines([], batch, kenshiroGame).map((l) => l.text)).toEqual([
+      "You tucked feint under your hero card (EXILE)",
+    ]);
+    // and the same when the page supplies no hero lookup at all
+    expect(enrichLines([], batch, ctx("p1")).map((l) => l.text)).toEqual([
+      "You tucked feint under your hero card (EXILE)",
+    ]);
+  });
+
+  it("Pomni vs Kenshiro: his removal from her pile is not called a Reward 2", () => {
+    const batch: GameEvent[] = [
+      { type: "EFFECT_RESOLVING", source: "kenshiro/hokuto-vacuum-finger-strike#1", window: "AFTER", player: "p1" },
+      { type: "CARD_TUCKED", player: "p2", card: "a/feint#1", pile: "EXILE" },
+    ];
+    const lines = enrichLines([], batch, seated("p2", { p1: "kenshiro", p2: "pomni" })).map((l) => l.text);
+    expect(lines).toEqual(["You tucked feint under your hero card (EXILE)"]);
+    expect(lines.join(" ")).not.toMatch(/Reward 2/);
   });
 
   it("leaves Luke's TRAINING tuck wording exactly as it was", () => {

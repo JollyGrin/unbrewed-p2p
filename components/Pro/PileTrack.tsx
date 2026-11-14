@@ -27,7 +27,8 @@ import {
   ModalOverlay,
   Text,
 } from "@chakra-ui/react";
-import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import { ImageFace } from "@/components/CardFactory/Card";
+import type { CardImageRef, DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import type { CardInstanceId } from "@/lib/pro/protocol";
 import {
   PileTrackStep,
@@ -71,8 +72,17 @@ const faceTitle = (resolve: Resolve, labelFor: LabelFor, instance: CardInstanceI
  *  chip's "A2★1", where the sidekick hearts need the room. */
 export const pileTrackTagText = (track: PileTrackView, tight = false): string => {
   const n = track.active ? track.active.n : "–";
-  if (tight) return `${track.def.goalWord[0].toUpperCase()}${n}★${track.completed}`;
-  return `${track.def.goalWord.slice(0, 3).toUpperCase()} ${n} · ★${track.completed}`;
+  if (tight) return `${track.def.goalWord[0].toUpperCase()}${n}★${track.held.length}`;
+  return `${track.def.goalWord.slice(0, 3).toUpperCase()} ${n} · ★${track.held.length}`;
+};
+
+/** "3 Adventures completed · 2 Rewards held" — the two numbers, never one standing
+ *  in for the other: a used-up reward is a completed Adventure that no longer counts
+ *  toward her cards. */
+export const pileTrackCounts = (track: PileTrackView): string => {
+  const { goalWord, rewardWord } = track.def;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  return `${plural(track.completed, goalWord)} completed · ${plural(track.held.length, rewardWord)} held`;
 };
 
 /** The same reading in words, for a title / aria-label. */
@@ -83,10 +93,8 @@ export const pileTrackSpoken = (track: PileTrackView): string => {
     : track.next
       ? `no active ${goalWord}, ${goalWord} ${track.next.n} is next`
       : `no ${goalWord} left`;
-  const held = track.held.length
-    ? `${rewardWord}s held: ${track.held.map((s) => s.n).join(", ")}`
-    : `no ${rewardWord.toLowerCase()}s held`;
-  return `${active}; ${track.completed} completed; ${held}`;
+  const held = track.held.length ? ` (${rewardWord} ${track.held.map((s) => s.n).join(", ")})` : "";
+  return `${active}; ${pileTrackCounts(track)}${held}`;
 };
 
 export const PileTrackTag = ({ track }: { track: PileTrackView }) => (
@@ -278,42 +286,23 @@ export const PileTrackRow = ({
 };
 
 /**
- * One face, upright. The author's files are landscape cards turned a quarter turn
- * into a portrait frame, so the image is turned back: its box is sized as the
- * landscape frame's transpose and rotated about the centre.
+ * One face, at the card's own shape. The author's files are LANDSCAPE cards turned a
+ * quarter turn into a portrait frame; the snapshot says so on the image
+ * (`cardImage.turn`), and the shared `ImageFace` turns it back. Here the frame is
+ * landscape too, so the upright card fills it instead of being letterboxed.
  */
-const TrackFace = ({ url, alt, landscape }: { url: string; alt: string; landscape: boolean }) =>
-  landscape ? (
-    <Box
-      position="relative"
-      w="100%"
-      overflow="hidden"
-      borderRadius="0.5rem"
-      sx={{ aspectRatio: "88 / 63" }}
-      data-testid="pile-track-face"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt={alt}
-        loading="lazy"
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: `${(63 / 88) * 100}%`,
-          height: `${(88 / 63) * 100}%`,
-          maxWidth: "none",
-          transform: "translate(-50%, -50%) rotate(-90deg)",
-        }}
-      />
-    </Box>
-  ) : (
-    <Box w="100%" overflow="hidden" borderRadius="0.5rem" sx={{ aspectRatio: "63 / 88" }} data-testid="pile-track-face">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={alt} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-    </Box>
-  );
+const TrackFace = ({ image, alt }: { image: CardImageRef; alt: string }) => (
+  <Box
+    w="100%"
+    overflow="hidden"
+    borderRadius="0.5rem"
+    sx={{ aspectRatio: image.turn ? "88 / 63" : "63 / 88" }}
+    data-testid="pile-track-face"
+    data-turn={image.turn}
+  >
+    <ImageFace image={image} title={alt} frame={image.turn ? "landscape" : "portrait"} />
+  </Box>
+);
 
 const STATE_TAG: Record<PileTrackStepState, { text: string; bg: string; color: string }> = {
   active: { text: "ACTIVE", bg: TRACK_BLUE, color: "#FFFFFF" },
@@ -336,7 +325,7 @@ const TrackStepCard = ({
 }) => {
   const { goalWord, rewardWord } = track.def;
   const subtitle = trackGoalSubtitle(faceTitle(resolveCard, labelFor, step.goal));
-  const faceUrl = step.faceUp ? resolveCard(step.faceUp)?.cardImage?.url : undefined;
+  const faceImage = step.faceUp ? resolveCard(step.faceUp)?.cardImage : undefined;
   const tag = STATE_TAG[step.state];
   const done = step.state === "held" || step.state === "spent";
   return (
@@ -350,13 +339,9 @@ const TrackStepCard = ({
       bg={step.state === "active" ? "rgba(43, 58, 140, 0.45)" : "rgba(20, 8, 24, 0.35)"}
       boxShadow={step.state === "active" ? `inset 0 0 0 2px ${TRACK_GOLD}` : undefined}
     >
-      {faceUrl && (
+      {faceImage?.url && (
         <Box w={{ base: "100%", md: "15rem" }} flexShrink={0}>
-          <TrackFace
-            url={faceUrl}
-            alt={`${done ? rewardWord : goalWord} ${step.n}`}
-            landscape={!!track.def.landscapeFaces}
-          />
+          <TrackFace image={faceImage} alt={`${done ? rewardWord : goalWord} ${step.n}`} />
         </Box>
       )}
       <Box minW={0} flex={1}>
@@ -429,7 +414,7 @@ export const PileTrackModal = ({
       <ModalCloseButton />
       <ModalBody pb="1.25rem">
         <Text fontSize="0.8rem" fontFamily="SpaceGrotesk" opacity={0.8} mb="0.75rem">
-          {`${track.completed} completed. ${track.def.goalWord}s are placed in order, one at a time, at the start of the turn; a completed card flips to its ${track.def.rewardWord.toLowerCase()}.`}
+          {`${pileTrackCounts(track)}. Her cards count the ${track.def.rewardWord.toLowerCase()}s held. ${track.def.goalWord}s are placed in order, one at a time, at the start of the turn; a completed card flips to its ${track.def.rewardWord.toLowerCase()}.`}
         </Text>
         <Flex direction="column" gap="0.6rem">
           {track.steps.map((s) => (
