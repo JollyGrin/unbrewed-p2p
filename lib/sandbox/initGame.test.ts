@@ -14,7 +14,7 @@ import {
 } from "@/components/Positions/position.type";
 import { counterDisplay } from "@/components/Positions/tokenCounter";
 import { fighterTokens } from "@/components/Positions/heroToken";
-import { initPositionBlob, seatAmong } from "./initGame";
+import { initPositionBlob, joinSeat, seatAmong, seatOnBoard } from "./initGame";
 
 const deck = (over: Record<string, unknown> = {}, top: Record<string, unknown> = {}) =>
   ({
@@ -185,5 +185,66 @@ describe("seatAmong — every client picks its own seat at the same moment", () 
     expect(boards[0][0]).toMatchObject({ x: 150, y: FIGHTER_ROW_TOP });
     expect(boards[1][0].x).toBe(BOARD_SIZE.w - 150 - 88);
     expectTidy(boards.flat());
+  });
+});
+
+describe("joinSeat — the board's join seed", () => {
+  it("is one past the boards already there, as before", () => {
+    expect(joinSeat([], ["amy"], "amy")).toBe(0);
+    expect(joinSeat(["zed"], ["zed", "amy"], "amy")).toBe(1);
+    // a late joiner never sorts in ahead of someone seated
+    expect(joinSeat(["zed", "bob"], ["zed", "bob", "amy"], "amy")).toBe(2);
+    // my own board (a re-seed racing its echo) is not a seat taken
+    expect(joinSeat(["amy", "zed"], ["amy", "zed"], "amy")).toBe(1);
+  });
+
+  it("two players entering an empty room together get different seats on both clients", () => {
+    const table = ["bob", "amy"];
+    expect(joinSeat([], table, "amy")).toBe(0);
+    expect(joinSeat([], table, "bob")).toBe(1);
+    // the same once one of the two seeds has landed
+    expect(joinSeat(["amy"], table, "bob")).toBe(1);
+    // and behind someone already seated
+    expect(joinSeat(["zed"], ["zed", ...table], "amy")).toBe(1);
+    expect(joinSeat(["zed"], ["zed", ...table], "bob")).toBe(2);
+  });
+
+  it("counts me even before the table lists me", () => {
+    expect(joinSeat([], [], "amy")).toBe(0);
+    expect(joinSeat(["zed"], ["zed"], "amy")).toBe(1);
+  });
+});
+
+describe("seatOnBoard — a deck change keeps the corner", () => {
+  it("gives back the seat a fresh board was laid out for", () => {
+    for (let seat = 0; seat < 8; seat += 1)
+      expect(seatOnBoard(initPositionBlob(deck(), "amy", seat).tokens)).toBe(seat);
+  });
+
+  it("re-seeding from it lands the new deck's hero on the old one's spot", () => {
+    const before = initPositionBlob(deck(), "bob", 1).tokens;
+    const after = initPositionBlob(
+      deck({ sidekick: { name: "Sidekick", hp: null, quantity: 0 } }),
+      "bob",
+      seatOnBoard(before),
+    ).tokens;
+    expect(after[0]).toMatchObject({ x: before[0].x, y: before[0].y });
+  });
+
+  it("a hero that was moved gives the corner of the map it stands in", () => {
+    const [hero, ...rest] = initPositionBlob(deck(), "amy", 0).tokens;
+    const at = (x: number, y: number) => seatOnBoard([{ ...hero, x, y }, ...rest]);
+    expect(at(300, 320)).toBe(0);
+    expect(at(900, 700)).toBe(1);
+    expect(at(900, 200)).toBe(2);
+    expect(at(200, 800)).toBe(3);
+  });
+
+  it("is undefined without fighter pieces", () => {
+    expect(seatOnBoard(undefined)).toBeUndefined();
+    expect(seatOnBoard([{ id: "a", x: 150, y: 100 }])).toBeUndefined();
+    expect(
+      seatOnBoard(initPositionBlob(deck({}, { savedTokens: [{ icon: "skull" }] }), "amy").tokens),
+    ).toBeUndefined();
   });
 });

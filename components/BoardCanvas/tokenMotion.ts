@@ -247,6 +247,8 @@ type Sim = {
   rot: number;
   vrot: number;
   flip: { p: number; prev: TokenFace } | null;
+  /** see `hitAhead` */
+  hit?: SVGRectElement;
 };
 
 type Fx = {
@@ -306,7 +308,39 @@ export function createTokenAnimator(opts: { onFlipMid?: () => void } = {}) {
     s.x === s.tx &&
     s.y === s.ty;
 
+  /**
+   * A token gliding to a new wire position is drawn behind the place it
+   * really is, and a click aimed at that place would miss it. While it
+   * travels it carries an unpainted rect over its true spot, so it can be
+   * hit there as well as where it is drawn. (Renders replace a token's
+   * markup; the next frame puts the rect back.)
+   */
+  const hitAhead = (s: Sim) => {
+    const ahead = !s.held && (s.x !== s.tx || s.y !== s.ty);
+    if (!ahead) {
+      if (s.hit) s.hit.remove();
+      s.hit = undefined;
+      return;
+    }
+    const doc = s.node.ownerDocument;
+    if (!doc || typeof doc.createElementNS !== "function") return;
+    if (!s.hit) {
+      s.hit = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+      s.hit.setAttribute("class", "hit-ahead");
+      s.hit.setAttribute("fill", "none");
+      // hit whatever the fill: follows the token's own `pointer-events`,
+      // so a token that is inert to the pointer stays inert
+      s.hit.setAttribute("pointer-events", "inherit");
+    }
+    if (s.hit.parentNode !== s.node) s.node.appendChild(s.hit);
+    s.hit.setAttribute("x", String(round(s.tx - s.x)));
+    s.hit.setAttribute("y", String(round(s.ty - s.y)));
+    s.hit.setAttribute("width", String(s.w));
+    s.hit.setAttribute("height", String(s.h));
+  };
+
   const write = (s: Sim) => {
+    hitAhead(s);
     if (atRest(s)) {
       s.node.setAttribute("transform", `translate(${s.x}, ${s.y})`);
       if (s.node.style.filter) s.node.style.filter = "";

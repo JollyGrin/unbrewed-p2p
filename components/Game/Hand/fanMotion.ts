@@ -193,6 +193,27 @@ export const handArrivals = (
 };
 
 /**
+ * For each card of `next`, where that card was in `prev`, or -1 for one that
+ * was not there. Same matching as handArrivals (by what the card is, earliest
+ * first), so the fan can keep each card's motion with the card when the hand
+ * changes under it: discarding a card to the left of one that is still flying
+ * in must not hand the flight to its neighbour.
+ */
+export const handCarryOver = (
+  prev: readonly KeyedCard[] | undefined,
+  next: readonly KeyedCard[] | undefined,
+): number[] => {
+  const slots = new Map<string, number[]>();
+  (prev ?? []).forEach((c, i) => {
+    const k = cardKey(c);
+    const list = slots.get(k);
+    if (list) list.push(i);
+    else slots.set(k, [i]);
+  });
+  return (next ?? []).map((c) => slots.get(cardKey(c))?.shift() ?? -1);
+};
+
+/**
  * A screen-space offset expressed in the frame of a fan slot rotated by
  * `rotDeg`, so a card can be drawn that far from its slot.
  */

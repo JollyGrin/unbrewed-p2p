@@ -1,4 +1,4 @@
-import { KEYBIND_ACTIONS, KeybindAction } from "./actions";
+import { KEYBIND_ACTIONS, KEYBIND_ACTION_BY_ID, KeybindAction } from "./actions";
 import { normalizeCombo, reservedReason } from "./combo";
 import {
   KEYBINDS_STORAGE,
@@ -192,6 +192,21 @@ describe("conflicts", () => {
     expect(findConflict({}, "draw1", "S")?.id).toBe("switchSeat");
     expect(findConflict({ search: "J" }, "draw1", "B")).toBeUndefined();
     expect(findConflict({ search: "J" }, "draw1", "J")?.id).toBe("search");
+  });
+
+  it("gives piece deletion a second key that any real binding takes over", () => {
+    expect(KEYBIND_ACTION_BY_ID.removeSelected.note).toContain("Shift+Backspace");
+    const byDefault = resolveBindings({});
+    expect(byDefault.bindings.removeSelected).toBe("Delete");
+    expect(byDefault.byCombo.get("Shift+Delete")).toBe("removeSelected");
+    // not a conflict: recording it for another action just takes it
+    expect(findConflict({}, "draw1", "Shift+Delete")).toBeUndefined();
+    const taken = resolveBindings(withReplacedBinding({}, "draw1", "Shift+Delete"));
+    expect(taken.byCombo.get("Shift+Delete")).toBe("draw1");
+    expect(taken.bindings.removeSelected).toBe("Delete");
+    // off its default key (rebound or unbound), the second key goes too
+    expect(resolveBindings({ removeSelected: "X" }).byCombo.has("Shift+Delete")).toBe(false);
+    expect(resolveBindings({ removeSelected: null }).byCombo.has("Shift+Delete")).toBe(false);
   });
 
   it("replacing moves the key and leaves the old holder without one", () => {

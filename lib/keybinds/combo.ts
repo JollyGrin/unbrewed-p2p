@@ -19,7 +19,7 @@
  * Two pairs of keys count as one, so a default works on every keyboard:
  * `=` is `+` (the same key on QWERTY, where `+` needs Shift) and `Backspace`
  * is `Delete` (a Mac laptop has no forward delete). The one exception is in
- * layer.ts: Backspace never deletes a piece.
+ * layer.ts: plain Backspace never deletes a piece (Shift+Backspace does).
  */
 
 export type KeyLike = Pick<

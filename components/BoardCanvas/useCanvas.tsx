@@ -192,20 +192,35 @@ export const useCanvas = ({
       groupSel: d3.Selection<SVGGElement, unknown, null, undefined>,
       items: OwnedToken[],
     ) => {
-      const all = groupSel
+      const bound = groupSel
         .selectAll<SVGGElement, OwnedToken>("g.tok")
         // Key by id so DOM reordering (raise) doesn't scramble datum binding.
-        .data(items, (d) => (d as OwnedToken).id)
-        .join(
-          (enter) => enter.append("g").attr("class", "tok"),
-          (update) => update,
-          (exit) =>
-            exit
-              .each(function (d) {
-                motion.exit(this, d);
-              })
-              .remove(),
-        )
+        .data(items, (d) => (d as OwnedToken).id);
+      bound
+        .exit<OwnedToken>()
+        .each(function (d) {
+          motion.exit(this as SVGGElement, d);
+        })
+        .remove();
+      const all = bound
+        .enter()
+        .append("g")
+        .attr("class", "tok")
+        .merge(bound);
+
+      // The token being pressed or dragged never moves in the DOM (#1640).
+      // d3's `join` would `order()` every node back to its data position
+      // here, the held one included: moving a node between pointer-down and
+      // pointer-up makes the browser drop the click (a heart press did
+      // nothing when a render landed mid-press), and a dragged token ended up
+      // under other players' tokens until its next move. So the others are
+      // put in order around it.
+      const heldId = draggingIdRef.current;
+      const heldNode =
+        heldId == null ? null : all.filter((d) => d.id === heldId).node();
+      (heldNode ? all.filter((d) => d.id !== heldId) : all).order();
+
+      all
         .each(function (d) {
           // wire position — except for the actively dragged token, which
           // follows the pointer until it is released (tokenMotion.ts)
@@ -219,9 +234,6 @@ export const useCanvas = ({
       // sending its events to the element it started on, so replacing that
       // element (or the drag behaviour that knows the gesture) mid-drag cut
       // the drag off after its first move and its `end` never fired.
-      const heldId = draggingIdRef.current;
-      const heldNode =
-        heldId == null ? null : all.filter((d) => d.id === heldId).node();
       const sel = heldNode ? all.filter((d) => d.id !== heldId) : all;
       sel.html(markup);
 
@@ -261,6 +273,11 @@ export const useCanvas = ({
             parent.insertBefore(this, heldNode);
           else parent.appendChild(this);
         });
+      // Whatever still follows the held token (a token another player just
+      // added) goes under it, again without moving the held node itself.
+      if (heldNode?.parentNode)
+        while (heldNode.nextSibling)
+          heldNode.parentNode.insertBefore(heldNode.nextSibling, heldNode);
 
       // Only image pieces and cards open the on-board panel; discs and icons
       // are managed from the token menu instead.

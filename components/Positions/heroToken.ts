@@ -107,8 +107,8 @@ type FighterDeckData = {
  * decks). Empty without a hero.
  *
  * Health rides on the piece as a linked counter, so it and the HUD show and
- * change the same number: the hero's always, a lone sidekick's when it has
- * health. Several sidekicks share one HUD number that counts FIGHTERS, not
+ * change the same number: the hero's always, and a lone sidekick's too (0
+ * when the deck prints none, as on the HUD). Several sidekicks share one HUD number that counts FIGHTERS, not
  * health, so each of those carries its own detached counter (only when one
  * can take more than a single hit) and no name, which would repeat down the
  * row.
@@ -151,7 +151,9 @@ export const fighterTokens = (deckData?: FighterDeckData | null): SavedToken[] =
   const hp = typeof sidekick.hp === "number" ? sidekick.hp : undefined;
   for (let i = 0; i < count; i += 1) {
     const token = piece(sidekick, SIDEKICK_MEDALLION_SIZE, count === 1);
-    if (count === 1 && hp !== undefined) token.counter = { link: "sidekick" };
+    // A lone sidekick always carries its heart, as the HUD always shows one:
+    // with no printed health both read 0 and both can be adjusted.
+    if (count === 1) token.counter = { link: "sidekick" };
     else if (count > 1 && hp !== undefined && hp > 1)
       token.counter = { value: hp, min: 0 };
     out.push(token);

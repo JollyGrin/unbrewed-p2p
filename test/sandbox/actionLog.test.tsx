@@ -77,6 +77,17 @@ describe("ActionLog grouping", () => {
     expect(lineTexts()).toEqual(["YouRolled d20 ×3 → 17, 4, 12now"]);
   });
 
+  it("lists only the latest dice values of a long run; the full log lists them all", () => {
+    const rolls = Array.from({ length: 9 }, (_, i) => `Rolled d20 → ${i + 1}`);
+    mockPlayers = {
+      me: { actionLog: log([...Array.from({ length: 16 }, (_, i) => `Gave a card to p${i}`), ...rolls]) },
+    };
+    render(<ActionLog />);
+    expect(lineTexts()[0]).toBe("YouRolled d20 ×9 → … 4, 5, 6, 7, 8, 9 (+3 earlier)now");
+    fireEvent.click(screen.getByText("Show 2 more…"));
+    expect(lineTexts(screen.getByRole("dialog"))[0]).toContain("Rolled d20 ×9 → 1, 2, 3, 4, 5, 6, 7, 8, 9");
+  });
+
   it("counts grouped lines against the inline limit", () => {
     // 20 entries, but only 2 lines: nothing overflows.
     mockPlayers = {

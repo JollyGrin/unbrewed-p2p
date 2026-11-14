@@ -1,4 +1,6 @@
 import {
+  RESET_QUIET_MS,
+  SAME_DRAG_MS,
   SETTLE_MS,
   createTableTracker,
   diffPool,
@@ -37,6 +39,7 @@ const setup = (hearOthers = true) => {
     clearTimer: (h) => {
       if (h) (h as { live: boolean }).live = false;
     },
+    now: () => now,
   });
   const advance = (ms: number) => {
     now += ms;
@@ -317,6 +320,142 @@ describe("table tracker: other players", () => {
     expect(play.mock.calls).toEqual([["tokenDown", { gain: 0.45 }]]);
     advance(5000);
     expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("a pause mid-drag is not a second landing", () => {
+    const { tracker, play, blobs, advance } = seated();
+    const drag = (steps: number) => {
+      for (let i = 0; i < steps; i++) {
+        blobs.ann.tokens[0].x = (blobs.ann.tokens[0].x as number) + 9;
+        tracker.onPositions(blobs, "me");
+        advance(50);
+      }
+    };
+    drag(10);
+    advance(SETTLE_MS + 300); // holds it still, mouse down
+    expect(play).toHaveBeenCalledTimes(1);
+    drag(10);
+    advance(SETTLE_MS + 300); // pauses again
+    drag(5);
+    advance(SETTLE_MS); // lets go
+    expect(play).toHaveBeenCalledTimes(1);
+    // picking the same piece up again later is a new drag
+    advance(SAME_DRAG_MS);
+    drag(5);
+    advance(SETTLE_MS);
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it("another piece right after is its own landing", () => {
+    const { tracker, play, blobs, advance } = seated();
+    blobs.ann.tokens.push({ id: "a2", x: 300, y: 300 });
+    tracker.onPositions(blobs, "me");
+    play.mockClear();
+    blobs.ann.tokens[0].x = 90;
+    tracker.onPositions(blobs, "me");
+    advance(SETTLE_MS);
+    blobs.ann.tokens[1].x = 340;
+    tracker.onPositions(blobs, "me");
+    advance(SETTLE_MS);
+    expect(play.mock.calls.map(([sound]) => sound)).toEqual(["tokenDown", "tokenDown"]);
+  });
+
+  it("a snapshot leaves no landing behind", () => {
+    const { tracker, play, players, blobs, advance } = seated();
+    // a third seat, so one update can change two other seats
+    (players as Record<string, { pool: Pool }>).bo = { pool: pool() };
+    blobs.bo = { tokens: [{ id: "b1", x: 90, y: 90 }] };
+    tracker.onPlayers(players, "me");
+    tracker.onPositions(blobs, "me");
+    // ann is mid-drag when the snapshot lands: her piece moved, bo's board changed
+    blobs.ann.tokens[0].x = 200;
+    tracker.onPositions(blobs, "me");
+    blobs.ann.tokens[0].x = 400;
+    blobs.bo.tokens.push({ id: "b2", x: 1, y: 1 });
+    tracker.onPositions(blobs, "me");
+    advance(SETTLE_MS * 2);
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("a drag seen while quiet does not land once the quiet lifts", () => {
+    const { tracker, play, blobs, advance } = seated();
+    blobs.ann.tokens[0].x = 200;
+    tracker.onPositions(blobs, "me"); // armed, live
+    tracker.setQuiet(true);
+    blobs.ann.tokens[0].x = 300;
+    tracker.onPositions(blobs, "me"); // seen while quiet: baseline only
+    advance(100);
+    tracker.setQuiet(false);
+    advance(SETTLE_MS * 2);
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("a new game with several players is one shuffle, however the seats trickle in", () => {
+    const s = setup();
+    const { tracker, play, advance } = s;
+    type Seat = { pool: Pool; resetEpoch?: number };
+    const players: Record<string, Seat> = {
+      me: { pool: pool() },
+      ann: { pool: pool() },
+      bo: { pool: pool() },
+      cy: { pool: pool() },
+    };
+    const blobs: Record<string, { tokens: Record<string, unknown>[] }> = {};
+    for (const seat of Object.keys(players))
+      blobs[seat] = { tokens: [{ id: `${seat}-hero`, x: 1, y: 1 }, { id: `${seat}-side`, x: 2, y: 2 }] };
+    tracker.onPlayers(players, "me");
+    tracker.onPositions(blobs, "me");
+
+    // each seat applies the reset in its own update: pool first, then board
+    for (const seat of ["ann", "bo", "me", "cy"]) {
+      players[seat] = { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 };
+      tracker.onPlayers(players, "me");
+      advance(30);
+      blobs[seat] = { tokens: [{ id: `${seat}-hero2`, x: 1, y: 1 }, { id: `${seat}-side2`, x: 2, y: 2 }] };
+      tracker.onPositions(blobs, "me");
+      advance(120);
+    }
+    expect(play.mock.calls).toEqual([["shuffle", { gain: 0.45 }]]);
+
+    // the table is live again afterwards
+    advance(RESET_QUIET_MS);
+    play.mockClear();
+    players.ann.pool.hand.push(players.ann.pool.deck.pop()!);
+    tracker.onPlayers(players, "me");
+    blobs.bo.tokens.push({ id: "bo-extra", x: 5, y: 5 });
+    tracker.onPositions(blobs, "me");
+    expect(play.mock.calls.map(([sound]) => sound)).toEqual(["draw", "tokenDown"]);
+  });
+
+  it("my own new game is one shuffle at full level", () => {
+    const { tracker, play, blobs, advance } = seated();
+    const players: Record<string, { pool: Pool; resetEpoch?: number }> = {
+      me: { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 3 },
+      ann: { pool: pool() },
+    };
+    tracker.onPlayers(players, "me");
+    blobs.me = { tokens: [{ id: "m-new", x: 1, y: 1 }] };
+    tracker.onPositions(blobs, "me");
+    advance(50);
+    players.ann = { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 3 };
+    tracker.onPlayers(players, "me");
+    blobs.ann = { tokens: [{ id: "a-new", x: 1, y: 1 }] };
+    tracker.onPositions(blobs, "me");
+    expect(play.mock.calls).toEqual([["shuffle", {}]]);
+  });
+
+  it("a reset that arrived while reconnecting is not heard afterwards", () => {
+    const { tracker, play } = seated();
+    const players: Record<string, { pool: Pool; resetEpoch?: number }> = {
+      me: { pool: pool() },
+      ann: { pool: pool(), resetEpoch: 2 },
+    };
+    tracker.setQuiet(true);
+    tracker.onPlayers(players, "me");
+    tracker.setQuiet(false);
+    players.me = { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 2 };
+    tracker.onPlayers(players, "me");
+    expect(play).not.toHaveBeenCalled();
   });
 
   it("a seat that leaves and comes back starts from a fresh baseline", () => {

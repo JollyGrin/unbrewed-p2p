@@ -7,8 +7,14 @@ import {
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
 import {
+  BOARD_SIZE,
+  BoardToken,
   DEFAULT_PLAYER_COLOR,
+  DEFAULT_TOKEN_SIZE,
+  FIGHTER_ROW_STEP,
+  FIGHTER_ROW_TOP,
   PositionBlob,
+  SPAWN_ORIGIN,
   newTokenId,
   spawnFighterRow,
   spawnSavedTokens,
@@ -66,13 +72,60 @@ export const initPositionBlob = (
  * so each client takes its rank among the names at the table, sorted. Every
  * client sees the same names, so every client gets a different corner.
  *
- * The join seed does not use this (GameShell counts the boards already
- * there): a late joiner must not sort in ahead of someone already seated.
+ * The join seed does not use this alone (see joinSeat): a late joiner must
+ * not sort in ahead of someone already seated.
  */
 export const seatAmong = (names: Iterable<string>, self: string): number =>
   Array.from(new Set([...Array.from(names), self]))
     .sort()
     .indexOf(self);
+
+/**
+ * A newcomer's seat (the board's join seed): one past the players who already
+ * have a board, so nobody sorts in on top of someone seated. Players who are
+ * at the table without a board yet are joining at the same moment and would
+ * all count the same boards, so those take the free seats in name order:
+ * two players entering an empty room together get seats 0 and 1 on both
+ * clients, whichever seed fires first.
+ */
+export const joinSeat = (
+  boards: Iterable<string>,
+  players: Iterable<string>,
+  self: string,
+): number => {
+  const seated = new Set(Array.from(boards).filter((name) => name !== self));
+  const arriving = Array.from(players).filter((name) => !seated.has(name));
+  return seated.size + seatAmong(arriving, self);
+};
+
+/**
+ * The seat whose corner a board's fighters are in now, so a deck change puts
+ * the new ones where the old ones were (the join seat and the re-seed rank
+ * can differ). A hero still on its spawn spot gives the exact seat back; one
+ * that was moved gives the corner of the map it stands in. Undefined when
+ * the board has no fighter pieces (a saved loadout, the starter disc).
+ */
+export const seatOnBoard = (
+  tokens: readonly BoardToken[] | undefined,
+): number | undefined => {
+  const fighters = (tokens ?? []).filter((t) => !t.card && !!t.rim);
+  const hero =
+    fighters.find((t) => t.counter?.link === "hero") ?? fighters[0];
+  if (!hero) return undefined;
+  const w = hero.size ?? DEFAULT_TOKEN_SIZE;
+  const h = hero.h ?? w;
+  const right = hero.x + w / 2 > BOARD_SIZE.w / 2;
+  const bottom = hero.y + h / 2 > BOARD_SIZE.h / 2;
+  const corner = right ? (bottom ? 1 : 2) : bottom ? 3 : 0;
+  // spawnFighterRow puts the hero at the row's start, `ring` rows in
+  const atStart =
+    hero.x === (right ? BOARD_SIZE.w - SPAWN_ORIGIN.x - w : SPAWN_ORIGIN.x);
+  const rows =
+    ((bottom ? BOARD_SIZE.h - hero.y - h : hero.y) - FIGHTER_ROW_TOP) /
+    FIGHTER_ROW_STEP;
+  const ring = atStart && Number.isInteger(rows) && rows > 0 ? rows : 0;
+  return ring * 4 + corner;
+};
 
 /**
  * Read the starred deck out of the bag, at the moment it's needed.

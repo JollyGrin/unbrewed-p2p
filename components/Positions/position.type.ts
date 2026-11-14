@@ -313,6 +313,8 @@ export const labelWidth = (text: string): number => text.length * 6.2 + 14;
  * (two panels side by side in hotseat).
  */
 export const FIGHTER_ROW_TOP = 170;
+/** How much further in each later ring of seats (5th player on) lines up. */
+export const FIGHTER_ROW_STEP = 150;
 
 /**
  * Lay a player's fighters out as one row in their corner of the map, hero
@@ -333,7 +335,7 @@ export function spawnFighterRow(
   const ring = Math.floor(Math.max(0, seat) / 4);
   const flipX = corner === 1 || corner === 2;
   const flipY = corner === 1 || corner === 3;
-  const top = FIGHTER_ROW_TOP + ring * 150;
+  const top = FIGHTER_ROW_TOP + ring * FIGHTER_ROW_STEP;
 
   // pieces of different sizes stand on one line, so their names line up too
   const rowH = Math.max(0, ...fighters.map((t) => t.h ?? t.size ?? DEFAULT_TOKEN_SIZE));

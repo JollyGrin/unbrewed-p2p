@@ -278,6 +278,22 @@ describe("Backspace and a selected piece", () => {
     expect(ran).toEqual(["removeSelected"]);
   });
 
+  it("Shift+Backspace deletes a piece: the Delete of a laptop without one", () => {
+    selectedKind = "piece";
+    render(<Table />);
+    const event = press({ key: "Backspace", code: "Backspace", shiftKey: true });
+    expect(event.defaultPrevented).toBe(true);
+    expect(ran).toEqual(["removeSelected"]);
+  });
+
+  it("Shift+Backspace goes with the default key: rebinding the action frees it", () => {
+    selectedKind = "piece";
+    writeOverrides(withBinding({}, "removeSelected", "X"));
+    render(<Table />);
+    expect(press({ key: "Backspace", code: "Backspace", shiftKey: true }).defaultPrevented).toBe(false);
+    expect(ran).toEqual([]);
+  });
+
   it("holds for a rebound key too: only the key itself deletes a piece", () => {
     selectedKind = "piece";
     writeOverrides(withBinding({}, "removeSelected", "X"));

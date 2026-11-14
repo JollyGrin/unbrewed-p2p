@@ -195,6 +195,18 @@ describe("groupActionLog", () => {
       });
     });
 
+    it("caps the values to the latest few on request, with a count of the rest", () => {
+      const rolls = Array.from({ length: 25 }, (_, i): [string, string] => ["ann", `Rolled d20 → ${i + 1}`]);
+      const [group] = groupActionLog(feed(rolls));
+      expect(group.values).toHaveLength(25);
+      expect(groupLabelParts(group, 6).detail).toBe("→ … 20, 21, 22, 23, 24, 25 (+19 earlier)");
+      // uncapped (the full-log dialog) still lists every value
+      expect(groupLabelParts(group).detail).toBe(`→ ${group.values.join(", ")}`);
+      // at or under the cap nothing is hidden
+      const [short] = groupActionLog(feed(rolls.slice(0, 6)));
+      expect(groupLabelParts(short, 6).detail).toBe("→ 1, 2, 3, 4, 5, 6");
+    });
+
     it("keeps repeated values: two 6s are two rolls", () => {
       const [group] = groupActionLog(feed([["ann", "Rolled d6 → 6"], ["ann", "Rolled d6 → 6"]]));
       expect(groupLabel(group)).toBe("Rolled d6 ×2 → 6, 6");

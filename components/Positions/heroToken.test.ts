@@ -124,9 +124,9 @@ describe("fighterTokens", () => {
     });
   });
 
-  it("a lone sidekick without health carries no counter", () => {
+  it("a lone sidekick without printed health still carries its heart, like the HUD", () => {
     const [, sidekick] = fighterTokens({ hero, sidekick: { ...momo, hp: null } });
-    expect(sidekick.counter).toBeUndefined();
+    expect(sidekick.counter).toEqual({ link: "sidekick" });
   });
 
   it("several one-hit sidekicks: one piece each, no name, no counter", () => {

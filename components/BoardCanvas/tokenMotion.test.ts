@@ -263,6 +263,32 @@ describe("createTokenAnimator with motion", () => {
     motion.dispose();
   });
 
+  it("can be hit where it really is while it is drawn on its way there", () => {
+    const motion = createTokenAnimator();
+    const nodes = new Map<string, SVGGElement>();
+    render(motion, nodes, [tok("a#1"), tok("b#1")]);
+    render(motion, nodes, [tok("a#1"), tok("b#1", { x: 300 })]);
+    const node = nodes.get("b#1")!;
+    run(50);
+    const hit = () => node.querySelector("rect.hit-ahead");
+    // drawn at xOf, really at 300: the rect covers the true 80x80 box
+    expect(xOf(node) + Number(hit()!.getAttribute("x"))).toBeCloseTo(300, 1);
+    expect(hit()!.getAttribute("y")).toBe("0");
+    expect(hit()!.getAttribute("width")).toBe("80");
+    expect(hit()!.getAttribute("fill")).toBe("none");
+    // a render replaces the token's markup mid-flight: the rect comes back
+    node.innerHTML = "<circle r='4'/>";
+    run(20);
+    expect(xOf(node) + Number(hit()!.getAttribute("x"))).toBeCloseTo(300, 1);
+    expect(node.querySelectorAll("rect.hit-ahead")).toHaveLength(1);
+    // and it is gone once the token has arrived
+    run(600);
+    expect(node.getAttribute("transform")).toBe("translate(300, 100)");
+    expect(hit()).toBeNull();
+    expect(nodes.get("a#1")!.querySelector("rect.hit-ahead")).toBeNull();
+    motion.dispose();
+  });
+
   it("keeps gliding when an unrelated render lands mid-flight, retargets on a new move", () => {
     const motion = createTokenAnimator();
     const nodes = new Map<string, SVGGElement>();
