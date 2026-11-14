@@ -10,8 +10,10 @@ import {
   DEFAULT_PLAYER_COLOR,
   PositionBlob,
   newTokenId,
+  spawnFighterRow,
   spawnSavedTokens,
 } from "@/components/Positions/position.type";
+import { fighterTokens } from "@/components/Positions/heroToken";
 import { readStarredDeckFromBag } from "@/lib/bag/bagStore";
 
 /**
@@ -28,23 +30,34 @@ export const initPool = (deck: DeckImportType): PoolType =>
 
 /**
  * The board a player starts with: their deck's saved loadout if it has one
- * (issue #467), otherwise the lone starter disc. The loadout REPLACES the
- * starter disc — a player who saved tokens saved exactly what they want.
+ * (issue #467), otherwise their fighters — the hero and each fielded
+ * sidekick as medallions with their health attached (fighterTokens). The
+ * loadout REPLACES the fighters, as it replaced the starter disc — a player
+ * who saved tokens saved exactly what they want. With no deck at all there
+ * is still the lone starter disc.
+ *
+ * `seat` is the player's place at the table (0 = first), which picks the
+ * corner the fighters line up in, so two players' pieces don't land on top of
+ * each other. Loadouts keep their one spot.
  */
 export const initPositionBlob = (
   deck: DeckImportType | undefined,
   self: string,
+  seat = 0,
 ): PositionBlob => {
   const saved = deck?.savedTokens ?? [];
-  return saved.length
-    ? {
-        color: deck?.savedTokenColor ?? DEFAULT_PLAYER_COLOR,
-        tokens: spawnSavedTokens(saved, self),
-      }
-    : {
-        color: DEFAULT_PLAYER_COLOR,
-        tokens: [{ id: newTokenId(self), x: 150, y: 100 }],
-      };
+  if (saved.length)
+    return {
+      color: deck?.savedTokenColor ?? DEFAULT_PLAYER_COLOR,
+      tokens: spawnSavedTokens(saved, self),
+    };
+  const fighters = fighterTokens(deck?.deck_data);
+  return {
+    color: DEFAULT_PLAYER_COLOR,
+    tokens: fighters.length
+      ? spawnFighterRow(fighters, self, seat)
+      : [{ id: newTokenId(self), x: 150, y: 100 }],
+  };
 };
 
 /**
