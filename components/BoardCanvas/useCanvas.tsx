@@ -179,7 +179,7 @@ export const useCanvas = ({
       groupSel: d3.Selection<SVGGElement, unknown, null, undefined>,
       items: OwnedToken[],
     ) => {
-      const sel = groupSel
+      const all = groupSel
         .selectAll<SVGGElement, OwnedToken>("g.tok")
         // Key by id so DOM reordering (raise) doesn't scramble datum binding.
         .data(items, (d) => (d as OwnedToken).id)
@@ -199,8 +199,18 @@ export const useCanvas = ({
           const { w, h } = tokenSize(d);
           motion.place(this, d, w, h);
         })
-        .html(markup)
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
+
+      // The token being dragged is left exactly as it is until it is put
+      // down: no new markup, no re-wiring, no move in the DOM. A touch keeps
+      // sending its events to the element it started on, so replacing that
+      // element (or the drag behaviour that knows the gesture) mid-drag cut
+      // the drag off after its first move and its `end` never fired.
+      const heldId = draggingIdRef.current;
+      const heldNode =
+        heldId == null ? null : all.filter((d) => d.id === heldId).node();
+      const sel = heldNode ? all.filter((d) => d.id !== heldId) : all;
+      sel.html(markup);
 
       // An image face that fails to load would otherwise draw nothing at all.
       sel
@@ -229,8 +239,15 @@ export const useCanvas = ({
         .filter((d) => isOwn(d) && !(d.overlay && d.locked))
         .call(drag)
         // Keep the local player's tokens painted last (on top) within their
-        // layer so they can always be grabbed under overlapping tokens.
-        .raise();
+        // layer so they can always be grabbed under overlapping tokens; the
+        // one being dragged stays above them without being moved itself.
+        .each(function () {
+          const parent = this.parentNode;
+          if (!parent) return;
+          if (heldNode && heldNode.parentNode === parent)
+            parent.insertBefore(this, heldNode);
+          else parent.appendChild(this);
+        });
 
       // Only image pieces and cards open the on-board panel; discs and icons
       // are managed from the token menu instead.
@@ -370,6 +387,50 @@ export const useCanvas = ({
     rotated,
     flipTick,
   ]);
+
+  // Safety net for a drag whose own `end` never arrives (seen on touch: the
+  // drag behaviour is re-attached by the renders its moves cause, and the new
+  // instance does not know the gesture). Once no pointer is down, a tick
+  // later so a normal `end` always runs first, the token is put down and the
+  // last position flushed. With nothing held this does nothing.
+  const moveRef = useRef(move);
+  moveRef.current = move;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const settle = () => {
+      timer = null;
+      if (draggingIdRef.current != null) {
+        draggingIdRef.current = null;
+        if (gRef.current) d3.select(gRef.current).attr("cursor", "grab");
+        moveRef.current?.flush?.();
+      }
+      motionRef.current?.releaseAll();
+    };
+    const later = () => {
+      if (timer == null) timer = setTimeout(settle, 0);
+    };
+    // touch is judged by the touch events below (a second finger lifting is
+    // not a release); mouse and pen by no button being left down
+    const onPointer = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" && e.buttons === 0) later();
+    };
+    const onTouch = (e: TouchEvent) => {
+      if (e.touches.length === 0) later();
+    };
+    window.addEventListener("pointerup", onPointer);
+    window.addEventListener("pointercancel", onPointer);
+    window.addEventListener("touchend", onTouch);
+    window.addEventListener("touchcancel", onTouch);
+    window.addEventListener("blur", later);
+    return () => {
+      if (timer != null) clearTimeout(timer);
+      window.removeEventListener("pointerup", onPointer);
+      window.removeEventListener("pointercancel", onPointer);
+      window.removeEventListener("touchend", onTouch);
+      window.removeEventListener("touchcancel", onTouch);
+      window.removeEventListener("blur", later);
+    };
+  }, [gRef]);
 
   // Clear the shared svg reference when the board unmounts.
   useEffect(

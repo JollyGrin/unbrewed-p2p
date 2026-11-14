@@ -10,7 +10,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { CloseIcon, RepeatIcon } from "@chakra-ui/icons";
-import { FC } from "react";
+import { FC, useMemo } from "react";
 import {
   BoardToken,
   DEFAULT_CARD_TOKEN_WIDTH,
@@ -44,7 +44,14 @@ export const CardTokenPanel: FC<{
   onClose,
 }) => {
   const size = token.size ?? DEFAULT_CARD_TOKEN_WIDTH;
-  const range = cardTokenSizeRange(size);
+  // Stretched once per card, from the size it had when its panel opened: a
+  // range that followed the slider would close in behind it, and a card
+  // stored at 50 could never get back below 90 (#1629 review).
+  const range = useMemo(
+    () => cardTokenSizeRange(size),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token.id],
+  );
 
   return (
     <Box

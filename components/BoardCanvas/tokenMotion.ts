@@ -478,6 +478,21 @@ export function createTokenAnimator(opts: { onFlipMid?: () => void } = {}) {
       s.flip = { p: 0, prev: { faceDown: false, flipped: d.flipped } };
   };
 
+  /** Put a held token down where it is. Does nothing to one already down. */
+  const release = (s: Sim) => {
+    if (!s.held) return;
+    s.held = false;
+    if (!enabled) {
+      snap(s);
+      return write(s);
+    }
+    // the wire position is this one rounded: don't spring a sub-pixel
+    s.x = s.tx = Math.round(s.x);
+    s.y = s.ty = Math.round(s.y);
+    write(s);
+    kick();
+  };
+
   const api = {
     /** Start a render: plan what may animate against the previous one. */
     beginRender(
@@ -657,17 +672,19 @@ export function createTokenAnimator(opts: { onFlipMid?: () => void } = {}) {
 
     dragEnd(id: string) {
       const s = sims.get(id);
-      if (!s) return;
-      s.held = false;
-      if (!enabled) {
-        snap(s);
-        return write(s);
-      }
-      // the wire position is this one rounded: don't spring a sub-pixel
-      s.x = s.tx = Math.round(s.x);
-      s.y = s.ty = Math.round(s.y);
-      write(s);
-      kick();
+      if (s) release(s);
+    },
+
+    /**
+     * Put down every token still held. The board calls this once the pointer
+     * is certainly up (window-level release, blur), in case a drag's own end
+     * never arrived. A no-op when nothing is held, so it is safe after
+     * `dragEnd`.
+     */
+    releaseAll() {
+      sims.forEach((s) => {
+        if (s.held) release(s);
+      });
     },
 
     rectOf(id: string): DOMRect | null {

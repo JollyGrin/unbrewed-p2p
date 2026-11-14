@@ -336,6 +336,39 @@ describe("createTokenAnimator with motion", () => {
     motion.dispose();
   });
 
+  it("puts down a token whose drag never ended, and is harmless otherwise", () => {
+    const motion = createTokenAnimator();
+    const nodes = new Map<string, SVGGElement>();
+    render(motion, nodes, [tok("a#1"), tok("a#2")]);
+    const node = nodes.get("a#1")!;
+    // nothing held: nothing changes and no frame is requested
+    motion.releaseAll();
+    expect(node.getAttribute("transform")).toBe("translate(100, 100)");
+    expect(frames).toHaveLength(0);
+
+    motion.dragStart("a#1");
+    motion.dragTo("a#1", 180.6, 140.2);
+    run(400);
+    expect(node.getAttribute("transform")).toContain("scale(1.07, 1.07)");
+    // the drag's own end never arrives; the window-level release does
+    motion.releaseAll();
+    run(900);
+    expect(node.getAttribute("transform")).toBe("translate(181, 140)");
+    expect(node.style.filter).toBe("");
+    expect(frames).toHaveLength(0);
+
+    // a late or duplicate end changes nothing
+    motion.dragEnd("a#1");
+    motion.releaseAll();
+    expect(node.getAttribute("transform")).toBe("translate(181, 140)");
+    expect(frames).toHaveLength(0);
+    // and the untouched token never moved
+    expect(nodes.get("a#2")!.getAttribute("transform")).toBe(
+      "translate(100, 100)",
+    );
+    motion.dispose();
+  });
+
   it("drops in a card this client played, and fades one it sent to a pile", () => {
     const motion = createTokenAnimator();
     const nodes = new Map<string, SVGGElement>();
