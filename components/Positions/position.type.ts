@@ -192,10 +192,37 @@ export type LegacyPositionType = {
 
 export const DEFAULT_TOKEN_SIZE = 72;
 
-/** Card tokens keep the 63x88 card aspect; size = width in board px.
- * Cards land at full size (the resize slider's max) — readable first,
- * shrink later if the table gets crowded. */
-export const DEFAULT_CARD_TOKEN_WIDTH = 260;
+/**
+ * Card tokens keep the 63x88 card aspect; size = width in board px.
+ *
+ * A played card lands at 180: about a space and a half of the 1200x1000 map,
+ * so its title and value read at the default zoom without burying the spaces
+ * around it. (It was 260, which covered about four spaces.) Tokens already on
+ * a table carry their own `size` and are never resized by this.
+ */
+export const DEFAULT_CARD_TOKEN_WIDTH = 180;
+
+/**
+ * Cards that are put on the table for reference rather than played there:
+ * a boost flipped off the deck, a revealed hand, the hero and rule cards.
+ */
+export const COMPACT_CARD_TOKEN_WIDTH = 130;
+
+/** The size slider's range: the default sits in the middle of it. */
+export const CARD_TOKEN_MIN_WIDTH = 90;
+export const CARD_TOKEN_MAX_WIDTH = 270;
+
+/**
+ * Slider bounds for a card token of this width. A token sized outside the
+ * usual range (an older table: the slider used to run 50 to 260) keeps its
+ * size, and the slider stretches to hold it instead of clamping it.
+ */
+export const cardTokenSizeRange = (
+  size: number,
+): { min: number; max: number } => ({
+  min: Math.min(CARD_TOKEN_MIN_WIDTH, size),
+  max: Math.max(CARD_TOKEN_MAX_WIDTH, size),
+});
 
 export const cardTokenHeight = (width: number) =>
   Math.round((width * 88) / 63);
@@ -212,6 +239,12 @@ export type PlayCardToTable = (
     screenPos?: { x: number; y: number };
     /** Rendered width in board px; defaults to DEFAULT_CARD_TOKEN_WIDTH. */
     size?: number;
+    /**
+     * Where on screen the card is drawn as it is played (the drag ghost, its
+     * hand slot, the deck button), so the token arrives from there. Motion
+     * only: the token is placed by `screenPos` or the viewport centre.
+     */
+    from?: { x: number; y: number; width: number; rot?: number };
   },
 ) => void;
 
