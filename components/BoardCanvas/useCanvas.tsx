@@ -3,6 +3,7 @@ import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react"
 import { OwnedToken } from "../Positions/position.type";
 import { IconSvg, tokenMarkup, tokenSize } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
+import { setBoardViewControls } from "./boardView";
 
 /** The map image's size; the first render fits it to the viewport. */
 const MAP_W = 1200;
@@ -306,16 +307,21 @@ export const useCanvas = ({
       };
     }
 
-    // fit + center the map on first render (moves map and tokens together)
-    if (isFirstRender) {
+    // fit + center the map (moves map and tokens together)
+    const fitView = () => {
       const scale = Math.min(width / MAP_W, height / MAP_H, 1);
       const tx = (width - MAP_W * scale) / 2;
       const ty = (height - MAP_H * scale) / 2;
-      canvas.call(
-        zoom.transform,
-        d3.zoomIdentity.translate(tx, ty).scale(scale),
-      );
-    }
+      return d3.zoomIdentity.translate(tx, ty).scale(scale);
+    };
+    if (isFirstRender) canvas.call(zoom.transform, fitView());
+
+    // Keyboard zoom / recentre (lib/keybinds), a short glide like the wheel.
+    setBoardViewControls({
+      zoomBy: (factor) =>
+        canvas.transition().duration(140).call(zoom.scaleBy, factor),
+      fit: () => canvas.transition().duration(220).call(zoom.transform, fitView()),
+    });
 
     // Publish the live transform (covers the initial fit and any resize/re-run)
     // so a freshly-mounted overlay gets the current value without a zoom event.
@@ -345,5 +351,11 @@ export const useCanvas = ({
   ]);
 
   // Clear the shared svg reference when the board unmounts.
-  useEffect(() => () => setBoardSvg(null), []);
+  useEffect(
+    () => () => {
+      setBoardSvg(null);
+      setBoardViewControls(null);
+    },
+    [],
+  );
 };

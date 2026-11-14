@@ -19,6 +19,7 @@ import {
   OwnedToken,
   PlayCardToTable,
   PositionBlob,
+  canFlip,
   cardTokenHeight,
   migrateBlob,
   newTokenId,
@@ -67,6 +68,9 @@ import {
 import { GameMenusProvider } from "@/components/Game/GameMenus/game-menus";
 import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
 import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
+import { KeybindLayer } from "@/components/Game/Keybinds/keybind-layer";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
+import { useBoardKeybinds } from "@/components/Game/Keybinds/use-board-keybinds";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
@@ -135,6 +139,7 @@ export const GameShell = () => {
           openModal={requestModal}
           openTokenLibrary={tokenLibraryDisclosure.onOpen}
         />
+        <KeybindLayer />
       </GameMenusProvider>
     </GameLayout>
   );
@@ -536,6 +541,39 @@ const BoardContainer = ({
     logAction(`Asked to pick up ${pickupToken.owner}'s card`);
   }, [pickupToken, claimTableCard, logAction]);
 
+  // Keyboard shortcuts for the selection (lib/keybinds): the same calls the
+  // panels below make, offered only while they apply.
+  const selectedCard = selected?.card ? selected : null;
+  const selectedPiece = !selectedCard && selected?.imageUrl ? selected : null;
+  useBoardKeybinds({
+    flip: selectedCard
+      ? () => flipTableCard(selectedCard)
+      : selectedPiece && !selectedPiece.overlay && canFlip(selectedPiece)
+        ? () => flipPiece(selectedPiece)
+        : undefined,
+    toHand: selectedCard
+      ? () => returnTableCard(selectedCard, addCardToHand, "Returned a card to hand")
+      : undefined,
+    remove: selectedCard
+      ? () =>
+          returnTableCard(
+            selectedCard,
+            addCardToDiscard,
+            "Discarded a card from the table",
+          )
+      : selectedPiece
+        ? () => deleteToken(selectedPiece.id)
+        : undefined,
+    clear:
+      selectedId || pickupId
+        ? () => {
+            setSelectedId(null);
+            setPickupId(null);
+            setPeek(null);
+          }
+        : undefined,
+  });
+
   return (
     <Box h={"100%"} minH={0} overflow="hidden" position="relative">
       <BoardCanvas
@@ -562,6 +600,7 @@ const BoardContainer = ({
         zIndex={250}
         size="sm"
         leftIcon={<PlusSquareIcon />}
+        rightIcon={<KeyHint action="addToken" />}
         bg="brand.parchment"
         color="brand.surfaceDim"
         fontFamily="SpaceGrotesk"

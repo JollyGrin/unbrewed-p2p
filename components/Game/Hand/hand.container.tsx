@@ -35,6 +35,7 @@ import { ScryModal } from "@/components/Game/CommandMenu/scry.modal";
 import { PileSplitButton } from "./pile-split-button";
 import { HandActionsButton } from "./hand-actions-button";
 import { PassDeviceCover } from "./pass-device.cover";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
 
 type GameData = {
   gameState: WebsocketMessage | undefined;
@@ -289,16 +290,19 @@ export const HandContainer = ({
           onClick={() => playerState?.pool && gDraw(playerState?.pool)}
         >
           Draw +1
+          <KeyHint action="draw1" />
         </PileButton>
         <PileSplitButton
           label={`Deck (${playerState?.pool?.deck?.length ?? 0})`}
           onPrimary={() => setModal("deck")}
+          shortcut="search"
           commands={deckCommands}
           pool={playerState?.pool}
         />
         <PileSplitButton
           label={`Discard (${playerState?.pool?.discard?.length ?? 0})`}
           onPrimary={() => setModal("discard")}
+          shortcut="openDiscard"
           commands={discardCommands}
           pool={playerState?.pool}
         />

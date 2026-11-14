@@ -28,6 +28,8 @@ import {
   useSwitchSeat,
 } from "@/lib/hotseat/useHotseat";
 import { useSwitchSeatKeyLabel } from "@/lib/hotseat/switchSeatKey";
+import { useKeybindCommands, useTableCommands } from "@/lib/keybinds/handlers";
+import { KeyHint, useKeyLabels } from "@/components/Game/Keybinds/key-hint";
 
 export const CommandMenu: React.FC<{
   openModal: (type: ModalType) => void;
@@ -172,13 +174,23 @@ export const CommandMenu: React.FC<{
     [pool, deckLen, discardLen, handLen, menus, hotseat, switchSeat, seatLabel, switchKey],
   );
 
+  // Table actions with a shortcut (flip the selected card, zoom, the
+  // activity log, the shortcuts list) are listed too, each under its group.
+  const tableCommands = useTableCommands(close);
+  const listed = useMemo(() => {
+    const all = [...commands, ...tableCommands];
+    const groups = Array.from(new Set(all.map((c) => c.group)));
+    return groups.flatMap((g) => all.filter((c) => c.group === g));
+  }, [commands, tableCommands]);
+  const keyLabel = useKeyLabels();
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return commands;
-    return commands.filter((c) =>
+    if (!q) return listed;
+    return listed.filter((c) =>
       `${c.label} ${c.group} ${c.keywords ?? ""}`.toLowerCase().includes(q),
     );
-  }, [commands, query]);
+  }, [listed, query]);
 
   useEffect(() => {
     setCursor((c) => Math.min(c, Math.max(0, filtered.length - 1)));
@@ -188,6 +200,9 @@ export const CommandMenu: React.FC<{
   // "New game" is exactly what you want when your deck failed to build.
   const isRunnable = (cmd: DeckCommand) =>
     pool ? cmd.enabled(pool) : cmd.group === "Game";
+
+  // A shortcut runs the same command a click here does (lib/keybinds).
+  useKeybindCommands(commands, isRunnable);
 
   const runAt = (index: number) => {
     const cmd = filtered[index];
@@ -282,7 +297,8 @@ export const CommandMenu: React.FC<{
                     onClick={() => runAt(index)}
                     fontFamily={fonts.SpaceGrotesk}
                   >
-                    <Text>{cmd.label}</Text>
+                    <Text flex="1">{cmd.label}</Text>
+                    <KeyHint action={cmd.id} />
                   </Flex>
                 </Box>
               );
@@ -306,6 +322,11 @@ export const CommandMenu: React.FC<{
             <span>
               <Kbd>esc</Kbd> close
             </span>
+            {keyLabel("showShortcuts") && (
+              <span style={{ marginLeft: "auto" }}>
+                <Kbd>{keyLabel("showShortcuts")}</Kbd> all shortcuts
+              </span>
+            )}
           </Flex>
         </ModalContent>
       </Modal>

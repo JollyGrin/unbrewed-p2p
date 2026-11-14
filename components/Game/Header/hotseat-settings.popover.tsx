@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { SettingsIcon } from "@chakra-ui/icons";
 import { KeyboardEvent, useState } from "react";
+import { toast } from "react-hot-toast";
 
 import {
   DEFAULT_SWITCH_SEAT_KEY,
@@ -22,6 +23,7 @@ import {
   writeSwitchSeatKey,
 } from "@/lib/hotseat/switchSeatKey";
 import { HotseatFlag, useHotseatFlag } from "@/lib/hotseat/hotseatSettings";
+import { switchSeatKeyClash } from "@/lib/keybinds/switchSeat";
 
 /** The key badge, sized for the header chip and the settings row. */
 export const KeyBadge = ({ label }: { label: string }) => (
@@ -91,8 +93,16 @@ export const HotseatSettings = () => {
     }
     const combo = comboFromKeyEvent(e.nativeEvent);
     if (!combo) return; // a lone modifier: wait for the key
-    writeSwitchSeatKey(combo);
     setRecording(false);
+    // Never take a key another table shortcut already has (lib/keybinds).
+    const clash = switchSeatKeyClash(combo);
+    if (clash) {
+      toast.error(`${combo} is already the key for “${clash}”.`, {
+        id: "switch-seat-key-clash",
+      });
+      return;
+    }
+    writeSwitchSeatKey(combo);
   };
 
   return (
