@@ -43,7 +43,8 @@ import entry37 from "../../content/changelog/2026-10-24-superman.json";
 import entry38 from "../../content/changelog/2026-10-31-xenomorph.json";
 import entry39 from "../../content/changelog/2026-11-08-quick-play.json";
 import entry40 from "../../content/changelog/2026-11-09-william-afton.json";
+import entry41 from "../../content/changelog/2026-11-14-sandbox-table-polish.json";
 
 // Cast needed: JSON imports infer `tags` as string[], not ChangelogTag[].
 // entries.ts validates the real shape at runtime.
-export const rawChangelogEntries = [entry0, entry1, entry2, entry3, entry4, entry5, entry6, entry7, entry8, entry9, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17, entry18, entry19, entry20, entry21, entry22, entry23, entry24, entry25, entry26, entry27, entry28, entry29, entry30, entry31, entry32, entry33, entry34, entry35, entry36, entry37, entry38, entry39, entry40] as ChangelogEntry[];
+export const rawChangelogEntries = [entry0, entry1, entry2, entry3, entry4, entry5, entry6, entry7, entry8, entry9, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17, entry18, entry19, entry20, entry21, entry22, entry23, entry24, entry25, entry26, entry27, entry28, entry29, entry30, entry31, entry32, entry33, entry34, entry35, entry36, entry37, entry38, entry39, entry40, entry41] as ChangelogEntry[];
