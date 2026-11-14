@@ -1,26 +1,21 @@
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Button,
   Flex,
   Grid,
   Link as ChakraLink,
   Text,
-  Tooltip,
 } from "@chakra-ui/react";
-import { keyframes } from "@emotion/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { FaArrowLeft, FaHeart } from "react-icons/fa";
-import { TbInfoCircle } from "react-icons/tb";
+import { FaArrowLeft } from "react-icons/fa";
 import {
   POPULAR_DECKS,
   PopularDeckMeta,
 } from "@/lib/constants/top-decks";
 import { DECK_HERO_IDS } from "@/lib/pro/useProCardArt";
 import { DISCORD_FALLBACK_INVITE } from "@/lib/hooks/useDiscordWidget";
-import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { useProLiveRosterState } from "@/lib/pro/useProLiveRoster";
 import { PRO_WS_URL } from "@/lib/pro/wsUrl";
 import { useFlag } from "@/lib/flags";
@@ -29,66 +24,70 @@ import { AccountChip } from "@/components/Account/AccountChip";
 const NextMatchBanner = dynamic(() => import("@/components/Tournaments/NextMatchBanner").then((m) => m.NextMatchBanner), {
   ssr: false,
 });
-import { DeckAttribution } from "@/components/Pro/DeckAttribution";
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
-import { MAP_CATALOG, FORMAT_BADGE, eligibleFormats } from "@/lib/pro/mapCatalog";
-import type { BotDifficulty, HeroListing } from "@/lib/pro/protocol";
-import { vsParamFor } from "@/lib/pro/vsParam";
+import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
+import type { HeroListing } from "@/lib/pro/protocol";
+import { FALLBACK_BOT_TIERS, TIER_ORDER, botTierMeta } from "@/lib/pro/botTiers";
+import { lookingCount } from "@/lib/pro/quickPlayLobby";
+import { listRecentHeroes } from "@/lib/pro/recentRooms";
+import { getChangelogEntries } from "@/lib/changelog/entries";
+import type { ChangelogEntry } from "@/lib/changelog/types";
+import { posterUrl } from "@/lib/changelog/media";
+import {
+  FEED_LIMIT,
+  entryKindLabel,
+  featuredEntries,
+  feedDate,
+  launcherCtaHref,
+  proFeedEntries,
+  takeUnseenProEntries,
+} from "@/lib/pro/launcherFeed";
+import { listTournaments } from "@/lib/tournaments/api";
+import { tournamentPath } from "@/lib/tournaments/links";
+import type { Tournament } from "@/lib/tournaments/types";
 
 /**
- * The roster is server-first, exactly like the game page's fighter picker
- * (pages/pro/game.tsx): the live LIST_HEROES reply IS the roster, and each
- * entry's tier decides whether it renders as a battle-ready or an in-the-lab
- * tile. A hero merged into the engine therefore appears here with zero
- * frontend edits, and the two surfaces can't drift — they read the same list.
+ * /pro — the Pro launcher (unbrewed-p2p-1626).
  *
- * POPULAR_DECKS is joined in (by DECK_HERO_IDS) for presentation only: card-back
- * art, like count, highlight colour, and the deck id the preview modal fetches.
- * A served hero with no tile entry still renders — plain colour, server name,
- * no likes badge. Decks the server does not serve simply aren't listed — the
- * page points at Discord instead of advertising a queue that goes stale (#642).
+ * This page used to be a second, non-working copy of the `/pro/game` picker: a
+ * fighter grid, a seat strip and a board picker that were all just links, most
+ * of whose choices were dropped on the way in. Regulars bookmark the lobby, so
+ * the page now has a different job:
  *
- * There is deliberately no hardcoded heroId→name fallback here: a hand-kept
- * snapshot is exactly what went stale before (prod advertised 14 battle-ready
- * while the server served 15). Pre-reply we show skeletons; if the socket never
- * connects we say so.
+ *  - a front door for NEW players (what Pro is, and one obvious first game:
+ *    the Easy bot), and
+ *  - a news board for RETURNING ones (the newest fighters and features, what's
+ *    new since their last visit, and a way straight back to their fighters).
+ *
+ * It never asks a question `/pro/game` asks again. Every play button is a door
+ * into the lobby carrying at most ONE preset (`?vs=`, `?quick=1`, `?hero=`).
+ *
+ * Data, all already public: the changelog (`pro: true` entries) for the feed,
+ * the live LIST_HEROES roster (+ LIST_LOBBIES for "N waiting"), the public
+ * tournaments list, and this browser's recently played fighters, which is also
+ * what tells a returning player from a new one.
  */
 type RosterStatus = "ready" | "lab";
 
 interface RosterEntry {
   /** stable identity: the server hero id */
   key: string;
-  /** tile caption — the full deck title (may carry a ` ★` reflavored suffix) */
+  /** the full deck title (may carry a ` ★` reflavored suffix) */
   name: string;
-  /** just the fighter, for the announcer and tooltips ("Voldemort", not
-   *  "Voldemort (The Wizarding World)") */
+  /** just the fighter ("Voldemort", not "Voldemort (The Wizarding World)") */
   shortName: string;
   status: RosterStatus;
-  /** server hero id — set for everything the server actually serves */
-  heroId?: string;
-  /** the server listing, for ready/lab entries */
-  listing?: HeroListing;
+  heroId: string;
+  listing: HeroListing;
   /** presentation extras, when a top-decks tile exists for this hero */
   deck?: PopularDeckMeta;
 }
 
+type Visitor = "new" | "returning";
+
 /** Tile colour for a served hero with no top-decks entry yet. */
 const DEFAULT_HIGHLIGHT = "#3B2A47";
-
-const tileIn = keyframes`
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-`;
-
-const readyPulse = keyframes`
-  0%, 100% { box-shadow: 0 0 0 2px #E0A82E, 0 0 18px rgba(224, 168, 46, 0.35); }
-  50%      { box-shadow: 0 0 0 2px #E0A82E, 0 0 30px rgba(224, 168, 46, 0.65); }
-`;
-
-/** Every entrance/pulse animation on this page opts out under prefers-reduced-motion. */
-const REDUCED_MOTION = "@media (prefers-reduced-motion: reduce)";
-const NO_MOTION = { [REDUCED_MOTION]: { animation: "none", opacity: 1, transform: "none" } };
 
 /** Select-screen tag: a solid gold, slightly skewed chip (text stays upright). */
 const skewChip = (deg = -6) => ({
@@ -96,32 +95,81 @@ const skewChip = (deg = -6) => ({
   "& > *": { transform: `skewX(${-deg}deg)` },
 });
 
+const CARD = {
+  p: "0.9rem 1rem",
+  borderRadius: "0.6rem",
+  bg: "rgba(250,235,215,0.05)",
+  border: "1px solid rgba(250,235,215,0.12)",
+} as const;
+
+const GOLD_BTN = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontFamily: "SpaceGrotesk",
+  fontWeight: 700,
+  fontSize: "0.85rem",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase" as const,
+  px: "1.1rem",
+  py: "0.6rem",
+  borderRadius: "0.4rem",
+  bg: "brand.accent",
+  color: "brand.surfaceDim",
+  _hover: { bg: "brand.accentDeep", textDecoration: "none" },
+  transition: "background 0.15s",
+};
+
+const GHOST_BTN = {
+  ...GOLD_BTN,
+  fontWeight: 600,
+  bg: "rgba(20,8,24,0.4)",
+  color: "brand.parchment",
+  border: "1px solid rgba(250,235,215,0.35)",
+  _hover: { bg: "whiteAlpha.200", textDecoration: "none" },
+};
+
 export const ProLanding = () => {
   const [replaysEnabled] = useFlag("replays");
-  const [picked, setPicked] = useState<RosterEntry>();
-  const [hovered, setHovered] = useState<RosterEntry>();
-  const [previewEntry, setPreviewEntry] = useState<RosterEntry>();
-  // The seat strip's P2 occupant — display-scale only. It exists to set the
-  // difficulty the primary CTA carries in `?vs=`, not to create a room here.
-  const [p2, setP2] = useState<SeatOccupant>("medium");
   const router = useRouter();
   // `?debug` (any value, incl. bare `?debug`) reveals debug-only decks the
   // server hides by default. See lib/pro/protocol.ts v15/v18.
   const debug = router.query.debug !== undefined;
-  const { heroes: liveHeroes, offline } = useProLiveRosterState(PRO_WS_URL, debug);
+  const { heroes: liveHeroes, offline, lobbies } = useProLiveRosterState(PRO_WS_URL, debug, true, true);
+  const [previewEntry, setPreviewEntry] = useState<RosterEntry>();
+  const [showAllFighters, setShowAllFighters] = useState(false);
+  const aboutRef = useRef<HTMLDetailsElement>(null);
 
-  // The server's reply IS the roster. Everything below is a projection of it;
-  // POPULAR_DECKS only decorates. Note the server already applies the debug
-  // gate — reflavored/lab-only heroes are simply absent from a non-debug
-  // reply — so there is no client-side visibility filter to keep in sync.
+  // Browser-only reads happen after mount, so the static export and the first
+  // client render agree (the new-player view, which is also what crawlers see).
+  const [visitor, setVisitor] = useState<Visitor>("new");
+  const [recentHeroIds, setRecentHeroIds] = useState<string[]>([]);
+  const [unseen, setUnseen] = useState<Set<string>>(new Set());
+  const feed = useMemo(() => proFeedEntries(getChangelogEntries()), []);
+  const featured = useMemo(() => featuredEntries(feed), [feed]);
+  const [slide, setSlide] = useState(0);
+  const [tournaments, setTournaments] = useState<Tournament[] | null>(null);
+
+  useEffect(() => {
+    const recent = listRecentHeroes();
+    setRecentHeroIds(recent);
+    setVisitor(recent.length > 0 ? "returning" : "new");
+    setUnseen(takeUnseenProEntries(feed));
+  }, [feed]);
+
+  useEffect(() => {
+    let alive = true;
+    void listTournaments().then((r) => {
+      if (alive && r.ok) setTournaments(r.value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // The server's reply IS the roster; POPULAR_DECKS only decorates it.
   const roster: RosterEntry[] = (liveHeroes ?? []).map((listing) => {
     const deck = deckForHeroId(listing.heroId);
-    // Prefer the curated tile copy where it exists: the engine's own display
-    // names are raw deck titles ("TRICERATOPS", a trailing-space "gingerbread
-    // man ") that read badly on a landing page. The server name is the
-    // fallback, so a hero with no tile entry still renders with a real name.
-    // Under ?debug a reflavored deck gets a ` ★` so it reads apart from the
-    // identically named spice remix that replaced it.
     const serverName = listing.name.trim();
     const star = listing.tier === "reflavored" ? " ★" : "";
     return {
@@ -134,592 +182,546 @@ export const ProLanding = () => {
       deck,
     };
   });
-
   const readyEntries = roster.filter((e) => e.status === "ready");
   const labEntries = roster.filter((e) => e.status === "lab");
-  // Ready tiles first, then lab.
-  const gridEntries = [...readyEntries, ...labEntries];
+  const rosterById = new Map(roster.map((e) => [e.heroId, e]));
+  const recentFighters = recentHeroIds
+    .map((id) => rosterById.get(id))
+    .filter((e): e is RosterEntry => !!e)
+    .slice(0, 4);
+
+  // Every tier any served hero advertises, in ladder order (the always-on set
+  // when the server doesn't advertise per-hero tiers).
+  const advertisedTiers = new Set<string>(FALLBACK_BOT_TIERS);
+  for (const h of liveHeroes ?? []) for (const t of h.botTiers ?? []) advertisedTiers.add(t);
+  const ladder = TIER_ORDER.filter((t) => advertisedTiers.has(t)).map(botTierMeta);
+
+  const waiting = lobbies ? lookingCount(lobbies) : null;
+  const openEvents = (tournaments ?? [])
+    .filter((t) => t.status === "running" || (t.status === "signup" && t.signupOpen))
+    .slice(0, 2);
 
   // Every internal link keeps the debug session alive.
   const withDebug = (href: string) =>
     debug ? `${href}${href.includes("?") ? "&" : "?"}debug=1` : href;
-  // Primary CTA follows the seat strip: a bot seat carries its difficulty into
-  // the create screen's `?vs=` preset; a human seat is just the normal create flow.
-  const primaryHref =
-    p2 === "human" ? withDebug("/pro/game") : withDebug(`/pro/game?vs=${vsParamFor(p2)}`);
-  const primaryLabel = p2 === "human" ? "Create a room →" : "Play vs Bot →";
 
-  // Announcer reacts to hover first (the live cursor), falling back to the pick.
-  const spotlight = hovered ?? picked;
-  const announcer = !spotlight
-    ? "Pick a fighter — gold tiles jump straight into a match"
-    : spotlight.status === "ready"
-      ? `${spotlight.shortName.toUpperCase()} IS READY — CLICK TO ENTER THE ARENA`
-      : `${spotlight.shortName.toUpperCase()} IS IN THE LAB — STRESS-TESTING THE RULES ENGINE`;
+  const isNew = visitor === "new";
+  const boardCount = MAP_CATALOG.filter((entry) => !entry.hidden).length;
+  const current = featured[Math.min(slide, featured.length - 1)];
+
+  const openAbout = () => {
+    const el = aboutRef.current;
+    if (!el) return;
+    el.open = true;
+    el.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
 
   return (
-    <Box
-      position="relative"
-      minH="100svh"
-      bg="brand.surfaceDim"
-      color="brand.parchment"
-      overflowX="clip"
-    >
-      {/* Looping footage of a real Pro game, mounted after hydration and only
-          when the gates allow it. Sits beneath the backdrop below, which is its
-          scrim. */}
+    <Box position="relative" minH="100svh" bg="brand.surfaceDim" color="brand.parchment" overflowX="clip">
+      {/* Looping footage of a real Pro game behind the top of the page, mounted
+          after hydration and only when the gates allow it. */}
       <ProHeroVideo />
-
-      {/* subtle arena backdrop: radial spotlight + scanline grain */}
       <Box
         position="fixed"
         inset="0"
         pointerEvents="none"
-        bg="radial-gradient(ellipse 80% 60% at 50% -10%, rgba(224,168,46,0.14), transparent 60%),
-            repeating-linear-gradient(0deg, rgba(250,235,215,0.015) 0 1px, transparent 1px 3px)"
+        bg="radial-gradient(ellipse 80% 60% at 50% -10%, rgba(224,168,46,0.14), transparent 60%)"
       />
 
-      <Box position="relative" maxW="64rem" mx="auto" px="1.25rem" pb="6rem">
+      <Box position="relative" maxW="64rem" mx="auto" px={{ base: "1rem", md: "1.25rem" }} pb="5rem">
         {/* header */}
-        <Flex
-          as="header"
-          justifyContent="space-between"
-          alignItems="center"
-          py="1.25rem"
-        >
-          <ChakraLink
-            as={Link}
-            href="/"
-            display="flex"
-            alignItems="center"
-            gap="0.5rem"
-            fontFamily="SpaceGrotesk"
-            fontSize="0.85rem"
-            opacity={0.7}
-            _hover={{ opacity: 1, textDecoration: "none" }}
-          >
-            <FaArrowLeft size="0.7rem" /> unbrewed
-          </ChakraLink>
-          <Flex alignItems="center" gap="0.75rem">
-            <Flex
+        <Flex as="header" justifyContent="space-between" alignItems="center" py="1rem" gap="0.75rem">
+          <Flex alignItems="center" gap="0.9rem" minW={0}>
+            <ChakraLink
+              as={Link}
+              href="/"
+              display="flex"
+              alignItems="center"
+              gap="0.4rem"
               fontFamily="SpaceGrotesk"
-              fontSize="0.7rem"
+              fontSize="0.8rem"
+              opacity={0.7}
+              _hover={{ opacity: 1, textDecoration: "none" }}
+            >
+              <FaArrowLeft size="0.65rem" /> unbrewed
+            </ChakraLink>
+            <Text
+              as="h1"
+              fontFamily="LeagueGothic"
+              textTransform="uppercase"
+              fontSize={{ base: "1.6rem", md: "1.9rem" }}
+              lineHeight="1"
+              whiteSpace="nowrap"
+            >
+              Unbrewed{" "}
+              <Box as="span" color="brand.accent">
+                Pro
+              </Box>
+            </Text>
+            <Flex
+              display={{ base: "none", sm: "flex" }}
+              fontFamily="SpaceGrotesk"
+              fontSize="0.6rem"
               fontWeight={700}
               letterSpacing="0.2em"
-              px="0.7rem"
-              py="0.25rem"
+              px="0.55rem"
+              py="0.15rem"
               bg="brand.accent"
               color="brand.surfaceDim"
               sx={skewChip()}
             >
               <Text>OPEN BETA</Text>
             </Flex>
-            {/* Optional Discord account (#459) — hidden entirely unless the
-                accounts API answers; Pro itself needs no account. */}
-            <AccountChip />
           </Flex>
+          {/* Optional Discord account (#459) — hidden unless the accounts API answers. */}
+          <AccountChip />
         </Flex>
 
         {/* Tournaments (#1220): only for a signed-in entrant with an open match. */}
-        <Box mt="1.5rem">
-          <NextMatchBanner />
-        </Box>
+        <NextMatchBanner />
 
-        {/* title block */}
-        <Box as="section" mt="2.5rem" mb="2rem">
-          <Text
-            fontFamily="LeagueGothic"
-            textTransform="uppercase"
-            fontSize={{ base: "4rem", md: "6.5rem" }}
-            lineHeight="0.85"
-            letterSpacing="0.01em"
-          >
-            Unbrewed{" "}
-            <Box as="span" color="brand.accent">
-              Pro
-            </Box>
-          </Text>
-          <Text
-            mt="1.25rem"
-            maxW="38rem"
-            fontFamily="ArchivoNarrow"
-            fontSize="1.1rem"
-            lineHeight="1.55"
-            opacity={0.9}
-          >
-            Full rules enforcement for Unmatched, in your browser. A referee
-            server allows only legal moves, does the combat math for you, and
-            keeps hands truly hidden — so you can battle a friend, a stranger,{" "}
-            <b>or a bot, right now</b>. No account, no install: pick a fighter
-            and go.
-          </Text>
-          <Text
-            mt="0.9rem"
-            maxW="38rem"
-            fontFamily="SpaceGrotesk"
-            fontSize="0.8rem"
-            lineHeight="1.6"
-            opacity={0.55}
-          >
-            Every deck is hand-converted into engine rules, so the roster grows a
-            few fighters at a time
-            {readyEntries.length > 0 && ` — ${readyEntries.length} are battle-ready today`}.
-            The free-form sandbox isn&apos;t going anywhere; Pro is an additional
-            way to play.
-          </Text>
-        </Box>
+        {/* banner: the intro for a new player, the newest updates for a returning one */}
+        {isNew || !current ? (
+          <Banner
+            kicker="Rules-enforced Unmatched"
+            title="A referee for every game"
+            text="Play community Unmatched decks in your browser. Only legal moves are allowed, the combat math is done for you, and hands stay hidden. Play a bot, a friend or a stranger. No account, no install."
+            primary={{ label: "Play your first game →", href: withDebug("/pro/game?vs=ai-easy") }}
+            secondary={{ label: "What's new", href: "#whats-new" }}
+          />
+        ) : (
+          <Banner
+            kicker={`${entryKindLabel(current)} · ${feedDate(current.date)}`}
+            title={current.title}
+            text={current.summary}
+            art={current.video ? posterUrl(current.video.slug) : null}
+            primary={
+              launcherCtaHref(current)
+                ? { label: `${current.cta?.label ?? "Play now"} →`, href: withDebug(launcherCtaHref(current)!) }
+                : { label: "Play →", href: withDebug("/pro/game") }
+            }
+            secondary={{ label: "All updates", href: "/changelog" }}
+            slides={featured.length}
+            slide={slide}
+            onSlide={setSlide}
+          />
+        )}
 
-        {/* above-the-fold CTAs */}
-        <Flex as="section" flexDir="column" gap="0.9rem">
-          <Flex gap="0.7rem" flexWrap="wrap" alignItems="center">
-            <ChakraLink
-              as={Link}
-              href={primaryHref}
-              display="inline-flex"
-              alignItems="center"
-              fontFamily="SpaceGrotesk"
-              fontWeight={700}
-              fontSize="0.95rem"
-              letterSpacing="0.08em"
-              textTransform="uppercase"
-              px="1.6rem"
-              py="0.8rem"
-              bg="brand.accent"
-              color="brand.surfaceDim"
-              _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
-              transition="background 0.15s"
-              sx={skewChip()}
-            >
-              <Text>{primaryLabel}</Text>
-            </ChakraLink>
-            <ChakraLink
-              as={Link}
-              href={withDebug("/pro/game")}
-              display="inline-flex"
-              alignItems="center"
-              fontFamily="SpaceGrotesk"
-              fontSize="0.95rem"
-              letterSpacing="0.08em"
-              textTransform="uppercase"
-              px="1.6rem"
-              py="0.8rem"
-              border="1px solid"
-              borderColor="whiteAlpha.400"
-              color="brand.parchment"
-              _hover={{ bg: "whiteAlpha.200", textDecoration: "none" }}
-              transition="background 0.15s"
-              sx={skewChip()}
-            >
-              <Text>Challenge a friend</Text>
-            </ChakraLink>
-            {/* Quick Match (#687): the "just find me a game" door. Lands on the
-                create screen with the button armed — the fighter pick still
-                belongs to the player, so it deliberately does not auto-fire. */}
-            <ChakraLink
-              as={Link}
-              href={withDebug("/pro/game?quick=1")}
-              display="inline-flex"
-              alignItems="center"
-              fontFamily="SpaceGrotesk"
-              fontSize="0.95rem"
-              letterSpacing="0.08em"
-              textTransform="uppercase"
-              px="1.6rem"
-              py="0.8rem"
-              border="1px solid"
-              borderColor="whiteAlpha.400"
-              color="brand.parchment"
-              _hover={{ bg: "whiteAlpha.200", textDecoration: "none" }}
-              transition="background 0.15s"
-              sx={skewChip()}
-            >
-              <Text>⚡ Quick Match</Text>
-            </ChakraLink>
-          </Flex>
-
-          <Flex
-            gap="0.75rem"
-            alignItems="center"
-            fontFamily="SpaceGrotesk"
-            fontSize="0.78rem"
-            opacity={0.6}
-          >
-            {/* Replays ships dark: this entry only appears once the beta flag is on. */}
-            {replaysEnabled && (
-              <>
-                <ChakraLink
-                  as={Link}
-                  href="/pro/replays"
-                  textDecoration="underline"
-                  _hover={{ color: "brand.accent" }}
-                >
-                  Replays
-                </ChakraLink>
-                <Text aria-hidden>·</Text>
-              </>
-            )}
-            <ChakraLink
-              as={Link}
-              href="/pro/scenarios"
-              textDecoration="underline"
-              _hover={{ color: "brand.accent" }}
-            >
-              Scenarios
-            </ChakraLink>
-          </Flex>
-
-          {/* seat strip — a display-scale replica of the create screen's seat bar.
-              Its only job is choosing the difficulty the primary CTA carries. */}
-          <Flex
-            mt="0.4rem"
-            gap="0.5rem"
-            alignItems="stretch"
-            flexWrap={{ base: "wrap", sm: "nowrap" }}
-            maxW="34rem"
-          >
-            <SeatPlate tag="P1 · YOU" title="Your fighter" />
-            <Flex
-              alignItems="center"
-              px="0.3rem"
-              fontFamily="LeagueGothic"
-              fontSize="1.6rem"
-              color="#D64545"
-              textShadow="0 2px 12px rgba(214,69,69,0.5)"
-            >
-              VS
-            </Flex>
-            <SeatPlate
-              tag="P2"
-              title={p2 === "human" ? "Open seat" : `Bot · ${p2}`}
-              occupant={p2}
-              onChange={setP2}
-            />
-          </Flex>
-        </Flex>
-
-        {/* pick your mode */}
-        <Box as="section" mt="4rem">
-          <SectionHead>Pick your mode</SectionHead>
-          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="0.75rem">
-            {MODES.map((mode) => (
-              <Box
-                key={mode.title}
-                p="1rem"
-                borderRadius="0.5rem"
-                bg="rgba(250,235,215,0.05)"
-                border="1px solid rgba(250,235,215,0.12)"
-              >
-                <Text
-                  fontFamily="BebasNeueRegular"
-                  fontSize="1.25rem"
-                  letterSpacing="0.06em"
-                  color="brand.accent"
-                >
-                  {mode.title}
-                </Text>
-                <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.2rem">
-                  {mode.text}
-                </Text>
-              </Box>
-            ))}
-          </Grid>
-        </Box>
-
-        {/* roster */}
-        <Flex as="section" flexDir="column" gap="0.9rem" mt="4rem">
-          <Flex alignItems="baseline" justifyContent="space-between" gap="1rem">
-            <SectionHead mb="0">Choose your fighter</SectionHead>
-            <Text
-              fontFamily="SpaceGrotesk"
-              fontSize="0.8rem"
-              color="brand.accent"
-              whiteSpace="nowrap"
-            >
-              {!liveHeroes
-                ? offline
-                  ? "roster offline"
-                  : "loading roster…"
-                : `${readyEntries.length} battle-ready${
-                    labEntries.length > 0 ? ` · ${labEntries.length} in the lab` : ""
-                  }`}
-            </Text>
-          </Flex>
-
-          <Grid
-            templateColumns="repeat(auto-fill, minmax(150px, 1fr))"
-            gap="0.5rem"
-          >
-            {/* Pre-reply the roster is genuinely unknown, so the grid holds its
-                shape with skeletons rather than asserting a stale hero list. */}
-            {!liveHeroes && !offline &&
-              Array.from({ length: SKELETON_TILES }, (_, i) => (
-                <SkeletonTile key={i} index={i} />
-              ))}
-            {gridEntries.map((entry, i) => {
-              // Ready tiles navigate straight into create-a-room with the hero
-              // preselected; lab tiles stay inspect-only. Carry `debug` through
-              // so a reflavored pick stays selectable and the debug session
-              // continues on the game page.
-              const href =
-                entry.status === "ready"
-                  ? withDebug(`/pro/game?hero=${entry.heroId}`)
-                  : undefined;
-              return (
-                <RosterTile
-                  key={entry.key}
-                  entry={entry}
-                  index={i}
-                  href={href}
-                  isPicked={picked?.key === entry.key}
-                  onPick={() => setPicked(entry)}
-                  onHover={setHovered}
-                  onPreview={() => setPreviewEntry(entry)}
-                />
-              );
-            })}
-          </Grid>
-
-          {/* The socket never answered: say so plainly instead of pulsing
-              skeletons forever. Every CTA above still works — the game page
-              runs its own LIST_HEROES and may well succeed. */}
-          {offline && (
-            <Text
-              fontFamily="SpaceGrotesk"
-              fontSize="0.85rem"
-              textAlign="center"
-              opacity={0.6}
-              py="1rem"
-            >
-              Couldn&apos;t reach the referee server, so the roster isn&apos;t
-              listed here. Head into the arena — the fighter picker will load it
-              there.
-            </Text>
-          )}
-
-          {/* announcer bar */}
-          <Flex
-            mt="0.75rem"
-            minH="3.4rem"
+        {/* play bar: doors into the lobby, each carrying at most one preset */}
+        <Flex
+          as="nav"
+          aria-label="Play"
+          mt="0.7rem"
+          gap="0.5rem"
+          flexDir={{ base: "column", md: "row" }}
+          p="0.6rem"
+          borderRadius="0.8rem"
+          bg="linear-gradient(180deg, rgba(224,168,46,0.12), rgba(224,168,46,0.04))"
+          border="1px solid rgba(224,168,46,0.35)"
+        >
+          <ChakraLink
+            as={Link}
+            href={withDebug("/pro/game")}
+            display="flex"
             alignItems="center"
             justifyContent="center"
-            border="1px dashed"
-            borderColor={spotlight ? "brand.accent" : "rgba(250,235,215,0.2)"}
-            borderRadius="0.5rem"
-            px="1rem"
-            transition="border-color 0.2s"
+            px="2rem"
+            py={{ base: "0.4rem", md: 0 }}
+            fontFamily="LeagueGothic"
+            fontSize="2.1rem"
+            letterSpacing="0.06em"
+            bg="brand.accent"
+            color="brand.surfaceDim"
+            boxShadow="0 0 22px rgba(224,168,46,0.45)"
+            _hover={{ bg: "brand.accentDeep", textDecoration: "none" }}
+            sx={skewChip()}
           >
-            <Text
-              fontFamily="BebasNeueRegular"
-              fontSize={{ base: "1.1rem", md: "1.4rem" }}
-              letterSpacing="0.08em"
-              textAlign="center"
-              color={
-                spotlight?.status === "ready" ? "brand.accent" : undefined
-              }
-              opacity={spotlight ? 1 : 0.45}
-            >
-              {announcer}
-            </Text>
-          </Flex>
-
-          {/* Rules support comes deck by deck, so the honest answer to "where
-              is my deck?" is a request channel, not a queue that goes stale. */}
-          <Box
-            p="1rem"
-            borderRadius="0.5rem"
-            bg="rgba(250,235,215,0.05)"
-            border="1px solid rgba(250,235,215,0.12)"
-          >
-            <Text fontFamily="SpaceGrotesk" fontSize="0.9rem" opacity={0.85}>
-              <Text as="span" fontWeight={700}>
-                Want a deck added?
-              </Text>{" "}
-              Request it in the{" "}
-              <ChakraLink
-                href={DISCORD_FALLBACK_INVITE}
-                isExternal
-                fontWeight={700}
-                color="brand.accent"
-                _hover={{ textDecoration: "underline" }}
-              >
-                #pro-deck-request
-              </ChakraLink>{" "}
-              channel on our Discord.
-            </Text>
-          </Box>
+            <Text>PLAY</Text>
+          </ChakraLink>
+          <Grid flex="1" templateColumns={{ base: "1fr", sm: "repeat(3, 1fr)" }} gap="0.4rem">
+            <Door
+              href={withDebug(isNew ? "/pro/game?vs=ai-easy" : "/pro/game?vs=ai")}
+              title="🤖 vs Bot"
+              sub={isNew ? "The Easy bot, to learn the ropes" : "From Easy to the toughest we have"}
+            />
+            <Door
+              href={withDebug("/pro/game?quick=1")}
+              title="⚡ Quick Match"
+              sub={waiting ? `${waiting} waiting right now` : "Pair up with the next player"}
+              hot={!!waiting}
+            />
+            <Door href={withDebug("/pro/game")} title="🔗 Invite a friend" sub="Make a room, send the link" />
+          </Grid>
         </Flex>
 
-        {/* stage select */}
-        <Box as="section" mt="4rem">
-          <SectionHead>Stage select</SectionHead>
-          <Grid
-            templateColumns="repeat(auto-fill, minmax(160px, 1fr))"
-            gap="0.5rem"
-          >
-            {MAP_CATALOG.filter((entry) => !entry.hidden).map((entry) => (
-              <ChakraLink
-                key={entry.id}
-                as={Link}
-                href={withDebug("/pro/game")}
-                display="block"
-                borderRadius="0.5rem"
-                overflow="hidden"
-                border="1px solid rgba(250,235,215,0.14)"
-                position="relative"
-                _hover={{ textDecoration: "none", borderColor: "brand.accent" }}
-                transition="border-color 0.15s"
-              >
-                <Box
-                  h="5rem"
-                  // bgColor, not the `bg` shorthand: `bg` compiles to
-                  // `background:` and would reset the image set above it.
-                  bgColor="rgba(250,235,215,0.06)"
-                  bgImage={entry.thumbnailUrl ? `url("${entry.thumbnailUrl}")` : undefined}
-                  bgSize="cover"
-                  bgPos="center"
-                />
-                <Flex
-                  direction="column"
-                  gap="0.25rem"
-                  p="0.5rem"
-                  bg="rgba(20,8,24,0.75)"
-                >
-                  <Text
+        {/* live line */}
+        <Flex mt="0.5rem" px="0.2rem" gap="0.9rem" flexWrap="wrap" fontFamily="SpaceGrotesk" fontSize="0.72rem" opacity={0.75}>
+          {waiting !== null && waiting > 0 && (
+            <Text>
+              <Box as="span" color="#5fd38a">●</Box> {waiting} waiting for a Quick Match
+            </Text>
+          )}
+          <Text>
+            {!liveHeroes
+              ? offline
+                ? "Roster offline"
+                : "Loading roster…"
+              : `${readyEntries.length} fighters${labEntries.length > 0 ? ` · ${labEntries.length} in the lab` : ""}`}
+          </Text>
+          <Text>{boardCount} boards</Text>
+          {!isNew && <Text opacity={0.7}>Tip: bookmark /pro/game to go straight to the lobby</Text>}
+        </Flex>
+
+        <Grid templateColumns={{ base: "1fr", md: "1.45fr 1fr" }} gap="1rem" mt="1.75rem" alignItems="start">
+          {/* what's new */}
+          <Box as="section" id="whats-new" aria-labelledby="whats-new-head" minW={0}>
+            <Flex justifyContent="space-between" alignItems="baseline" mb="0.6rem">
+              <SectionHead id="whats-new-head" mb="0">
+                What&apos;s new
+                {unseen.size > 0 && (
+                  <Box
+                    as="span"
+                    ml="0.5rem"
+                    verticalAlign="0.2em"
                     fontFamily="SpaceGrotesk"
+                    fontSize="0.6rem"
                     fontWeight={700}
-                    fontSize="0.78rem"
-                    noOfLines={1}
+                    letterSpacing="0.05em"
+                    px="0.4rem"
+                    py="0.1rem"
+                    borderRadius="full"
+                    bg="#39B7A8"
+                    color="brand.surfaceDim"
                   >
-                    {entry.title}
-                  </Text>
-                  <Flex gap="0.25rem" flexWrap="wrap">
-                    {eligibleFormats(entry.map).map((formatId) => (
-                      <Text
-                        key={formatId}
-                        fontFamily="SpaceGrotesk"
-                        fontSize="0.6rem"
-                        letterSpacing="0.1em"
-                        px="0.3rem"
-                        py="0.05rem"
-                        borderRadius="0.2rem"
-                        bg="rgba(224,168,46,0.2)"
-                        color="brand.accent"
+                    {unseen.size} NEW
+                  </Box>
+                )}
+              </SectionHead>
+              <ChakraLink as={Link} href="/changelog" fontFamily="SpaceGrotesk" fontSize="0.75rem" color="brand.accent">
+                All updates →
+              </ChakraLink>
+            </Flex>
+            <Flex as="ul" listStyleType="none" flexDir="column" gap="0.5rem">
+              {feed.slice(0, FEED_LIMIT).map((entry) => (
+                <FeedPost key={entry.id} entry={entry} unseen={unseen.has(entry.id)} withDebug={withDebug} />
+              ))}
+            </Flex>
+          </Box>
+
+          {/* side cards */}
+          <Flex flexDir="column" gap="0.7rem" minW={0}>
+            {isNew ? (
+              <Box {...CARD} borderColor="rgba(57,183,168,0.45)" bg="rgba(57,183,168,0.08)">
+                <CardHead>New to Pro?</CardHead>
+                <Box as="ol" pl="1.1rem" mt="0.3rem" fontFamily="ArchivoNarrow" fontSize="0.9rem" opacity={0.85}>
+                  <Box as="li" mt="0.2rem">Hit <b>Play</b> and pick any fighter. Random is fine.</Box>
+                  <Box as="li" mt="0.2rem">Start against the <b>Easy bot</b>. It plays random legal moves.</Box>
+                  <Box as="li" mt="0.2rem">Click a highlighted move. The referee handles the rest.</Box>
+                </Box>
+                <Flex flexDir="column" gap="0.25rem" mt="0.5rem" fontFamily="SpaceGrotesk" fontSize="0.75rem">
+                  {["No account, no install", "Works on your phone", "Every game saves a replay"].map((line) => (
+                    <Text key={line}>
+                      <Box as="span" color="brand.accent" fontWeight={700} mr="0.4rem">✓</Box>
+                      {line}
+                    </Text>
+                  ))}
+                </Flex>
+                <ChakraLink as={Link} href={withDebug("/pro/game?vs=ai-easy")} {...GOLD_BTN} w="100%" mt="0.7rem">
+                  Play vs Easy bot →
+                </ChakraLink>
+              </Box>
+            ) : (
+              <Box {...CARD} borderColor="rgba(57,183,168,0.45)" bg="rgba(57,183,168,0.08)">
+                <CardHead>Jump back in</CardHead>
+                {recentFighters.length > 0 ? (
+                  <Flex flexDir="column" gap="0.35rem" mt="0.45rem">
+                    {recentFighters.map((e) => (
+                      <ChakraLink
+                        key={e.key}
+                        as={Link}
+                        href={withDebug(`/pro/game?hero=${e.heroId}`)}
+                        display="flex"
+                        alignItems="center"
+                        gap="0.6rem"
+                        p="0.35rem"
+                        borderRadius="0.4rem"
+                        _hover={{ bg: "whiteAlpha.100", textDecoration: "none" }}
                       >
-                        {FORMAT_BADGE[formatId]}
-                      </Text>
+                        <Token entry={e} />
+                        <Text flex="1" fontFamily="SpaceGrotesk" fontSize="0.82rem" fontWeight={600} noOfLines={1}>
+                          {e.shortName}
+                        </Text>
+                        <Text fontFamily="SpaceGrotesk" fontSize="0.7rem" color="#39B7A8" whiteSpace="nowrap">
+                          Play again →
+                        </Text>
+                      </ChakraLink>
                     ))}
                   </Flex>
+                ) : (
+                  <Text fontFamily="ArchivoNarrow" fontSize="0.9rem" opacity={0.8} mt="0.3rem">
+                    Your recent fighters show up here.
+                  </Text>
+                )}
+                {replaysEnabled && (
+                  <ChakraLink as={Link} href="/pro/replays" display="inline-block" mt="0.5rem" fontFamily="SpaceGrotesk" fontSize="0.75rem" color="brand.accent">
+                    Your replays →
+                  </ChakraLink>
+                )}
+              </Box>
+            )}
+
+            <Box {...CARD}>
+              <CardHead link={{ label: "All →", href: "/tournaments" }}>Tournaments</CardHead>
+              {openEvents.length > 0 ? (
+                <Flex flexDir="column" gap="0.45rem" mt="0.45rem">
+                  {openEvents.map((t) => (
+                    <Flex key={t.id} alignItems="center" gap="0.6rem">
+                      <Box flex="1" minW={0}>
+                        <Text fontFamily="SpaceGrotesk" fontSize="0.82rem" fontWeight={600} noOfLines={1}>
+                          {t.name}
+                        </Text>
+                        <Text fontFamily="SpaceGrotesk" fontSize="0.7rem" opacity={0.6}>
+                          {t.status === "running" ? "Live" : "Signup open"} · {t.entryCount} / {t.size} players
+                        </Text>
+                      </Box>
+                      <ChakraLink
+                        as={Link}
+                        href={tournamentPath(t.slug)}
+                        fontFamily="SpaceGrotesk"
+                        fontSize="0.7rem"
+                        fontWeight={700}
+                        px="0.5rem"
+                        py="0.2rem"
+                        border="1px solid"
+                        borderColor="brand.accent"
+                        color="brand.accent"
+                        borderRadius="0.3rem"
+                        _hover={{ bg: "rgba(224,168,46,0.15)", textDecoration: "none" }}
+                      >
+                        {t.status === "running" ? "VIEW" : "JOIN"}
+                      </ChakraLink>
+                    </Flex>
+                  ))}
                 </Flex>
-              </ChakraLink>
-            ))}
-            <ChakraLink
-              as={Link}
-              href={withDebug("/pro/game")}
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              textAlign="center"
-              minH="8rem"
-              px="0.6rem"
-              borderRadius="0.5rem"
-              border="1px dashed rgba(250,235,215,0.3)"
-              fontFamily="SpaceGrotesk"
-              fontSize="0.78rem"
-              opacity={0.7}
-              _hover={{ opacity: 1, borderColor: "brand.accent", textDecoration: "none" }}
-              transition="opacity 0.15s, border-color 0.15s"
-            >
-              + import map JSON
-            </ChakraLink>
-          </Grid>
-        </Box>
-
-        {/* what's next */}
-        <Box as="section" mt="4rem">
-          <SectionHead>What&apos;s next</SectionHead>
-          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="0.75rem">
-            {WHATS_NEXT.map((item) => (
-              <Box key={item.tag}>
-                <Text
-                  fontFamily="SpaceGrotesk"
-                  fontSize="0.65rem"
-                  fontWeight={700}
-                  letterSpacing="0.18em"
-                  color="brand.accent"
-                  opacity={0.8}
-                >
-                  {item.tag}
+              ) : (
+                <Text fontFamily="ArchivoNarrow" fontSize="0.9rem" opacity={0.8} mt="0.3rem">
+                  Run a single-elimination or round-robin bracket and share the link.{" "}
+                  <ChakraLink as={Link} href="/tournaments?new=1" color="brand.accent">
+                    Create one →
+                  </ChakraLink>
                 </Text>
-                <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.15rem">
-                  {item.text}
-                </Text>
-              </Box>
-            ))}
-          </Grid>
+              )}
+            </Box>
 
-          <Text mt="2rem" fontFamily="SpaceGrotesk" fontSize="0.8rem" opacity={0.55}>
-            Itching for a deck that isn&apos;t converted yet? The{" "}
-            <ChakraLink
-              as={Link}
-              href="/connect"
-              textDecoration="underline"
-              _hover={{ color: "brand.accent" }}
-            >
-              sandbox
-            </ChakraLink>{" "}
-            plays all 40+ decks today — it just trusts you with the rulebook.
-          </Text>
-        </Box>
+            <Box {...CARD}>
+              <CardHead>Fighters</CardHead>
+              <Text fontFamily="ArchivoNarrow" fontSize="0.9rem" opacity={0.8} mt="0.2rem">
+                {!liveHeroes
+                  ? offline
+                    ? "Couldn't reach the referee server. The lobby will load the roster."
+                    : "Loading the roster…"
+                  : `${readyEntries.length} battle-ready${labEntries.length > 0 ? ` · ${labEntries.length} in the lab` : ""}. Every deck is hand-converted into engine rules, a few at a time.`}
+              </Text>
+              {roster.length > 0 && (
+                <>
+                  <Flex mt="0.5rem" alignItems="center">
+                    {readyEntries.slice(0, 6).map((e, i) => (
+                      <Box key={e.key} ml={i === 0 ? 0 : "-0.45rem"}>
+                        <Token entry={e} ring />
+                      </Box>
+                    ))}
+                    <Box
+                      as="button"
+                      type="button"
+                      onClick={() => setShowAllFighters((v) => !v)}
+                      aria-expanded={showAllFighters}
+                      ml="0.6rem"
+                      fontFamily="SpaceGrotesk"
+                      fontSize="0.72rem"
+                      color="brand.accent"
+                    >
+                      {showAllFighters ? "Hide list" : `See all ${roster.length} →`}
+                    </Box>
+                  </Flex>
+                  {showAllFighters && (
+                    <Flex as="ul" listStyleType="none" flexWrap="wrap" gap="0.3rem" mt="0.6rem" aria-label="All fighters">
+                      {roster.map((e) => (
+                        <Box as="li" key={e.key}>
+                          <Box
+                            as="button"
+                            type="button"
+                            onClick={() => setPreviewEntry(e)}
+                            fontFamily="SpaceGrotesk"
+                            fontSize="0.72rem"
+                            px="0.5rem"
+                            py="0.2rem"
+                            borderRadius="full"
+                            border="1px solid rgba(250,235,215,0.18)"
+                            bg={e.status === "lab" ? "transparent" : "rgba(250,235,215,0.06)"}
+                            _hover={{ borderColor: "brand.accent" }}
+                          >
+                            {e.shortName}
+                            {e.status === "lab" && (
+                              <Box as="span" ml="0.3rem" fontSize="0.55rem" letterSpacing="0.1em" opacity={0.7}>
+                                LAB
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Flex>
+                  )}
+                </>
+              )}
+              <Text fontFamily="SpaceGrotesk" fontSize="0.72rem" opacity={0.65} mt="0.6rem">
+                Want a deck added? Ask in{" "}
+                <ChakraLink href={DISCORD_FALLBACK_INVITE} isExternal color="brand.accent" fontWeight={700}>
+                  #pro-deck-request
+                </ChakraLink>{" "}
+                on Discord.
+              </Text>
+            </Box>
 
-        {/* how the bots work — the deep dive, last on the page */}
-        <Box as="section" mt="4rem" aria-labelledby="pro-ai-deep-dive">
-          <SectionHead id="pro-ai-deep-dive" mb="0.4rem">
-            How the bots actually work
-          </SectionHead>
-          <Text
-            fontFamily="ArchivoNarrow"
-            fontSize="1rem"
-            fontStyle="italic"
-            opacity={0.75}
-            maxW="44rem"
-          >
-            No LLM, no cloud model — a search algorithm that plays out games in
-            its head. Here&apos;s the real mechanism, in plain terms.
-          </Text>
-          <Grid
-            as="ol"
-            listStyleType="none"
-            templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
-            gap="0.75rem"
-            mt="1.25rem"
-          >
-            {/* An ordered list (the beats build on each other) but deliberately
-                un-numbered on screen — the page retired its numbered roadmap. */}
-            {AI_DEEP_DIVE.map((beat) => (
+            <Box {...CARD}>
+              <CardHead>Bots</CardHead>
+              <Flex gap="0.2rem" mt="0.45rem">
+                {ladder.map((tier, i) => (
+                  <Box
+                    key={tier.id}
+                    flex="1"
+                    textAlign="center"
+                    fontFamily="SpaceGrotesk"
+                    fontSize="0.65rem"
+                    py="0.3rem"
+                    borderRadius="0.25rem"
+                    bg={`rgba(224,168,46,${0.06 + (0.3 * i) / Math.max(1, ladder.length - 1)})`}
+                    title={tier.tooltip}
+                  >
+                    {tier.label.replace(/ bot$/, "")}
+                  </Box>
+                ))}
+              </Flex>
+              <Text fontFamily="ArchivoNarrow" fontSize="0.9rem" opacity={0.8} mt="0.45rem">
+                No LLM: a search that plays games out in its head. Real players still beat Expert about 7 times in 10.
+              </Text>
               <Box
-                as="li"
-                key={beat.title}
-                p="1rem"
-                borderRadius="0.5rem"
-                bg="rgba(250,235,215,0.05)"
-                border="1px solid rgba(250,235,215,0.12)"
+                as="button"
+                type="button"
+                onClick={openAbout}
+                mt="0.3rem"
+                fontFamily="SpaceGrotesk"
+                fontSize="0.72rem"
+                color="brand.accent"
               >
-                <Text
-                  fontFamily="BebasNeueRegular"
-                  fontSize="1.2rem"
-                  letterSpacing="0.05em"
-                  lineHeight="1.15"
-                  color="brand.accent"
-                >
-                  {beat.title}
-                </Text>
-                <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.35rem">
-                  {beat.text}
-                </Text>
+                How they work →
               </Box>
-            ))}
-          </Grid>
+            </Box>
+          </Flex>
+        </Grid>
+
+        {/* About: the explainer, collapsed but in the DOM (crawlers and the
+            curious both still get it). */}
+        <Box
+          as="details"
+          ref={aboutRef}
+          mt="1.75rem"
+          {...CARD}
+          p="0"
+          sx={{ "& > summary::-webkit-details-marker": { display: "none" } }}
+        >
+          <Flex
+            as="summary"
+            cursor="pointer"
+            listStyleType="none"
+            justifyContent="space-between"
+            alignItems="baseline"
+            gap="1rem"
+            px="1rem"
+            py="0.8rem"
+          >
+            <Text fontFamily="BebasNeueRegular" fontSize="1.35rem" letterSpacing="0.05em">
+              About Unbrewed Pro
+            </Text>
+            <Text fontFamily="ArchivoNarrow" fontSize="0.85rem" opacity={0.6} textAlign="right">
+              Formats, boards, replays, the bots, what&apos;s next ▾
+            </Text>
+          </Flex>
+          <Box px="1rem" pb="1.25rem">
+            <Text fontFamily="ArchivoNarrow" fontSize="1rem" lineHeight="1.55" opacity={0.85} maxW="44rem">
+              Full rules enforcement for Unmatched, in your browser. A referee server allows only legal moves, does the
+              combat math for you, and keeps hands truly hidden. The free-form sandbox isn&apos;t going anywhere; Pro is
+              an additional way to play.
+            </Text>
+            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="0.75rem" mt="1rem">
+              {MODES.map((mode) => (
+                <Box key={mode.title}>
+                  <Text fontFamily="BebasNeueRegular" fontSize="1.15rem" letterSpacing="0.05em" color="brand.accent">
+                    {mode.title}
+                  </Text>
+                  <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.15rem">
+                    {mode.text}
+                  </Text>
+                </Box>
+              ))}
+            </Grid>
+
+            <SectionHead mb="0.5rem">What&apos;s next</SectionHead>
+            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="0.75rem">
+              {WHATS_NEXT.map((item) => (
+                <Box key={item.tag}>
+                  <Text fontFamily="SpaceGrotesk" fontSize="0.65rem" fontWeight={700} letterSpacing="0.18em" color="brand.accent" opacity={0.8}>
+                    {item.tag}
+                  </Text>
+                  <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.15rem">
+                    {item.text}
+                  </Text>
+                </Box>
+              ))}
+            </Grid>
+
+            <Box as="section" aria-labelledby="pro-ai-deep-dive">
+              <SectionHead id="pro-ai-deep-dive" mb="0.3rem">
+                How the bots actually work
+              </SectionHead>
+              <Text fontFamily="ArchivoNarrow" fontSize="1rem" fontStyle="italic" opacity={0.75} maxW="44rem">
+                No LLM, no cloud model — a search algorithm that plays out games in its head. Here&apos;s the real
+                mechanism, in plain terms.
+              </Text>
+              <Grid as="ol" listStyleType="none" templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="0.75rem" mt="1rem">
+                {AI_DEEP_DIVE.map((beat) => (
+                  <Box as="li" key={beat.title} {...CARD}>
+                    <Text fontFamily="BebasNeueRegular" fontSize="1.15rem" letterSpacing="0.05em" lineHeight="1.15" color="brand.accent">
+                      {beat.title}
+                    </Text>
+                    <Text fontFamily="ArchivoNarrow" fontSize="0.95rem" opacity={0.8} mt="0.35rem">
+                      {beat.text}
+                    </Text>
+                  </Box>
+                ))}
+              </Grid>
+            </Box>
+          </Box>
         </Box>
+
+        {/* footer */}
+        <Text mt="1.25rem" fontFamily="SpaceGrotesk" fontSize="0.78rem" opacity={0.6} lineHeight="1.7">
+          Itching for a deck that isn&apos;t converted yet? The{" "}
+          <ChakraLink as={Link} href="/connect" textDecoration="underline" _hover={{ color: "brand.accent" }}>
+            sandbox
+          </ChakraLink>{" "}
+          plays all 40+ decks today — it just trusts you with the rulebook. ·{" "}
+          <ChakraLink as={Link} href="/pro/scenarios" textDecoration="underline" _hover={{ color: "brand.accent" }}>
+            Scenarios
+          </ChakraLink>
+          {replaysEnabled && (
+            <>
+              {" · "}
+              <ChakraLink as={Link} href="/pro/replays" textDecoration="underline" _hover={{ color: "brand.accent" }}>
+                Replays
+              </ChakraLink>
+            </>
+          )}
+        </Text>
       </Box>
 
       {/* A served hero with no tile entry has no deck JSON to fetch (deckId
@@ -731,7 +733,7 @@ export const ProLanding = () => {
         heroName={previewEntry?.name ?? ""}
         heroId={previewEntry?.heroId}
         quickStats={
-          previewEntry?.listing && {
+          previewEntry && {
             hp: previewEntry.listing.hp,
             move: previewEntry.listing.move,
             reach: previewEntry.listing.reach,
@@ -741,6 +743,229 @@ export const ProLanding = () => {
     </Box>
   );
 };
+
+// ---------------------------------------------------------------------------
+// pieces
+// ---------------------------------------------------------------------------
+
+type Cta = { label: string; href: string };
+
+const Banner = ({
+  kicker,
+  title,
+  text,
+  art = null,
+  primary,
+  secondary,
+  slides = 0,
+  slide = 0,
+  onSlide,
+}: {
+  kicker: string;
+  title: string;
+  text: string;
+  art?: string | null;
+  primary: Cta;
+  secondary: Cta;
+  slides?: number;
+  slide?: number;
+  onSlide?: (i: number) => void;
+}) => (
+  <Box
+    as="section"
+    aria-label={kicker}
+    position="relative"
+    mt="0.75rem"
+    minH={{ base: "15rem", md: "16rem" }}
+    display="flex"
+    alignItems="flex-end"
+    borderRadius="0.8rem"
+    overflow="hidden"
+    border="1px solid rgba(224,168,46,0.3)"
+    bgColor="rgba(20,8,24,0.55)"
+    bgImage={art ? `url("${art}")` : undefined}
+    bgSize="cover"
+    bgPos="center"
+  >
+    <Box
+      position="absolute"
+      inset="0"
+      bg="linear-gradient(90deg, rgba(20,8,24,0.95) 0%, rgba(20,8,24,0.72) 50%, rgba(20,8,24,0.15) 100%)"
+    />
+    <Box position="relative" p={{ base: "1rem", md: "1.3rem" }} maxW="28rem">
+      <Text fontFamily="SpaceGrotesk" fontSize="0.65rem" fontWeight={700} letterSpacing="0.2em" color="brand.accent" textTransform="uppercase">
+        {kicker}
+      </Text>
+      <Text
+        as="h2"
+        fontFamily="LeagueGothic"
+        textTransform="uppercase"
+        fontSize={{ base: "2.6rem", md: "3.3rem" }}
+        lineHeight="0.9"
+        mt="0.3rem"
+      >
+        {title}
+      </Text>
+      <Text fontFamily="ArchivoNarrow" fontSize="1rem" lineHeight="1.4" opacity={0.9} mt="0.5rem">
+        {text}
+      </Text>
+      <Flex gap="0.5rem" mt="0.9rem" flexWrap="wrap">
+        <ChakraLink as={Link} href={primary.href} {...GOLD_BTN}>
+          {primary.label}
+        </ChakraLink>
+        <ChakraLink as={Link} href={secondary.href} {...GHOST_BTN}>
+          {secondary.label}
+        </ChakraLink>
+      </Flex>
+    </Box>
+    {slides > 1 && onSlide && (
+      <Flex position="absolute" right="0.9rem" bottom="0.8rem" gap="0.3rem" role="group" aria-label="Featured updates">
+        {Array.from({ length: slides }, (_, i) => (
+          <Box
+            key={i}
+            as="button"
+            type="button"
+            aria-label={`Show update ${i + 1} of ${slides}`}
+            aria-pressed={i === slide}
+            onClick={() => onSlide(i)}
+            w="1.3rem"
+            h="0.5rem"
+            display="flex"
+            alignItems="center"
+          >
+            <Box w="100%" h="3px" borderRadius="2px" bg={i === slide ? "brand.accent" : "rgba(250,235,215,0.3)"} />
+          </Box>
+        ))}
+      </Flex>
+    )}
+  </Box>
+);
+
+const Door = ({ href, title, sub, hot = false }: { href: string; title: string; sub: string; hot?: boolean }) => (
+  <ChakraLink
+    as={Link}
+    href={href}
+    display="block"
+    p="0.45rem 0.65rem"
+    borderRadius="0.5rem"
+    bg="rgba(250,235,215,0.05)"
+    border="1px solid"
+    borderColor={hot ? "rgba(95,211,138,0.5)" : "rgba(250,235,215,0.12)"}
+    _hover={{ borderColor: "brand.accent", textDecoration: "none" }}
+    transition="border-color 0.15s"
+  >
+    <Text fontFamily="BebasNeueRegular" fontSize="1.1rem" letterSpacing="0.05em" lineHeight="1.1">
+      {title}
+    </Text>
+    <Text fontFamily="SpaceGrotesk" fontSize="0.68rem" opacity={0.65}>
+      {sub}
+    </Text>
+  </ChakraLink>
+);
+
+const FeedPost = ({
+  entry,
+  unseen,
+  withDebug,
+}: {
+  entry: ChangelogEntry;
+  unseen: boolean;
+  withDebug: (href: string) => string;
+}) => {
+  const href = launcherCtaHref(entry);
+  const poster = entry.video ? posterUrl(entry.video.slug) : null;
+  const kind = entryKindLabel(entry);
+  return (
+    <Box
+      as="li"
+      position="relative"
+      display="grid"
+      gridTemplateColumns={poster ? "5.6rem 1fr" : "1fr"}
+      gap="0.7rem"
+      borderRadius="0.55rem"
+      overflow="hidden"
+      bg="rgba(250,235,215,0.05)"
+      border="1px solid"
+      borderColor={unseen ? "rgba(57,183,168,0.55)" : "rgba(250,235,215,0.12)"}
+    >
+      {poster && (
+        <Box minH="5.2rem" bgColor="rgba(250,235,215,0.06)" bgImage={`url("${poster}")`} bgSize="cover" bgPos="center" aria-hidden />
+      )}
+      <Box py="0.55rem" pr="0.7rem" pl={poster ? 0 : "0.8rem"} minW={0}>
+        <Flex gap="0.45rem" alignItems="center" fontFamily="SpaceGrotesk" fontSize="0.6rem" fontWeight={700} letterSpacing="0.14em">
+          <Text
+            px="0.3rem"
+            borderRadius="0.2rem"
+            bg={kind === "NEW FIGHTER" ? "rgba(224,168,46,0.2)" : "rgba(57,183,168,0.2)"}
+            color={kind === "NEW FIGHTER" ? "brand.accent" : "#39B7A8"}
+          >
+            {kind}
+          </Text>
+          <Text opacity={0.55} fontWeight={500} letterSpacing="0.05em">
+            {feedDate(entry.date)}
+          </Text>
+          {unseen && (
+            <Text color="#39B7A8" letterSpacing="0.08em">
+              NEW
+            </Text>
+          )}
+        </Flex>
+        <Text fontFamily="ArchivoNarrow" fontWeight={600} fontSize="1rem" lineHeight="1.2" mt="0.2rem">
+          {entry.title}
+        </Text>
+        <Text fontFamily="ArchivoNarrow" fontSize="0.85rem" opacity={0.72} mt="0.1rem" noOfLines={2}>
+          {entry.summary}
+        </Text>
+        {href && (
+          <ChakraLink as={Link} href={withDebug(href)} display="inline-block" mt="0.25rem" fontFamily="SpaceGrotesk" fontSize="0.72rem" color="brand.accent">
+            {entry.cta?.label ?? "Play now"} →
+          </ChakraLink>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+/** A fighter's round token: card-back art when a tile entry has some, else its colour + initial. */
+const Token = ({ entry, ring = false }: { entry: RosterEntry; ring?: boolean }) => {
+  const art = entry.deck?.cardbackUrl;
+  return (
+    <Box
+      w="1.9rem"
+      h="1.9rem"
+      flexShrink={0}
+      borderRadius="full"
+      border={ring ? "2px solid" : "1px solid"}
+      borderColor={ring ? "brand.surfaceDim" : "rgba(250,235,215,0.2)"}
+      bgColor={entry.deck?.highlightColour ?? DEFAULT_HIGHLIGHT}
+      bgImage={art ? `url("${art}")` : undefined}
+      bgSize="cover"
+      bgPos="center"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      fontFamily="LeagueGothic"
+      fontSize="1rem"
+      title={entry.shortName}
+      aria-hidden
+    >
+      {!art && entry.shortName.replace(/^the /i, "").charAt(0).toUpperCase()}
+    </Box>
+  );
+};
+
+const CardHead = ({ children, link }: { children: React.ReactNode; link?: Cta }) => (
+  <Flex justifyContent="space-between" alignItems="baseline">
+    <Text fontFamily="BebasNeueRegular" fontSize="1.25rem" letterSpacing="0.05em">
+      {children}
+    </Text>
+    {link && (
+      <ChakraLink as={Link} href={link.href} fontFamily="SpaceGrotesk" fontSize="0.7rem" color="brand.accent">
+        {link.label}
+      </ChakraLink>
+    )}
+  </Flex>
+);
 
 const SectionHead = ({
   children,
@@ -752,15 +977,26 @@ const SectionHead = ({
   id?: string;
 }) => (
   <Text
+    as="h2"
     id={id}
     fontFamily="BebasNeueRegular"
-    fontSize={{ base: "1.6rem", md: "2rem" }}
+    fontSize={{ base: "1.5rem", md: "1.75rem" }}
     letterSpacing="0.06em"
+    mt={id === "whats-new-head" ? 0 : "1.5rem"}
     mb={mb}
   >
     {children}
   </Text>
 );
+
+const DECK_BY_HERO_ID: Record<string, PopularDeckMeta> = Object.fromEntries(
+  POPULAR_DECKS.flatMap((deck) => {
+    const heroId = DECK_HERO_IDS[deck.id];
+    return heroId ? [[heroId, deck] as const] : [];
+  })
+);
+const deckForHeroId = (heroId: string): PopularDeckMeta | undefined =>
+  DECK_BY_HERO_ID[heroId];
 
 /** The boards the create screen's picker offers (hidden dev boards excluded). */
 const PICKER_BOARDS = MAP_CATALOG.filter((entry) => !entry.hidden);
@@ -843,331 +1079,3 @@ const AI_DEEP_DIVE = [
     text: "Rather than chase a bigger search budget — expensive, and not the actual gap — we're using real games to find and fix the patterns above, starting with capturing full replays of live human-vs-bot matches, so tuning is driven by how people actually beat it rather than by simulated self-play. That work is under way now.",
   },
 ];
-
-/** Who fills a seat in the landing's display-scale seat strip. */
-type SeatOccupant = "human" | BotDifficulty;
-
-const SEAT_CHIPS: { v: SeatOccupant; label: string }[] = [
-  { v: "human", label: "Hum" },
-  { v: "easy", label: "Bot·E" },
-  { v: "medium", label: "Bot·M" },
-  { v: "hard", label: "Bot·H" },
-];
-
-/**
- * A cosmetic echo of the create screen's `SeatPlate` (pages/pro/game.tsx). It is
- * deliberately a local copy rather than an import: the real one is wired to
- * socket/room state and a four-seat layout, and reusing it here would drag that
- * whole create-flow contract onto a static marketing page.
- */
-const SeatPlate = ({
-  tag,
-  title,
-  occupant,
-  onChange,
-}: {
-  tag: string;
-  title: string;
-  occupant?: SeatOccupant;
-  onChange?: (v: SeatOccupant) => void;
-}) => {
-  const isAi = !!occupant && occupant !== "human";
-  const you = !onChange;
-  return (
-    <Flex
-      flex="1 1 10.5rem"
-      minW="10.5rem"
-      borderRadius="0.6rem"
-      border="1px solid"
-      borderColor={you ? "brand.accentDeep" : isAi ? "brand.accent" : "whiteAlpha.200"}
-      bg={
-        you
-          ? "linear-gradient(105deg, rgba(224,168,46,0.14), rgba(0,0,0,0.3) 60%)"
-          : "rgba(0,0,0,0.3)"
-      }
-      p="0.55rem 0.65rem"
-      gap="0.6rem"
-      align="center"
-      overflow="hidden"
-      sx={skewChip(-3)}
-    >
-      <Flex
-        w="2.6rem"
-        h="2.6rem"
-        flex="none"
-        borderRadius="0.4rem"
-        border="1px solid"
-        borderColor="whiteAlpha.200"
-        bg="brand.surfaceDim"
-        align="center"
-        justify="center"
-        fontSize="1.1rem"
-        color="whiteAlpha.700"
-        aria-hidden
-      >
-        {you ? "?" : isAi ? "🤖" : "👤"}
-      </Flex>
-      <Box minW="0" flex="1">
-        <Text
-          fontFamily="SpaceGrotesk"
-          fontSize="0.6rem"
-          letterSpacing="0.14em"
-          color={you ? "brand.accent" : "whiteAlpha.600"}
-        >
-          {tag}
-        </Text>
-        <Text
-          fontFamily="BebasNeueRegular"
-          fontSize="0.95rem"
-          letterSpacing="0.03em"
-          noOfLines={1}
-        >
-          {title}
-        </Text>
-        {onChange && (
-          <Flex gap="0.25rem" mt="0.3rem" flexWrap="wrap">
-            {SEAT_CHIPS.map((chip) => {
-              const active = occupant === chip.v;
-              return (
-                <Button
-                  key={chip.v}
-                  type="button"
-                  size="xs"
-                  aria-pressed={active}
-                  h="1.3rem"
-                  minW="auto"
-                  px="0.45rem"
-                  fontSize="0.62rem"
-                  fontFamily="SpaceGrotesk"
-                  onClick={() => onChange(chip.v)}
-                  bg={active ? "brand.accent" : "rgba(0,0,0,0.3)"}
-                  color={active ? "brand.surfaceDim" : "brand.parchment"}
-                  border="1px solid"
-                  borderColor={active ? "brand.accent" : "whiteAlpha.200"}
-                  _hover={{ borderColor: active ? "brand.accentDeep" : "whiteAlpha.400" }}
-                >
-                  {chip.label}
-                </Button>
-              );
-            })}
-          </Flex>
-        )}
-      </Box>
-    </Flex>
-  );
-};
-
-/**
- * The one crossover from server hero id back to the presentation tile. Built
- * once at module load: DECK_HERO_IDS is deck id → hero id, and POPULAR_DECKS is
- * small, but the roster maps over it per render.
- */
-const DECK_BY_HERO_ID: Record<string, PopularDeckMeta> = Object.fromEntries(
-  POPULAR_DECKS.flatMap((deck) => {
-    const heroId = DECK_HERO_IDS[deck.id];
-    return heroId ? [[heroId, deck] as const] : [];
-  })
-);
-const deckForHeroId = (heroId: string): PopularDeckMeta | undefined =>
-  DECK_BY_HERO_ID[heroId];
-
-/** How many placeholder tiles stand in for the roster before it arrives. */
-const SKELETON_TILES = 12;
-
-const skeletonPulse = keyframes`
-  0%, 100% { opacity: 0.35; }
-  50%      { opacity: 0.65; }
-`;
-
-/** Pre-reply placeholder — same footprint as a real tile, no hero claimed. */
-const SkeletonTile = ({ index }: { index: number }) => (
-  <Box
-    aria-hidden
-    h="5.5rem"
-    borderRadius="0.5rem"
-    border="2px solid rgba(250,235,215,0.08)"
-    bg="rgba(250,235,215,0.06)"
-    sx={{
-      animation: `${skeletonPulse} 1.6s ease-in-out ${index * 0.08}s infinite`,
-      [REDUCED_MOTION]: { animation: "none", opacity: 0.4 },
-    }}
-  />
-);
-
-const RosterTile = ({
-  entry,
-  index,
-  href,
-  isPicked,
-  onPick,
-  onHover,
-  onPreview,
-}: {
-  entry: RosterEntry;
-  index: number;
-  /** when set, the tile navigates into the game instead of inspect-only picking */
-  href?: string;
-  isPicked: boolean;
-  onPick: () => void;
-  /** announcer spotlight follows the cursor; undefined clears it */
-  onHover: (entry: RosterEntry | undefined) => void;
-  onPreview: () => void;
-}) => {
-  const { deck, name, shortName, status } = entry;
-  const tile = (
-      <Flex
-        onClick={href ? undefined : onPick}
-        onMouseEnter={() => onHover(entry)}
-        onMouseLeave={() => onHover(undefined)}
-        onFocus={() => onHover(entry)}
-        onBlur={() => onHover(undefined)}
-        flexDir="column"
-        justifyContent="flex-end"
-        h="5.5rem"
-        p="0.5rem"
-        borderRadius="0.5rem"
-        cursor="pointer"
-        userSelect="none"
-        position="relative"
-        overflow="hidden"
-        opacity={0}
-        animation={`${tileIn} 0.4s ease-out ${index * 0.03}s forwards`}
-        border="2px solid"
-        borderColor={status === "ready" ? "brand.accent" : "rgba(224,168,46,0.35)"}
-        sx={{
-          ...(status === "ready"
-            ? { animation: `${tileIn} 0.4s ease-out ${index * 0.03}s forwards, ${readyPulse} 2.6s ease-in-out infinite` }
-            : {}),
-          // The entrance slide and the ready-pulse are both decorative; under
-          // reduced motion the tile simply appears, fully opaque.
-          ...NO_MOTION,
-        }}
-        transition="transform 0.15s ease-in-out, filter 0.2s"
-        transform={isPicked ? "scale(1.04)" : undefined}
-        zIndex={isPicked ? 1 : undefined}
-        _hover={{
-          transform: "scale(1.04)",
-          filter: "none",
-          zIndex: 1,
-          [REDUCED_MOTION]: { transform: "none" },
-        }}
-        // Art is a presentation extra: a served hero with no tile entry gets the
-        // neutral highlight and no card back, and still reads as a real tile.
-        bg={deck?.highlightColour ?? DEFAULT_HIGHLIGHT}
-        bgImage={deck?.cardbackUrl ? `url(${deck.cardbackUrl})` : undefined}
-        bgSize="cover"
-        bgPos="center"
-      >
-        <Box
-          position="absolute"
-          inset="0"
-          bg="linear-gradient(180deg, rgba(20,8,24,0) 20%, rgba(20,8,24,0.85) 100%)"
-        />
-        <Flex
-          position="absolute"
-          top="0.35rem"
-          left="0.4rem"
-          fontFamily="SpaceGrotesk"
-          fontSize="0.55rem"
-          fontWeight={700}
-          letterSpacing="0.12em"
-          px="0.35rem"
-          py="0.1rem"
-          bg={status === "ready" ? "brand.accent" : "rgba(224,168,46,0.25)"}
-          color={status === "ready" ? "brand.surfaceDim" : "brand.accent"}
-          sx={skewChip()}
-        >
-          <Text>{status === "ready" ? "PLAY NOW" : "IN THE LAB"}</Text>
-        </Flex>
-        <Flex
-          as="button"
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onPreview();
-          }}
-          aria-label={`Preview ${shortName}`}
-          position="absolute"
-          top="0.35rem"
-          right="0.4rem"
-          alignItems="center"
-          justifyContent="center"
-          w="1.2rem"
-          h="1.2rem"
-          borderRadius="0.3rem"
-          bg="rgba(20, 8, 24, 0.55)"
-          color="#FAEBD7"
-          _hover={{ color: "brand.accent", bg: "rgba(20, 8, 24, 0.85)" }}
-        >
-          <TbInfoCircle size="0.85rem" />
-        </Flex>
-        <Flex position="relative" justifyContent="space-between" alignItems="end">
-          <Text
-            color="#FAEBD7"
-            fontFamily="SpaceGrotesk"
-            fontWeight={700}
-            fontSize="0.8rem"
-            lineHeight="1.15"
-            noOfLines={2}
-            textShadow="0 1px 2px rgba(0,0,0,0.8)"
-          >
-            {name}
-          </Text>
-          <Flex alignItems="center" gap="0.25rem" color="#FAEBD7" pl="0.25rem">
-            {/* No tile entry means no like count to show — the badge is
-                omitted rather than rendered as a zero. */}
-            {deck && (
-              <>
-                <FaHeart size="0.6rem" />
-                <Text fontSize="0.7rem">{deck.likes}</Text>
-              </>
-            )}
-          </Flex>
-        </Flex>
-      </Flex>
-  );
-  const frozenAt = status === "ready" && deck ? frozenAtForDeck(deck.id) : null;
-  const inspectHint =
-    status === "ready"
-      ? `${shortName} — playable now, click to enter the arena${
-          frozenAt ? ` (rules version frozen ${frozenAt})` : ""
-        }`
-      : status === "lab"
-      ? `${shortName} — stress-testing the engine's rule language`
-      : `${shortName} — not yet converted (every deck's rules are hand-tuned)`;
-  return (
-    <Box>
-      <Tooltip label={inspectHint}>
-        {href ? (
-          <ChakraLink
-            as={Link}
-            href={href}
-            display="block"
-            _hover={{ textDecoration: "none" }}
-          >
-            {tile}
-          </ChakraLink>
-        ) : (
-          tile
-        )}
-      </Tooltip>
-      {/* Author credit sits OUTSIDE the tile's wrapping link on purpose: the
-          credit is itself a link to the deck's source page, and an anchor
-          nested in an anchor is invalid HTML (browsers silently unnest it,
-          which loses the outer tile's click target). Every deck with a tile
-          entry gets one — a newly wired deck credits its author for free. */}
-      {deck && (
-        <DeckAttribution
-          deck={deck}
-          fontSize="0.65rem"
-          fontStyle="normal"
-          opacity={0.6}
-          mt="0.25rem"
-          px="0.1rem"
-          fontFamily="SpaceGrotesk"
-        />
-      )}
-    </Box>
-  );
-};
