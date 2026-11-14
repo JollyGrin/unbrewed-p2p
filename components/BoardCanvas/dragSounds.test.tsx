@@ -63,16 +63,18 @@ const mouse = (target: EventTarget, type: string, x = 0, y = 0) =>
 
 // The sound director is one per page: keep the tests outside its rate limits.
 let clock = 0;
+let nowSpy: jest.SpyInstance;
 beforeEach(() => {
   clock += 10_000;
-  jest.spyOn(performance, "now").mockImplementation(() => (clock += 200));
+  nowSpy = jest.spyOn(performance, "now").mockImplementation(() => (clock += 200));
   played.mockClear();
   localStorage.clear();
-  jest.useFakeTimers();
+  // fake timers would also freeze performance.now, which the director reads
+  jest.useFakeTimers({ doNotFake: ["performance"] });
 });
 afterEach(() => {
   jest.useRealTimers();
-  jest.restoreAllMocks();
+  nowSpy.mockRestore(); // not restoreAllMocks: it would blank the engine mock
   document.body.innerHTML = "";
 });
 
@@ -108,6 +110,7 @@ describe("useCanvas: drag sounds", () => {
       mouse(tok, "mousedown", 110, 110);
       mouse(window, "mousemove", 130, 120);
       mouse(window, "mousemove", 190, 150);
+      mouse(window, "mousemove", 230, 170);
     });
     expect(events()).toEqual(["tokenUp"]);
     d3.select(window).on(".drag", null); // the drag's own end never arrives
