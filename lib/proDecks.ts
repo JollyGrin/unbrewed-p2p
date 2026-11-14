@@ -15,7 +15,22 @@ import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { isImportBlocked } from "@/lib/decks/blockedAuthors";
 import { EVERGREEN_DECK_IDS, fetchDeckById } from "@/lib/evergreenDecks";
 
-export const PRO_DECK_IDS: string[] = [...EVERGREEN_DECK_IDS];
+/**
+ * Originals whose `-spice` remix (the edited version, same display name) is
+ * the one to pick (#1437). Hidden from the picker only: they stay in
+ * `EVERGREEN_DECK_IDS`, so Pro lobbies, `fetchDeckById`, `loadProDeck` and a
+ * bag/star already pointing at one keep resolving.
+ */
+export const PICKER_HIDDEN_DECK_IDS: ReadonlySet<string> = new Set([
+  "hollow-oak",
+  "piper",
+  "thetis",
+  "taranis",
+]);
+
+export const PRO_DECK_IDS: string[] = [...EVERGREEN_DECK_IDS].filter(
+  (id) => !PICKER_HIDDEN_DECK_IDS.has(id),
+);
 
 const cache = new Map<string, DeckImportType>();
 const failed = new Set<string>();
@@ -51,7 +66,7 @@ export const loadProDeck = (id: string): Promise<DeckImportType | undefined> => 
   return pending;
 };
 
-/** The whole roster, in roster order; decks that fail to load are left out. */
+/** The picker roster, in roster order; decks that fail to load are left out. */
 export const loadProDecks = async (): Promise<DeckImportType[]> =>
   (await Promise.all(PRO_DECK_IDS.map(loadProDeck))).filter(
     (deck): deck is DeckImportType => !!deck,
