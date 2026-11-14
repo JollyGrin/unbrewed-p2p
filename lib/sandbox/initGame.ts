@@ -61,6 +61,20 @@ export const initPositionBlob = (
 };
 
 /**
+ * A player's seat when every client has to pick its own at the same moment
+ * and none may collide: a room-wide "New game" re-seeds all boards at once,
+ * so each client takes its rank among the names at the table, sorted. Every
+ * client sees the same names, so every client gets a different corner.
+ *
+ * The join seed does not use this (GameShell counts the boards already
+ * there): a late joiner must not sort in ahead of someone already seated.
+ */
+export const seatAmong = (names: Iterable<string>, self: string): number =>
+  Array.from(new Set([...Array.from(names), self]))
+    .sort()
+    .indexOf(self);
+
+/**
  * Read the starred deck out of the bag, at the moment it's needed.
  *
  * Hook instances don't sync with each other after mount, so a deck switched

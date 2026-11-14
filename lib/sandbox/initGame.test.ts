@@ -14,7 +14,7 @@ import {
 } from "@/components/Positions/position.type";
 import { counterDisplay } from "@/components/Positions/tokenCounter";
 import { fighterTokens } from "@/components/Positions/heroToken";
-import { initPositionBlob } from "./initGame";
+import { initPositionBlob, seatAmong } from "./initGame";
 
 const deck = (over: Record<string, unknown> = {}, top: Record<string, unknown> = {}) =>
   ({
@@ -160,5 +160,30 @@ describe("spawnFighterRow", () => {
   it("stands pieces of different sizes on one line", () => {
     const [hero, sidekick] = spawnFighterRow(long, "p", 0);
     expect(hero.y + (hero.h ?? 0)).toBe(sidekick.y + (sidekick.h ?? 0));
+  });
+});
+
+describe("seatAmong — every client picks its own seat at the same moment", () => {
+  it("is the rank among the names at the table, whoever asks", () => {
+    const table = ["zed", "amy", "bob"];
+    expect(table.map((name) => seatAmong(table, name))).toEqual([2, 0, 1]);
+    // a different key order on another client changes nothing
+    expect(seatAmong(["bob", "zed", "amy"], "zed")).toBe(2);
+  });
+
+  it("counts a player once, and counts me even before I have a board", () => {
+    expect(seatAmong(["amy", "amy", "bob"], "bob")).toBe(1);
+    expect(seatAmong(["bob"], "amy")).toBe(0);
+    expect(seatAmong([], "amy")).toBe(0);
+  });
+
+  it("two players re-seeding together land in different corners", () => {
+    const table = ["alice", "bob"];
+    const boards = table.map(
+      (name) => initPositionBlob(deck(), name, seatAmong(table, name)).tokens,
+    );
+    expect(boards[0][0]).toMatchObject({ x: 150, y: FIGHTER_ROW_TOP });
+    expect(boards[1][0].x).toBe(BOARD_SIZE.w - 150 - 88);
+    expectTidy(boards.flat());
   });
 });
