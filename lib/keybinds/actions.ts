@@ -84,7 +84,7 @@ const TABLE_ACTIONS: KeybindAction[] = [
     kind: "table",
     defaultKey: "Delete",
     palette: true,
-    note: "Delete or Backspace. Needs a selection, and holding the key does nothing.",
+    note: "Delete, or Backspace for a card. A piece is only deleted by Delete itself.",
   },
   {
     id: "clearSelection",

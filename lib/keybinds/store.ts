@@ -12,7 +12,7 @@ import {
   KeybindAction,
   SWITCH_SEAT_ACTION,
 } from "./actions";
-import { normalizeCombo } from "./combo";
+import { normalizeCombo, reservedReason } from "./combo";
 
 /**
  * The player's table shortcuts, saved on this device.
@@ -43,7 +43,8 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 /**
  * Reads a stored entry. Corrupt JSON, a wrong shape or a version from a
- * newer build all read as "no overrides". Ids this build does not know are
+ * newer build all read as "no overrides"; an entry naming no key, or a key
+ * the recorder would refuse, is dropped and that action keeps its default. Ids this build does not know are
  * kept (another tab may be on a newer build) and simply never resolve.
  */
 export const parseStoredOverrides = (raw: string | null): KeybindOverrides => {
@@ -64,7 +65,9 @@ export const parseStoredOverrides = (raw: string | null): KeybindOverrides => {
     if (value === null) out[id] = null;
     else {
       const combo = normalizeCombo(value);
-      if (combo) out[id] = combo;
+      // The dialog never records a browser or focus key (Ctrl+R, Tab,
+      // Space); one written by hand is dropped the same way.
+      if (combo && !reservedReason(combo)) out[id] = combo;
     }
   }
   return out;

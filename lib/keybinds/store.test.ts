@@ -106,6 +106,31 @@ describe("parseStoredOverrides", () => {
     ).toEqual({ draw1: "E" });
   });
 
+  it("drops browser and focus keys written by hand; the action keeps its default", () => {
+    const raw = JSON.stringify({
+      v: 1,
+      overrides: {
+        draw1: "Ctrl+R",
+        search: "Tab",
+        shuffle: "Space",
+        openDiscard: "Cmd+W",
+        addToken: "Enter",
+        newGame: "F5",
+        mill1: "Escape",
+        scry: "Alt+ArrowLeft",
+        draw2: "J",
+      },
+    });
+    expect(parseStoredOverrides(raw)).toEqual({ draw2: "J" });
+    const { bindings, byCombo } = resolveBindings(parseStoredOverrides(raw));
+    expect(bindings).toMatchObject({ draw1: "D", search: "B", shuffle: "Shift+S", newGame: null });
+    for (const combo of ["Ctrl+R", "Tab", "Space", "Cmd+W", "Enter", "F5", "Alt+ArrowLeft"]) {
+      expect(byCombo.get(combo)).toBeUndefined();
+    }
+    // Esc still clears the selection: that is a default, not a stored key.
+    expect(byCombo.get("Escape")).toBe("clearSelection");
+  });
+
   it("keeps ids this build does not know, and never takes the switch-seat key from here", () => {
     expect(
       parseStoredOverrides('{"v":1,"overrides":{"fromTheFuture":"J","switchSeat":"D"}}'),

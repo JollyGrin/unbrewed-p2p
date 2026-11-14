@@ -5,7 +5,7 @@ import { matchesKeyCombo, readSwitchSeatKey } from "@/lib/hotseat/switchSeatKey"
 import { KEYBIND_ACTION_BY_ID } from "./actions";
 import { comboFromEvent } from "./combo";
 import { keyEventBlocked } from "./guards";
-import { runKeybindAction } from "./handlers";
+import { DISCARD_SELECTED_CARD, runKeybindAction } from "./handlers";
 import { getKeybindSnapshot } from "./store";
 
 type LayerOptions = {
@@ -45,7 +45,14 @@ export const handleTableKey = (
   // A held key acts once. The repeats are still ours, so the browser does
   // not get them either (Firefox opens quick find on a held "/").
   const held = e.repeat && !action.repeatable;
-  const result = runKeybindAction(action.id, held);
+  // Backspace counts as Delete, except that it never deletes a piece: a
+  // Backspace meant for a typo in a piece's label must not cost the piece.
+  // A card it may discard, since that comes back from the discard pile.
+  const target =
+    action.id === "removeSelected" && e.key === "Backspace"
+      ? DISCARD_SELECTED_CARD
+      : action.id;
+  const result = runKeybindAction(target, held);
   if (result === "missing") return false;
   e.preventDefault();
   if (held) return true;

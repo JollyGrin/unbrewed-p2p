@@ -1,5 +1,8 @@
 import { getBoardViewControls } from "@/components/BoardCanvas/boardView";
-import { useKeybindHandler } from "@/lib/keybinds/handlers";
+import {
+  DISCARD_SELECTED_CARD,
+  useKeybindHandler,
+} from "@/lib/keybinds/handlers";
 
 const ZOOM_STEP = 1.25;
 const zoomIn = () => getBoardViewControls()?.zoomBy(ZOOM_STEP);
@@ -14,12 +17,16 @@ const fitBoard = () => getBoardViewControls()?.fit();
 export const useBoardKeybinds = (selection: {
   flip?: () => void;
   toHand?: () => void;
+  /** Discard the selected card, or delete the selected piece. */
   remove?: () => void;
+  /** Discard the selected card; absent for a piece (what Backspace runs). */
+  discardCard?: () => void;
   clear?: () => void;
 }) => {
   useKeybindHandler("flipSelected", selection.flip);
   useKeybindHandler("handSelected", selection.toHand);
   useKeybindHandler("removeSelected", selection.remove);
+  useKeybindHandler(DISCARD_SELECTED_CARD, selection.discardCard);
   useKeybindHandler("clearSelection", selection.clear);
   useKeybindHandler("zoomIn", zoomIn);
   useKeybindHandler("zoomOut", zoomOut);

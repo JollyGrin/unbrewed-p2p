@@ -17,6 +17,12 @@ import { PALETTE_TABLE_ACTIONS } from "./actions";
  * is not (nothing selected), and the key falls through untouched.
  */
 
+/**
+ * Handler id for the card-only half of `removeSelected`: what Backspace runs
+ * (lib/keybinds/layer.ts). Offered only while a card is selected.
+ */
+export const DISCARD_SELECTED_CARD = "removeSelected:card";
+
 type CommandSource = {
   commands: DeckCommand[];
   isRunnable: (cmd: DeckCommand) => boolean;

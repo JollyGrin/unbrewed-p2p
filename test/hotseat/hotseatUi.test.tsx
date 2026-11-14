@@ -13,6 +13,7 @@ import { CommandMenu } from "@/components/Game/CommandMenu/command-menu";
 import { GameMenusProvider, useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { PassDeviceCover } from "@/components/Game/Hand/pass-device.cover";
 import { useBoardRotated } from "@/lib/hotseat/useHotseat";
+import { keyEventBlocked } from "@/lib/keybinds/guards";
 
 /**
  * The hotseat UI on /offline (issue #1564): Add opponent → deck picker → a
@@ -264,6 +265,12 @@ describe("hotseat on /offline", () => {
 
     const cover = screen.getByRole("button", { name: /Bob's turn/ });
     expect(cover).toHaveTextContent("tap to reveal");
+    // While it is up no table shortcut runs for the incoming seat
+    // (lib/keybinds/guards.ts), and the switch-seat key still works.
+    expect(cover).toHaveAttribute("data-table-keys-off");
+    const blocked = new KeyboardEvent("keydown", { key: "d", code: "KeyD", bubbles: true, cancelable: true });
+    document.body.dispatchEvent(blocked);
+    expect(keyEventBlocked(blocked)).toBe(true);
     fireEvent.click(cover);
     expect(screen.queryByRole("button", { name: /Bob's turn/ })).toBeNull();
 

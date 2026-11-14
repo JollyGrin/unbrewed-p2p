@@ -2,8 +2,9 @@
  * When a key press is NOT a table shortcut, whatever it is bound to.
  *
  * The rule of thumb: a shortcut only fires when the key had nowhere else to
- * go. Someone typing, an open dialog or menu, an IME composing a character
- * and a handler that already took the press all come first.
+ * go. Someone typing, an open dialog or menu, the pass-the-device cover, an
+ * IME composing a character and a handler that already took the press all
+ * come first.
  */
 
 /** Inputs that take no typed text; a checkbox or switch does not block. */
@@ -32,6 +33,13 @@ const KEY_OWNERS = [
 
 /** An open modal anywhere on the page: the palette, a deck browser, a confirm. */
 const OPEN_MODAL = '[role="dialog"][aria-modal="true"],[role="alertdialog"]';
+
+/**
+ * Anything on the page that switches the table's shortcuts off while it is
+ * shown: the hotseat pass-the-device cover, which hides the hand until the
+ * incoming player taps it.
+ */
+const KEYS_OFF = "[data-table-keys-off]";
 
 /** Keys a slider (the size sliders on the token panels) moves with. */
 const SLIDER_KEYS = new Set([
@@ -85,5 +93,5 @@ export const keyEventBlocked = (e: KeyboardEvent): boolean => {
     el?.getAttribute("role") === "slider" ||
     (el?.tagName === "INPUT" && (el as HTMLInputElement).type === "range");
   if (slider && SLIDER_KEYS.has(e.key)) return true;
-  return !!document.querySelector(OPEN_MODAL);
+  return !!document.querySelector(`${OPEN_MODAL},${KEYS_OFF}`);
 };

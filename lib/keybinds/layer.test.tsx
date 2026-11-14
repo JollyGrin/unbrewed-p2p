@@ -3,7 +3,11 @@ import { act, render } from "@testing-library/react";
 import { toast } from "react-hot-toast";
 
 import { DeckCommand } from "@/components/Game/CommandMenu/deckCommands";
-import { useKeybindCommands, useKeybindHandler } from "./handlers";
+import {
+  DISCARD_SELECTED_CARD,
+  useKeybindCommands,
+  useKeybindHandler,
+} from "./handlers";
 import { handleTableKey, useTableKeybinds } from "./layer";
 import { refreshKeybinds, withBinding, writeOverrides } from "./store";
 
@@ -15,6 +19,8 @@ import { refreshKeybinds, withBinding, writeOverrides } from "./store";
 const ran: string[] = [];
 let deckEmpty = false;
 let selected = true;
+/** What is selected: GameShell offers the card-only discard for a card. */
+let selectedKind: "card" | "piece" = "card";
 
 const command = (id: string): DeckCommand => ({
   id,
@@ -30,6 +36,10 @@ const Table = ({ hotseatActive = false }: { hotseatActive?: boolean }) => {
   useKeybindCommands(COMMANDS, (cmd) => cmd.enabled({} as never));
   useKeybindHandler("flipSelected", selected && (() => ran.push("flipSelected")));
   useKeybindHandler("removeSelected", selected && (() => ran.push("removeSelected")));
+  useKeybindHandler(
+    DISCARD_SELECTED_CARD,
+    selected && selectedKind === "card" && (() => ran.push("discardCard")),
+  );
   useKeybindHandler("clearSelection", selected && (() => ran.push("clearSelection")));
   useKeybindHandler("zoomIn", () => ran.push("zoomIn"));
   useKeybindHandler("showShortcuts", () => ran.push("showShortcuts"));
@@ -56,6 +66,7 @@ beforeEach(() => {
   ran.length = 0;
   deckEmpty = false;
   selected = true;
+  selectedKind = "card";
   document.body.innerHTML = "";
 });
 
@@ -85,7 +96,7 @@ describe("matching", () => {
       "addToken",
       "flipSelected",
       "removeSelected",
-      "removeSelected",
+      "discardCard",
       "clearSelection",
       "zoomIn",
       "zoomIn",
@@ -253,6 +264,52 @@ describe("guards", () => {
     handled.preventDefault();
     expect(handleTableKey(handled)).toBe(false);
     expect(ran).toEqual([]);
+  });
+});
+
+describe("Backspace and a selected piece", () => {
+  it("Backspace discards a card but never deletes a piece; Delete does both", () => {
+    selectedKind = "piece";
+    render(<Table />);
+    // Left alone entirely: not run, not swallowed.
+    expect(press({ key: "Backspace", code: "Backspace" }).defaultPrevented).toBe(false);
+    expect(ran).toEqual([]);
+    expect(press({ key: "Delete", code: "Delete" }).defaultPrevented).toBe(true);
+    expect(ran).toEqual(["removeSelected"]);
+  });
+
+  it("holds for a rebound key too: only the key itself deletes a piece", () => {
+    selectedKind = "piece";
+    writeOverrides(withBinding({}, "removeSelected", "X"));
+    render(<Table />);
+    press({ key: "Backspace", code: "Backspace" });
+    press({ key: "Delete", code: "Delete" });
+    expect(ran).toEqual([]);
+    press({ key: "x", code: "KeyX" });
+    expect(ran).toEqual(["removeSelected"]);
+  });
+});
+
+describe("the hotseat pass-the-device cover", () => {
+  it("switches every table shortcut off while it is up", () => {
+    render(<Table />);
+    const cover = mount(document.createElement("button"));
+    cover.setAttribute("data-table-keys-off", "");
+    for (const init of [
+      { key: "d", code: "KeyD" },
+      { key: "S", code: "KeyS", shiftKey: true },
+      { key: "f", code: "KeyF" },
+      { key: "Delete", code: "Delete" },
+      { key: "=", code: "Equal" },
+      { key: "?", code: "Slash", shiftKey: true },
+    ]) {
+      expect(press(init).defaultPrevented).toBe(false);
+      expect(press(init, cover).defaultPrevented).toBe(false);
+    }
+    expect(ran).toEqual([]);
+    cover.remove(); // tapped: the hand is shown
+    press({ key: "d", code: "KeyD" });
+    expect(ran).toEqual(["draw1"]);
   });
 });
 

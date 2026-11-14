@@ -614,6 +614,7 @@ const BoardContainer = ({
         : undefined),
     toHand: cardActions?.toHand,
     remove: cardActions?.toDiscard ?? pieceActions?.remove,
+    discardCard: cardActions?.toDiscard,
     clear:
       selectedId || pickupId
         ? () => {
