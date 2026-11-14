@@ -11,7 +11,11 @@ import {
   reorderTop,
 } from "@/components/DeckPool/PoolFns";
 import { initPool } from "@/lib/sandbox/initGame";
-import { PlayCardToTable } from "@/components/Positions/position.type";
+import {
+  COMPACT_CARD_TOKEN_WIDTH,
+  PlayCardToTable,
+} from "@/components/Positions/position.type";
+import { pileRect } from "@/components/BoardCanvas/tokenMotion";
 import { TransferZone } from "@/lib/gamesocket/message";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { useBagDecks } from "@/lib/bag/useBag";
@@ -35,6 +39,7 @@ import { ScryModal } from "@/components/Game/CommandMenu/scry.modal";
 import { PileSplitButton } from "./pile-split-button";
 import { HandActionsButton } from "./hand-actions-button";
 import { PassDeviceCover } from "./pass-device.cover";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
 
 type GameData = {
   gameState: WebsocketMessage | undefined;
@@ -214,7 +219,19 @@ export const HandContainer = ({
     const card = pool.deck.pop();
     if (!card) return;
     setGameState(pool);
-    playToTable(card, { faceDown: false, size: 130 });
+    const deck = pileRect("deck");
+    playToTable(card, {
+      faceDown: false,
+      size: COMPACT_CARD_TOKEN_WIDTH,
+      // motion only: the boost card comes out of the Deck button
+      from: deck
+        ? {
+            x: deck.left + deck.width / 2,
+            y: deck.top + deck.height / 2,
+            width: deck.height,
+          }
+        : undefined,
+    });
     logAction(`Boosted from deck: ${card.title} (boost ${card.boost})`);
   };
 
@@ -289,16 +306,23 @@ export const HandContainer = ({
           onClick={() => playerState?.pool && gDraw(playerState?.pool)}
         >
           Draw +1
+          <KeyHint action="draw1" />
         </PileButton>
         <PileSplitButton
+          pile="deck"
+          count={playerState?.pool?.deck?.length ?? 0}
           label={`Deck (${playerState?.pool?.deck?.length ?? 0})`}
           onPrimary={() => setModal("deck")}
+          shortcut="search"
           commands={deckCommands}
           pool={playerState?.pool}
         />
         <PileSplitButton
+          pile="discard"
+          count={playerState?.pool?.discard?.length ?? 0}
           label={`Discard (${playerState?.pool?.discard?.length ?? 0})`}
           onPrimary={() => setModal("discard")}
+          shortcut="openDiscard"
           commands={discardCommands}
           pool={playerState?.pool}
         />
@@ -331,6 +355,7 @@ export const HandContainer = ({
           giveFn: gGiveCard,
         }}
         opponents={opponents}
+        deckCount={playerState?.pool?.deck?.length}
       />
       {/* Hotseat only (issue #1564): hides the hand after a seat switch. */}
       <PassDeviceCover />

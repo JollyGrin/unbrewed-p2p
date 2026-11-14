@@ -1,13 +1,20 @@
 import {
   FOCUS_IN,
   FOLLOW,
+  MAX_ARRIVALS,
   MAX_SWAY,
+  arrivalStart,
+  ghostScaleOnBoard,
+  handArrivals,
+  handCarryOver,
+  motionAllowed,
   pickFocus,
   riseFor,
   settled,
   spreadFor,
   stepSpring,
   swayFor,
+  toSlotFrame,
 } from "./fanMotion";
 
 const W = 150;
@@ -95,5 +102,95 @@ describe("swayFor", () => {
     expect(swayFor(500)).toBeGreaterThan(0);
     expect(swayFor(-500)).toBeLessThan(0);
     expect(swayFor(1e6)).toBe(MAX_SWAY);
+  });
+});
+
+describe("handArrivals", () => {
+  const c = (title: string) => ({ title, type: "attack", value: 3, boost: 1 });
+
+  it("finds the card that was added, by what it is rather than by identity", () => {
+    const prev = [c("A"), c("B")];
+    // a hand that came over the wire: all new objects
+    expect(handArrivals(prev, [c("A"), c("B"), c("C")])).toEqual([2]);
+  });
+
+  it("picks the later copy when the new card duplicates one in hand", () => {
+    expect(handArrivals([c("A"), c("B")], [c("A"), c("B"), c("A")])).toEqual([
+      2,
+    ]);
+  });
+
+  it("is empty for the deal, a rejoin, a shrinking hand and a big batch", () => {
+    expect(handArrivals(undefined, [c("A")])).toEqual([]);
+    expect(handArrivals([c("A"), c("B")], [c("A")])).toEqual([]);
+    expect(handArrivals([c("A")], [c("A")])).toEqual([]);
+    const many = Array.from({ length: MAX_ARRIVALS + 1 }, (_, i) => c(`N${i}`));
+    expect(handArrivals([], many)).toEqual([]);
+    expect(handArrivals([], many.slice(0, MAX_ARRIVALS))).toHaveLength(
+      MAX_ARRIVALS,
+    );
+  });
+});
+
+describe("arrival geometry", () => {
+  it("toSlotFrame undoes the slot's rotation", () => {
+    expect(toSlotFrame(10, -20, 0)).toEqual({ x: 10, y: -20 });
+    const p = toSlotFrame(0, -100, 90);
+    // straight up on screen runs along -x of a slot turned a quarter turn
+    expect(p.x).toBeCloseTo(-100);
+    expect(p.y).toBeCloseTo(0);
+  });
+
+  it("starts an arriving card with its centre on the origin", () => {
+    const card = { width: 143, height: 200 };
+    const pivot = { x: 500, y: 800 };
+    for (const rot of [0, 9, -13]) {
+      const origin = { x: 60, y: 690, width: 43 };
+      const s = arrivalStart(origin, pivot, rot, card);
+      expect(s.scale).toBeCloseTo(43 / 143);
+      // forward: screen centre = pivot + R(rot)·offset + (0, -scale·h/2)
+      const a = (rot * Math.PI) / 180;
+      const cx = pivot.x + s.x * Math.cos(a) - s.y * Math.sin(a);
+      const cy =
+        pivot.y +
+        s.x * Math.sin(a) +
+        s.y * Math.cos(a) -
+        (s.scale * card.height) / 2;
+      expect(cx).toBeCloseTo(origin.x);
+      expect(cy).toBeCloseTo(origin.y);
+    }
+  });
+
+  it("sizes the drag ghost to the token it becomes, at any zoom", () => {
+    const face = (200 * 63) / 88;
+    for (const zoom of [0.25, 0.8, 1, 4]) {
+      const s = ghostScaleOnBoard(180, zoom, face);
+      expect(face * s).toBeCloseTo(180 * zoom);
+    }
+  });
+});
+
+describe("motionAllowed", () => {
+  it("is off where there is no media query to ask (jsdom, server)", () => {
+    expect(motionAllowed()).toBe(false);
+  });
+});
+
+describe("handCarryOver", () => {
+  const c = (title: string) => ({ title, type: "attack", value: 3, boost: 1 });
+
+  it("follows each card to its new place when one to its left leaves", () => {
+    // B is discarded while C (index 2) is still flying in: C is now index 1
+    expect(handCarryOver([c("A"), c("B"), c("C")], [c("A"), c("C")])).toEqual([0, 2]);
+  });
+
+  it("marks arrivals, and matches copies earliest first", () => {
+    expect(handCarryOver([c("A"), c("B")], [c("A"), c("B"), c("C")])).toEqual([0, 1, -1]);
+    expect(handCarryOver([c("A"), c("B"), c("A")], [c("A"), c("A"), c("A")])).toEqual([0, 2, -1]);
+  });
+
+  it("copes with no hand before or after", () => {
+    expect(handCarryOver(undefined, [c("A")])).toEqual([-1]);
+    expect(handCarryOver([c("A")], undefined)).toEqual([]);
   });
 });

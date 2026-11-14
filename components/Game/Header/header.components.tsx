@@ -45,6 +45,7 @@ import {
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { useState } from "react";
+import { useValueTick } from "@/components/Game/Hand/useValueTick";
 
 import { FaMap, FaScroll } from "react-icons/fa";
 import { GrPowerReset as IconNewGame } from "react-icons/gr";
@@ -52,6 +53,8 @@ import { useGameMenus } from "@/components/Game/GameMenus/game-menus";
 import { MapModal } from "./map.modal";
 import { DiceModal } from "./dice.modal";
 import { DiscardModalReadOnly } from "./discard.modal";
+import { useKeybindHandler } from "@/lib/keybinds/handlers";
+import { useKeyTip } from "@/components/Game/Keybinds/key-hint";
 
 export const PlayerBox: React.FC<{
   isLocal: boolean;
@@ -95,6 +98,10 @@ export const PlayerBox: React.FC<{
   const diceDisclosure = useDisclosure();
   const discardDisclosure = useDisclosure();
   const menus = useGameMenus();
+  // Keyboard shortcut (lib/keybinds): only the local seat's box rolls.
+  useKeybindHandler("openDice", isLocal && diceDisclosure.onOpen);
+  const diceTip = useKeyTip("Roll dice", "openDice");
+  const tokensTip = useKeyTip("Add tokens to the board", "addToken");
 
   const sidekickQty = sidekick?.quantity ?? 0;
   // Deliberately looser than `hasSidekick()`: this row is the HP/count control,
@@ -155,7 +162,7 @@ export const PlayerBox: React.FC<{
                   <FaMap size="15px" />
                 </ControlButton>
               </Tooltip>
-              <Tooltip label="Add tokens to the board" hasArrow>
+              <Tooltip label={tokensTip} hasArrow>
                 <ControlButton
                   as="button"
                   aria-label="Add tokens to the board"
@@ -167,7 +174,7 @@ export const PlayerBox: React.FC<{
                   <IconToken size="14px" />
                 </ControlButton>
               </Tooltip>
-              <Tooltip label="Roll dice" hasArrow>
+              <Tooltip label={diceTip} hasArrow>
                 <ControlButton
                   as="button"
                   aria-label="Roll dice"
@@ -280,19 +287,19 @@ export const PlayerBox: React.FC<{
           <Tooltip label="Cards in hand" placement="bottom" hasArrow>
             <Pip>
               <IconHand size="14px" />
-              {hand.length}
+              <TickCount value={hand.length} />
             </Pip>
           </Tooltip>
           <Tooltip label="Cards left in deck" placement="bottom" hasArrow>
             <Pip>
               <IconDeck size="14px" />
-              {deck?.length ?? 0}
+              <TickCount value={deck?.length ?? 0} />
             </Pip>
           </Tooltip>
           <Tooltip label="Discard pile — click to view" placement="bottom" hasArrow>
             <Pip clickable onClick={discardDisclosure.onOpen}>
               <IconDiscard size="14px" />
-              {discard.length}
+              <TickCount value={discard.length} />
             </Pip>
           </Tooltip>
         </PipFooter>
@@ -321,6 +328,8 @@ export const Stat: React.FC<{
   emphasize,
 }) => {
   const [isHovering, setIsHovering] = useState<boolean>(false);
+  // health and unit counts roll over, green on a gain and red on a loss
+  const tick = useValueTick<HTMLParagraphElement>(number, { tone: true });
   const enter = () => setIsHovering(true);
   const leave = () => setIsHovering(false);
   return (
@@ -348,6 +357,7 @@ export const Stat: React.FC<{
       )}
 
       <Text
+        ref={tick}
         alignSelf="center"
         fontFamily={emphasize ? fonts.SpaceGrotesk : undefined}
         fontWeight={emphasize ? 700 : undefined}
@@ -420,6 +430,16 @@ export const TipBody = (props: { pool: PoolType }) => {
         </Box>
       ))}
     </Box>
+  );
+};
+
+/** A hand / deck / discard count that rolls over when it changes. */
+const TickCount = ({ value }: { value: number }) => {
+  const ref = useValueTick<HTMLSpanElement>(value);
+  return (
+    <span ref={ref} style={{ display: "inline-block" }}>
+      {value}
+    </span>
   );
 };
 

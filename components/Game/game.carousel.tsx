@@ -1,12 +1,23 @@
-import React, { CSSProperties, useEffect, useRef, useState } from "react";
+import React, {
+  CSSProperties,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Box, Flex } from "@chakra-ui/react";
 import { Card } from "../CardFactory/Card";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { PopoverCardActions } from "./card-actions.popover";
-import { getBoardSvg } from "../BoardCanvas/boardTransform";
+import { getBoardSvg, getBoardTransform } from "../BoardCanvas/boardTransform";
+import { pileRect } from "../BoardCanvas/tokenMotion";
+import { DEFAULT_CARD_TOKEN_WIDTH } from "../Positions/position.type";
+import { flyClone } from "./Hand/flyClone";
 import {
+  ARRIVAL_STAGGER,
+  ARRIVE,
   FOCUS_IN,
   FOCUS_LIFT_RATIO,
   FOCUS_OUT,
@@ -17,6 +28,11 @@ import {
   RETURN,
   SWAY,
   TILT,
+  arrivalStart,
+  ghostScaleOnBoard,
+  handArrivals,
+  handCarryOver,
+  motionAllowed,
   pickFocus,
   prefersReducedMotion,
   riseFor,
@@ -24,10 +40,14 @@ import {
   spreadFor,
   stepSpring,
   swayFor,
+  takeHandArrival,
 } from "./Hand/fanMotion";
 
 const CARD_WIDTH = 150;
 const CARD_HEIGHT = 200;
+/** The card face is 63:88 and fills the slot's height, so it is drawn a
+ * little narrower than the slot. Sizes shared with the board use this. */
+const CARD_FACE_WIDTH = (CARD_HEIGHT * 63) / 88;
 /** widest the fan is allowed to spread before cards overlap tighter */
 const MAX_FAN_WIDTH = 950;
 /** pointer travel (px) before a press on a card becomes a drag-to-table */
@@ -53,13 +73,21 @@ type CardWrapperProps = {
     /** Play hand[index] onto the table — absent offline (no board). */
     playFn?: (
       index: number,
-      opts?: { faceDown?: boolean; screenPos?: { x: number; y: number } },
+      opts?: {
+        faceDown?: boolean;
+        screenPos?: { x: number; y: number };
+        /** Where the card is drawn as it is played (motion only). */
+        from?: { x: number; y: number; width: number; rot?: number };
+      },
     ) => void;
     /** Give hand[index] to another player (escrow transfer). */
     giveFn?: (index: number, to: string) => void;
   };
   /** Other players in the room, for the "Give card to…" actions. */
   opponents?: string[];
+  /** Cards left in the deck: a new hand card that left the deck flies in
+   * from the Deck button. */
+  deckCount?: number;
 };
 
 /**
@@ -89,8 +117,26 @@ type CardSim = {
   vtx: number;
   ty: number;
   vty: number;
+  /** arrival: 1 = at its origin (deck button, table token), 0 = in its slot */
+  arr: number;
+  varr: number;
+  /** where the arrival starts: offset in the slot's frame, and scale */
+  ax: number;
+  ay: number;
+  as: number;
+  /** seconds before the arrival starts moving (staggered batches) */
+  delay: number;
+  /** fade in on the way (a card appearing out of a button) */
+  fade: boolean;
 };
 const restSim = (): CardSim => ({
+  arr: 0,
+  varr: 0,
+  ax: 0,
+  ay: 0,
+  as: 1,
+  delay: 0,
+  fade: false,
   f: 0,
   vf: 0,
   spread: 0,
@@ -144,6 +190,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
   cards,
   functions,
   opponents,
+  deckCount,
 }) => {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const [drag, setDrag] = useState<{
@@ -244,6 +291,13 @@ export const HandFan: React.FC<CardWrapperProps> = ({
             vty: 0,
           });
         else busy = true;
+        if (s.arr !== 0) {
+          if (s.delay > 0) s.delay -= dt;
+          else [s.arr, s.varr] = stepSpring(s.arr, s.varr, 0, dt, ARRIVE);
+          if (s.delay <= 0 && settled(s.arr, s.varr, 0, 0.002))
+            Object.assign(s, { arr: 0, varr: 0 });
+          else busy = true;
+        }
       }
 
       const lift = liftEls.current[i];
@@ -257,17 +311,37 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       const y =
         s.f * (-droopOf(i) - CARD_HEIGHT * FOCUS_LIFT_RATIO) -
         s.rise * (1 - s.f);
-      if (lift)
-        lift.style.transform = `translateX(${s.spread}px) rotate(${
-          -rotOf(i) * s.f
-        }deg) translateY(${y}px) scale(${1 + (FOCUS_SCALE - 1) * s.f})`;
+      // An arriving card is drawn upright at its origin and eases into the
+      // slot's own angle and place; the slot (the hit target) never moves.
+      const upright = Math.min(1, s.f + Math.max(0, s.arr));
+      if (lift) {
+        lift.style.transform = `${
+          s.arr !== 0
+            ? `translate(${s.ax * s.arr}px, ${s.ay * s.arr}px) `
+            : ""
+        }translateX(${s.spread}px) rotate(${
+          -rotOf(i) * upright
+        }deg) translateY(${y}px) scale(${
+          (1 + (FOCUS_SCALE - 1) * s.f) * (1 + (s.as - 1) * s.arr)
+        })`;
+        lift.style.opacity =
+          s.fade && s.arr !== 0
+            ? String(Math.max(0, Math.min(1, (1 - s.arr) * 4)))
+            : "";
+      }
       if (tilt)
         tilt.style.transform = `perspective(900px) rotateX(${s.tx}deg) rotateY(${s.ty}deg)`;
       if (slot) {
         // the card on its way down keeps its height in the stack until it
         // has mostly sunk, instead of dropping behind its neighbours mid-air
         slot.style.zIndex = String(
-          focused ? 300 : s.f > 0.02 ? 200 + Math.round(s.f * 90) : i,
+          focused
+            ? 300
+            : Math.abs(s.arr) > 0.03
+              ? 295
+              : s.f > 0.02
+                ? 200 + Math.round(s.f * 90)
+                : i,
         );
         slot.dataset.focused = String(focused);
       }
@@ -298,7 +372,17 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const ty = back ? g.home!.y : g.py;
     // over the board it is drawn at hand size; elsewhere (the drop would
     // cancel) it stays a little lifted and faded
-    const ts = back || g.overBoard ? 1 : 1.12;
+    // over the board it is drawn the size it will land at, at any zoom;
+    // elsewhere (the drop would cancel) it stays a little lifted and faded
+    const ts = back
+      ? 1
+      : g.overBoard
+        ? ghostScaleOnBoard(
+            DEFAULT_CARD_TOKEN_WIDTH,
+            getBoardTransform().k,
+            CARD_FACE_WIDTH,
+          )
+        : 1.12;
     if (reduced.current) {
       Object.assign(g, { x: tx, y: ty, s: ts, rot: back ? g.home!.rot : 0 });
       writeGhost(ghostRef.current, g);
@@ -346,6 +430,103 @@ export const HandFan: React.FC<CardWrapperProps> = ({
 
   // Re-apply after every render: the hand may have changed under the springs.
   useEffect(() => kickRef.current());
+
+  // New cards fly into the fan: from the Deck button when they left the deck,
+  // from a table token when one was just taken back (noteHandArrival), else a
+  // short rise. Runs before paint so a card is never drawn at rest first. The
+  // hand can be mutated in place, so the previous one is kept as a copy.
+  const prevHand = useRef<{
+    cards: DeckImportCardType[] | undefined;
+    deckCount: number | undefined;
+  }>({ cards: undefined, deckCount: undefined });
+  useLayoutEffect(() => {
+    const was = prevHand.current;
+    prevHand.current = { cards: cards?.slice(), deckCount };
+    if (!cards || !motionAllowed()) return;
+    // Springs belong to cards, not to slots: when the hand changed, each
+    // card takes its own along to its new place (a card discarded from the
+    // left must not pass a neighbour's arrival flight one card over).
+    if (was.cards) {
+      const from = handCarryOver(was.cards, cards);
+      if (from.some((j, i) => j !== i)) {
+        const old = sims.current;
+        sims.current = from.map((j) => (j >= 0 && old[j]) || restSim());
+        // before paint, so no card is drawn a frame in its neighbour's pose
+        stepFan(0);
+      }
+    }
+    const arrivals = handArrivals(was.cards, cards);
+    if (!arrivals.length) return;
+    const noted = arrivals.length === 1 ? takeHandArrival() : null;
+    const deck =
+      !noted &&
+      was.deckCount != null &&
+      deckCount != null &&
+      was.deckCount - deckCount === arrivals.length
+        ? pileRect("deck")
+        : null;
+    const box = containerRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const { rotOf } = layout.current;
+    sims.current.length = cards.length;
+    arrivals.forEach((i, n) => {
+      const slot = slotEls.current[i];
+      if (!slot) return;
+      const pivot = {
+        x: box.left + slot.offsetLeft + CARD_WIDTH / 2,
+        y: box.top + slot.offsetTop + CARD_HEIGHT,
+      };
+      const origin = noted ??
+        (deck && {
+          x: deck.left + deck.width / 2,
+          y: deck.top + deck.height / 2,
+          width: CARD_FACE_WIDTH * 0.3,
+        }) ?? {
+          x: pivot.x,
+          y: pivot.y - CARD_HEIGHT / 2 + 56,
+          width: CARD_FACE_WIDTH * 0.92,
+        };
+      const start = arrivalStart(origin, pivot, rotOf(i), {
+        width: CARD_FACE_WIDTH,
+        height: CARD_HEIGHT,
+      });
+      sims.current[i] = {
+        ...restSim(),
+        arr: 1,
+        ax: start.x,
+        ay: start.y,
+        as: start.scale,
+        delay: n * ARRIVAL_STAGGER,
+        fade: !noted,
+      };
+    });
+    // draw the first frame now: the card must not flash in its slot
+    stepFan(0);
+    kickRef.current();
+  });
+
+  /** Where hand[index] is drawn right now, for a token that arrives from it. */
+  const poseOf = (index: number) => {
+    const el = liftEls.current[index] ?? slotEls.current[index];
+    if (!el) return undefined;
+    const r = el.getBoundingClientRect();
+    const f = sims.current[index]?.f ?? 0;
+    return {
+      x: r.left + r.width / 2,
+      y: r.top + r.height / 2,
+      width: CARD_FACE_WIDTH * (1 + (FOCUS_SCALE - 1) * f),
+      rot: rotOf(index) * (1 - f),
+    };
+  };
+
+  /** A copy of hand[index] flies to a pile as the card itself leaves. */
+  const flyToPile = (index: number, pile: "deck" | "discard") => {
+    const f = sims.current[index]?.f ?? 0;
+    flyClone(liftEls.current[index], pileRect(pile), {
+      scale: 1 + (FOCUS_SCALE - 1) * f,
+      rot: rotOf(index) * (1 - f),
+    });
+  };
 
   // Cursor tracking. Window-wide so the focused card stays up while the
   // cursor moves onto its enlarged face above the hand to read it.
@@ -509,10 +690,19 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       if (!active) return;
       if (!overBoard(ev.clientX, ev.clientY)) return flyBack();
       const at = resolveHandIndex(cardsRef.current, card, index);
+      // the token takes over from exactly where the ghost is drawn
+      const g = ghost.current;
+      const from = g && {
+        x: g.x,
+        y: g.y,
+        width: CARD_FACE_WIDTH * g.s,
+        rot: g.rot,
+      };
       finishGhost();
       if (at < 0) return; // it left the hand mid-drag — nothing to play
       functionsRef.current.playFn?.(at, {
         screenPos: { x: ev.clientX, y: ev.clientY },
+        ...(from ? { from } : {}),
       });
     };
     const onCancel = (ev: PointerEvent) => {
@@ -579,17 +769,27 @@ export const HandFan: React.FC<CardWrapperProps> = ({
               <Flex className="actions">
                 <PopoverCardActions
                   actions={[
-                    { text: "Discard", fn: () => functions.discardFn(index) },
+                    {
+                      text: "Discard",
+                      fn: () => {
+                        flyToPile(index, "discard");
+                        functions.discardFn(index);
+                      },
+                    },
                     ...(functions.playFn
                       ? [
                           {
                             text: "Place on table",
-                            fn: () => functions.playFn?.(index),
+                            fn: () =>
+                              functions.playFn?.(index, { from: poseOf(index) }),
                           },
                           {
                             text: "Place face-up on table",
                             fn: () =>
-                              functions.playFn?.(index, { faceDown: false }),
+                              functions.playFn?.(index, {
+                                faceDown: false,
+                                from: poseOf(index),
+                              }),
                           },
                         ]
                       : []),
@@ -601,11 +801,17 @@ export const HandFan: React.FC<CardWrapperProps> = ({
                       : []),
                     {
                       text: "Place top of deck",
-                      fn: () => functions.deckCardFn(index),
+                      fn: () => {
+                        flyToPile(index, "deck");
+                        functions.deckCardFn(index);
+                      },
                     },
                     {
                       text: "Place bottom of deck",
-                      fn: () => functions.deckCardBottomFn(index),
+                      fn: () => {
+                        flyToPile(index, "deck");
+                        functions.deckCardBottomFn(index);
+                      },
                     },
                   ]}
                 />

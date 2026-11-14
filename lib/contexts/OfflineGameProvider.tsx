@@ -1,3 +1,4 @@
+import { ACTION_LOG_LIMIT } from "@/lib/sandbox/gameLog";
 import {
   FC,
   PropsWithChildren,
@@ -38,7 +39,6 @@ import {
 } from "@/lib/sandbox/initGame";
 
 // Keep the local feed bounded exactly like the online provider does.
-const ACTION_LOG_LIMIT = 25;
 
 // The first (and, without hotseat, the lone) player's key. `?name=offline` is
 // set on the URL so BoardContainer, HandContainer, HeaderContainer, and
@@ -211,7 +211,7 @@ export const OfflineGameProvider: FC<PropsWithChildren> = ({ children }) => {
       else delete decksRef.current[SELF];
       const nextPlayers: Record<string, PlayerState> = {};
       const nextPositions: PositionState = {};
-      for (const seat of seatsRef.current) {
+      for (const [index, seat] of seatsRef.current.entries()) {
         const deck = seat === SELF ? firstDeck : decksRef.current[seat];
         nextPlayers[seat] =
           seat === SELF
@@ -220,7 +220,7 @@ export const OfflineGameProvider: FC<PropsWithChildren> = ({ children }) => {
                 actionLog: [{ seq: 1, at: Date.now(), text }],
               }
             : { pool: deck ? initPool(deck) : undefined };
-        nextPositions[seat] = initPositionBlob(deck, seat);
+        nextPositions[seat] = initPositionBlob(deck, seat, index);
       }
       setPlayers(nextPlayers);
       setPositions(nextPositions);
@@ -254,7 +254,11 @@ export const OfflineGameProvider: FC<PropsWithChildren> = ({ children }) => {
       decksRef.current[seat] = deck;
       const entry = nextEntry(text);
       const pool = initPool(deck);
-      const blob = initPositionBlob(deck, seat);
+      const blob = initPositionBlob(
+        deck,
+        seat,
+        seatsRef.current.indexOf(seat),
+      );
       setPlayers((prev) => ({
         ...prev,
         [seat]: {
@@ -288,7 +292,11 @@ export const OfflineGameProvider: FC<PropsWithChildren> = ({ children }) => {
       seatsRef.current = [...seatsRef.current, OPPONENT];
       setSeats(seatsRef.current);
       const pool = initPool(deck);
-      const blob = initPositionBlob(deck, OPPONENT);
+      const blob = initPositionBlob(
+        deck,
+        OPPONENT,
+        seatsRef.current.indexOf(OPPONENT),
+      );
       setPlayers((prev) => ({ ...prev, [OPPONENT]: { pool } }));
       setPositions((prev) => ({ ...prev, [OPPONENT]: blob }));
       appendLog(SELF, nextEntry(`Added ${heroName(deck)} as opponent`));
