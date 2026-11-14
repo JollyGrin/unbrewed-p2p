@@ -14,6 +14,7 @@ import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
   BoardActions,
   BoardToken,
+  COMPACT_CARD_TOKEN_WIDTH,
   DEFAULT_CARD_TOKEN_WIDTH,
   DEFAULT_PLAYER_COLOR,
   OwnedToken,
@@ -47,6 +48,13 @@ import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { loadChunk } from "@/lib/lazyChunk";
 import { throttle } from "lodash";
+import {
+  ExitTo,
+  announceExit,
+  announceLanding,
+  tokenScreenRect,
+} from "@/components/BoardCanvas/tokenMotion";
+import { noteHandArrival } from "@/components/Game/Hand/fanMotion";
 
 // dice-box-threejs touches window/document on load, so render it client-only.
 // If its chunk still fails after loadChunk's retry, the board goes on without
@@ -382,6 +390,12 @@ const BoardContainer = ({
         card,
         ...(opts?.faceDown ? { faceDown: true } : {}),
       };
+      // Motion only: the token arrives from where the card was drawn, and a
+      // card played face-down from the hand turns over as it lands.
+      announceLanding(token.id, {
+        from: opts?.from,
+        flipFromFace: !!opts?.faceDown && !!opts?.from,
+      });
       sendTokens([...myTokens, token]);
     },
     [myTokens, self, sendTokens],
@@ -394,9 +408,27 @@ const BoardContainer = ({
   // pool zone (playerstate channel) and removes the token (playerposition
   // channel) — a card is never deleted outright.
   const returnTableCard = useCallback(
-    (t: BoardToken, addTo: typeof addCardToHand, logText: string) => {
+    (
+      t: BoardToken,
+      addTo: typeof addCardToHand,
+      logText: string,
+      to: ExitTo,
+    ) => {
       const pool = players?.[self]?.pool;
       if (!t.card || !pool) return;
+      // Motion only: the card flies to its pile, or the hand takes it from
+      // where the token is drawn.
+      announceExit(t.id, to);
+      if (to === "hand") {
+        const r = tokenScreenRect(t.id);
+        noteHandArrival(
+          r && {
+            x: r.left + r.width / 2,
+            y: r.top + r.height / 2,
+            width: r.width,
+          },
+        );
+      }
       setPlayerState()({ pool: addTo(pool, t.card) });
       sendTokens(myTokens.filter((m) => m.id !== t.id));
       setSelectedId(null);
@@ -439,7 +471,7 @@ const BoardContainer = ({
     if (!pool?.hand?.length) return;
     const cards = pool.hand.splice(0, pool.hand.length);
     const { x, y } = centerRef.current();
-    const w = 130;
+    const w = COMPACT_CARD_TOKEN_WIDTH;
     const h = cardTokenHeight(w);
     const gap = Math.round(w * 0.5);
     const startX = x - ((cards.length - 1) * gap) / 2;
@@ -586,13 +618,19 @@ const BoardContainer = ({
           token={selected}
           onFlip={() => flipTableCard(selected)}
           onToHand={() =>
-            returnTableCard(selected, addCardToHand, "Returned a card to hand")
+            returnTableCard(
+              selected,
+              addCardToHand,
+              "Returned a card to hand",
+              "hand",
+            )
           }
           onToDiscard={() =>
             returnTableCard(
               selected,
               addCardToDiscard,
               "Discarded a card from the table",
+              "discard",
             )
           }
           onToDeckTop={() =>
@@ -600,6 +638,7 @@ const BoardContainer = ({
               selected,
               addCardToDeckTop,
               "Placed a table card on top of deck",
+              "deck",
             )
           }
           onToDeckBottom={() =>
@@ -607,6 +646,7 @@ const BoardContainer = ({
               selected,
               addCardToDeckBottom,
               "Placed a table card on bottom of deck",
+              "deck",
             )
           }
           onResize={(size, h) => patchToken(selected.id, { size, h })}

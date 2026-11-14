@@ -15,6 +15,7 @@ import {
   BoardToken,
   DEFAULT_CARD_TOKEN_WIDTH,
   cardTokenHeight,
+  cardTokenSizeRange,
 } from "./position.type";
 
 /**
@@ -43,6 +44,7 @@ export const CardTokenPanel: FC<{
   onClose,
 }) => {
   const size = token.size ?? DEFAULT_CARD_TOKEN_WIDTH;
+  const range = cardTokenSizeRange(size);
 
   return (
     <Box
@@ -113,8 +115,8 @@ export const CardTokenPanel: FC<{
       </Text>
       <Slider
         aria-label="Card size"
-        min={50}
-        max={260}
+        min={range.min}
+        max={range.max}
         value={size}
         onChange={(next) => onResize(next, cardTokenHeight(next))}
       >

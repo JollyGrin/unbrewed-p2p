@@ -11,7 +11,11 @@ import {
   reorderTop,
 } from "@/components/DeckPool/PoolFns";
 import { initPool } from "@/lib/sandbox/initGame";
-import { PlayCardToTable } from "@/components/Positions/position.type";
+import {
+  COMPACT_CARD_TOKEN_WIDTH,
+  PlayCardToTable,
+} from "@/components/Positions/position.type";
+import { pileRect } from "@/components/BoardCanvas/tokenMotion";
 import { TransferZone } from "@/lib/gamesocket/message";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import { useBagDecks } from "@/lib/bag/useBag";
@@ -214,7 +218,19 @@ export const HandContainer = ({
     const card = pool.deck.pop();
     if (!card) return;
     setGameState(pool);
-    playToTable(card, { faceDown: false, size: 130 });
+    const deck = pileRect("deck");
+    playToTable(card, {
+      faceDown: false,
+      size: COMPACT_CARD_TOKEN_WIDTH,
+      // motion only: the boost card comes out of the Deck button
+      from: deck
+        ? {
+            x: deck.left + deck.width / 2,
+            y: deck.top + deck.height / 2,
+            width: deck.height,
+          }
+        : undefined,
+    });
     logAction(`Boosted from deck: ${card.title} (boost ${card.boost})`);
   };
 
@@ -291,12 +307,16 @@ export const HandContainer = ({
           Draw +1
         </PileButton>
         <PileSplitButton
+          pile="deck"
+          count={playerState?.pool?.deck?.length ?? 0}
           label={`Deck (${playerState?.pool?.deck?.length ?? 0})`}
           onPrimary={() => setModal("deck")}
           commands={deckCommands}
           pool={playerState?.pool}
         />
         <PileSplitButton
+          pile="discard"
+          count={playerState?.pool?.discard?.length ?? 0}
           label={`Discard (${playerState?.pool?.discard?.length ?? 0})`}
           onPrimary={() => setModal("discard")}
           commands={discardCommands}
@@ -331,6 +351,7 @@ export const HandContainer = ({
           giveFn: gGiveCard,
         }}
         opponents={opponents}
+        deckCount={playerState?.pool?.deck?.length}
       />
       {/* Hotseat only (issue #1564): hides the hand after a seat switch. */}
       <PassDeviceCover />

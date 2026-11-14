@@ -3,6 +3,7 @@ import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react"
 import { OwnedToken } from "../Positions/position.type";
 import { IconSvg, tokenMarkup, tokenSize } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
+import { TokenAnimator, createTokenAnimator } from "./tokenMotion";
 
 /** The map image's size; the first render fits it to the viewport. */
 const MAP_W = 1200;
@@ -86,6 +87,14 @@ export const useCanvas = ({
   const [brokenImages, setBrokenImages] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  // Token motion (tokenMotion.ts) owns each token's transform. A flip swaps
+  // the face half-way through by asking for one more render.
+  const [flipTick, setFlipTick] = useState(0);
+  const motionRef = useRef<TokenAnimator | null>(null);
+  if (!motionRef.current)
+    motionRef.current = createTokenAnimator({
+      onFlipMid: () => setFlipTick((n) => n + 1),
+    });
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -116,8 +125,16 @@ export const useCanvas = ({
     const unrotate = ([x, y]: [number, number]) =>
       rotated ? { x: MAP_W - x, y: MAP_H - y } : { x, y };
 
+    const motion = motionRef.current!;
+    motion.beginRender(tokens, {
+      draggingId: draggingIdRef.current,
+      rotated,
+    });
+
     const markup = (d: OwnedToken): string => {
-      const inner = tokenMarkup(d, {
+      // a token turning over shows its old face until it is edge-on
+      const face = motion.faceOverride(d.id);
+      const inner = tokenMarkup(face ? { ...d, ...face } : d, {
         own: isOwn(d),
         selected: d.id === selectedId,
         iconSvg,
@@ -139,6 +156,7 @@ export const useCanvas = ({
       .drag<SVGGElement, OwnedToken>()
       .on("start", function (_event, d) {
         draggingIdRef.current = d.id;
+        motion.dragStart(d.id);
         d3.select(this).raise();
         g.attr("cursor", "grabbing");
         onCardPeek?.(null);
@@ -146,14 +164,12 @@ export const useCanvas = ({
       .on("drag", function (event: { x: number; y: number }, d) {
         // Local echo: the dragged token tracks the pointer at frame rate;
         // the network send may be throttled and lag a tick behind.
-        d3.select(this).attr(
-          "transform",
-          `translate(${event.x}, ${event.y})`,
-        );
+        motion.dragTo(d.id, event.x, event.y);
         move?.({ ...d, x: event.x, y: event.y });
       })
-      .on("end", () => {
+      .on("end", (_event, d) => {
         draggingIdRef.current = null;
+        motion.dragEnd(d.id);
         g.attr("cursor", "grab");
         move?.flush?.();
       })
@@ -167,12 +183,21 @@ export const useCanvas = ({
         .selectAll<SVGGElement, OwnedToken>("g.tok")
         // Key by id so DOM reordering (raise) doesn't scramble datum binding.
         .data(items, (d) => (d as OwnedToken).id)
-        .join((enter) => enter.append("g").attr("class", "tok"))
+        .join(
+          (enter) => enter.append("g").attr("class", "tok"),
+          (update) => update,
+          (exit) =>
+            exit
+              .each(function (d) {
+                motion.exit(this, d);
+              })
+              .remove(),
+        )
         .each(function (d) {
-          // wire position — except for the actively dragged token, whose
-          // transform the drag handler owns until the pointer releases
-          if (d.id === draggingIdRef.current) return;
-          d3.select(this).attr("transform", `translate(${d.x}, ${d.y})`);
+          // wire position — except for the actively dragged token, which
+          // follows the pointer until it is released (tokenMotion.ts)
+          const { w, h } = tokenSize(d);
+          motion.place(this, d, w, h);
         })
         .html(markup)
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
@@ -257,6 +282,7 @@ export const useCanvas = ({
 
     renderGroup(gOverlays, tokens.filter((t) => t.overlay));
     renderGroup(gPieces, tokens.filter((t) => !t.overlay));
+    motion.endRender();
 
     // Click on empty board space clears the selection.
     canvas.on("click", () => onSelect?.(null));
@@ -342,8 +368,15 @@ export const useCanvas = ({
     screenToBoardRef,
     brokenImages,
     rotated,
+    flipTick,
   ]);
 
   // Clear the shared svg reference when the board unmounts.
-  useEffect(() => () => setBoardSvg(null), []);
+  useEffect(
+    () => () => {
+      setBoardSvg(null);
+      motionRef.current?.dispose();
+    },
+    [],
+  );
 };
