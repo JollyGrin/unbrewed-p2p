@@ -524,8 +524,12 @@ const BoardContainer = ({
     // a fresh join's (lib/sandbox/initGame.ts).
     // Resolved inside the effect so a changing `deckFor` result can't re-arm
     // the timer on every render; the seat's deck under hotseat (#1563).
+    // Seat = how many players already have a board, so each newcomer's
+    // fighters line up in a corner of their own.
+    const seat = Object.keys(blobs).filter((name) => name !== self).length;
     const timer = setTimeout(
-      () => sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self)),
+      () =>
+        sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self, seat)),
       1500,
     );
     return () => clearTimeout(timer);

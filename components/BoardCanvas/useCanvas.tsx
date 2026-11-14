@@ -157,12 +157,21 @@ export const useCanvas = ({
       .drag<SVGGElement, OwnedToken>()
       .on("start", function (_event, d) {
         draggingIdRef.current = d.id;
+        // The lift starts here; the token is NOT raised here (see "drag").
         motion.dragStart(d.id);
-        d3.select(this).raise();
         g.attr("cursor", "grabbing");
         onCardPeek?.(null);
       })
       .on("drag", function (event: { x: number; y: number }, d) {
+        // Bring the token over its neighbours once it actually moves, by
+        // moving the neighbours under it rather than the held node (a touch
+        // keeps sending its events to that node, see renderGroup).
+        // Raising it on pointer-down moved the node mid-click and the
+        // browser then dropped the click: the first press on a counter badge
+        // of any token but the top one did nothing (#1630).
+        const parent = this.parentNode;
+        while (parent && this.nextSibling)
+          parent.insertBefore(this.nextSibling, this);
         // Local echo: the dragged token tracks the pointer at frame rate;
         // the network send may be throttled and lag a tick behind.
         motion.dragTo(d.id, event.x, event.y);
