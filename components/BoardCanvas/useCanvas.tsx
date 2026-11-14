@@ -163,8 +163,8 @@ export const useCanvas = ({
       })
       .on("drag", function (event: { x: number; y: number }, d) {
         // Bring the token over its neighbours once it actually moves, by
-        // moving the neighbours under it: the held node itself never moves
-        // in the DOM (a touch keeps sending events to it, see renderGroup).
+        // moving the neighbours under it rather than the held node (a touch
+        // keeps sending its events to that node, see renderGroup).
         // Raising it on pointer-down moved the node mid-click and the
         // browser then dropped the click: the first press on a counter badge
         // of any token but the top one did nothing (#1630).

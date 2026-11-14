@@ -134,4 +134,45 @@ describe("useCanvas — the dragged token survives the renders its drag causes",
       jest.useRealTimers();
     }
   });
+
+  // #1630: raising the pressed token on pointer-down moved its node between
+  // mousedown and mouseup, and the browser then dropped the click. The first
+  // press on the counter badge of any token but the top one did nothing.
+  it("does not move a pressed token in the DOM until it is actually dragged", () => {
+    const { tok, hook } = mount();
+    const pressed = tok("me#1");
+    const parent = pressed.parentNode as SVGGElement;
+    expect(parent.lastElementChild).not.toBe(pressed); // not the top one
+    const moved: Node[] = [];
+    const insertBefore = parent.insertBefore.bind(parent);
+    const appendChild = parent.appendChild.bind(parent);
+    parent.insertBefore = ((n: Node, ref: Node | null) => {
+      moved.push(n);
+      return insertBefore(n, ref);
+    }) as typeof parent.insertBefore;
+    parent.appendChild = ((n: Node) => {
+      moved.push(n);
+      return appendChild(n);
+    }) as typeof parent.appendChild;
+
+    act(() => {
+      mouse(pressed, "mousedown", 110, 110);
+      mouse(window, "mouseup", 110, 110);
+    });
+    expect(moved).toEqual([]);
+    expect(parent.lastElementChild).not.toBe(pressed);
+
+    // a real drag brings it to the top by moving its neighbours under it
+    act(() => {
+      mouse(pressed, "mousedown", 110, 110);
+      mouse(window, "mousemove", 150, 130);
+    });
+    hook.rerender({ tokens: [token("me#1", 140), token("me#2", 300)] });
+    expect(parent.lastElementChild).toBe(pressed);
+    // the first move itself only moved the neighbour
+    expect(moved[0]).toBe(tok("me#2"));
+    act(() => {
+      mouse(window, "mouseup", 150, 130);
+    });
+  });
 });
