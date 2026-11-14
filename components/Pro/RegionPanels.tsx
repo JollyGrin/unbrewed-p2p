@@ -930,6 +930,12 @@ export const useRegionPanels = ({
                     {b.count}
                   </Box>
                 ) : null}
+                {/* a value that reads at 0 and 1 too: the changed move (#1059) */}
+                {b.text != null ? (
+                  <Box as="span" ml="0.1em" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                    {b.text}
+                  </Box>
+                ) : null}
               </Flex>
             ))}
           </Flex>

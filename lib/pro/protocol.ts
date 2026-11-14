@@ -593,7 +593,9 @@
  * - `FighterStatus` gains `name?` / `count?`, carrying `kind: 'MARKED'` entries — the
  *   PERSISTENT view of the same fact, one entry per marker name, so a reconnecting
  *   client renders the marks without having replayed the log. This is the same
- *   "add a kind, never a ViewFighter field" path `PINNED` took.
+ *   "add a kind, not a ViewFighter field per effect" path `PINNED` took. (v40's
+ *   `ViewFighter.move` is no exception to it: that is a stat VALUE every fighter has,
+ *   and its why/until-when still rides a kind, `MOVE_SET`.)
  * Nothing here is secret: markers are identical for every viewer and redactFor sends
  * them to both seats. CLIENT SURFACE (unbrewed-p2p): the board fighter token badge row
  * (the component that renders the PINNED status) and the event log formatter. An older
@@ -938,7 +940,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -1036,7 +1038,66 @@
  * - Purely additive and optional, so PROTOCOL_VERSION stays 39: a client that ignores both
  *   fields loses nothing, and clients gate on the fields' PRESENCE, not the version.
  */
-export const PROTOCOL_VERSION = 39;
+/**
+ * v40 (engine #1053 — the general REACH write, DSL 0.93.0; first consumer POMNI's Reward 1,
+ * "Flip your character card. Pomni is a ranged fighter"). ADDITIVE: one `GameEvent` variant.
+ *
+ * - `REACH_CHANGED { fighter, reach }` — a card or hero effect changed `fighter`'s reach to
+ *   `reach` (`"MELEE" | "RANGED" | "LUNGE"`). Public, sent to every seat unredacted, and
+ *   emitted only when the value actually changed. The new reach is ALSO on the very next
+ *   `PlayerView` as `ViewFighter.reach` (unchanged field), so the view stays the source of
+ *   truth for targeting UI; the event is the "why" — a log line / a flip animation.
+ * - Malfurion's shapeshift still announces itself with `FORM_CHANGED` and emits no
+ *   `REACH_CHANGED`.
+ * - `BOOST_RETRIEVED` gained optional `to?: "DECK_BOTTOM"` (engine #1057, DSL 0.94.0 —
+ *   `retrieveBoostCard {to:'DECK_BOTTOM'}`; first consumer POMNI's Reward 5, "Return the
+ *   boosted card to the bottom of the deck"). Folded into v40 — 40 has not shipped, so the
+ *   train makes ONE p2p sync. Absent means the boost card went to `player`'s hand, as it
+ *   always did. Present means it went to the bottom of `player`'s deck instead: the hand
+ *   does NOT grow, the deck does. The card is public (it was attached to a revealed combat
+ *   card), so the event is unredacted. Clients gate on the field's PRESENCE.
+ * - `ViewFighter.move?: number` (engine #1059; first consumer POMNI's Reward 4, "Pomni's
+ *   movement value is 4") — the fighter's CURRENT move stat: the printed value, or the
+ *   last `setStat MOVE` override standing on it (last override wins; King Kong's and Jason
+ *   Voorhees's "cannot move" = 0). Sent for EVERY fighter on every `PlayerView` and every
+ *   replay God-view step, public, identical for every seat. It is the SAME resolution the
+ *   maneuver uses (`moveStat` in engine/legalActions.ts), so it cannot disagree with the
+ *   legal moves: a maneuver's step allowance is exactly `move + maneuver.boostApplied`
+ *   (the `MoveGraph.allowance` already on the wire). The maneuver boost is deliberately
+ *   NOT folded in — it is per-maneuver, already public as `maneuver.boostApplied`, and
+ *   belongs to the maneuvering player's fighters only. A pinned fighter keeps its `move`
+ *   (PINNED is its own status); effect-driven moves ("move up to 3") never read this stat.
+ * - `FighterStatus` kind `'MOVE_SET'` (same issue) — the WHY and UNTIL-WHEN:
+ *   `{ kind: 'MOVE_SET', expiresAtTurn, expiresAt }`, present exactly while `move` differs
+ *   from the fighter's printed move, absent otherwise (so POMNI's Reward 4 switching itself
+ *   back off — a 4 then a 2 stacked on a printed 2 — shows nothing). The stamp is an
+ *   absolute expiry (the PINNED scheme) naming the turn edge at which the DISPLAYED NUMBER
+ *   next changes by expiry — to an older override still standing, or back to printed. That
+ *   is not always the winning override's own stamp: under "0 until turn 9" + "0 until turn
+ *   3" the stamp is turn 9's, since the turn-3 lapse changes nothing. The value itself is
+ *   `ViewFighter.move`; the status carries no number. Never sent for a DEFEATED fighter
+ *   (its `move` is still the resolved stat, so a number is always there). KNOWN LIMIT of
+ *   "present iff move != printed": a stack that resolves to printed while an OLDER
+ *   non-printed override outlives the winner ("0 until turn 9" under "2 until turn 3" on a
+ *   printed 2) shows the printed move and no status, then changes at that edge with the
+ *   status appearing only then. No shipped deck builds that stack. Folded into v40 like
+ *   the line above. Optional in the type only because a pre-#1059 server omits it: ABSENT
+ *   means "unknown — render the printed move as before"; clients gate on PRESENCE.
+ * - Nothing else moves: no action, prompt kind or `LegalOption` shape. A v39 client drops
+ *   the new event, ignores the new fields (the next `PlayerView`'s hand / deck counts are
+ *   correct either way; an unknown status kind has no badge) and reads every other frame as
+ *   before, so v39 stays accepted.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): add the variant to the `lib/pro/protocol.ts` mirror, render
+ * a feed line ("<fighter> is now a ranged fighter"), and re-derive anything cached from a
+ * fighter's reach (range rings, the melee/ranged badge) from the view rather than from the
+ * hero's printed card. For `BOOST_RETRIEVED.to`: mirror the optional field; feed line
+ * "<player> returned <card> to the bottom of their deck"; animate boost → deck instead of
+ * boost → hand when `to` is present. For `ViewFighter.move`: mirror the optional field and
+ * render the move chip from it (fall back to the printed move when absent); on a `MOVE_SET`
+ * status, mark the chip as modified and show its expiry.
+ */
+export const PROTOCOL_VERSION = 40;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1228,6 +1289,8 @@ export type GameEvent =
   // their new spaces on the next `PlayerView`.
   | { type: "POSITIONS_SWAPPED"; a: FighterId; b: FighterId; aTo: SpaceId[]; bTo: SpaceId[] }
   | { type: "FORM_CHANGED"; player: PlayerId; fighter: FighterId; form: DruidForm }
+  // v40 (engine #1053): `{op:'setReach'}` changed a fighter's reach. Public; only on a real change.
+  | { type: "REACH_CHANGED"; fighter: FighterId; reach: "MELEE" | "RANGED" | "LUNGE" }
   | { type: "DIE_ROLLED"; player: PlayerId; sides: number; result: number; source: string }
   | { type: "SCHEME_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_DISCARDED"; player: PlayerId; card: CardInstanceId; reason: "HAND_LIMIT" | "BOOST" | "COMBAT" | "EFFECT" | "MILL" }
@@ -1261,7 +1324,9 @@ export type GameEvent =
   | { type: "VALUE_MODIFIED"; role: "ATTACK" | "DEFENSE"; delta: number; newEffective: number }
   | { type: "VALUE_SET"; role: "ATTACK" | "DEFENSE"; to: number; locked: boolean }
   | { type: "CARD_BOOSTED"; role: "ATTACK" | "DEFENSE"; card: CardInstanceId; blind: boolean }
-  | { type: "BOOST_RETRIEVED"; player: PlayerId; card: CardInstanceId }
+  // `to` (v40, engine #1057 — optional): absent = the boost
+  // card went to `player`'s HAND (every pre-0.94 emit); "DECK_BOTTOM" = to the bottom of their deck.
+  | { type: "BOOST_RETRIEVED"; player: PlayerId; card: CardInstanceId; to?: "DECK_BOTTOM" }
   // v24 (#281): `voided` says whether the cancel actually voided one of the named
   // card's own cancellable, non-empty effect blocks (02 §5.5). FALSE = the cancel
   // resolved but nothing was lost (a card with no effect blocks, e.g. Gromnir, or only
@@ -1581,6 +1646,12 @@ export interface ViewFighter {
   hp: number;
   maxHp: number;
   reach: "MELEE" | "RANGED" | "LUNGE"; // LUNGE v0.15.0 (General Grievous) — client renders the lunge reach icon
+  // v40 (#1059) — the fighter's CURRENT move stat: printed, or the last `setStat MOVE`
+  // override standing on it. The same resolution the maneuver uses, so a maneuver's
+  // allowance is exactly `move + maneuver.boostApplied`. Always sent by a #1059+ server;
+  // absent = older server, render the printed move. A `MOVE_SET` entry in `statuses`
+  // says when a non-printed value next changes.
+  move?: number;
   // v28 — the fighter's size class. LARGE was previously inferable from `tailSpace`;
   // SMALL is not inferable from anything on the wire, and the client needs it: several
   // small fighters legally SHARE a space (≤4 smalls + ≤1 non-small), so the board must

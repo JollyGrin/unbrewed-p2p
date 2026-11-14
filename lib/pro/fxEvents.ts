@@ -13,6 +13,7 @@ import { isHeroRevive } from "./heroRevive";
 import { isNoWinner } from "./combatOutcome";
 import { faceUpCommitter, isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { mustDefend } from "./defenseTurn";
+import { trackCompletionOf } from "./pileTracks";
 
 export type FxEvent =
   /** combat card(s) flipped face-up — count 2 means attack+defense revealed together */
@@ -36,6 +37,11 @@ export type FxEvent =
    *  lost (prev hp → 0) and followed by a `defeated` only if the new form also fell
    *  before the next view. */
   | { type: "revived"; fighter: FighterId; space: SpaceId | null; name: string; mine: boolean }
+  /** a short WORD callout over a space, for a state change the board would otherwise
+   *  show nothing for (#1623, POMNI): an Adventure completed, a fighter's reach
+   *  changing, a boost card going back under the deck. No sound, no number. Several
+   *  in one batch are shown one after another, in this order. */
+  | { type: "callout"; space: SpaceId | null; text: string }
   /** it just became your turn */
   | { type: "turn" }
   /** the live combat just asked YOU to commit a defense. Its own beat, not a
@@ -221,6 +227,34 @@ export function diffFxEvents(
   // reflects it), so read it off `gameEvents`; one beat per batch however many
   // effects were cancelled. Absent on join/reconnect (empty events) — no ghost.
   if (gameEvents.some((e) => e.type === "EFFECT_CANCELED")) events.push({ type: "cancel" });
+
+  // Word callouts for state changes nothing else on the board shows (#1623, POMNI).
+  // Event-sourced, like the snuff: an Adventure completing is only pile moves, a
+  // reach change only a field, and a boost card going under the deck only a count.
+  // Each is anchored on the hero of the seat it happened to.
+  const heroSpaceOf = (player: PlayerId): SpaceId | null => {
+    const hero = next.fighters.find((f) => f.owner === player && f.kind === "HERO");
+    return hero?.space ?? prevFighters.get(hero?.id ?? "")?.space ?? null;
+  };
+  for (const e of gameEvents) {
+    const completed = trackCompletionOf(e);
+    if (completed) {
+      events.push({
+        type: "callout",
+        space: heroSpaceOf(completed.player),
+        text: `${completed.goalWord.toUpperCase()} ${completed.n} COMPLETE`,
+      });
+    } else if (e.type === "REACH_CHANGED") {
+      const f = next.fighters.find((x) => x.id === e.fighter);
+      events.push({
+        type: "callout",
+        space: f?.space ?? prevFighters.get(e.fighter)?.space ?? null,
+        text: `NOW ${e.reach}`,
+      });
+    } else if (e.type === "BOOST_RETRIEVED" && e.to === "DECK_BOTTOM") {
+      events.push({ type: "callout", space: heroSpaceOf(e.player), text: "BOOST → BOTTOM OF DECK" });
+    }
+  }
 
   if (next.winner && !prev.winner) {
     events.push({ type: isViewerOnWinningTeam(next) ? "victory" : "loss" });

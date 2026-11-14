@@ -982,4 +982,22 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/william-afton/cardback.webp",
     sourceUrl: "https://www.the-unmatched.club/c/heroes/william-afton.14750",
   },
+  {
+    // Pro deck (unmatched.cards 1y_5 / version NVDqtJ4W-) — server hero pomni (issue
+    // #1623 ↔ engine #1056, PAIRED with the engine's feature/pomni train). Pomni + Jax
+    // and a five-card double-sided Adventure side deck. Real unmatched.cards page, so
+    // no `original`; `sourceUrl` pins the version the engine converted from. Tile
+    // colour is the deck's own border pink; the cardback is the author's `cardsBack`,
+    // self-hosted (Kenshiro precedent, same author).
+    id: "1y_5",
+    name: "POMNI",
+    hero: "Pomni",
+    author: "Calton_White",
+    likes: 0,
+    highlightColour: "#f737ea",
+    lab: true,
+    tier: "lab",
+    cardbackUrl: "/evergreen-decks/art/1y_5/cardback.webp",
+    sourceUrl: "https://unmatched.cards/decks/1y_5/versions/NVDqtJ4W-",
+  },
 ];

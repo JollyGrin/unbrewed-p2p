@@ -27,6 +27,7 @@ import { isFaceUpPreRevealAttack, withFaceUpCommit } from "./faceUpCommit";
 import { MITIGATION_COUNTER } from "./clockTower";
 import { rangeSpendLineFor } from "./rangePurchase";
 import { spaceLabel } from "./spaceLabel";
+import { trackTuckLine } from "./pileTracks";
 
 export interface ProLogLine {
   text: string;
@@ -785,6 +786,11 @@ export interface EnrichContext {
    *  the STATE view's fighter list — used by the nested-combat events (issue #288)
    *  that carry attacker/target fighter ids rather than a card source. */
   fighter: (id: FighterId) => string;
+  /** A seat's hero id, from the STATE view's players. Lets a tuck into a pile key
+   *  that two decks share (`EXILE`: POMNI and Kenshiro) be narrated as the deck
+   *  that actually did it (#1623). Omitted = unknown: such tucks keep the generic
+   *  "tucked under … hero card" wording. */
+  heroOf?: (player: PlayerId) => string | undefined;
   /** Chain progress for the n-th (0-based) SUB_ATTACK_INITIATED event in THIS
    *  batch — "Hundred-Fist Rush — chain hit 2 of up to 3" — or null when there is
    *  no chain worth naming (issue #596 ↔ engine #359). The ordinal is passed
@@ -1099,6 +1105,16 @@ export function enrichLines(
       // reading `player` as the actor would credit the victim with playing the card
       // and colour the line as their move — on the deck's core mechanic, every time.
       case "CARD_TUCKED": {
+        // A quest-track deck (POMNI's Adventures, #1623) gives its tucks their own
+        // meaning: a goal placed, a reward earned or used, a card removed from the
+        // game. "Tucked under their hero card (ADV_FLIPPED)" would be wrong on every
+        // count — and for a card Reward 2 removes from an OPPONENT's discard pile it
+        // would credit the victim. `null` is the silent half of a card flip.
+        const tracked = trackTuckLine(e, events, i, { label: ctx.label, seat: ctx.seat, you: ctx.you, heroOf: ctx.heroOf });
+        if (tracked !== undefined) {
+          if (tracked) added.push({ text: tracked.text, who: whoOf(tracked.actor), cards: tracked.cards });
+          break;
+        }
         const actor = e.controller ?? e.player;
         const under =
           e.player === ctx.you
@@ -1271,6 +1287,33 @@ export function enrichLines(
         added.push({
           text: `${ctx.seat(e.player)} ${verb} ${mine ? "your" : "their"} opening hand`,
           who: whoOf(e.player),
+        });
+        break;
+      }
+
+      // --- v40 (issue #1623 ↔ engine #1053 / #1057, POMNI) ---------------------
+      // A card or hero effect changed a fighter's reach (Reward 1: "Pomni is a ranged
+      // fighter"). The view's `reach` already moved, but no diff line reads reach, so
+      // without this the flip is silent. Allowlist (Mode 2).
+      case "REACH_CHANGED": {
+        const kind = e.reach === "RANGED" ? "a ranged" : e.reach === "LUNGE" ? "a lunge" : "a melee";
+        added.push({
+          text: `${ctx.fighter(e.fighter)} is now ${kind} fighter`,
+          who: whoOf(e.fighter.split("/")[0]),
+        });
+        break;
+      }
+      // A boost card leaving a combat card for the BOTTOM OF THE DECK (Reward 5 with
+      // Jax adjacent). Gated on `to`: the hand-bound form (King Kong, Buster Keaton)
+      // has no `to` and stays silent, exactly as before. The card never touches the
+      // hand or the discard pile, so no diff line narrates it.
+      case "BOOST_RETRIEVED": {
+        if (e.to !== "DECK_BOTTOM") break;
+        const mine = e.player === ctx.you;
+        added.push({
+          text: `${ctx.seat(e.player)} returned ${ctx.label(e.card)} to the bottom of ${mine ? "your" : "their"} deck`,
+          who: whoOf(e.player),
+          cards: [e.card],
         });
         break;
       }
