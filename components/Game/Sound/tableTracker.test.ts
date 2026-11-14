@@ -444,6 +444,64 @@ describe("table tracker: other players", () => {
     expect(play.mock.calls).toEqual([["shuffle", {}]]);
   });
 
+  it("with Other players off, the one shuffle is my own deck being re-dealt", () => {
+    const { tracker, play, blobs } = seated(false);
+    const players: Record<string, { pool: Pool; resetEpoch?: number }> = {
+      me: { pool: pool() },
+      ann: { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 },
+    };
+    tracker.onPlayers(players, "me"); // ann started it: hers is not played
+    expect(play).not.toHaveBeenCalled();
+    players.me = { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 };
+    tracker.onPlayers(players, "me"); // my client follows
+    blobs.me = { tokens: [{ id: "m-new", x: 1, y: 1 }] };
+    tracker.onPositions(blobs, "me");
+    expect(play.mock.calls).toEqual([["shuffle", {}]]);
+  });
+
+  it("a reset that shows on my seat and another's in one update is mine", () => {
+    const s = setup();
+    const players: Record<string, { pool: Pool; resetEpoch?: number }> = {
+      ann: { pool: pool() },
+      me: { pool: pool() },
+    };
+    s.tracker.onPlayers(players, "me");
+    players.ann = { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 };
+    players.me = { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 };
+    s.tracker.onPlayers(players, "me");
+    expect(s.play.mock.calls).toEqual([["shuffle", {}]]);
+  });
+
+  it("only the re-seed is swallowed: what a seat does right after its new game is heard", () => {
+    const { tracker, play, blobs, advance } = seated();
+    const players: Record<string, { pool: Pool; resetEpoch?: number }> = {
+      me: { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 },
+      ann: { pool: pool({ deck: cards("n", 20).reverse() }), resetEpoch: 1 },
+    };
+    tracker.onPlayers(players, "me");
+    // both boards are wiped, then re-seeded, each in its own update
+    blobs.me = { tokens: [] };
+    blobs.ann = { tokens: [] };
+    tracker.onPositions(blobs, "me");
+    blobs.me = { tokens: [{ id: "m-hero", x: 1, y: 1 }] };
+    tracker.onPositions(blobs, "me");
+    blobs.ann = { tokens: [{ id: "a-hero", x: 9, y: 9 }] };
+    tracker.onPositions(blobs, "me");
+    expect(play.mock.calls).toEqual([["shuffle", {}]]);
+    play.mockClear();
+
+    // well inside the 2 s: I add a piece, ann plays a card
+    advance(200);
+    blobs.me.tokens.push({ id: "m-extra", x: 5, y: 5 });
+    tracker.onPositions(blobs, "me");
+    blobs.ann.tokens.push({ id: "a-card", x: 5, y: 5, card: card("Feint") });
+    tracker.onPositions(blobs, "me");
+    expect(play.mock.calls).toEqual([
+      ["tokenDown", { count: 1 }],
+      ["place", { count: 1, gain: 0.45 }],
+    ]);
+  });
+
   it("a reset that arrived while reconnecting is not heard afterwards", () => {
     const { tracker, play } = seated();
     const players: Record<string, { pool: Pool; resetEpoch?: number }> = {

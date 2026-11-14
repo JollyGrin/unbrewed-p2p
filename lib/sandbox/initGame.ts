@@ -81,21 +81,52 @@ export const seatAmong = (names: Iterable<string>, self: string): number =>
     .indexOf(self);
 
 /**
- * A newcomer's seat (the board's join seed): one past the players who already
- * have a board, so nobody sorts in on top of someone seated. Players who are
- * at the table without a board yet are joining at the same moment and would
- * all count the same boards, so those take the free seats in name order:
- * two players entering an empty room together get seats 0 and 1 on both
- * clients, whichever seed fires first.
+ * A newcomer's seat (the board's join seed): the lowest seat nobody has.
+ *
+ * Seats that are taken are read off the boards already there (seatOnBoard),
+ * not counted, so a seat left empty is filled before a new one is opened. A
+ * board without fighter pieces (a saved loadout, the starter disc) has no
+ * corner to read: those take the lowest seats left, in name order.
+ *
+ * Players who are at the table without a board yet are joining at the same
+ * moment and all see the same boards, so they share out the free seats in
+ * name order. Two players entering an empty room get seats 0 and 1 on both
+ * clients, whichever seed fires first: the one that fires second then finds
+ * the other's seat taken and still gets its own.
  */
 export const joinSeat = (
-  boards: Iterable<string>,
+  boards: Readonly<Record<string, readonly BoardToken[] | undefined>>,
   players: Iterable<string>,
   self: string,
 ): number => {
-  const seated = new Set(Array.from(boards).filter((name) => name !== self));
-  const arriving = Array.from(players).filter((name) => !seated.has(name));
-  return seated.size + seatAmong(arriving, self);
+  const seated = Object.keys(boards)
+    .filter((name) => name !== self)
+    .sort();
+  const taken = new Set<number>();
+  const unplaced: string[] = [];
+  for (const name of seated) {
+    const seat = seatOnBoard(boards[name]);
+    if (seat === undefined) unplaced.push(name);
+    else taken.add(seat);
+  }
+  const nextFree = () => {
+    let seat = 0;
+    while (taken.has(seat)) seat += 1;
+    taken.add(seat);
+    return seat;
+  };
+  unplaced.forEach(nextFree);
+  const arriving = Array.from(
+    new Set([...Array.from(players), self]),
+  )
+    .filter((name) => name === self || !seated.includes(name))
+    .sort();
+  let seat = 0;
+  for (const name of arriving) {
+    seat = nextFree();
+    if (name === self) break;
+  }
+  return seat;
 };
 
 /**

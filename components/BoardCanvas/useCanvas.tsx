@@ -219,6 +219,13 @@ export const useCanvas = ({
       const heldNode =
         heldId == null ? null : all.filter((d) => d.id === heldId).node();
       (heldNode ? all.filter((d) => d.id !== heldId) : all).order();
+      // Whatever now follows the held token (a token another player just
+      // added) goes under it, again without moving the held node itself.
+      // Done before my own tokens are raised below, so those end up above
+      // other players' tokens here too.
+      if (heldNode?.parentNode)
+        while (heldNode.nextSibling)
+          heldNode.parentNode.insertBefore(heldNode.nextSibling, heldNode);
 
       all
         .each(function (d) {
@@ -273,11 +280,6 @@ export const useCanvas = ({
             parent.insertBefore(this, heldNode);
           else parent.appendChild(this);
         });
-      // Whatever still follows the held token (a token another player just
-      // added) goes under it, again without moving the held node itself.
-      if (heldNode?.parentNode)
-        while (heldNode.nextSibling)
-          heldNode.parentNode.insertBefore(heldNode.nextSibling, heldNode);
 
       // Only image pieces and cards open the on-board panel; discs and icons
       // are managed from the token menu instead.

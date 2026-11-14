@@ -529,11 +529,16 @@ const BoardContainer = ({
     // a fresh join's (lib/sandbox/initGame.ts).
     // Resolved inside the effect so a changing `deckFor` result can't re-arm
     // the timer on every render; the seat's deck under hotseat (#1563).
-    // Seat = one past the players who already have a board, so each
+    // Seat = the lowest seat no board on the table is in, so each
     // newcomer's fighters line up in a corner of their own; players arriving
     // together share out the free seats by name (joinSeat).
     const seat = joinSeat(
-      Object.keys(blobs),
+      Object.fromEntries(
+        Object.keys(blobs).map((name) => [
+          name,
+          migrateBlob(blobs[name]).tokens,
+        ]),
+      ),
       Object.keys(
         (gameState?.content as GameState | undefined)?.players ?? {},
       ),

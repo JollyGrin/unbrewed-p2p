@@ -242,6 +242,13 @@ describe("useCanvas — the dragged token survives the renders its drag causes",
     });
     expect(tok("ann#2")).toBeTruthy();
     expect(parent.lastElementChild).toBe(dragged);
+    // and my other token is above both of ann's, not under the new one
+    expect(Array.from(parent.children).map((n) => d3.select<Element, OwnedToken>(n).datum().id)).toEqual([
+      "ann#1",
+      "ann#2",
+      "me#2",
+      "me#1",
+    ]);
     act(() => {
       mouse(window, "mouseup", 150, 130);
     });

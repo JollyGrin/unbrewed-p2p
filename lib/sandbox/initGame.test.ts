@@ -189,29 +189,69 @@ describe("seatAmong — every client picks its own seat at the same moment", () 
 });
 
 describe("joinSeat — the board's join seed", () => {
-  it("is one past the boards already there, as before", () => {
-    expect(joinSeat([], ["amy"], "amy")).toBe(0);
-    expect(joinSeat(["zed"], ["zed", "amy"], "amy")).toBe(1);
+  /** The board a player seeded for `seat`. */
+  const board = (name: string, seat: number) => initPositionBlob(deck(), name, seat).tokens;
+  /** A player's join seed, given the boards and players they can see. */
+  const seed = (boards: Record<string, BoardToken[]>, players: string[], self: string) =>
+    joinSeat(boards, players, self);
+
+  it("is the first seat at an empty table and the next one behind someone seated", () => {
+    expect(seed({}, ["amy"], "amy")).toBe(0);
+    expect(seed({ zed: board("zed", 0) }, ["zed", "amy"], "amy")).toBe(1);
     // a late joiner never sorts in ahead of someone seated
-    expect(joinSeat(["zed", "bob"], ["zed", "bob", "amy"], "amy")).toBe(2);
+    expect(seed({ zed: board("zed", 0), bob: board("bob", 1) }, ["zed", "bob", "amy"], "amy")).toBe(2);
     // my own board (a re-seed racing its echo) is not a seat taken
-    expect(joinSeat(["amy", "zed"], ["amy", "zed"], "amy")).toBe(1);
+    expect(seed({ amy: board("amy", 0), zed: board("zed", 0) }, ["amy", "zed"], "amy")).toBe(1);
   });
 
-  it("two players entering an empty room together get different seats on both clients", () => {
+  it("two players arriving together, both seeds firing blind", () => {
     const table = ["bob", "amy"];
-    expect(joinSeat([], table, "amy")).toBe(0);
-    expect(joinSeat([], table, "bob")).toBe(1);
-    // the same once one of the two seeds has landed
-    expect(joinSeat(["amy"], table, "bob")).toBe(1);
-    // and behind someone already seated
-    expect(joinSeat(["zed"], ["zed", ...table], "amy")).toBe(1);
-    expect(joinSeat(["zed"], ["zed", ...table], "bob")).toBe(2);
+    expect(seed({}, table, "amy")).toBe(0);
+    expect(seed({}, table, "bob")).toBe(1);
+  });
+
+  it("two players arriving together, the earlier-sorted name seeds first", () => {
+    const table = ["amy", "bob"];
+    const amy = seed({}, table, "amy");
+    // bob's effect re-runs once amy's board has landed
+    const bob = seed({ amy: board("amy", amy) }, table, "bob");
+    expect([amy, bob]).toEqual([0, 1]);
+  });
+
+  it("two players arriving together, the later-sorted name seeds first", () => {
+    const table = ["amy", "bob"];
+    const bob = seed({}, table, "bob");
+    // amy's effect re-runs once bob's board has landed: she must not follow him into seat 1
+    const amy = seed({ bob: board("bob", bob) }, table, "amy");
+    expect([amy, bob]).toEqual([0, 1]);
+  });
+
+  it("the same behind someone already seated, in either order", () => {
+    const zed = { zed: board("zed", 0) };
+    const table = ["zed", "amy", "bob"];
+    expect(seed(zed, table, "amy")).toBe(1);
+    expect(seed(zed, table, "bob")).toBe(2);
+    expect(seed({ ...zed, bob: board("bob", 2) }, table, "amy")).toBe(1);
+    expect(seed({ ...zed, amy: board("amy", 1) }, table, "bob")).toBe(2);
+  });
+
+  it("a third player fills the gap two seated players left", () => {
+    const boards = { bob: board("bob", 1), zed: board("zed", 2) };
+    expect(seed(boards, ["bob", "zed", "amy"], "amy")).toBe(0);
+    // and with no gap, opens the next seat
+    expect(seed({ bob: board("bob", 0), zed: board("zed", 1) }, ["bob", "zed", "amy"], "amy")).toBe(2);
+  });
+
+  it("a board with no fighters still takes a seat", () => {
+    const disc: BoardToken[] = [{ id: "zed#1", x: 150, y: 100 }];
+    expect(seed({ zed: disc }, ["zed", "amy"], "amy")).toBe(1);
+    // it takes the lowest seat the readable boards left
+    expect(seed({ zed: disc, bob: board("bob", 0) }, ["zed", "bob", "amy"], "amy")).toBe(2);
   });
 
   it("counts me even before the table lists me", () => {
-    expect(joinSeat([], [], "amy")).toBe(0);
-    expect(joinSeat(["zed"], ["zed"], "amy")).toBe(1);
+    expect(seed({}, [], "amy")).toBe(0);
+    expect(seed({ zed: board("zed", 0) }, ["zed"], "amy")).toBe(1);
   });
 });
 

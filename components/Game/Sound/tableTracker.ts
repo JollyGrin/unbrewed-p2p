@@ -137,7 +137,7 @@ export const diffPool = (prev: PoolSummary, next: PoolSummary): Cue[] => {
 export const diffTokens = (
   prev: TokensSummary,
   next: TokensSummary,
-): { cues: Cue[]; moved: { id: string; card: boolean }[] } => {
+): { cues: Cue[]; moved: { id: string; card: boolean }[]; replaced: boolean } => {
   let cards = 0;
   let pieces = 0;
   let flipped = false;
@@ -162,9 +162,11 @@ export const diffTokens = (
     }
   });
   let piecesGone = 0;
+  let kept = 0;
   prev.forEach((t, id) => {
+    if (next.has(id)) kept++;
     // A card leaving the table is heard where it lands (hand, discard, deck).
-    if (!next.has(id) && !t.card) piecesGone++;
+    else if (!t.card) piecesGone++;
   });
 
   const cues: Cue[] = [];
@@ -174,7 +176,13 @@ export const diffTokens = (
   else if (pieces > 0) cues.push({ sound: "tokenDown", count: pieces > 3 ? 1 : pieces });
   else if (piecesGone > 0) cues.push({ sound: "tokenUp" });
   else if (counted !== 0) cues.push({ sound: "hp", pitch: counted < 0 ? 0.94 : 1.06 });
-  return { cues, moved };
+  // Nothing that was on the board is on it now: a wipe, a re-seed, or the
+  // first pieces on an empty board.
+  return {
+    cues,
+    moved,
+    replaced: kept === 0 && prev.size + next.size > 0,
+  };
 };
 
 type Roll = { id: string; by?: unknown; values?: unknown };
@@ -199,13 +207,22 @@ export const SETTLE_MS = 350;
  */
 export const SAME_DRAG_MS = 1500;
 /**
- * After a seat's "New game" its board is silent for this long: the wipe and
- * the re-seed arrive as their own updates, a moment after the pool.
+ * How long after a seat's "New game" its board's re-seed is still expected:
+ * the wipe and the new pieces arrive as their own updates, a moment after
+ * the pool. Only an update that replaces the whole board is swallowed, and
+ * only until the new pieces are there; anything else the seat does in this
+ * time is heard as usual.
  */
 export const RESET_QUIET_MS = 2000;
 
 type PoolChange = { cues: Cue[]; reset?: number };
-type TokenChange = { cues: Cue[]; moved: { id: string; card: boolean }[] };
+type TokenChange = {
+  cues: Cue[];
+  moved: { id: string; card: boolean }[];
+  replaced: boolean;
+  /** pieces on the board after the change */
+  count: number;
+};
 
 export const createTableTracker = ({
   play,
@@ -223,18 +240,20 @@ export const createTableTracker = ({
   >();
   /** Per seat: the piece that last landed, and when. */
   const landed = new Map<string, { id: string; at: number }>();
-  /** Per seat: its board stays silent until this time (a new game). */
+  /** Per seat: its board's re-seed (a new game) is expected until this time. */
   const resetUntil = new Map<string, number>();
   /** The newest "New game" already heard: one sound per reset, not per seat. */
   let heardEpoch = 0;
   const heardRolls = new Set<string>();
   let quiet = false;
 
-  const emit = (cues: Cue[], remote: boolean) => {
-    if (remote && !hearOthers()) return;
+  /** Plays the cues; false when they were another player's and those are off. */
+  const emit = (cues: Cue[], remote: boolean): boolean => {
+    if (remote && !hearOthers()) return false;
     for (const { sound, ...opts } of cues) {
       play(sound, remote ? { ...opts, gain: REMOTE_GAIN } : opts);
     }
+    return true;
   };
 
   const cancelSettle = (seat: string) => {
@@ -342,7 +361,10 @@ export const createTableTracker = ({
           return cues.length ? { cues } : undefined;
         },
       );
-      const resets = changes.filter((c) => c.change.reset !== undefined);
+      const resets = changes
+        .filter((c) => c.change.reset !== undefined)
+        // my own seat first: a reset I started is mine to hear, at full level
+        .sort((a, b) => Number(b.seat === self) - Number(a.seat === self));
       if (quiet) {
         resets.forEach((c) => {
           heardEpoch = Math.max(heardEpoch, c.change.reset!);
@@ -350,14 +372,17 @@ export const createTableTracker = ({
         return;
       }
       // Each seat re-seeds in its own update, so a room of four would
-      // trickle shuffles and set-downs: the whole reset is one shuffle, heard
-      // from whichever seat is first to show it.
+      // trickle shuffles and set-downs: the whole reset is one shuffle.
+      // Whoever shows it first voices it: me at full level when I started
+      // it, another player quietly when they did. With "Other players" off
+      // theirs is not played, and the one shuffle is my own deck being
+      // re-dealt when my seat follows.
       resets.forEach(({ seat, change }) => {
+        const epoch = change.reset!;
         resetUntil.set(seat, now() + RESET_QUIET_MS);
         cancelSettle(seat);
-        if (change.reset! <= heardEpoch) return;
-        heardEpoch = change.reset!;
-        emit([{ sound: "shuffle" }], seat !== self);
+        if (epoch <= heardEpoch) return;
+        if (emit([{ sound: "shuffle" }], seat !== self)) heardEpoch = epoch;
       });
       voice(
         changes.filter((c) => c.change.reset === undefined),
@@ -373,13 +398,26 @@ export const createTableTracker = ({
         summarizeTokens,
         (prev, next) => {
           const change = diffTokens(prev, next);
-          return change.cues.length || change.moved.length ? change : undefined;
+          return change.cues.length || change.moved.length || change.replaced
+            ? { ...change, count: next.size }
+            : undefined;
         },
       );
       if (quiet) return;
-      const live = changes.filter(
-        (c) => now() >= (resetUntil.get(c.seat) ?? 0),
-      );
+      // A seat that just started a new game: the update that replaces its
+      // whole board is the re-seed, not something the player did. Once the
+      // new pieces are there the seat is live again.
+      const live = changes.filter(({ seat, change }) => {
+        const until = resetUntil.get(seat);
+        if (until === undefined) return true;
+        if (now() >= until) {
+          resetUntil.delete(seat);
+          return true;
+        }
+        if (!change.replaced) return true;
+        if (change.count > 0) resetUntil.delete(seat);
+        return false;
+      }).filter((c) => c.change.cues.length || c.change.moved.length);
       if (voice(live, self)) {
         // nobody dragged anything in a snapshot: nothing is left to land
         cancelAllSettles();
