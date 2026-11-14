@@ -3,6 +3,7 @@ import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react"
 import { OwnedToken } from "../Positions/position.type";
 import { IconSvg, tokenMarkup, tokenSize } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
+import { soundDragEnd, soundDragMove } from "@/lib/sound";
 
 /** The map image's size; the first render fits it to the viewport. */
 const MAP_W = 1200;
@@ -151,11 +152,13 @@ export const useCanvas = ({
           `translate(${event.x}, ${event.y})`,
         );
         move?.({ ...d, x: event.x, y: event.y });
+        soundDragMove({ x: event.x, y: event.y, card: d.card });
       })
       .on("end", () => {
         draggingIdRef.current = null;
         g.attr("cursor", "grab");
         move?.flush?.();
+        soundDragEnd();
       })
       .touchable(true);
 
