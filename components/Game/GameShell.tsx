@@ -4,6 +4,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { CommandMenu } from "@/components/Game/CommandMenu/command-menu";
 import { ActionLog } from "@/components/Game/ActionLog/action-log";
 import { ReportBugButton } from "@/components/Game/ReportBugButton";
+import { TableSounds } from "@/components/Game/Sound/table-sounds";
 import { heroTokenSources } from "@/components/Positions/heroToken";
 import { TokenLibraryModal } from "@/components/Positions/token-library.modal";
 import { TokenEditPanel } from "@/components/Positions/token-edit.panel";
@@ -141,6 +142,7 @@ export const GameShell = () => {
           {...{ playToTableRef, boardActionsRef }}
         />
         <DiceOverlay />
+        <TableSounds />
         <ReportBugButton />
         <ActionLog />
         <CommandMenu

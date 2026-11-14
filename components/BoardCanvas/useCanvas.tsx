@@ -5,6 +5,7 @@ import { IconSvg, tokenMarkup, tokenSize } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
 import { setBoardViewControls } from "./boardView";
 import { TokenAnimator, createTokenAnimator } from "./tokenMotion";
+import { soundDragEnd, soundDragMove } from "@/lib/sound";
 
 /** The map image's size; the first render fits it to the viewport. */
 const MAP_W = 1200;
@@ -176,12 +177,14 @@ export const useCanvas = ({
         // the network send may be throttled and lag a tick behind.
         motion.dragTo(d.id, event.x, event.y);
         move?.({ ...d, x: event.x, y: event.y });
+        soundDragMove({ x: event.x, y: event.y, card: d.card });
       })
       .on("end", (_event, d) => {
         draggingIdRef.current = null;
         motion.dragEnd(d.id);
         g.attr("cursor", "grab");
         move?.flush?.();
+        soundDragEnd();
       })
       .touchable(true);
 
@@ -420,6 +423,7 @@ export const useCanvas = ({
         moveRef.current?.flush?.();
       }
       motionRef.current?.releaseAll();
+      soundDragEnd(); // lands a lifted token once; silent if `end` already ran
     };
     const later = () => {
       if (timer == null) timer = setTimeout(settle, 0);
