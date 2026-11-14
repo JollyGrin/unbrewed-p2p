@@ -26,7 +26,7 @@ import {
   migrateBlob,
   newTokenId,
 } from "@/components/Positions/position.type";
-import { initPositionBlob } from "@/lib/sandbox/initGame";
+import { initPositionBlob, joinSeat } from "@/lib/sandbox/initGame";
 import { SaveTokensToDeck } from "@/components/Positions/save-tokens-to-deck";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
@@ -529,9 +529,21 @@ const BoardContainer = ({
     // a fresh join's (lib/sandbox/initGame.ts).
     // Resolved inside the effect so a changing `deckFor` result can't re-arm
     // the timer on every render; the seat's deck under hotseat (#1563).
-    // Seat = how many players already have a board, so each newcomer's
-    // fighters line up in a corner of their own.
-    const seat = Object.keys(blobs).filter((name) => name !== self).length;
+    // Seat = the lowest seat no board on the table is in, so each
+    // newcomer's fighters line up in a corner of their own; players arriving
+    // together share out the free seats by name (joinSeat).
+    const seat = joinSeat(
+      Object.fromEntries(
+        Object.keys(blobs).map((name) => [
+          name,
+          migrateBlob(blobs[name]).tokens,
+        ]),
+      ),
+      Object.keys(
+        (gameState?.content as GameState | undefined)?.players ?? {},
+      ),
+      self,
+    );
     const timer = setTimeout(
       () =>
         sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self, seat)),

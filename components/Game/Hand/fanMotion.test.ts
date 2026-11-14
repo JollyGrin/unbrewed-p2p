@@ -6,6 +6,7 @@ import {
   arrivalStart,
   ghostScaleOnBoard,
   handArrivals,
+  handCarryOver,
   motionAllowed,
   pickFocus,
   riseFor,
@@ -172,5 +173,24 @@ describe("arrival geometry", () => {
 describe("motionAllowed", () => {
   it("is off where there is no media query to ask (jsdom, server)", () => {
     expect(motionAllowed()).toBe(false);
+  });
+});
+
+describe("handCarryOver", () => {
+  const c = (title: string) => ({ title, type: "attack", value: 3, boost: 1 });
+
+  it("follows each card to its new place when one to its left leaves", () => {
+    // B is discarded while C (index 2) is still flying in: C is now index 1
+    expect(handCarryOver([c("A"), c("B"), c("C")], [c("A"), c("C")])).toEqual([0, 2]);
+  });
+
+  it("marks arrivals, and matches copies earliest first", () => {
+    expect(handCarryOver([c("A"), c("B")], [c("A"), c("B"), c("C")])).toEqual([0, 1, -1]);
+    expect(handCarryOver([c("A"), c("B"), c("A")], [c("A"), c("A"), c("A")])).toEqual([0, 2, -1]);
+  });
+
+  it("copes with no hand before or after", () => {
+    expect(handCarryOver(undefined, [c("A")])).toEqual([-1]);
+    expect(handCarryOver([c("A")], undefined)).toEqual([]);
   });
 });

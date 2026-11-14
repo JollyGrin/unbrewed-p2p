@@ -13,7 +13,7 @@ import { useCanvas } from "./useCanvas";
 jest.mock("d3", () => jest.requireActual("../../node_modules/d3/dist/d3.js"));
 
 const token = (id: string, x: number): OwnedToken =>
-  ({ id, x, y: 100, size: 60, owner: "me" }) as OwnedToken;
+  ({ id, x, y: 100, size: 60, owner: id.split("#")[0] }) as OwnedToken;
 
 type Props = { tokens: OwnedToken[] };
 
@@ -171,6 +171,84 @@ describe("useCanvas — the dragged token survives the renders its drag causes",
     expect(parent.lastElementChild).toBe(pressed);
     // the first move itself only moved the neighbour
     expect(moved[0]).toBe(tok("me#2"));
+    act(() => {
+      mouse(window, "mouseup", 150, 130);
+    });
+  });
+  // #1640: with another player's tokens later in the data, every render put
+  // the pressed token back in data order (d3's join orders the nodes), which
+  // moved it between pointer-down and pointer-up and lost the click.
+  it("a render that lands mid-press does not move the pressed token", () => {
+    const { tok, hook } = mount();
+    const table = (annX: number) => [
+      token("me#1", 100),
+      token("me#2", 300),
+      token("ann#1", annX),
+    ];
+    hook.rerender({ tokens: table(500) });
+    const pressed = tok("me#1");
+    const parent = pressed.parentNode as SVGGElement;
+    const moved: Node[] = [];
+    const insertBefore = parent.insertBefore.bind(parent);
+    const appendChild = parent.appendChild.bind(parent);
+    parent.insertBefore = ((n: Node, ref: Node | null) => {
+      moved.push(n);
+      return insertBefore(n, ref);
+    }) as typeof parent.insertBefore;
+    parent.appendChild = ((n: Node) => {
+      moved.push(n);
+      return appendChild(n);
+    }) as typeof parent.appendChild;
+
+    act(() => {
+      mouse(pressed, "mousedown", 110, 110);
+    });
+    // two renders land while the button is down (ann drags her token)
+    hook.rerender({ tokens: table(520) });
+    hook.rerender({ tokens: table(540) });
+    expect(moved).not.toContain(pressed);
+    expect(tok("me#1")).toBe(pressed);
+    act(() => {
+      mouse(window, "mouseup", 110, 110);
+    });
+    // released: the next render is free to put it wherever it belongs
+    hook.rerender({ tokens: table(560) });
+    expect(Array.from(parent.children).map((n) => d3.select<Element, OwnedToken>(n).datum().id)).toEqual([
+      "ann#1",
+      "me#1",
+      "me#2",
+    ]);
+  });
+
+  it("a dragged token stays on top of a token another player adds mid-drag", () => {
+    const { tok, hook } = mount();
+    hook.rerender({
+      tokens: [token("me#1", 100), token("me#2", 300), token("ann#1", 500)],
+    });
+    const dragged = tok("me#1");
+    const parent = dragged.parentNode as SVGGElement;
+    act(() => {
+      mouse(dragged, "mousedown", 110, 110);
+      mouse(window, "mousemove", 150, 130);
+    });
+    expect(parent.lastElementChild).toBe(dragged);
+    hook.rerender({
+      tokens: [
+        token("me#1", 140),
+        token("me#2", 300),
+        token("ann#1", 500),
+        token("ann#2", 600),
+      ],
+    });
+    expect(tok("ann#2")).toBeTruthy();
+    expect(parent.lastElementChild).toBe(dragged);
+    // and my other token is above both of ann's, not under the new one
+    expect(Array.from(parent.children).map((n) => d3.select<Element, OwnedToken>(n).datum().id)).toEqual([
+      "ann#1",
+      "ann#2",
+      "me#2",
+      "me#1",
+    ]);
     act(() => {
       mouse(window, "mouseup", 150, 130);
     });

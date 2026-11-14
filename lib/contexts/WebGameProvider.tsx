@@ -49,6 +49,7 @@ import {
   initPool,
   initPositionBlob,
   seatAmong,
+  seatOnBoard,
   readStarredDeck,
 } from "@/lib/sandbox/initGame";
 import {
@@ -668,7 +669,15 @@ export const WebGameProvider: FC<PropsWithChildren> = ({ children }) => {
         },
       ].slice(-ACTION_LOG_LIMIT);
       broadcast({ pool: initPool(deck) });
-      setPlayerPosition.current(initPositionBlob(deck, self, seatOf(self)));
+      // The new fighters go where mine are now: the corner I joined in, or
+      // was re-seeded into. The rank is only for a board without fighters.
+      const mine = (
+        latestPositionsRef.current?.content as PositionState | undefined
+      )?.[self];
+      const seat =
+        seatOnBoard(mine ? migrateBlob(mine).tokens : undefined) ??
+        seatOf(self);
+      setPlayerPosition.current(initPositionBlob(deck, self, seat));
     },
     [broadcast, slug?.name, seatOf],
   );

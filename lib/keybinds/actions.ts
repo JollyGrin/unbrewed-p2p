@@ -26,6 +26,11 @@ export type KeybindAction = {
   kind: "command" | "table" | "external";
   /** Canonical combo (lib/keybinds/combo.ts); absent means no default key. */
   defaultKey?: string;
+  /**
+   * A second key that also runs the action for as long as it sits on its
+   * default key and nothing else is bound to this one. Not rebindable.
+   */
+  alsoKey?: string;
   /** Holding the key repeats the action. Off for all but zooming. */
   repeatable?: boolean;
   /** Table actions the ⌘K palette lists. */
@@ -83,8 +88,11 @@ const TABLE_ACTIONS: KeybindAction[] = [
     group: "Board",
     kind: "table",
     defaultKey: "Delete",
+    // A Mac laptop has no forward delete, and plain Backspace must not
+    // delete a piece (layer.ts): Shift+Backspace is its Delete.
+    alsoKey: "Shift+Delete",
     palette: true,
-    note: "Delete, or Backspace for a card. A piece is only deleted by Delete itself.",
+    note: "Delete or Shift+Backspace. Plain Backspace only discards a card: it never deletes a piece.",
   },
   {
     id: "clearSelection",

@@ -48,8 +48,10 @@ export const handleTableKey = (
   // Backspace counts as Delete, except that it never deletes a piece: a
   // Backspace meant for a typo in a piece's label must not cost the piece.
   // A card it may discard, since that comes back from the discard pile.
+  // Shift+Backspace is deliberate, so it is a full Delete (the only one a
+  // Mac laptop has).
   const target =
-    action.id === "removeSelected" && e.key === "Backspace"
+    action.id === "removeSelected" && e.key === "Backspace" && !e.shiftKey
       ? DISCARD_SELECTED_CARD
       : action.id;
   const result = runKeybindAction(target, held);

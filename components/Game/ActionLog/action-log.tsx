@@ -26,6 +26,7 @@ import {
   GROUP_GAP_MS,
   LogGroup,
   groupActionLog,
+  INLINE_VALUE_LIMIT,
   groupLabelParts,
 } from "@/lib/sandbox/groupActionLog";
 
@@ -159,7 +160,12 @@ const Line: React.FC<LineProps> = ({ group, self, now, detail, entering }) => {
   // reopening the panel does not bump every group.
   const mountCount = useRef(group.count);
   const [expanded, setExpanded] = useState(false);
-  const { base, count, detail: values } = groupLabelParts(group);
+  // The narrow panel lists the latest few dice values; the full-log dialog
+  // (detail) lists them all.
+  const { base, count, detail: values } = groupLabelParts(
+    group,
+    detail ? undefined : INLINE_VALUE_LIMIT,
+  );
   const mine = group.player === self;
   const expandable = Boolean(detail) && group.count > 1;
 

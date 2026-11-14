@@ -247,6 +247,8 @@ type Sim = {
   rot: number;
   vrot: number;
   flip: { p: number; prev: TokenFace } | null;
+  /** see `hitAhead` */
+  hit?: SVGRectElement;
 };
 
 type Fx = {
@@ -306,7 +308,78 @@ export function createTokenAnimator(opts: { onFlipMid?: () => void } = {}) {
     s.x === s.tx &&
     s.y === s.ty;
 
+  /**
+   * A token gliding to a new wire position is drawn behind the place it
+   * really is, and a click aimed at that place would miss it. While it
+   * travels it carries an unpainted rect over its true spot, so it can be
+   * hit there as well as where it is drawn. The rect is the token's FIRST
+   * child: where the two overlap, the token's own controls (its heart) stay
+   * on top. (Renders replace a token's markup; the next frame puts the rect
+   * back.)
+   *
+   * A rect that is being pressed stays until the pointer is up, even once
+   * the glide is over or the press has become a drag: taking the pressed
+   * element away between pointer-down and pointer-up can cost the click.
+   */
+  let pressedHit: SVGRectElement | null = null;
+  const onHitPress = (e: Event) => {
+    const rect = e.currentTarget as SVGRectElement;
+    pressedHit = rect;
+    const view = rect.ownerDocument?.defaultView;
+    if (!view) return;
+    const up = () => {
+      view.removeEventListener("pointerup", up, true);
+      view.removeEventListener("pointercancel", up, true);
+      // after the click this release may still produce
+      setTimeout(() => {
+        if (pressedHit === rect) pressedHit = null;
+        sims.forEach((s) => {
+          if (s.hit === rect) hitAhead(s);
+        });
+        // its token is gone, or already has a new rect
+        if (rect.parentNode && !Array.from(sims.values()).some((s) => s.hit === rect))
+          rect.remove();
+      }, 0);
+    };
+    view.addEventListener("pointerup", up, true);
+    view.addEventListener("pointercancel", up, true);
+  };
+
+  const hitAhead = (s: Sim) => {
+    const ahead = !s.held && (s.x !== s.tx || s.y !== s.ty);
+    if (!ahead) {
+      if (s.hit && s.hit === pressedHit) return;
+      if (s.hit) s.hit.remove();
+      s.hit = undefined;
+      return;
+    }
+    const doc = s.node.ownerDocument;
+    if (!doc || typeof doc.createElementNS !== "function") return;
+    if (!s.hit) {
+      s.hit = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+      s.hit.setAttribute("class", "hit-ahead");
+      s.hit.setAttribute("fill", "none");
+      // hit whatever the fill: follows the token's own `pointer-events`,
+      // so a token that is inert to the pointer stays inert
+      s.hit.setAttribute("pointer-events", "inherit");
+      s.hit.addEventListener("pointerdown", onHitPress);
+    }
+    if (s.hit.parentNode !== s.node)
+      s.node.insertBefore(s.hit, s.node.firstChild);
+    // The token may be drawn scaled about its centre (a card growing in
+    // from the hand, or turning over): undo that, so the rect covers the
+    // true box on screen. Its small turn while landing is not undone.
+    const { sx, sy } = scale(s);
+    const cx = s.w / 2;
+    const cy = s.h / 2;
+    s.hit.setAttribute("x", String(round(cx + (s.tx - s.x - cx) / sx)));
+    s.hit.setAttribute("y", String(round(cy + (s.ty - s.y - cy) / sy)));
+    s.hit.setAttribute("width", String(round(s.w / sx)));
+    s.hit.setAttribute("height", String(round(s.h / sy)));
+  };
+
   const write = (s: Sim) => {
+    hitAhead(s);
     if (atRest(s)) {
       s.node.setAttribute("transform", `translate(${s.x}, ${s.y})`);
       if (s.node.style.filter) s.node.style.filter = "";
@@ -639,6 +712,11 @@ export function createTokenAnimator(opts: { onFlipMid?: () => void } = {}) {
     },
 
     endRender() {
+      // the render replaced the tokens' markup and took the hit rects with
+      // it: put them back now, not a frame later
+      sims.forEach((s) => {
+        if (s.hit) hitAhead(s);
+      });
       // tokens whose group was not rendered this time (never the case today)
       sims.forEach((s, id) => {
         if (!prev?.has(id)) sims.delete(id);

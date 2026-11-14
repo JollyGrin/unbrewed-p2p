@@ -137,6 +137,13 @@ export const resolveBindings = (
       if (holder) shadowed[action.id] = holder;
     }
   }
+  // Second keys (`alsoKey`) come last, so they never take a combo from a
+  // binding, and only stand while the action is still on its default key.
+  for (const action of actions) {
+    const also = action.alsoKey;
+    if (!also || bindings[action.id] !== action.defaultKey) continue;
+    if (!byCombo.has(also)) byCombo.set(also, action.id);
+  }
   return { bindings, byCombo, shadowed };
 };
 
@@ -146,8 +153,12 @@ export const findConflict = (
   id: string,
   combo: string,
 ): KeybindAction | undefined => {
-  const holder = resolveBindings(overrides).byCombo.get(combo);
-  return holder && holder !== id ? KEYBIND_ACTION_BY_ID[holder] : undefined;
+  const { byCombo, bindings } = resolveBindings(overrides);
+  const holder = byCombo.get(combo);
+  // An action's second key (`alsoKey`) is free to take: it gives way.
+  return holder && holder !== id && bindings[holder] === combo
+    ? KEYBIND_ACTION_BY_ID[holder]
+    : undefined;
 };
 
 /** Binds `id` to `combo`. Does not check for conflicts; see {@link findConflict}. */

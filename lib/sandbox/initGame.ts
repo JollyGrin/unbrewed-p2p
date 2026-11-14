@@ -7,8 +7,14 @@ import {
   shuffleDeck,
 } from "@/components/DeckPool/PoolFns";
 import {
+  BOARD_SIZE,
+  BoardToken,
   DEFAULT_PLAYER_COLOR,
+  DEFAULT_TOKEN_SIZE,
+  FIGHTER_ROW_STEP,
+  FIGHTER_ROW_TOP,
   PositionBlob,
+  SPAWN_ORIGIN,
   newTokenId,
   spawnFighterRow,
   spawnSavedTokens,
@@ -66,13 +72,91 @@ export const initPositionBlob = (
  * so each client takes its rank among the names at the table, sorted. Every
  * client sees the same names, so every client gets a different corner.
  *
- * The join seed does not use this (GameShell counts the boards already
- * there): a late joiner must not sort in ahead of someone already seated.
+ * The join seed does not use this alone (see joinSeat): a late joiner must
+ * not sort in ahead of someone already seated.
  */
 export const seatAmong = (names: Iterable<string>, self: string): number =>
   Array.from(new Set([...Array.from(names), self]))
     .sort()
     .indexOf(self);
+
+/**
+ * A newcomer's seat (the board's join seed): the lowest seat nobody has.
+ *
+ * Seats that are taken are read off the boards already there (seatOnBoard),
+ * not counted, so a seat left empty is filled before a new one is opened. A
+ * board without fighter pieces (a saved loadout, the starter disc) has no
+ * corner to read: those take the lowest seats left, in name order.
+ *
+ * Players who are at the table without a board yet are joining at the same
+ * moment and all see the same boards, so they share out the free seats in
+ * name order. Two players entering an empty room get seats 0 and 1 on both
+ * clients, whichever seed fires first: the one that fires second then finds
+ * the other's seat taken and still gets its own.
+ */
+export const joinSeat = (
+  boards: Readonly<Record<string, readonly BoardToken[] | undefined>>,
+  players: Iterable<string>,
+  self: string,
+): number => {
+  const seated = Object.keys(boards)
+    .filter((name) => name !== self)
+    .sort();
+  const taken = new Set<number>();
+  const unplaced: string[] = [];
+  for (const name of seated) {
+    const seat = seatOnBoard(boards[name]);
+    if (seat === undefined) unplaced.push(name);
+    else taken.add(seat);
+  }
+  const nextFree = () => {
+    let seat = 0;
+    while (taken.has(seat)) seat += 1;
+    taken.add(seat);
+    return seat;
+  };
+  unplaced.forEach(nextFree);
+  const arriving = Array.from(
+    new Set([...Array.from(players), self]),
+  )
+    .filter((name) => name === self || !seated.includes(name))
+    .sort();
+  let seat = 0;
+  for (const name of arriving) {
+    seat = nextFree();
+    if (name === self) break;
+  }
+  return seat;
+};
+
+/**
+ * The seat whose corner a board's fighters are in now, so a deck change puts
+ * the new ones where the old ones were (the join seat and the re-seed rank
+ * can differ). A hero still on its spawn spot gives the exact seat back; one
+ * that was moved gives the corner of the map it stands in. Undefined when
+ * the board has no fighter pieces (a saved loadout, the starter disc).
+ */
+export const seatOnBoard = (
+  tokens: readonly BoardToken[] | undefined,
+): number | undefined => {
+  const fighters = (tokens ?? []).filter((t) => !t.card && !!t.rim);
+  const hero =
+    fighters.find((t) => t.counter?.link === "hero") ?? fighters[0];
+  if (!hero) return undefined;
+  const w = hero.size ?? DEFAULT_TOKEN_SIZE;
+  const h = hero.h ?? w;
+  const right = hero.x + w / 2 > BOARD_SIZE.w / 2;
+  const bottom = hero.y + h / 2 > BOARD_SIZE.h / 2;
+  const corner = right ? (bottom ? 1 : 2) : bottom ? 3 : 0;
+  // spawnFighterRow puts the hero at the row's start, `ring` rows in
+  const atStart =
+    hero.x === (right ? BOARD_SIZE.w - SPAWN_ORIGIN.x - w : SPAWN_ORIGIN.x);
+  const rows =
+    ((bottom ? BOARD_SIZE.h - hero.y - h : hero.y) - FIGHTER_ROW_TOP) /
+    FIGHTER_ROW_STEP;
+  const ring = atStart && Number.isInteger(rows) && rows > 0 ? rows : 0;
+  return ring * 4 + corner;
+};
 
 /**
  * Read the starred deck out of the bag, at the moment it's needed.

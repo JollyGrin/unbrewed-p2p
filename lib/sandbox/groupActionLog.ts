@@ -129,12 +129,36 @@ export interface GroupLabelParts {
   detail: string;
 }
 
-export function groupLabelParts(group: LogGroup): GroupLabelParts {
+/**
+ * How many dice values a line in the narrow feed panel lists: a long run
+ * (up to the 25-entry buffer) would wrap over several lines there.
+ */
+export const INLINE_VALUE_LIMIT = 6;
+
+/**
+ * `maxValues` caps the dice values to the latest few and says how many came
+ * before them ("→ … 4, 12, 9 (+19 earlier)"). Left out, every value is listed.
+ */
+export function groupLabelParts(
+  group: LogGroup,
+  maxValues?: number,
+): GroupLabelParts {
+  const { values } = group;
+  const hidden =
+    maxValues !== undefined && maxValues > 0
+      ? Math.max(0, values.length - maxValues)
+      : 0;
+  const shown = hidden > 0 ? values.slice(hidden) : values;
   return {
     base: group.base,
     count:
       group.count > 1 ? `×${group.count}${group.capped ? "+" : ""}` : null,
-    detail: group.values.length > 0 ? `→ ${group.values.join(", ")}` : "",
+    detail:
+      values.length === 0
+        ? ""
+        : hidden > 0
+          ? `→ … ${shown.join(", ")} (+${hidden} earlier)`
+          : `→ ${shown.join(", ")}`,
   };
 }
 

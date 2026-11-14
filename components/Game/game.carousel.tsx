@@ -31,6 +31,7 @@ import {
   arrivalStart,
   ghostScaleOnBoard,
   handArrivals,
+  handCarryOver,
   motionAllowed,
   pickFocus,
   prefersReducedMotion,
@@ -442,6 +443,18 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const was = prevHand.current;
     prevHand.current = { cards: cards?.slice(), deckCount };
     if (!cards || !motionAllowed()) return;
+    // Springs belong to cards, not to slots: when the hand changed, each
+    // card takes its own along to its new place (a card discarded from the
+    // left must not pass a neighbour's arrival flight one card over).
+    if (was.cards) {
+      const from = handCarryOver(was.cards, cards);
+      if (from.some((j, i) => j !== i)) {
+        const old = sims.current;
+        sims.current = from.map((j) => (j >= 0 && old[j]) || restSim());
+        // before paint, so no card is drawn a frame in its neighbour's pose
+        stepFan(0);
+      }
+    }
     const arrivals = handArrivals(was.cards, cards);
     if (!arrivals.length) return;
     const noted = arrivals.length === 1 ? takeHandArrival() : null;

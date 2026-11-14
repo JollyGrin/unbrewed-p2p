@@ -263,6 +263,81 @@ describe("createTokenAnimator with motion", () => {
     motion.dispose();
   });
 
+  it("can be hit where it really is while it is drawn on its way there", () => {
+    const motion = createTokenAnimator();
+    const nodes = new Map<string, SVGGElement>();
+    render(motion, nodes, [tok("a#1"), tok("b#1")]);
+    render(motion, nodes, [tok("a#1"), tok("b#1", { x: 300 })]);
+    const node = nodes.get("b#1")!;
+    run(50);
+    const hit = () => node.querySelector("rect.hit-ahead");
+    // drawn at xOf, really at 300: the rect covers the true 80x80 box
+    expect(xOf(node) + Number(hit()!.getAttribute("x"))).toBeCloseTo(300, 1);
+    expect(hit()!.getAttribute("y")).toBe("0");
+    expect(hit()!.getAttribute("width")).toBe("80");
+    expect(hit()!.getAttribute("fill")).toBe("none");
+    // a render replaces the token's markup mid-flight: the rect comes back,
+    // UNDER the markup, so the token's own controls (its heart) stay on top
+    node.innerHTML = "<circle r='4'/><g class='counter'/>";
+    expect(hit()).toBeNull();
+    motion.endRender(); // back at once, not a frame later
+    expect(node.firstElementChild).toBe(hit());
+    run(20);
+    expect(xOf(node) + Number(hit()!.getAttribute("x"))).toBeCloseTo(300, 1);
+    expect(node.querySelectorAll("rect.hit-ahead")).toHaveLength(1);
+    expect(node.firstElementChild).toBe(hit());
+    expect(node.lastElementChild!.getAttribute("class")).toBe("counter");
+    // and it is gone once the token has arrived
+    run(600);
+    expect(node.getAttribute("transform")).toBe("translate(300, 100)");
+    expect(hit()).toBeNull();
+    expect(nodes.get("a#1")!.querySelector("rect.hit-ahead")).toBeNull();
+    motion.dispose();
+  });
+
+  it("keeps a pressed hit rect until the pointer is up, through the end of the glide", async () => {
+    const motion = createTokenAnimator();
+    const nodes = new Map<string, SVGGElement>();
+    render(motion, nodes, [tok("a#1"), tok("b#1")]);
+    render(motion, nodes, [tok("a#1"), tok("b#1", { x: 300 })]);
+    const node = nodes.get("b#1")!;
+    document.body.appendChild(node);
+    run(50);
+    const rect = node.querySelector("rect.hit-ahead")!;
+    rect.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    run(700); // the glide ends with the button still down
+    expect(node.getAttribute("transform")).toBe("translate(300, 100)");
+    expect(node.querySelector("rect.hit-ahead")).toBe(rect);
+    window.dispatchEvent(new Event("pointerup"));
+    expect(node.querySelector("rect.hit-ahead")).toBe(rect); // the click comes first
+    await new Promise((r) => setTimeout(r, 5));
+    expect(node.querySelector("rect.hit-ahead")).toBeNull();
+    node.remove();
+    motion.dispose();
+  });
+
+  it("keeps a pressed hit rect when the press becomes a drag", async () => {
+    const motion = createTokenAnimator();
+    const nodes = new Map<string, SVGGElement>();
+    render(motion, nodes, [tok("a#1"), tok("a#2")]);
+    render(motion, nodes, [tok("a#1"), tok("a#2", { x: 300 })]);
+    const node = nodes.get("a#2")!;
+    document.body.appendChild(node);
+    run(50);
+    const rect = node.querySelector("rect.hit-ahead")!;
+    rect.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    motion.dragStart("a#2");
+    motion.dragTo("a#2", 320, 110);
+    expect(node.querySelector("rect.hit-ahead")).toBe(rect);
+    motion.dragEnd("a#2");
+    window.dispatchEvent(new Event("pointerup"));
+    await new Promise((r) => setTimeout(r, 5));
+    run(400);
+    expect(node.querySelector("rect.hit-ahead")).toBeNull();
+    node.remove();
+    motion.dispose();
+  });
+
   it("keeps gliding when an unrelated render lands mid-flight, retargets on a new move", () => {
     const motion = createTokenAnimator();
     const nodes = new Map<string, SVGGElement>();
