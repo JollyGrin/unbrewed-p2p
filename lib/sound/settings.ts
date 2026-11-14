@@ -44,13 +44,16 @@ const readFlag = (key: string, fallback: boolean): boolean => {
 const load = (): SoundPrefs => {
   if (typeof window === "undefined") return DEFAULTS;
   try {
-    const rawVolume = localStorage.getItem(KEYS.volume);
-    const volume = rawVolume === null ? NaN : Number(rawVolume);
+    // Anything that is not a number in 0..1 (missing, "", "loud", 7) is the
+    // default; note Number("") is 0, which would silence the table.
+    const rawVolume = localStorage.getItem(KEYS.volume)?.trim();
+    const volume = rawVolume ? Number(rawVolume) : NaN;
     return {
       muted: readFlag(KEYS.muted, DEFAULT_SOUND_MUTED),
-      volume: Number.isFinite(volume)
-        ? Math.min(1, Math.max(0, volume))
-        : DEFAULT_SOUND_VOLUME,
+      volume:
+        Number.isFinite(volume) && volume >= 0 && volume <= 1
+          ? volume
+          : DEFAULT_SOUND_VOLUME,
       others: readFlag(KEYS.others, DEFAULT_SOUND_OTHERS),
     };
   } catch {

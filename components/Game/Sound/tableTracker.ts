@@ -174,7 +174,7 @@ export const diffTokens = (
   return { cues, moved };
 };
 
-type Roll = { id: string; values?: unknown };
+type Roll = { id: string; by?: unknown; values?: unknown };
 
 export type TableTrackerDeps = {
   play: (sound: SoundEvent, opts?: PlayOptions) => void;
@@ -290,15 +290,23 @@ export const createTableTracker = ({
       );
     },
 
-    /** The newest dice roll (yours or anyone's): heard once per roll id. */
-    onRoll(roll: Roll | undefined) {
+    /**
+     * The newest dice roll, heard once per roll id. Someone else's roll
+     * (`roll.by` is not `self`) is another player's action like any other:
+     * quieter, and silent with "Other players" off.
+     */
+    onRoll(roll: Roll | undefined, self?: string) {
       if (!roll?.id || heardRolls.has(roll.id)) return;
       heardRolls.add(roll.id);
       if (quiet) return;
+      const remote =
+        self !== undefined && typeof roll.by === "string" && roll.by !== self;
       const dice = len(roll.values);
-      play(dice > 1 ? "dice" : "die");
+      emit([{ sound: dice > 1 ? "dice" : "die" }], remote);
       // A handful of dice is a thicker clatter than a pair.
-      if (dice > 2) play("die", { gain: 0.6 });
+      if (dice > 2 && (!remote || hearOthers())) {
+        play("die", { gain: 0.6 * (remote ? REMOTE_GAIN : 1) });
+      }
     },
 
     dispose() {

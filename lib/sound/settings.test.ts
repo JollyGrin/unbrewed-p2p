@@ -35,13 +35,23 @@ describe("sound settings", () => {
     expect(getSoundPrefs()).toMatchObject({ muted: true, volume: 0.25 });
   });
 
-  it("ignores a corrupt or out-of-range saved volume", () => {
-    localStorage.setItem("unbrewed-sound-volume", "loud");
+  it.each(["", "  ", "loud", "NaN", "Infinity", "7", "-0.2", "null"])(
+    "falls back to the default for a saved volume of %p",
+    (saved) => {
+      localStorage.setItem("unbrewed-sound-volume", saved);
+      window.dispatchEvent(new Event("storage"));
+      expect(getSoundPrefs().volume).toBe(DEFAULT_SOUND_VOLUME);
+    },
+  );
+
+  it.each([
+    ["0", 0],
+    ["1", 1],
+    ["0.35", 0.35],
+  ])("keeps a saved volume of %p", (saved, volume) => {
+    localStorage.setItem("unbrewed-sound-volume", saved);
     window.dispatchEvent(new Event("storage"));
-    expect(getSoundPrefs().volume).toBe(DEFAULT_SOUND_VOLUME);
-    localStorage.setItem("unbrewed-sound-volume", "7");
-    window.dispatchEvent(new Event("storage"));
-    expect(getSoundPrefs().volume).toBe(1);
+    expect(getSoundPrefs().volume).toBe(volume);
   });
 
   it("every reader sees a change at once", () => {

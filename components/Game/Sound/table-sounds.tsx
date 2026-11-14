@@ -55,7 +55,9 @@ export const TableSounds = () => {
   }, [gamePositions, self, tracker]);
 
   useEffect(() => {
-    tracker.onRoll(latestRoll);
+    tracker.onRoll(latestRoll, self);
+    // `self` is read when a roll arrives; a seat switch is not a new roll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestRoll, tracker]);
 
   return null;

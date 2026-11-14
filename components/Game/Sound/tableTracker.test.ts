@@ -336,16 +336,51 @@ describe("table tracker: dice", () => {
     tracker.onRoll(undefined);
     tracker.onRoll(roll);
     tracker.onRoll({ ...roll });
-    expect(play.mock.calls).toEqual([["die"]]);
+    expect(play.mock.calls).toEqual([["die", {}]]);
+  });
+
+  it("my own roll plays at full level, switch on or off", () => {
+    const { tracker, play } = setup(false);
+    tracker.onRoll({ id: "mine", by: "me", values: [4] }, "me");
+    tracker.onRoll({ id: "mine4", by: "me", values: [1, 2, 3, 4] }, "me");
+    expect(play.mock.calls).toEqual([
+      ["die", {}],
+      ["dice", {}],
+      ["die", { gain: 0.6 }],
+    ]);
+  });
+
+  it("another player's roll is quieter, like their other actions", () => {
+    const { tracker, play } = setup();
+    tracker.onRoll({ id: "theirs", by: "ann", values: [4] }, "me");
+    tracker.onRoll({ id: "theirs4", by: "ann", values: [1, 2, 3, 4] }, "me");
+    expect(play.mock.calls).toEqual([
+      ["die", { gain: 0.45 }],
+      ["dice", { gain: 0.45 }],
+      ["die", { gain: 0.6 * 0.45 }],
+    ]);
+  });
+
+  it("another player's roll is silent with Other players off", () => {
+    const { tracker, play, state } = setup(false);
+    tracker.onRoll({ id: "theirs", by: "ann", values: [4] }, "me");
+    tracker.onRoll({ id: "theirs4", by: "ann", values: [1, 2, 3, 4] }, "me");
+    expect(play).not.toHaveBeenCalled();
+    // heard once per id: turning the switch on does not replay it
+    state.hearOthers = true;
+    tracker.onRoll({ id: "theirs", by: "ann", values: [4] }, "me");
+    expect(play).not.toHaveBeenCalled();
+    tracker.onRoll({ id: "next", by: "ann", values: [4] }, "me");
+    expect(play).toHaveBeenCalledTimes(1);
   });
 
   it("several dice clatter", () => {
     const { tracker, play } = setup();
     tracker.onRoll({ id: "r2", values: [4, 2] });
-    expect(play.mock.calls).toEqual([["dice"]]);
+    expect(play.mock.calls).toEqual([["dice", {}]]);
     play.mockClear();
     tracker.onRoll({ id: "r3", values: [4, 2, 6, 1] });
-    expect(play.mock.calls).toEqual([["dice"], ["die", { gain: 0.6 }]]);
+    expect(play.mock.calls).toEqual([["dice", {}], ["die", { gain: 0.6 }]]);
   });
 });
 
