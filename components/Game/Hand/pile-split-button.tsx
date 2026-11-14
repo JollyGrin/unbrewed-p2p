@@ -4,6 +4,7 @@ import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { DeckCommand } from "@/components/Game/CommandMenu/deckCommands";
+import { useValueTick } from "./useValueTick";
 
 /**
  * A pile pill that splits into two hit targets: the wide left segment fires the
@@ -17,9 +18,14 @@ export const PileSplitButton: React.FC<{
   onPrimary: () => void;
   commands: DeckCommand[];
   pool: PoolType | undefined;
-}> = ({ label, onPrimary, commands, pool }) => {
+  /** Which pile this is: cards flying to or from it aim at `data-pile`. */
+  pile?: "deck" | "discard";
+  /** Cards in the pile; the button pulses once when it changes. */
+  count?: number;
+}> = ({ label, onPrimary, commands, pool, pile, count }) => {
+  const pulse = useValueTick<HTMLDivElement>(count, { kind: "pulse" });
   return (
-    <Split>
+    <Split ref={pulse} data-pile={pile}>
       <Primary onClick={onPrimary}>{label}</Primary>
       <Menu placement="top-end" isLazy>
         <MenuButton as={Chevron} aria-label={`${label} actions`}>

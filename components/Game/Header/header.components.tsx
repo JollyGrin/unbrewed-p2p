@@ -45,6 +45,7 @@ import {
 import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { useState } from "react";
+import { useValueTick } from "@/components/Game/Hand/useValueTick";
 
 import { FaMap, FaScroll } from "react-icons/fa";
 import { GrPowerReset as IconNewGame } from "react-icons/gr";
@@ -280,19 +281,19 @@ export const PlayerBox: React.FC<{
           <Tooltip label="Cards in hand" placement="bottom" hasArrow>
             <Pip>
               <IconHand size="14px" />
-              {hand.length}
+              <TickCount value={hand.length} />
             </Pip>
           </Tooltip>
           <Tooltip label="Cards left in deck" placement="bottom" hasArrow>
             <Pip>
               <IconDeck size="14px" />
-              {deck?.length ?? 0}
+              <TickCount value={deck?.length ?? 0} />
             </Pip>
           </Tooltip>
           <Tooltip label="Discard pile — click to view" placement="bottom" hasArrow>
             <Pip clickable onClick={discardDisclosure.onOpen}>
               <IconDiscard size="14px" />
-              {discard.length}
+              <TickCount value={discard.length} />
             </Pip>
           </Tooltip>
         </PipFooter>
@@ -321,6 +322,8 @@ export const Stat: React.FC<{
   emphasize,
 }) => {
   const [isHovering, setIsHovering] = useState<boolean>(false);
+  // health and unit counts roll over, green on a gain and red on a loss
+  const tick = useValueTick<HTMLParagraphElement>(number, { tone: true });
   const enter = () => setIsHovering(true);
   const leave = () => setIsHovering(false);
   return (
@@ -348,6 +351,7 @@ export const Stat: React.FC<{
       )}
 
       <Text
+        ref={tick}
         alignSelf="center"
         fontFamily={emphasize ? fonts.SpaceGrotesk : undefined}
         fontWeight={emphasize ? 700 : undefined}
@@ -420,6 +424,16 @@ export const TipBody = (props: { pool: PoolType }) => {
         </Box>
       ))}
     </Box>
+  );
+};
+
+/** A hand / deck / discard count that rolls over when it changes. */
+const TickCount = ({ value }: { value: number }) => {
+  const ref = useValueTick<HTMLSpanElement>(value);
+  return (
+    <span ref={ref} style={{ display: "inline-block" }}>
+      {value}
+    </span>
   );
 };
 
