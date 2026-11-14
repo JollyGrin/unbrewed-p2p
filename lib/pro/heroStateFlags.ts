@@ -379,6 +379,19 @@ export interface HeroStateCounter {
    *  engine pile key would read badly to a player (`BOUNTY_PAYMENT` ->
    *  "Bounty · PAYMENT"). Falls back to the key. */
   pileLabel?: string;
+  /** How the pile's inspection overlay describes WHERE the cards are, in brackets
+   *  after the pile name. Defaults to "tucked under hero card", which is what every
+   *  pile was before POMNI's EXILE: cards removed from the game are under nobody's
+   *  hero card, and "" drops the brackets altogether. */
+  pileNote?: string;
+  /** The pill's reading on a seat whose hero is NOT in `heroes` — only reachable
+   *  with `hostedOnAnySeat`. POMNI's Reward 2 removes cards from an OPPONENT's
+   *  discard pile into an EXILE pile on THAT opponent's seat, with nothing on the
+   *  wire saying who did it (the entries are the host's own cards, so `controller`
+   *  is no help). The host needs to read "removed by Pomni", not a pile of its own.
+   *  Same substitutions as `nameplate`. `pileLabel` is what the overlay title uses
+   *  on such a seat. */
+  foreign?: { labelTemplate: string; longLabelTemplate?: string; pileLabel: string };
   /** HUD nameplate pill. `labelTemplate` substitutes `{n}` with the live value
    *  (e.g. "CLUES: {n}" -> "CLUES: 3"). Omit for token-only counters. */
   nameplate?: {
@@ -636,6 +649,48 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
     nameplate: { labelTemplate: "🐰 {n}", longLabelTemplate: "SPRINGTRAP CARDS: {n}" },
     token: { icon: "🐰", title: "SPRINGTRAP CARDS", bg: "#4A4A2A", color: "#F2EBC9" },
   },
+  // -------------------------------------------------------------------------
+  // POMNI (issue #1623 ↔ engine #1056, PAIRED with the engine's `feature/pomni`).
+  // Pile keys VERIFIED against data/heroes/pomni.rules.ts @41361953.
+  //
+  // The deck's five ADV_* piles ARE its Adventure track, and the track is not a
+  // count: it is drawn by its own plate row from the PILE_TRACKS registry
+  // (lib/pro/pileTracks.ts). Only two things come through this registry:
+  //
+  //  - `ADV_DONE` as a TOKEN BADGE only — the number of completed Adventures, which
+  //    three of her cards add to their value (*ricochet super move*, *Fear not*,
+  //    *Welcome*), so it belongs on the board where the opponent weighs an attack.
+  //    No pill: the plate row already says which rewards are held. Hidden at 0.
+  //  - `EXILE`, the removed-from-the-game pile, on WHICHEVER seat carries it. On
+  //    Pomni's own seat it holds a used Reward 3 and played *ricochet super move*s.
+  //    On an OPPONENT's seat it holds the cards her Reward 2 took out of their
+  //    discard pile — the one place this deck reads wrong if the client guesses, so
+  //    that seat's pill and overlay say who removed them (`foreign`).
+  //
+  // ADV_PENDING / ADV_ACTIVE have no row (the track row draws them); ADV_REWARDS /
+  // ADV_FLIPPED are the hidden backs of the cards and render nowhere. The deck's
+  // four flags (POMNI_ADV2_ONCE, POMNI_R2_SNOOZED, POMNI_R3_SNOOZED, POMNI_R4_USED)
+  // are bookkeeping: this registry is opt-in, so having no HERO_STATE_FLAGS row IS
+  // the suppression, and a test pins it.
+  {
+    pile: "ADV_DONE",
+    heroes: ["pomni"],
+    // Circus gold on the deck's own deep blue, clear of every other badge here.
+    token: { icon: "⭐", title: "ADVENTURES COMPLETED", bg: "#2B3A8C", color: "#FFE58A" },
+  },
+  {
+    pile: "EXILE",
+    heroes: ["pomni"],
+    hostedOnAnySeat: true,
+    pileLabel: "Removed from the game",
+    pileNote: "",
+    nameplate: { labelTemplate: "🚫 {n}", longLabelTemplate: "REMOVED FROM THE GAME: {n}" },
+    foreign: {
+      labelTemplate: "🚫 {n} BY POMNI",
+      longLabelTemplate: "REMOVED FROM THE GAME BY POMNI: {n}",
+      pileLabel: "Removed from the game by Pomni's Reward 2",
+    },
+  },
 ];
 
 /** An entry's identity key — its counter name or its pile name. */
@@ -678,8 +733,16 @@ const counterEntriesForHero = (heroId: string) =>
 
 /** Player-facing name for a pile's inspection overlay: the entry's `pileLabel`
  *  when it declares one, else the raw engine key. */
-export const pileDisplayName = (pile: string): string =>
-  HERO_STATE_COUNTERS.find((e) => e.pile === pile)?.pileLabel ?? pile;
+export const pileDisplayName = (pile: string, hostHeroId?: string): string => {
+  const e = HERO_STATE_COUNTERS.find((x) => x.pile === pile);
+  if (!e) return pile;
+  if (e.foreign && hostHeroId !== undefined && !e.heroes.includes(hostHeroId)) return e.foreign.pileLabel;
+  return e.pileLabel ?? pile;
+};
+
+/** Where a pile's cards are, for the inspection overlay's title (see `pileNote`). */
+export const pileDisplayNote = (pile: string): string =>
+  HERO_STATE_COUNTERS.find((e) => e.pile === pile)?.pileNote ?? "tucked under hero card";
 
 /**
  * The card id of a pile entry (protocol v33 / engine #481). An entry is either the
@@ -748,15 +811,17 @@ export const counterChipsFor = (
     if (!rendersAt(e, n)) continue; // hidden at 0 unless the entry opts in
     const fill = (t: string) =>
       t.replace("{n}", String(n)).replace("{max}", String(e.outOf ?? ""));
+    // On a seat that does not own the mechanic the pill says whose doing it is.
+    const reading = e.foreign && !e.heroes.includes(heroId) ? e.foreign : e.nameplate;
     chips.push({
       chip: {
         flag: `${e.pile ? "pile" : "counter"}:${sourceKey(e)}`,
-        onLabel: fill(e.nameplate.labelTemplate),
+        onLabel: fill(reading.labelTemplate),
         offLabel: "",
         // A compacted pill carries the full-word reading so the hover title and
         // aria-label still say "MERCHANT: 4" while the pill shows "🛒 4".
-        ...(e.nameplate.longLabelTemplate
-          ? { fullLabel: fill(e.nameplate.longLabelTemplate) }
+        ...(reading.longLabelTemplate
+          ? { fullLabel: fill(reading.longLabelTemplate) }
           : {}),
         ...(e.pile ? { pile: e.pile, cards: pileCardIds(piles?.[e.pile]) } : {}),
       },

@@ -67,6 +67,8 @@ import type { ProLayoutMode } from "@/lib/pro/useProLayout";
 import { MoveTimerBar, ProHudProps, SeatPlate, hudSeats } from "@/components/Pro/ProHud";
 import { secretMarkedFighterIds } from "@/lib/pro/fighterStatuses";
 import { TableHudPlate } from "@/components/Pro/Table/Hud/TableHudPlate";
+import { pileTrackSpoken, pileTrackTagText } from "@/components/Pro/PileTrack";
+import { pileTrackFor } from "@/lib/pro/pileTracks";
 import { SEAT_COLOR } from "@/lib/pro/seatColors";
 import { trackInviteCopied } from "@/lib/growthAnalytics";
 
@@ -117,12 +119,16 @@ const HpChip = ({
   heroHp,
   offBoard,
   sidekickHps,
+  trackTag,
   active,
   local,
   offline,
   onOpen,
 }: {
   seat: PlayerId;
+  /** compact quest-track reading ("A2★1", POMNI — #1623); the full track is
+   *  in the seat sheet this chip opens. Absent for a hero with no track. */
+  trackTag?: { text: string; spoken: string } | null;
   label: string;
   heroHp: number | null;
   /** the hero is alive but off the board (pose-derived, `isHeroOffBoard`) */
@@ -200,6 +206,24 @@ const HpChip = ({
         title="This hero is not on the board right now"
       >
         OFF BOARD
+      </Text>
+    )}
+    {trackTag && (
+      <Text
+        data-testid={`seat-chip-track-${seat}`}
+        aria-label={trackTag.spoken}
+        fontFamily="SpaceGrotesk"
+        fontWeight={700}
+        fontSize="0.62rem"
+        lineHeight={1}
+        flexShrink={0}
+        px="0.22rem"
+        py="0.2rem"
+        borderRadius="0.3rem"
+        bg="#2B3A8C"
+        color="#FFE58A"
+      >
+        {trackTag.text}
       </Text>
     )}
     {/* A glance, not a roster: two sidekick hearts fit a corner chip, and a
@@ -639,9 +663,14 @@ export const ProMobileHud = ({
         <Flex alignItems="flex-start" justifyContent="space-between" gap="0.4rem" px="0.6rem" pt="0.6rem">
           {ordered.map((seat) => {
             const hero = heroOf(seat.id);
+            // Two chips have room for the track tag; three or four do not (the row
+            // already runs off a phone), so there the board badge and the seat
+            // sheet carry it.
+            const track = ordered.length <= 2 ? pileTrackFor(seat.heroId, seat.piles, seat.flags) : null;
             return (
               <HpChip
                 key={seat.id}
+                trackTag={track ? { text: pileTrackTagText(track, true), spoken: pileTrackSpoken(track) } : null}
                 seat={seat.id}
                 label={chipSeatName(hero?.name, seatLabel(seat))}
                 heroHp={hero ? hero.hp : null}

@@ -368,6 +368,14 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // character avatars as square top-anchored board tokens — token-william-afton (deck
   // default) and token-springtrap (swapped in by the SPRINGTRAP flag, heroStateFlags.ts).
   "william-afton": "william-afton",
+  // POMNI (issue #1623 ↔ engine #1056, train feature/pomni, PROTOCOL 40): community deck
+  // 1y_5 by Calton_White — the ADVENTURE TRACK hero. Five double-sided Adventure cards
+  // live in public piles (`ADV_*`), rendered by PILE_TRACKS in heroStateFlags.ts. The ten
+  // faces sit in the snapshot's `extraCards` (never drawn, not in the 30). Art is the
+  // author's own finished renders from his club publication (8881), self-hosted under
+  // public/evergreen-decks/art/1y_5 and drawn full-bleed via cardImage (Kenshiro
+  // precedent, same author): never the generated template, never the art pipeline.
+  pomni: "1y_5",
 };
 
 /**

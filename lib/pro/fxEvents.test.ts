@@ -373,3 +373,40 @@ describe("diffFxEvents — a HERO revive (William Afton → Springtrap, issue #1
     expect(fx.map((e) => e.type)).not.toContain("defeated");
   });
 });
+
+// POMNI (issue #1623): word callouts for state changes the board shows nothing else for.
+describe("diffFxEvents — word callouts", () => {
+  const callouts = (events: GameEvent[], next = view({})) =>
+    diffFxEvents(view({}), next, events).filter((e) => e.type === "callout");
+
+  it("an Adventure completing, then the reach it grants, in event order on that seat's hero", () => {
+    expect(
+      callouts([
+        { type: "CARD_TUCKED", player: "p2", card: "pomni/adventure-1#1", pile: "ADV_FLIPPED" },
+        { type: "CARD_TUCKED", player: "p2", card: "pomni/reward-1#1", pile: "ADV_DONE" },
+        { type: "REACH_CHANGED", fighter: "p2/hero", reach: "RANGED" },
+      ])
+    ).toEqual([
+      { type: "callout", space: "s2", text: "ADVENTURE 1 COMPLETE" },
+      { type: "callout", space: "s2", text: "NOW RANGED" },
+    ]);
+  });
+
+  it("a boost card returned to the bottom of the deck — but not one returned to hand", () => {
+    expect(callouts([{ type: "BOOST_RETRIEVED", player: "p1", card: "pomni/anxiety#1", to: "DECK_BOTTOM" }])).toEqual([
+      { type: "callout", space: "s1", text: "BOOST → BOTTOM OF DECK" },
+    ]);
+    expect(callouts([{ type: "BOOST_RETRIEVED", player: "p1", card: "king-kong/feint#1" }])).toEqual([]);
+  });
+
+  it("no callout for the other track tucks, nor on a join / reconnect", () => {
+    expect(
+      callouts([
+        { type: "CARD_TUCKED", player: "p2", card: "pomni/adventure-2#1", pile: "ADV_ACTIVE" },
+        { type: "CARD_TUCKED", player: "p2", card: "pomni/reward-2#1", pile: "ADV_REWARDS" },
+        { type: "CARD_TUCKED", player: "p1", card: "king-kong/feint#1", pile: "EXILE" },
+      ])
+    ).toEqual([]);
+    expect(diffFxEvents(null, view({}), [{ type: "REACH_CHANGED", fighter: "p2/hero", reach: "RANGED" }])).toEqual([]);
+  });
+});

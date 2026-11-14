@@ -938,7 +938,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -1036,7 +1036,36 @@
  * - Purely additive and optional, so PROTOCOL_VERSION stays 39: a client that ignores both
  *   fields loses nothing, and clients gate on the fields' PRESENCE, not the version.
  */
-export const PROTOCOL_VERSION = 39;
+/**
+ * v40 (engine #1053 — the general REACH write, DSL 0.93.0; first consumer POMNI's Reward 1,
+ * "Flip your character card. Pomni is a ranged fighter"). ADDITIVE: one `GameEvent` variant.
+ *
+ * - `REACH_CHANGED { fighter, reach }` — a card or hero effect changed `fighter`'s reach to
+ *   `reach` (`"MELEE" | "RANGED" | "LUNGE"`). Public, sent to every seat unredacted, and
+ *   emitted only when the value actually changed. The new reach is ALSO on the very next
+ *   `PlayerView` as `ViewFighter.reach` (unchanged field), so the view stays the source of
+ *   truth for targeting UI; the event is the "why" — a log line / a flip animation.
+ * - Malfurion's shapeshift still announces itself with `FORM_CHANGED` and emits no
+ *   `REACH_CHANGED`.
+ * - `BOOST_RETRIEVED` gained optional `to?: "DECK_BOTTOM"` (engine #1057, DSL 0.94.0 —
+ *   `retrieveBoostCard {to:'DECK_BOTTOM'}`; first consumer POMNI's Reward 5, "Return the
+ *   boosted card to the bottom of the deck"). Folded into v40 — 40 has not shipped, so the
+ *   train makes ONE p2p sync. Absent means the boost card went to `player`'s hand, as it
+ *   always did. Present means it went to the bottom of `player`'s deck instead: the hand
+ *   does NOT grow, the deck does. The card is public (it was attached to a revealed combat
+ *   card), so the event is unredacted. Clients gate on the field's PRESENCE.
+ * - Nothing else moves: no action, prompt kind, `LegalOption` shape or view field. A v39
+ *   client drops the new event, ignores the new field (the next `PlayerView`'s hand / deck
+ *   counts are correct either way) and reads every other frame as before, so v39 stays accepted.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): add the variant to the `lib/pro/protocol.ts` mirror, render
+ * a feed line ("<fighter> is now a ranged fighter"), and re-derive anything cached from a
+ * fighter's reach (range rings, the melee/ranged badge) from the view rather than from the
+ * hero's printed card. For `BOOST_RETRIEVED.to`: mirror the optional field; feed line
+ * "<player> returned <card> to the bottom of their deck"; animate boost → deck instead of
+ * boost → hand when `to` is present.
+ */
+export const PROTOCOL_VERSION = 40;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1228,6 +1257,8 @@ export type GameEvent =
   // their new spaces on the next `PlayerView`.
   | { type: "POSITIONS_SWAPPED"; a: FighterId; b: FighterId; aTo: SpaceId[]; bTo: SpaceId[] }
   | { type: "FORM_CHANGED"; player: PlayerId; fighter: FighterId; form: DruidForm }
+  // v40 (engine #1053): `{op:'setReach'}` changed a fighter's reach. Public; only on a real change.
+  | { type: "REACH_CHANGED"; fighter: FighterId; reach: "MELEE" | "RANGED" | "LUNGE" }
   | { type: "DIE_ROLLED"; player: PlayerId; sides: number; result: number; source: string }
   | { type: "SCHEME_PLAYED"; player: PlayerId; card: CardInstanceId }
   | { type: "CARD_DISCARDED"; player: PlayerId; card: CardInstanceId; reason: "HAND_LIMIT" | "BOOST" | "COMBAT" | "EFFECT" | "MILL" }
@@ -1261,7 +1292,9 @@ export type GameEvent =
   | { type: "VALUE_MODIFIED"; role: "ATTACK" | "DEFENSE"; delta: number; newEffective: number }
   | { type: "VALUE_SET"; role: "ATTACK" | "DEFENSE"; to: number; locked: boolean }
   | { type: "CARD_BOOSTED"; role: "ATTACK" | "DEFENSE"; card: CardInstanceId; blind: boolean }
-  | { type: "BOOST_RETRIEVED"; player: PlayerId; card: CardInstanceId }
+  // `to` (v40, engine #1057 — optional): absent = the boost
+  // card went to `player`'s HAND (every pre-0.94 emit); "DECK_BOTTOM" = to the bottom of their deck.
+  | { type: "BOOST_RETRIEVED"; player: PlayerId; card: CardInstanceId; to?: "DECK_BOTTOM" }
   // v24 (#281): `voided` says whether the cancel actually voided one of the named
   // card's own cancellable, non-empty effect blocks (02 §5.5). FALSE = the cancel
   // resolved but nothing was lost (a card with no effect blocks, e.g. Gromnir, or only

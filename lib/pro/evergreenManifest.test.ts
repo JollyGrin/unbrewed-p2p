@@ -1538,3 +1538,110 @@ describe("William Afton (william-afton) deck data", () => {
     expect(deck.user).toBe("bobafettIG88");
   });
 });
+
+// POMNI (issue #1623 ↔ engine #1056, train feature/pomni). The 12 main-deck rows and the
+// ten Adventure / Reward faces are transcribed from data/heroes/pomni.rules.ts @41361953.
+describe("POMNI (pomni → 1y_5) deck data", () => {
+  const deck = readDeck("1y_5");
+  type Card = { title: string; type: string; value: number | null; boost: number; quantity: number; characterName: string; imageUrl: string; basicText: string; cardImage?: { url: string } };
+  const cards = deck.deck_data.cards as Card[];
+  const faces = deck.deck_data.extraCards as Card[];
+  const SOURCE = "https://unmatched.cards/decks/1y_5/versions/NVDqtJ4W-";
+  const ART = "/evergreen-decks/art/1y_5/";
+  // [title, type, value, boost, quantity, characterName]; usableBy HERO → POMNI, SIDEKICK → JAX.
+  const ENGINE: [string, string, number, number, number, string][] = [
+    ["ricochet super move", "attack", 3, 1, 2, "POMNI"],
+    ["Mental Breakdown", "attack", 3, 2, 3, "POMNI"],
+    ["Big Round Eyes", "versatile", 0, 2, 2, "POMNI"],
+    ["Welcome to the Amazing Digital Circus!", "scheme", 0, 1, 2, "POMNI"],
+    ["Relative chaos", "scheme", 0, 3, 2, "POMNI"],
+    ['harmless "prank"', "attack", 6, 2, 3, "JAX"],
+    ["the funny one!", "versatile", 3, 3, 2, "JAX"],
+    ["Anxiety", "versatile", 4, 3, 3, "ANY"],
+    ["Stupid Burger® Value Meal", "versatile", 3, 2, 3, "ANY"],
+    ["Momentous Shift", "versatile", 3, 2, 3, "ANY"],
+    ["Fear not, my skibidi sigmas!", "defense", 0, 1, 3, "ANY"],
+    ["Team Bad Guys", "versatile", 2, 3, 2, "ANY"],
+  ];
+  // Engine def id → byte-exact title → art file. Written with escapes on purpose: the
+  // Adventure 4 / 5 titles carry a newline, a U+2019 and a U+00A0 that an editor would
+  // silently normalise, and art resolves on the title.
+  const FACES: [string, string, string][] = [
+    ["pomni/adventure-1", "Adventure1: YOur new Home", "adventure-1"],
+    ["pomni/adventure-2", "Adventure 2:President Pomni 2: Last stand", "adventure-2"],
+    ["pomni/adventure-3", "Adventure 3:night of the living Jax", "adventure-3"],
+    ["pomni/adventure-4", "Adventure 4:\nPomni’s Perilous Pilgrimage", "adventure-4"],
+    ["pomni/adventure-5", "Adventure 5: \nOvertime at Spudsy's Delivery Service", "adventure-5"],
+    ["pomni/reward-1", "Reward 1", "reward-1"],
+    ["pomni/reward-2", "reward 2", "reward-2"],
+    ["pomni/reward-3", "Reward 3", "reward-3"],
+    ["pomni/reward-4", "Reward 4", "reward-4"],
+    ["pomni/reward-5", "Reward 5", "reward-5"],
+  ];
+
+  it("is wired: HERO_DECK_IDS, a lab-tier tile, a manifest lock", () => {
+    expect(HERO_DECK_IDS.pomni).toBe("1y_5");
+    expect(EVERGREEN_MANIFEST.find((e) => e.deckId === "1y_5")?.heroId).toBe("pomni");
+    const tile = POPULAR_DECKS.find((d) => d.id === "1y_5");
+    expect(tile).toMatchObject({ author: "Calton_White", lab: true, tier: "lab", sourceUrl: SOURCE, cardbackUrl: `${ART}cardback.webp` });
+    expect(tile?.original).toBeUndefined();
+  });
+
+  it("matches the engine card for card: 12 titles, the drawable 30", () => {
+    expect(cards).toHaveLength(ENGINE.length);
+    expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(30);
+    cards.forEach((card, i) => {
+      const [title, type, value, boost, quantity, characterName] = ENGINE[i];
+      expect(card.title).toBe(title);
+      expect(normalizeType(card.type)).toBe(normalizeType(type));
+      expect(card.value ?? 0).toBe(value);
+      expect(card.boost).toBe(boost);
+      expect(card.quantity).toBe(quantity);
+      expect(card.characterName).toBe(characterName);
+    });
+  });
+
+  it("keeps the ten Adventure / Reward faces OUT of the deck, byte-exact, each with its own art", () => {
+    expect(faces).toHaveLength(FACES.length);
+    faces.forEach((face, i) => {
+      const [, title, file] = FACES[i];
+      expect(face.title).toBe(title);
+      expect(face.cardImage?.url).toBe(`${ART}${file}.webp`);
+      expect(face.basicText.trim().length).toBeGreaterThan(10);
+    });
+    // none of them is a deck card, and no two titles collide once normalised
+    const deckTitles = new Set(cards.map((c) => norm(c.title)));
+    for (const face of faces) expect(deckTitles.has(norm(face.title))).toBe(false);
+    expect(new Set([...cards, ...faces].map((c) => norm(c.title))).size).toBe(22);
+  });
+
+  it("is POMNI 13/2 melee with JAX 7 ranged, and one readable rule card", () => {
+    expect(deck.deck_data.hero).toMatchObject({ name: "POMNI", hp: 13, move: 2, isRanged: false });
+    expect(deck.deck_data.sidekick).toMatchObject({ name: "JAX", hp: 7, quantity: 1, isRanged: true });
+    expect(deck.deck_data.ruleCards.map((r: { title: string }) => r.title)).toEqual(["Caine's Adventures"]);
+  });
+
+  it("ships 22 LOCAL full-card faces, the cardback and both tokens", () => {
+    for (const card of [...cards, ...faces]) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/1y_5\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set([...cards, ...faces].map((c) => c.imageUrl)).size).toBe(22);
+    for (const url of [
+      deck.deck_data.appearance.cardbackUrl as string,
+      deck.deck_data.hero.tokenImageUrl as string,
+      deck.deck_data.sidekick.tokenImageUrl as string,
+    ]) {
+      expect(url.startsWith(ART)).toBe(true);
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("leaves NO remote image URL in the shipped data", () => {
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) => u.replace(/\\/g, ""));
+    for (const u of urls) expect(u).not.toMatch(/\.(png|jpe?g|webp|gif)$/i);
+    expect(deck.sourceUrl).toBe(SOURCE);
+    expect(deck.user).toBe("Calton_White");
+  });
+});

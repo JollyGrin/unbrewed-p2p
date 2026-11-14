@@ -22,6 +22,7 @@ import {
   fighterTokenStateByOwner,
   BOUNTY_PILES,
   pileDisplayName,
+  pileDisplayNote,
   pileCreditFor,
   denyLabel,
   denyChipsFor,
@@ -1391,5 +1392,86 @@ describe("flagStatOverridesFor — generic over the registry (issue #1535)", () 
         expect(flagStatOverridesFor("h", { FAST: true })).toEqual({ move: 5 });
       }
     );
+  });
+});
+
+// POMNI (issue #1623 ↔ engine #1056). Keys verified against pomni.rules.ts @41361953.
+describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => {
+  const POMNI_FLAGS = ["POMNI_ADV2_ONCE", "POMNI_R2_SNOOZED", "POMNI_R3_SNOOZED", "POMNI_R4_USED"];
+  const allOn = Object.fromEntries(POMNI_FLAGS.map((f) => [f, true]));
+  const midGame = {
+    ADV_ACTIVE: ["pomni/adventure-3#1"],
+    ADV_PENDING: ["pomni/adventure-4#1", "pomni/adventure-5#1"],
+    ADV_DONE: ["pomni/reward-1#1", "pomni/reward-2#1"],
+    ADV_FLIPPED: ["pomni/adventure-1#1", "pomni/adventure-2#1"],
+    ADV_REWARDS: ["pomni/reward-3#1", "pomni/reward-4#1", "pomni/reward-5#1"],
+  };
+
+  it("none of the four POMNI flags renders on any surface", () => {
+    for (const flag of POMNI_FLAGS) expect(HERO_STATE_FLAGS.some((e) => e.flag === flag)).toBe(false);
+    expect(flagChipsFor("pomni", allOn)).toEqual([]);
+    expect(fighterTokenStateFor("pomni", allOn)).toEqual({ heroArtUrl: null, badge: null });
+    expect(flagStatOverridesFor("pomni", allOn)).toEqual({});
+    expect(denyChipsFor(allOn)).toEqual([]);
+  });
+
+  it("the five ADV_* piles produce NO nameplate pill — the track row draws them", () => {
+    expect(counterChipsFor("pomni", {}, midGame)).toEqual([]);
+    for (const pile of ["ADV_ACTIVE", "ADV_PENDING", "ADV_FLIPPED", "ADV_REWARDS"]) {
+      expect(HERO_STATE_COUNTERS.some((e) => e.pile === pile)).toBe(false);
+    }
+  });
+
+  it("the board token carries the number of completed Adventures, hidden at 0", () => {
+    expect(fighterTokenCounterBadgeFor("pomni", {}, midGame)).toMatchObject({
+      icon: "⭐",
+      label: "2",
+      title: "ADVENTURES COMPLETED: 2",
+      showLabel: true,
+    });
+    expect(fighterTokenCounterBadgeFor("pomni", {}, { ...midGame, ADV_DONE: [] })).toBeNull();
+    // only on Pomni's own seat
+    expect(fighterTokenCounterBadgeFor("king-kong", {}, midGame)).toBeNull();
+  });
+
+  it("EXILE on Pomni's own seat is a plain 'removed from the game' pill that opens the pile", () => {
+    const chips = counterChipsFor("pomni", {}, { ...midGame, EXILE: ["pomni/reward-3#1", "pomni/ricochet-super-move#1"] });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].chip).toMatchObject({
+      flag: "pile:EXILE",
+      onLabel: "🚫 2",
+      fullLabel: "REMOVED FROM THE GAME: 2",
+      pile: "EXILE",
+      cards: ["pomni/reward-3#1", "pomni/ricochet-super-move#1"],
+    });
+    expect(pileDisplayName("EXILE", "pomni")).toBe("Removed from the game");
+  });
+
+  it("EXILE on an OPPONENT's seat reads as removed BY POMNI, never as that hero's own pile", () => {
+    const victim = { EXILE: ["darth-vader/form-v#2", "darth-vader/feint#1", "darth-vader/dash#3"] };
+    for (const heroId of ["darth-vader", "king-kong", "boba-fett"]) {
+      const chips = counterChipsFor(heroId, {}, victim);
+      expect(chips).toHaveLength(1);
+      expect(chips[0].chip).toMatchObject({
+        onLabel: "🚫 3 BY POMNI",
+        fullLabel: "REMOVED FROM THE GAME BY POMNI: 3",
+        pile: "EXILE",
+        cards: victim.EXILE,
+      });
+      expect(pileDisplayName("EXILE", heroId)).toBe("Removed from the game by Pomni's Reward 2");
+      // no board badge on the victim: the cards are gone, nothing on the board changed
+      expect(fighterTokenCounterBadgeFor(heroId, {}, victim)).toBeNull();
+    }
+    // a seat with no EXILE pile shows nothing
+    expect(counterChipsFor("darth-vader", {}, {})).toEqual([]);
+  });
+
+  it("the EXILE overlay drops the 'tucked under hero card' note; every other pile keeps it", () => {
+    expect(pileDisplayNote("EXILE")).toBe("");
+    expect(pileDisplayNote("TRAINING")).toBe("tucked under hero card");
+    expect(pileDisplayNote("BOUNTY_PAYMENT")).toBe("tucked under hero card");
+    // callers that pass no host hero keep the old one-argument reading
+    expect(pileDisplayName("TRAINING")).toBe("TRAINING");
+    expect(pileDisplayName("BOUNTY_PAYMENT")).toBe("Bounty · PAYMENT");
   });
 });

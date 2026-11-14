@@ -1,0 +1,438 @@
+{
+  "bgg_link": null,
+  "created_on": "Sun, 29 Mar 2026 14:33:59 GMT",
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#f737ea",
+      "cardbackUrl": "/evergreen-decks/art/1y_5/cardback.webp",
+      "highlightColour": "#ff0000",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "cards": [
+      {
+        "afterText": "Remove this card from the game.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/ricochet-super-move.webp"
+        },
+        "characterName": "POMNI",
+        "duringText": "Increase the value of this card by +1 for each completed Adventure.",
+        "imageUrl": "/evergreen-decks/art/1y_5/ricochet-super-move.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "ricochet super move",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/mental-breakdown.webp"
+        },
+        "characterName": "POMNI",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/1y_5/mental-breakdown.webp",
+        "immediateText": "If you have 3 or fewer cards in your hand, this card's value is 5 instead.",
+        "quantity": 3,
+        "title": "Mental Breakdown",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/big-round-eyes.webp"
+        },
+        "characterName": "POMNI",
+        "duringText": "This card's value is equal to the number of cards in the opponent's hand.",
+        "imageUrl": "/evergreen-decks/art/1y_5/big-round-eyes.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Big Round Eyes",
+        "type": "versatile",
+        "value": 0
+      },
+      {
+        "afterText": null,
+        "basicText": "Gain 1 action and Choose 2 different effects: (+3) Do all 3 effects:\n- Move each of your fighters up to 3 spaces\n- A friendly fighter recovers 2 health\n- Draw up to 2 cards then return 1 to the top or bottom of the deck.",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/welcome-to-the-amazing-digital-circus.webp"
+        },
+        "characterName": "POMNI",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/welcome-to-the-amazing-digital-circus.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Welcome to the Amazing Digital Circus!",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Choose an opponent. Pomni swaps spaces with one of their fighters. Then if that fighter shares no zones with another fighter, they discard a card; if Pomni shares no zones with another fighter, return a non-scheme card from your discard pile to your hand. ",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/relative-chaos.webp"
+        },
+        "characterName": "POMNI",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/relative-chaos.webp",
+        "immediateText": null,
+        "quantity": 2,
+        "title": "Relative chaos",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "This card's effects cannot be canceled",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/harmless-prank.webp"
+        },
+        "characterName": "JAX",
+        "duringText": "Your opponent may discard any number of cards. Subtract 2 from this card's value for each card your opponent discarded.",
+        "imageUrl": "/evergreen-decks/art/1y_5/harmless-prank.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "harmless \"prank\"",
+        "type": "attack",
+        "value": 6
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/the-funny-one.webp"
+        },
+        "characterName": "JAX",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/1y_5/the-funny-one.webp",
+        "immediateText": "Look at your opponent's hand, shuffle up to 2 cards into their deck. They draw that many cards.",
+        "quantity": 2,
+        "title": "the funny one!",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "You may move your fighter up to 4 spaces. For every 2 spaces you don't move, draw 1 card.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/anxiety.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/1y_5/anxiety.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Anxiety",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, you may draw 1 card and your fighter recovers 1 health. Otherwise, move the opposing fighter up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/stupid-burger-value-meal.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/1y_5/stupid-burger-value-meal.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Stupid Burger\u00ae Value Meal",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/momentous-shift.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "If your fighter started this turn in a different space, this card's value is 5 instead.",
+        "imageUrl": "/evergreen-decks/art/1y_5/momentous-shift.webp",
+        "immediateText": "",
+        "quantity": 3,
+        "title": "Momentous Shift",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/fear-not-my-skibidi-sigmas.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "Increase the value of this card by +1 for each completed Adventure.\n",
+        "imageUrl": "/evergreen-decks/art/1y_5/fear-not-my-skibidi-sigmas.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 3,
+        "title": "Fear not, my skibidi sigmas!",
+        "type": "defence",
+        "value": 0
+      },
+      {
+        "afterText": "If Pomni and Jax are adjacent, Deal 2 damage to any fighter(s) in the opposing fighter's zone. You may split this damage across 2 fighters.",
+        "basicText": "",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/team-bad-guys.webp"
+        },
+        "characterName": "ANY",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/1y_5/team-bad-guys.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Team Bad Guys",
+        "type": "versatile",
+        "value": 2
+      }
+    ],
+    "extraCards": [
+      {
+        "afterText": null,
+        "basicText": "Deal 2 or more damage to an opposing fighter in a single turn.\n\n",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/adventure-1.webp"
+        },
+        "characterName": "ADVENTURE",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/adventure-1.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Adventure1: YOur new Home",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Win a combat on defense, or at the end of your opponents turn you may return a card from their discard pile of your choice to their hands.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/adventure-2.webp"
+        },
+        "characterName": "ADVENTURE",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/adventure-2.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Adventure 2:President Pomni 2: Last stand",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Attack twice in a single turn.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/adventure-3.webp"
+        },
+        "characterName": "ADVENTURE",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/adventure-3.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Adventure 3:night of the living Jax",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Enter 5 different zones on your turn. (You may count zones both Jax and Pomni move through)\n\n",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/adventure-4.webp"
+        },
+        "characterName": "ADVENTURE",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/adventure-4.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Adventure 4:\nPomni\u2019s Perilous Pilgrimage",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "At the end of your turn, if one of your fighters is in a starting space, you may discard a card with value 3 or more to complete this adventure.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/adventure-5.webp"
+        },
+        "characterName": "ADVENTURE",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/adventure-5.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Adventure 5:\u00a0\nOvertime at Spudsy's Delivery Service",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Reward: Flip your charcter card. Pomni is a ranged fighter.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/reward-1.webp"
+        },
+        "characterName": "REWARD",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/reward-1.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Reward 1",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "REWARD: On your turn, choose an opponent. Remove up to 3 cards of your choice from their discard pile from the game. Then flip this card and place it on the bottom of the adventure deck, or shuffle 1 random card from your discard pile in your deck, then flip this card and place it on the bottom of the adventure deck",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/reward-2.webp"
+        },
+        "characterName": "REWARD",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/reward-2.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "reward 2",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "Reward: On your turn, choose a friendly fighter who has been defeated. Place that fighter in any space in a friendly fighter's zone and set their health to 3. Remove this card from the game.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/reward-3.webp"
+        },
+        "characterName": "REWARD",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/reward-3.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Reward 3",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "REWARD: Once per turn if Pomni shares no zones with any opposing fighter Pomni's movement is 4.",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/reward-4.webp"
+        },
+        "characterName": "REWARD",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/reward-4.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Reward 4",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": null,
+        "basicText": "REWARD: You may BLIND BOOST Pomni's attacks, if Jax is adjacent to Pomni Return the boosted card to the bottom of the deck. (If you have other DURING COMBAT effects, ignore those effects).",
+        "boost": 0,
+        "cardImage": {
+          "url": "/evergreen-decks/art/1y_5/reward-5.webp"
+        },
+        "characterName": "REWARD",
+        "duringText": null,
+        "imageUrl": "/evergreen-decks/art/1y_5/reward-5.webp",
+        "immediateText": null,
+        "quantity": 1,
+        "title": "Reward 5",
+        "type": "scheme",
+        "value": null
+      }
+    ],
+    "extraCharacters": [],
+    "hero": {
+      "hp": 13,
+      "isRanged": false,
+      "move": 2,
+      "name": "POMNI",
+      "specialAbility": "TODAYS ADVENTURE!\nAt the start of your turn, if you don't have an active Adventure,  place the next adventure as your active adventure.",
+      "tokenImageUrl": "/evergreen-decks/art/1y_5/token-pomni.webp"
+    },
+    "name": "",
+    "ruleCards": [
+      {
+        "content": "The Adventure deck consists of 5 cards, ordered from 1 to 5. Adventures must be completed in this order.\n\nAt the start of the game, place the Adventure cards in order (1 to 5), adventure side face up.\n\nWhen you complete an Adventure, flip it and gain its reward for the rest of the game (unless stated otherwise).",
+        "title": "Caine's Adventures"
+      }
+    ],
+    "sidekick": {
+      "hp": 7,
+      "isRanged": true,
+      "name": "JAX",
+      "quantity": 1,
+      "quote": null,
+      "tokenImageUrl": "/evergreen-decks/art/1y_5/token-jax.webp"
+    }
+  },
+  "deck_first_published_on": "Fri, 20 Mar 2026 23:41:07 GMT",
+  "deck_published": true,
+  "family_id": "1y_5",
+  "id": "1y_5",
+  "liked": false,
+  "likes": 0,
+  "name": "POMNI",
+  "note": "Rules-enforced Pro deck (server hero pomni), mirrored from unmatched.cards deck 1y_5 \"POMNI\" by Calton_White (Discord .andregea), version NVDqtJ4W- \"final balance patch\" \u2014 the SAME source the engine converted from (data/heroes/pomni.rules.ts, engine JollyGrin/unbrewed-engine#1056 on the feature/pomni train, DSL 0.94.0 / PROTOCOL 40), so every rules-relevant field is engine-exact. A LAB deck; 18 author rulings are still open engine-side. Titles are verbatim, including the author's lowercase (ricochet super move, harmless \"prank\", the funny one!, Relative chaos, reward 2), the U+00AE in Stupid Burger, the embedded newline in the Adventure 4 and 5 titles, the U+2019 in Adventure 4 and the U+00A0 in Adventure 5 \u2014 art matches on the lowercased verbatim title, so never retype them (this file is written with \\u escapes for that reason). THE ADVENTURE SIDE DECK: the five double-sided Adventure cards are ten faces (Adventure n / Reward n). The engine seeds them into public piles and never shuffles or draws them, so they live in `extraCards`, not `cards`: the 30-card deck stays 30 for the sandbox pool, the stats and the rules lock, and the faces still resolve art and show as linked cards in the preview. 1y_5 itself lists them as ten 0-boost schemes with no image. ART is all the AUTHOR'S own work (\"all art was created by me\") and comes from his other publication of this deck, the-unmatched.club 8881 (https://www.the-unmatched.club/c/heroes/pomni.8881), where every card carries a finished full-card render as `replacementImage`: the ten faces are the club entries \"ADV n front\" / \"ADV n back\" (mapped by card number, not by title \u2014 the club gives them no titles), and the 12 main-deck faces are the club renders too, because they carry the current card text where the images 1y_5 hotlinks still print older wording. All are mirrored into public/evergreen-decks/art/1y_5 (i.imgur.com / i.ibb.co hotlinks upstream; #446 standard, q80 webp, at most 1600 px) and drawn full-bleed via cardImage \u2014 never through the generated template and never through the art-generation pipeline. The Adventure faces are LANDSCAPE cards stored the way the author uploaded them (rotated a quarter turn in a portrait frame); the Pro Adventure track turns them upright. reward-4 is a 458x640 upload, shipped as-is. cardback.webp is his `cardsBack`, token-pomni.webp / token-jax.webp his two character avatars. His two character cards (melee, and the ranged flip side Reward 1 turns to) are NOT mirrored: Pro draws no character card, and a hero-card.webp in this folder would also list the deck on /table. Hand-edits against the API payload: the faces moved to `extraCards`; three of the four rule cards dropped (two are blank, one is a braille drawing that reads as noise in a tooltip); art URLs. Where the two publications disagree on text (harmless \"prank\" DURING vs IMMEDIATELY, Relative chaos' retrieve) the snapshot keeps 1y_5, which is what the engine encodes. Engine serves the hero at tier `lab`.",
+  "published": true,
+  "published_on": "Sun, 29 Mar 2026 14:34:02 GMT",
+  "sourceUrl": "https://unmatched.cards/decks/1y_5/versions/NVDqtJ4W-",
+  "tags": [
+    {
+      "name": "Fully-arted",
+      "slug": "fully-arted"
+    },
+    {
+      "name": "Indie",
+      "slug": "indie"
+    },
+    {
+      "name": "Female Hero",
+      "slug": "female-hero"
+    },
+    {
+      "name": "The Amazing Digital Circus",
+      "slug": "the-amazing-digital-circus"
+    },
+    {
+      "name": "Table Top Simulator",
+      "slug": "table-top-simulator"
+    },
+    {
+      "name": "Original art",
+      "slug": "original-art"
+    },
+    {
+      "name": "No AI art",
+      "slug": "no-ai-art"
+    }
+  ],
+  "updated_on": "Sun, 08 Nov 2026 12:52:02 GMT",
+  "user": "Calton_White",
+  "version_id": "NVDqtJ4W-",
+  "version_name": "final balance patch"
+}

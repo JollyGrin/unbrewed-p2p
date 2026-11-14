@@ -95,11 +95,14 @@ import {
   offBoardChipsFor,
   counterChipsFor,
   pileDisplayName,
+  pileDisplayNote,
   pileCardIds,
   pileCreditFor,
 } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { useCardPreview } from "./CardPreview";
+import { PileTrackModal, PileTrackRow, PileTrackTag } from "./PileTrack";
+import { pileTrackFor } from "@/lib/pro/pileTracks";
 import { CardFace } from "./ProHand";
 import { ProConnectionStatus, SeatPresence, TurnTimer } from "@/lib/pro/useProSocket";
 import { Pace, paceOption } from "@/lib/pro/pace";
@@ -233,7 +236,7 @@ const CardListModal = ({
   <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered>
     <ModalOverlay bg="rgba(20, 8, 24, 0.7)" />
     <ModalContent bg="brand.surface" color="brand.parchment">
-      <ModalHeader fontFamily="BebasNeueRegular" letterSpacing="0.04em">
+      <ModalHeader fontFamily="BebasNeueRegular" letterSpacing="0.04em" pr="3rem">
         {title}
       </ModalHeader>
       <ModalCloseButton />
@@ -755,6 +758,10 @@ export const SeatPlate = ({
   // closed. Held per-plate so a seat's pill always opens THAT seat's pile — the
   // zone is public, so this works identically on the local and opponent plates.
   const [openPile, setOpenPile] = useState<string | null>(null);
+  // The seat's quest track (POMNI's Adventures, #1623), read off its public piles —
+  // so it is on BOTH seats' plates. Null for every hero without one.
+  const track = pileTrackFor(heroId, piles, flags);
+  const [trackOpen, setTrackOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
   const handCount = typeof hand === "number" ? hand : hand.length;
@@ -1098,6 +1105,21 @@ export const SeatPlate = ({
     </Flex>
   ));
 
+  // The track row: which Adventure is active and what it asks, the five-step
+  // track, the rewards held. `openable` is off only inside the collapsed plate's
+  // hover-peek, which is already a tooltip and cannot host a click.
+  const renderTrackRow = (rowVariant: "plate" | "sheet", openable: boolean) =>
+    track ? (
+      <PileTrackRow
+        track={track}
+        resolveCard={resolveCard}
+        labelFor={labelFor}
+        variant={rowVariant}
+        onOpen={openable ? () => setTrackOpen(true) : undefined}
+      />
+    ) : null;
+  const trackTag = track ? <PileTrackTag track={track} /> : null;
+
   const ongoingSchemeRow = ongoingScheme ? (
     <Flex
       alignItems="center"
@@ -1173,6 +1195,7 @@ export const SeatPlate = ({
       {presenceRow}
       {statsPanel}
       {sidekickRows}
+      {renderTrackRow("plate", false)}
       {ongoingSchemeRow}
       {pipFooter}
       {timerBar}
@@ -1200,6 +1223,7 @@ export const SeatPlate = ({
       {presenceRow}
       {statsPanel}
       {sidekickRows}
+      {renderTrackRow("sheet", true)}
       {ongoingSchemeRow}
       {pipFooter}
       {timerBar}
@@ -1244,14 +1268,24 @@ export const SeatPlate = ({
           hero name alone can't say whose pile you opened. */}
       <CardListModal
         title={`${label} · ${heroName} — ${
-          openPile ? pileDisplayName(openPile) : ""
-        }${openPileCredit} (tucked under hero card)`}
+          openPile ? pileDisplayName(openPile, heroId) : ""
+        }${openPileCredit}${openPile && pileDisplayNote(openPile) ? ` (${pileDisplayNote(openPile)})` : ""}`}
         cards={openPileCards}
         resolveCard={resolveCard}
         labelFor={labelFor}
         isOpen={openPile !== null}
         onClose={() => setOpenPile(null)}
       />
+      {track && (
+        <PileTrackModal
+          track={track}
+          title={`${label} · ${heroName} — ${track.def.goalWord}s`}
+          resolveCard={resolveCard}
+          labelFor={labelFor}
+          isOpen={trackOpen}
+          onClose={() => setTrackOpen(false)}
+        />
+      )}
       {variant === "sheet" ? (
         sheetBody
       ) : (
@@ -1304,6 +1338,9 @@ export const SeatPlate = ({
                       {heroHp}
                     </Text>
                   </Flex>
+                  {/* Collapsed: the track row is folded away, so its compact
+                      reading rides the title bar instead. */}
+                  {trackTag}
                   {flagTags}
                   {combatWonTag}
                   {ongoingSchemeTag}
@@ -1344,6 +1381,7 @@ export const SeatPlate = ({
             {presenceRow}
             {statsPanel}
             {sidekickRows}
+            {renderTrackRow("plate", true)}
             {ongoingSchemeRow}
             {pipFooter}
             {timerBar}
