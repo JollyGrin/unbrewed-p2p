@@ -791,6 +791,11 @@ export interface EnrichContext {
    *  that actually did it (#1623). Omitted = unknown: such tucks keep the generic
    *  "tucked under … hero card" wording. */
   heroOf?: (player: PlayerId) => string | undefined;
+  /** The played cards of the combat open BEFORE this batch (the pre-batch view's
+   *  `combat`). Lets a removal at combat cleanup be told from an effect's when the
+   *  cards were revealed in an earlier batch (#1645). Omitted = only this batch's
+   *  events say which cards were in play. */
+  combatCards?: readonly CardInstanceId[];
   /** Chain progress for the n-th (0-based) SUB_ATTACK_INITIATED event in THIS
    *  batch — "Hundred-Fist Rush — chain hit 2 of up to 3" — or null when there is
    *  no chain worth naming (issue #596 ↔ engine #359). The ordinal is passed
@@ -800,6 +805,13 @@ export interface EnrichContext {
    *  single-hit shape) leaves the line exactly as it was. */
   chain?: (ordinalInBatch: number) => string | null;
 }
+
+/** The played cards of `view`'s open combat, for `EnrichContext.combatCards`. */
+export const combatCardsOf = (view: PlayerView | null | undefined): CardInstanceId[] => {
+  const c = view?.combat;
+  if (!c) return [];
+  return [c.attackerCard, c.defenderCard, c.additionalDefenseCard].flatMap((x) => (x ? [x.instance] : []));
+};
 
 /**
  * Decoratively enrich `diffViews` output with the batch's engine `events`.
@@ -1110,9 +1122,16 @@ export function enrichLines(
         // game. "Tucked under their hero card (ADV_FLIPPED)" would be wrong on every
         // count — and for a card Reward 2 removes from an OPPONENT's discard pile it
         // would credit the victim. `null` is the silent half of a card flip.
-        const tracked = trackTuckLine(e, events, i, { label: ctx.label, seat: ctx.seat, you: ctx.you, heroOf: ctx.heroOf });
+        const tracked = trackTuckLine(e, events, i, {
+          label: ctx.label,
+          seat: ctx.seat,
+          you: ctx.you,
+          heroOf: ctx.heroOf,
+          combatCards: ctx.combatCards,
+        });
         if (tracked !== undefined) {
-          if (tracked) added.push({ text: tracked.text, who: whoOf(tracked.actor), cards: tracked.cards });
+          if (tracked)
+            added.push({ text: tracked.text, who: tracked.actor ? whoOf(tracked.actor) : "game", cards: tracked.cards });
           break;
         }
         const actor = e.controller ?? e.player;

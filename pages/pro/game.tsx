@@ -110,7 +110,7 @@ import { UndoRequestDialog } from "@/components/Pro/UndoRequestDialog";
 import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { RevealedHandPanel } from "@/components/Pro/RevealedHandPanel";
-import { actionFallbackLine, batchPhase, batchTurnTag, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
+import { actionFallbackLine, batchPhase, batchTurnTag, combatCardsOf, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
 import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } from "@/lib/pro/figures";
@@ -5416,6 +5416,7 @@ const LiveGame = ({
             seat: (player) => seatLabel(next, player),
             fighter: (id) => badgedFighterName(next.fighters, logBadges, id),
             heroOf: (player) => next.players.find((p) => p.id === player)?.heroId,
+            combatCards: combatCardsOf(prevViewRef.current),
             chain: (ordinal) =>
               subAttackChainProgress(chainTitle, before.hits + ordinal + 1)?.text ?? null,
           })
