@@ -15,7 +15,14 @@ import {
   totalDuration as cosmeticsDuration,
 } from "./CosmeticsAnnouncement";
 import { cosmeticsAnnouncementSchema } from "./CosmeticsAnnouncement/schema";
+import {
+  BonusShowcase,
+  bonusShowcaseMetadata,
+  showcaseDuration,
+} from "./BonusShowcase";
+import { bonusShowcaseSchema } from "./BonusShowcase/schema";
 import taranis from "../props/taranis.json";
+import pomniAdventures from "../props/pomni-adventures.json";
 import cosmetics from "../props/cosmetics.json";
 
 export const RemotionRoot: React.FC = () => {
@@ -62,6 +69,20 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={cosmeticsAnnouncementSchema.parse(cosmetics)}
         calculateMetadata={cosmeticsAnnouncementMetadata}
         durationInFrames={cosmeticsDuration()}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      {/* A deck's side deck (POMNI's Adventures → Rewards, #1654): one props
+          file per deck, `npm run promo -- <name>`. Duration comes from how
+          many pairs the props list. */}
+      <Composition
+        id="BonusShowcase"
+        component={BonusShowcase}
+        schema={bonusShowcaseSchema}
+        defaultProps={bonusShowcaseSchema.parse(pomniAdventures)}
+        calculateMetadata={bonusShowcaseMetadata}
+        durationInFrames={showcaseDuration(pomniAdventures.beats.length)}
         fps={FPS}
         width={1920}
         height={1080}

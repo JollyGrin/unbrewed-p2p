@@ -42,6 +42,9 @@ const MODULES = [
   "DeckAnnouncement/particles",
   "CosmeticsAnnouncement/timeline",
   "CosmeticsAnnouncement/flourish",
+  "BonusShowcase/layout",
+  "BonusShowcase/timeline",
+  "BonusShowcase/flourish",
 ];
 
 /** Transpile the module graph into a temp dir, mirroring src's layout. */
@@ -103,6 +106,8 @@ const deckTimeline = modules["DeckAnnouncement/timeline"];
 const deckFlourish = modules["DeckAnnouncement/particles"];
 const cosmeticsTimelineModule = modules["CosmeticsAnnouncement/timeline"];
 const cosmeticsFlourish = modules["CosmeticsAnnouncement/flourish"];
+const showcaseTimelineModule = modules["BonusShowcase/timeline"];
+const showcaseFlourish = modules["BonusShowcase/flourish"];
 
 /** The fan anchors HowItPlays hands the flourish — geometry is irrelevant here. */
 const anchors = (count) =>
@@ -166,6 +171,29 @@ const CASES = [
       ],
     };
   })(),
+  ...[3, 4, 5].map((pairs) => {
+    const timeline = showcaseTimelineModule.showcaseTimeline(pairs);
+    const cues = showcaseFlourish.showcaseCues(timeline);
+    return {
+      label: `showcase: ${pairs} pairs`,
+      timeline,
+      bursts: showcaseFlourish.burstsFor(timeline),
+      // title + a stamp and a flip per pair + the outro name + the sting
+      expectedBursts: 3 + 2 * pairs,
+      cueFrames: new Set([
+        cues.titleSlam,
+        ...cues.stamps,
+        ...cues.flipLands,
+        cues.outroName,
+        cues.sting,
+      ]),
+      dim: (frame) => showcaseFlourish.ambientDim(frame, timeline),
+      reading: timeline.beats.flatMap((beat) => [
+        beat.from + 40,
+        beat.from + 130,
+      ]),
+    };
+  }),
 ];
 
 // ---- 1. bursts only fire on cue frames ----

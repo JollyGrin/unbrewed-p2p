@@ -1,0 +1,45 @@
+{
+  "deckSlug": "1y_5",
+  "intro": "Five Adventures, in order. Clear one and flip it for its reward.",
+  "outro": "Today's adventure is waiting.",
+  "stripeColours": [
+    "#d42a46",
+    "#527ae2"
+  ],
+  "beats": [
+    {
+      "front": "Adventure1: YOur new Home",
+      "back": "Reward 1",
+      "effect": "reach",
+      "caption": "Flip the character card: Pomni turns ranged for the rest of the game."
+    },
+    {
+      "front": "Adventure 2:President Pomni 2: Last stand",
+      "back": "reward 2",
+      "effect": "exile",
+      "caption": "Rip up to three cards out of an opponent's discard pile for good.",
+      "still": "img/showcase/pomni/reward2.webp"
+    },
+    {
+      "front": "Adventure 3:night of the living Jax",
+      "back": "Reward 3",
+      "effect": "revive",
+      "caption": "Jax went down? Bring him back into the fight, once.",
+      "still": "img/showcase/pomni/reward3.webp"
+    },
+    {
+      "front": "Adventure 4: Pomni’s Perilous Pilgrimage",
+      "back": "Reward 4",
+      "effect": "move",
+      "caption": "Keep her clear of every enemy's zone and Pomni's move jumps.",
+      "still": "img/showcase/pomni/reward4.webp"
+    },
+    {
+      "front": "Adventure 5: Overtime at Spudsy's Delivery Service",
+      "back": "Reward 5",
+      "effect": "blindBoost",
+      "caption": "Blind boost her attacks off the top of the deck, and with Jax beside her the boost goes back under.",
+      "still": "img/showcase/pomni/reward5.webp"
+    }
+  ]
+}
