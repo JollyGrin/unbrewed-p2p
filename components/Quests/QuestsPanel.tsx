@@ -22,9 +22,9 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
 
+import type { DailyStats } from "@/lib/account/bonuses";
 import {
   GUEST_STARTER_TEASER,
-  type DailyBonus,
   type Quest,
   allDone,
   doneCount,
@@ -262,7 +262,7 @@ const StreakLine = ({
   countdown,
   palette,
 }: {
-  daily: DailyBonus | null;
+  daily: DailyStats | null;
   countdown: string | null;
   palette: Palette;
 }) => {
@@ -296,7 +296,7 @@ const StreakLine = ({
   );
 };
 
-const streakHeadline = (daily: DailyBonus | null): string | null => {
+const streakHeadline = (daily: DailyStats | null): string | null => {
   if (!daily) return null;
   if (daily.playedToday) return `Day ${Math.max(1, daily.streak)}`;
   // Not played yet: today would be the NEXT day of a live run, or day 1.

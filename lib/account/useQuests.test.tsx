@@ -6,7 +6,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { QUEST_FIXTURES } from "./fixtures/quests";
-import { normalizeDaily, normalizeQuestBoard, type QuestsResult } from "./quests";
+import { normalizeDaily } from "./bonuses";
+import { normalizeQuestBoard, type QuestsResult } from "./quests";
 import type { StatsResult } from "./stats";
 import {
   STALE_MS,

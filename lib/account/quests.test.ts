@@ -4,13 +4,13 @@
  * and a junk body must all read as "nothing to show", never as an error.
  */
 import { API_URL } from "./apiUrl";
+import { normalizeDaily } from "./bonuses";
 import { QUEST_FIXTURES, QUESTS_NOW_MS, QUESTS_RESETS_AT } from "./fixtures/quests";
 import {
   allDone,
   doneCount,
   fetchQuests,
   isEmptyBoard,
-  normalizeDaily,
   normalizeQuestBoard,
   progressLabel,
   questActionLabel,
@@ -106,29 +106,11 @@ describe("normalizeQuestBoard", () => {
   });
 });
 
-describe("normalizeDaily", () => {
-  it("reads the contract block", () => {
-    expect(normalizeDaily(QUEST_FIXTURES.halfDone.daily)).toEqual({
-      streak: 3,
-      bestStreak: 5,
-      playedToday: true,
-      wonToday: false,
-      playXpToday: 20,
-      playXpTomorrow: 25,
-      firstWinXp: 20,
-      resetsAt: QUESTS_RESETS_AT,
-    });
-  });
-
-  it("is null when absent or unusable — absent means no streak UI", () => {
-    for (const raw of [undefined, null, {}, { streak: "3" }, { streak: -1 }, []]) {
-      expect(normalizeDaily(raw)).toBeNull();
-    }
-  });
-
-  it("rides /me/stats as an optional block", () => {
+describe("the daily block", () => {
+  it("rides /me/stats as an optional block, parsed by ./bonuses", () => {
     expect(normalizeStats({ totalGames: 4 }).daily).toBeNull();
     expect(normalizeStats({ totalGames: 4, daily: QUEST_FIXTURES.dailyOpen.daily }).daily?.streak).toBe(2);
+    expect(normalizeDaily(QUEST_FIXTURES.halfDone.daily)?.resetsAt).toBe(QUESTS_RESETS_AT);
   });
 });
 

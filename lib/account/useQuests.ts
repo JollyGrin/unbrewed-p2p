@@ -27,7 +27,8 @@
  */
 import { useEffect, useState } from "react";
 
-import { type DailyBonus, type QuestBoard, fetchQuests } from "./quests";
+import type { DailyStats } from "./bonuses";
+import { type QuestBoard, fetchQuests } from "./quests";
 import { fetchAccountStats } from "./stats";
 import { useAccount } from "./useAccount";
 
@@ -43,7 +44,7 @@ export interface QuestsState {
   status: QuestsStatus;
   board: QuestBoard | null;
   /** The streak block, or null while unknown / when the API doesn't send it. */
-  daily: DailyBonus | null;
+  daily: DailyStats | null;
 }
 
 /** A mount on data older than this re-asks (the API caches stats for 60s). */
@@ -51,7 +52,7 @@ export const STALE_MS = 60_000;
 
 interface Store {
   quests: { status: QuestsStatus; board: QuestBoard | null };
-  daily: DailyBonus | null;
+  daily: DailyStats | null;
 }
 
 const EMPTY: Store = { quests: { status: "loading", board: null }, daily: null };
@@ -176,7 +177,7 @@ export const useQuests = (): QuestsState => {
  * Just the streak block, for the account button's chip. Fires only the stats
  * probe — a page with nothing but the navbar never asks for quests.
  */
-export const useDailyBonus = (): DailyBonus | null => {
+export const useDailyBonus = (): DailyStats | null => {
   const { store: snapshot, accountLoading } = useStore(askDaily);
   return accountLoading ? null : snapshot.daily;
 };

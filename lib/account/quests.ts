@@ -1,7 +1,7 @@
 /**
  * Quests (issue #1658) — the fetch layer for `GET /me/quests` on the accounts
- * API, plus the reader for the `daily` block `GET /me/stats` gained on the
- * same train.
+ * API. The day streak shown beside them is the `daily` block of `GET /me/stats`,
+ * typed and parsed in ./bonuses.
  *
  * Same contract as the rest of lib/account: never throws, never logs, every
  * failure becomes a typed reason. Two things are specific to this endpoint:
@@ -19,6 +19,7 @@
  * unbrewed-api only. Every number this module handles came off the wire.
  */
 import { API_URL } from "./apiUrl";
+import type { DailyStats } from "./bonuses";
 
 /** What a quest pays. All parts optional; `note` is the API's own wording. */
 export interface QuestReward {
@@ -43,26 +44,6 @@ export interface QuestBoard {
   /** Today's quests. */
   daily: Quest[];
   /** ISO time the dailies reset (next UTC midnight), or null if not sent. */
-  resetsAt: string | null;
-}
-
-/**
- * The `daily` block of `GET /me/stats`: the day streak and what it pays.
- * Optional on the wire — an API without it means "no daily bonus", and every
- * reader hides its streak UI.
- */
-export interface DailyBonus {
-  /** Consecutive UTC days played; alive if the last one is today or yesterday. */
-  streak: number;
-  bestStreak: number;
-  playedToday: boolean;
-  wonToday: boolean;
-  /** What today's first game pays (or paid). */
-  playXpToday: number;
-  /** What tomorrow's would pay if the streak holds. */
-  playXpTomorrow: number;
-  firstWinXp: number;
-  /** ISO, next UTC midnight; null if not sent. */
   resetsAt: string | null;
 }
 
@@ -155,26 +136,6 @@ export const normalizeQuestBoard = (body: unknown): QuestBoard => {
 /** True when there is nothing to draw: the panel renders nothing at all. */
 export const isEmptyBoard = (board: QuestBoard): boolean =>
   board.starter.length === 0 && board.daily.length === 0;
-
-/**
- * The `daily` block off a `/me/stats` body, or null when the API didn't send a
- * usable one. `streak` is the one field the block is useless without.
- */
-export const normalizeDaily = (raw: unknown): DailyBonus | null => {
-  const row = asRecord(raw);
-  const streak = row ? asCount(row.streak) : null;
-  if (!row || streak === null) return null;
-  return {
-    streak,
-    bestStreak: Math.max(streak, asCount(row.bestStreak) ?? 0),
-    playedToday: row.playedToday === true,
-    wonToday: row.wonToday === true,
-    playXpToday: asCount(row.playXpToday) ?? 0,
-    playXpTomorrow: asCount(row.playXpTomorrow) ?? 0,
-    firstWinXp: asCount(row.firstWinXp) ?? 0,
-    resetsAt: asIso(row.resetsAt),
-  };
-};
 
 /**
  * The signed-in player's quests.
@@ -275,7 +236,7 @@ export const resetCountdown = (
 /** The streak chip's copy; shown from day 2, since "Day 1" is not a streak. */
 export const STREAK_CHIP_MIN = 2;
 
-export const streakChipLabel = (daily: DailyBonus | null): string | null =>
+export const streakChipLabel = (daily: DailyStats | null): string | null =>
   daily && daily.streak >= STREAK_CHIP_MIN ? `Day ${daily.streak}` : null;
 
 /**

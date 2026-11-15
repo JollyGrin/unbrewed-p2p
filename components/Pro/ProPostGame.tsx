@@ -49,8 +49,10 @@ import { signInLink } from "@/lib/account/signInLink";
 import { useSignInReturn } from "@/components/Account/AccountChip";
 import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchOfferPanel";
 import { ProPostGameEarned } from "@/components/Pro/ProPostGameEarned";
+import { GUEST_ESTIMATE_NOTE, earnedKindOf, guestConversionLine, guestEstimate } from "@/lib/pro/earned";
 import type { GameEarnedView } from "@/lib/pro/useGameEarned";
 import { PostGameHowItWent } from "@/components/Pro/PostGameHowItWent";
+import { NextUpHeld, ProPostGameNextUp } from "@/components/Pro/ProPostGameNextUp";
 
 /** What the page knows about this game beyond the view (see ProDock's `postGame`). */
 export interface ProPostGameContext {
@@ -85,6 +87,12 @@ export interface ProPostGameContext {
    * Match or a public table joined from the list) ever carries one (#1542).
    */
   xpMultiplier?: number | null;
+  /**
+   * "Next up" (p2p #1657): what the page holds for the strip under the slots —
+   * the played hero, the pre-game cosmetics / stats / badge case. Absent = no
+   * strip (a guest's sign-in row needs nothing from here).
+   */
+  nextUp?: NextUpHeld | null;
 }
 
 export interface ProPostGameProps extends ProPostGameContext {
@@ -101,6 +109,9 @@ export interface ProPostGameProps extends ProPostGameContext {
   onCopyShareLink?: () => void;
   shareLinkBusy?: boolean;
 }
+
+/** No held data: the strip can still say "sign in" to a guest, and nothing else. */
+const NO_NEXT_UP: NextUpHeld = { heroId: null, cosmeticHeroes: [], cosmeticConstants: null, stats: null, badges: [] };
 
 export const PANEL_SURFACE = {
   bg: "linear-gradient(180deg, rgba(58, 33, 64, 0.96), rgba(44, 24, 49, 0.98))",
@@ -336,8 +347,11 @@ const MatchupRow = ({ seat, heroName, identity }: { seat: MatchupSeat; heroName:
   </Flex>
 );
 
-/** The signed-out line in the "What you earned" slot. Quiet, never a wall. */
-const GuestLine = ({ compact }: { compact: boolean }) => {
+/**
+ * The signed-out line in the "What you earned" slot: what this game would have
+ * paid a new account (#1656), and the sign-in link. Quiet, never a wall.
+ */
+const GuestLine = ({ compact, line }: { compact: boolean; line: string }) => {
   const onSignInClick = useSignInReturn();
   return (
     <Flex
@@ -349,8 +363,11 @@ const GuestLine = ({ compact }: { compact: boolean }) => {
       data-testid="post-game-guest"
     >
       <SlotLabel>What you earned</SlotLabel>
-      <Text fontSize={compact ? "0.78rem" : "0.85rem"} color="rgba(250, 235, 215, 0.85)">
-        This game isn&apos;t saved to an account. Sign in with Discord and your next games count toward a level, hero
+      <Text fontSize={compact ? "0.78rem" : "0.85rem"} color="rgba(250, 235, 215, 0.85)" data-testid="post-game-guest-line">
+        {line}
+      </Text>
+      <Text fontSize="0.7rem" color={DIM} mt="-0.35rem" data-testid="post-game-guest-note">
+        {GUEST_ESTIMATE_NOTE} This game isn&apos;t saved to an account; your next ones count toward a level, hero
         cosmetics and badges.
       </Text>
       <Button
@@ -390,6 +407,7 @@ export const ProPostGame = ({
   firstPlayer = null,
   earned,
   xpMultiplier = null,
+  nextUp = null,
 }: ProPostGameProps) => {
   const result = gameResultOf(view) ?? "no-winner";
   const victory = result === "victory";
@@ -492,7 +510,14 @@ export const ProPostGame = ({
     earned && "before" in earned ? seatHeroName(view, { id: view.you, heroId: earned.before.heroId }, heroNameOf) : "";
   const earnedSlot =
     accountStatus === "guest" ? (
-      <GuestLine compact={!panel} />
+      <GuestLine
+        compact={!panel}
+        line={guestConversionLine(
+          guestEstimate(earnedKindOf(view, bots, result, endReason, false).kind === "casual", victory),
+          // A guest has no earned view to name the hero from: your own matchup seat does.
+          identities.find(({ seat }) => seat.player.id === view.you)?.heroName || "hero",
+        )}
+      />
     ) : earned ? (
       <ProPostGameEarned view={earned} heroName={earnedHeroName} compact={!panel} xpMultiplier={xpMultiplier} />
     ) : null;
@@ -599,6 +624,14 @@ export const ProPostGame = ({
       </Flex>
       {matchup}
       {slots}
+      <ProPostGameNextUp
+        accountStatus={accountStatus}
+        held={nextUp ?? NO_NEXT_UP}
+        earned={earned ?? null}
+        heroName={seatHeroName(view, { id: view.you, heroId: nextUp?.heroId ?? "" }, heroNameOf)}
+        victory={victory}
+        layout={layout}
+      />
       {actions}
     </Flex>
   );

@@ -9,7 +9,8 @@ import { ChakraProvider } from "@chakra-ui/react";
 
 import { QuestsPanelView } from "./QuestsPanel";
 import { QUEST_FIXTURES, QUESTS_NOW_MS, type QuestFixtureName } from "@/lib/account/fixtures/quests";
-import { normalizeDaily, normalizeQuestBoard } from "@/lib/account/quests";
+import { normalizeDaily } from "@/lib/account/bonuses";
+import { normalizeQuestBoard } from "@/lib/account/quests";
 import type { QuestsState } from "@/lib/account/useQuests";
 
 jest.mock("next/router", () => ({ useRouter: () => ({ asPath: "/pro", query: {} }) }));

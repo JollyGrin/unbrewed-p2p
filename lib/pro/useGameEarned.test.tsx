@@ -121,7 +121,7 @@ describe("pollUntilLanded", () => {
 });
 
 describe("readAfterLanding", () => {
-  const before: EarnedSnapshot = { stats: { totalGames: 40, level: 7, xp: 3504, xpForNext: 3600, streak: 3, streakBest: 6 }, heroId: "hollow-oak", heroPoints: 220, unlocked: ["first-win"] };
+  const before: EarnedSnapshot = { stats: { totalGames: 40, level: 7, xp: 3504, xpForNext: 3600, streak: 3, streakBest: 6, playedHeroes: [], bonuses: null, daily: null }, heroId: "hollow-oak", heroPoints: 220, unlocked: ["first-win"] };
   const cosmeticsOk: CosmeticsResult = {
     ok: true,
     value: { heroes: [{ ...emptyHeroCosmetics("hollow-oak", true), earned: 260 }], constants: { cardTierCosts: [50], tokenRimThresholds: [300, 900] } },
@@ -132,10 +132,11 @@ describe("readAfterLanding", () => {
     const reprobeBadges = jest.fn(async () => [badge("first-win", true), badge("streak-5", true)]);
     const after = await readAfterLanding(stats({ totalGames: 41, xp: 3544, streaks: { current: 4, best: 6 } }), before, { fetchCosmetics, reprobeBadges }, [250]);
     expect(after).toEqual({
-      stats: { totalGames: 41, level: 7, xp: 3544, xpForNext: 3600, streak: 4, streakBest: 6 },
+      stats: { totalGames: 41, level: 7, xp: 3544, xpForNext: 3600, streak: 4, streakBest: 6, playedHeroes: [], bonuses: null, daily: null },
       heroPoints: 260,
       unlocked: ["first-win", "streak-5"],
       thresholds: [300, 900],
+      heroFirstGamePoints: null,
     });
     expect(fetchCosmetics).toHaveBeenCalledTimes(1);
     expect(reprobeBadges).toHaveBeenCalledTimes(1);
@@ -213,7 +214,7 @@ describe("useGameEarned", () => {
 
     const casual = renderHook(() => useGameEarned(input({ kind: { kind: "casual" } }), deps(fetchStats)));
     await flush();
-    expect(casual.result.current).toEqual({ phase: "casual" });
+    expect(casual.result.current).toEqual({ phase: "casual", practiceCap: null });
 
     const guest = renderHook(() => useGameEarned(input({ signedIn: false }), deps(fetchStats)));
     await act(async () => {
@@ -221,6 +222,48 @@ describe("useGameEarned", () => {
     });
     expect(guest.result.current).toBeNull();
     expect(fetchStats).not.toHaveBeenCalled();
+  });
+
+  describe("practice games (#1656)", () => {
+    const practice = (used: number) => ({
+      firstGame: { xp: 100, earned: true },
+      practice: { cap: 5, used, xpPerGame: 10, xpPerWin: 5, xp: used * 10 },
+      daily: null,
+    });
+    const played = [{ heroId: "hollow-oak", heroName: "Hollow Oak", games: 9, wins: 4 }];
+
+    it("under the cap: polls like a counted game and lands with the XP", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3519, byHero: played, bonuses: practice(3) }))]);
+      const { result } = renderHook(() =>
+        useGameEarned(input({ kind: { kind: "casual" }, stats: stats({ byHero: played, bonuses: practice(2) }) }), deps(fetchStats)),
+      );
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", practice: true, forfeit: false, delta: { xp: 15 }, after: { bonuses: { practice: { used: 3 } } } });
+      expect(fetchStats).toHaveBeenCalledTimes(1);
+    });
+
+    it("past the cap: the note with the api's cap, and no request", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41 }))]);
+      const { result } = renderHook(() =>
+        useGameEarned(input({ kind: { kind: "casual" }, stats: stats({ byHero: played, bonuses: practice(5) }) }), deps(fetchStats)),
+      );
+      await flush();
+      expect(result.current).toEqual({ phase: "casual", practiceCap: 5 });
+      expect(fetchStats).not.toHaveBeenCalled();
+    });
+
+    it("a counted game is never marked practice, and reads the api's hero-first constant for its bonus row", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3544, byHero: played, bonuses: practice(5) }))]);
+      const fetchCosmetics: EarnedPollDeps["fetchCosmetics"] = async () => ({
+        ok: true,
+        value: { heroes: [{ ...emptyHeroCosmetics("hollow-oak", true), earned: 310 }], constants: { ...FALLBACK_CONSTANTS, heroFirstGamePoints: 50 } },
+      });
+      const { result } = renderHook(() => useGameEarned(input({ stats: stats({ bonuses: practice(5) }) }), deps(fetchStats, { fetchCosmetics })));
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", practice: false, delta: { points: 90, bonuses: [{ kind: "hero-first", points: 50 }] } });
+    });
   });
 
   it("no pre-game stats → the one-line no-baseline state, no poll", async () => {

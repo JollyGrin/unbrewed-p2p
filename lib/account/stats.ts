@@ -18,7 +18,8 @@
 import { knownBotTierMeta } from "../pro/botTiers";
 
 import { API_URL } from "./apiUrl";
-import { type DailyBonus, normalizeDaily } from "./quests";
+import type { DailyStats, StatsBonuses } from "./bonuses";
+import { normalizeBonuses, normalizeDaily } from "./bonuses";
 
 /** Games below which a win rate is noise rather than a statistic. */
 export const MIN_WIN_RATE_GAMES = 5;
@@ -96,11 +97,11 @@ export interface AccountStats {
   byMap: MapStat[] | null;
   byOpponentKind: OpponentKindStats | null;
   firstPlayer: FirstPlayerStats | null;
-  /**
-   * The day streak and what it pays (#1658). Optional as well as nullable: an
-   * API without the daily bonus doesn't send it, and absent = no streak UI.
-   */
-  daily?: DailyBonus | null;
+  // --- onboarding (#1656); absent/null means "this deploy didn't send the block" ---
+  /** Starter rewards: the first-game bonus and the paid practice games. */
+  bonuses?: StatsBonuses | null;
+  /** The UTC-day streak and what it pays. */
+  daily?: DailyStats | null;
 }
 
 /** Why stats didn't arrive. `unavailable` is the catch-all → quiet state. */
@@ -244,6 +245,7 @@ export const normalizeStats = (body: unknown): AccountStats => {
     })),
     byOpponentKind: normalizeOpponentKind(root.byOpponentKind),
     firstPlayer: normalizeFirstPlayer(root.firstPlayer),
+    bonuses: normalizeBonuses(root.bonuses),
     daily: normalizeDaily(root.daily),
   };
 };
