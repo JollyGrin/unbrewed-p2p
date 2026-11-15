@@ -13,8 +13,10 @@
  * point past which polling is just load. Giving up is a calm state ("still
  * recording"), never an error — the profile page will show the numbers later.
  *
- * Casual tiers (easy/medium bots) never poll: nothing is granted for them.
- * Guests never reach this hook's poll either — the page only passes
+ * Casual tiers (easy/medium bots) poll only while the pre-game stats say the
+ * game pays (`casualGamePays`, #1656: the first game, the paid practice games,
+ * the day's first game, a hero's first game). Otherwise nothing is granted
+ * and the card says so without a request. Guests never reach this hook's poll either — the page only passes
  * `signedIn` for a real account, and the panel renders its own guest line.
  */
 import { useEffect, useRef, useState } from "react";
@@ -31,6 +33,7 @@ import {
   EarnedKind,
   EarnedSnapshot,
   EarnedStats,
+  casualGamePays,
   earnedDelta,
   earnedStatsOf,
   gameHasLanded,
@@ -98,6 +101,8 @@ export interface EarnedAfter {
   heroPoints: number | null;
   unlocked: string[];
   thresholds: number[];
+  /** `constants.heroFirstGamePoints`; null when the api published none. */
+  heroFirstGamePoints: number | null;
 }
 
 /**
@@ -123,6 +128,7 @@ export const readAfterLanding = async (
     heroPoints,
     unlocked: badges ? unlockedBadgeIds(badges) : before.unlocked,
     thresholds: payload?.constants.tokenRimThresholds ?? fallbackThresholds,
+    heroFirstGamePoints: payload?.constants.heroFirstGamePoints ?? null,
   };
 };
 
@@ -154,6 +160,8 @@ export interface EarnedPending {
   phase: "waiting" | "timeout";
   before: EarnedSnapshot;
   forfeit: boolean;
+  /** An easy/medium game that pays (#1656): XP, no cosmetic points, not in the record. */
+  practice: boolean;
   thresholds: number[];
 }
 
@@ -164,11 +172,23 @@ export interface EarnedLanded {
   after: EarnedStats;
   delta: EarnedDelta;
   forfeit: boolean;
+  /** An easy/medium game that paid (#1656). */
+  practice: boolean;
   thresholds: number[];
 }
 
+/**
+ * An easy/medium game that pays nothing. `practiceCap` is the api's cap when
+ * it sent the practice block (the note then says the first N paid), null on
+ * an api without it (the note is the old "No XP" one).
+ */
+export interface EarnedCasual {
+  phase: "casual";
+  practiceCap: number | null;
+}
+
 export type GameEarnedView =
-  | { phase: "casual" }
+  | EarnedCasual
   /** Signed in, but no pre-game stats to diff against: one quiet line. */
   | { phase: "no-baseline" }
   | EarnedPending
@@ -176,10 +196,10 @@ export type GameEarnedView =
 
 type Phase =
   | { phase: "idle" }
-  | { phase: "casual" }
+  | EarnedCasual
   | { phase: "no-baseline" }
-  | { phase: "waiting" | "timeout"; before: EarnedSnapshot; thresholds: number[] }
-  | { phase: "landed"; before: EarnedSnapshot; after: EarnedStats; delta: EarnedDelta; thresholds: number[] };
+  | { phase: "waiting" | "timeout"; before: EarnedSnapshot; practice: boolean; thresholds: number[] }
+  | { phase: "landed"; before: EarnedSnapshot; after: EarnedStats; delta: EarnedDelta; practice: boolean; thresholds: number[] };
 
 export const useGameEarned = (input: GameEarnedInput, deps: EarnedPollDeps = DEFAULT_EARNED_POLL): GameEarnedView | null => {
   const [state, setState] = useState<Phase>({ phase: "idle" });
@@ -204,12 +224,13 @@ export const useGameEarned = (input: GameEarnedInput, deps: EarnedPollDeps = DEF
 
   useEffect(() => {
     if (!roomId || !gameOver || !signedIn || !kindKey) return;
-    if (kindKey === "casual") {
-      setState({ phase: "casual" });
-      return;
-    }
     const current = inputRef.current;
     const baseline = landedStatsRef.current ?? current.stats;
+    const practice = kindKey === "casual";
+    if (practice && !casualGamePays(baseline, heroId)) {
+      setState({ phase: "casual", practiceCap: baseline?.bonuses?.practice?.cap ?? null });
+      return;
+    }
     const hero = current.cosmeticHeroes.find((row) => row.heroId === heroId) ?? null;
     const before = takeEarnedSnapshot(baseline, heroId, hero, current.badges);
     if (!before) {
@@ -217,19 +238,19 @@ export const useGameEarned = (input: GameEarnedInput, deps: EarnedPollDeps = DEF
       return;
     }
     const thresholds = current.cosmeticConstants?.tokenRimThresholds ?? FALLBACK_CONSTANTS.tokenRimThresholds;
-    setState({ phase: "waiting", before, thresholds });
+    setState({ phase: "waiting", before, practice, thresholds });
     const token: PollToken = { cancelled: false };
     const poll = depsRef.current;
     void pollUntilLanded(before.stats, poll, token).then(async (landed) => {
       if (token.cancelled) return;
       if (!landed) {
-        setState({ phase: "timeout", before, thresholds });
+        setState({ phase: "timeout", before, practice, thresholds });
         return;
       }
       landedStatsRef.current = landed;
       const after = await readAfterLanding(landed, before, poll, thresholds);
       if (token.cancelled) return;
-      setState({ phase: "landed", before, after: after.stats, delta: earnedDelta(before, after), thresholds: after.thresholds });
+      setState({ phase: "landed", before, after: after.stats, delta: earnedDelta(before, after), practice, thresholds: after.thresholds });
     });
     return () => {
       token.cancelled = true;

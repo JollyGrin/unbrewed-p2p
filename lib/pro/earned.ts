@@ -16,6 +16,7 @@
  * This module is the arithmetic and the classification; the poll lives in
  * `useGameEarned`, the paint in `ProPostGameEarned`.
  */
+import type { DailyStats, StatsBonuses } from "@/lib/account/bonuses";
 import type { AccountStats } from "@/lib/account/stats";
 import { CASUAL_TIERS, levelProgress } from "@/lib/account/stats";
 import type { Badge } from "@/lib/account/badges";
@@ -38,6 +39,12 @@ export interface EarnedStats {
   streak: number | null;
   /** `streaks.best`, for the streak tile's caption. */
   streakBest: number | null;
+  /** Hero ids with at least one finished game, for "First game as <hero>". */
+  playedHeroes: string[];
+  /** The starter-reward block (#1656); null when the api didn't send it. */
+  bonuses: StatsBonuses | null;
+  /** The daily-streak block (#1656); null when the api didn't send it. */
+  daily: DailyStats | null;
 }
 
 /** What the page held the moment the game ended — the baseline every delta is against. */
@@ -58,6 +65,9 @@ export const earnedStatsOf = (stats: AccountStats): EarnedStats => ({
   xpForNext: stats.xpForNext,
   streak: stats.streaks?.current ?? null,
   streakBest: stats.streaks?.best ?? null,
+  playedHeroes: stats.byHero.flatMap((row) => (row.heroId && row.games > 0 ? [row.heroId] : [])),
+  bonuses: stats.bonuses ?? null,
+  daily: stats.daily ?? null,
 });
 
 export const unlockedBadgeIds = (badges: readonly Badge[]): string[] =>
@@ -111,15 +121,94 @@ export interface EarnedDelta {
   streak: { from: number; to: number } | null;
   /** Badge ids unlocked by this game: in `after`, not in `before`. */
   newBadges: string[];
+  /** The one-off and daily bonuses THIS game triggered (#1656), in reading order. */
+  bonuses: EarnedBonus[];
 }
 
 const diffOrNull = (after: number | null, before: number | null): number | null =>
   after === null || before === null ? null : Math.max(0, after - before);
 
-export const earnedDelta = (
-  before: EarnedSnapshot,
-  after: { stats: EarnedStats; heroPoints: number | null; unlocked: readonly string[] },
-): EarnedDelta => {
+// --- bonus rows (#1656) ------------------------------------------------------
+
+/**
+ * One line under the XP figure: a bonus this game triggered. Every amount is
+ * the api's own number read off the landed payload (`bonuses.firstGame.xp`,
+ * `daily.playXpToday`, `daily.firstWinXp`, the cosmetics constants), and every
+ * row exists only because a flag flipped between the two snapshots. Nothing
+ * here multiplies a weight.
+ */
+export type EarnedBonus =
+  | { kind: "first-game"; xp: number }
+  | { kind: "hero-first"; points: number }
+  | { kind: "daily"; day: number; xp: number }
+  | { kind: "first-win"; xp: number };
+
+/** What the bonus rows are derived from on the landed side. */
+export interface EarnedAfterSide {
+  stats: EarnedStats;
+  heroPoints: number | null;
+  unlocked: readonly string[];
+  /** `constants.heroFirstGamePoints` from `/me/cosmetics`; null/absent on an older api. */
+  heroFirstGamePoints?: number | null;
+}
+
+/**
+ * Were the pre-game `daily` flags about the same UTC day as the landed ones?
+ * A page left open across midnight holds yesterday's `playedToday`, which must
+ * not hide today's bonus; `resetsAt` names the day both blocks describe.
+ */
+const sameDailyDay = (before: DailyStats, after: DailyStats): boolean => before.resetsAt === after.resetsAt;
+
+export const earnedBonuses = (before: EarnedSnapshot, after: EarnedAfterSide): EarnedBonus[] => {
+  const rows: EarnedBonus[] = [];
+
+  // The account's first finished game: `earned` flipped.
+  const firstBefore = before.stats.bonuses?.firstGame;
+  const firstAfter = after.stats.bonuses?.firstGame;
+  if (firstBefore && firstAfter && !firstBefore.earned && firstAfter.earned) {
+    rows.push({ kind: "first-game", xp: firstAfter.xp });
+  }
+
+  // The hero's first finished game: it entered `byHero`, the api published
+  // what that pays, and the hero's points really moved by at least that much
+  // (so a game that paid no points, a forfeit say, never claims the row).
+  const heroFirst = after.heroFirstGamePoints ?? null;
+  const firstAsHero = !before.stats.playedHeroes.includes(before.heroId) && after.stats.playedHeroes.includes(before.heroId);
+  if (firstAsHero && heroFirst !== null && heroFirst > 0 && after.heroPoints !== null) {
+    const gained = before.heroPoints === null ? after.heroPoints : after.heroPoints - before.heroPoints;
+    if (gained >= heroFirst) rows.push({ kind: "hero-first", points: heroFirst });
+  }
+
+  // The day's first game and first win: `playedToday` / `wonToday` flipped.
+  const dayBefore = before.stats.daily;
+  const dayAfter = after.stats.daily;
+  if (dayBefore && dayAfter) {
+    const sameDay = sameDailyDay(dayBefore, dayAfter);
+    if (dayAfter.playedToday && !(sameDay && dayBefore.playedToday)) {
+      rows.push({ kind: "daily", day: dayAfter.streak, xp: dayAfter.playXpToday });
+    }
+    if (dayAfter.wonToday && !(sameDay && dayBefore.wonToday)) {
+      rows.push({ kind: "first-win", xp: dayAfter.firstWinXp });
+    }
+  }
+  return rows;
+};
+
+/** "First game" / "+100" — a bonus row's two cells. */
+export const bonusRowText = (bonus: EarnedBonus, heroName: string): { label: string; amount: string } => {
+  switch (bonus.kind) {
+    case "first-game":
+      return { label: "First game", amount: `+${bonus.xp.toLocaleString()}` };
+    case "hero-first":
+      return { label: `First game as ${heroName}`, amount: `+${bonus.points.toLocaleString()} points` };
+    case "daily":
+      return { label: `Daily bonus · day ${bonus.day}`, amount: `+${bonus.xp.toLocaleString()}` };
+    case "first-win":
+      return { label: "First win today", amount: `+${bonus.xp.toLocaleString()}` };
+  }
+};
+
+export const earnedDelta = (before: EarnedSnapshot, after: EarnedAfterSide): EarnedDelta => {
   const wasUnlocked = new Set(before.unlocked);
   return {
     xp: diffOrNull(after.stats.xp, before.stats.xp),
@@ -132,6 +221,7 @@ export const earnedDelta = (
         ? { from: before.stats.streak, to: after.stats.streak }
         : null,
     newBadges: after.unlocked.filter((id) => !wasUnlocked.has(id)),
+    bonuses: earnedBonuses(before, after),
   };
 };
 
@@ -206,8 +296,9 @@ export const landedLevelBar = (before: EarnedStats, after: EarnedStats): LevelBa
 /**
  * Which card this game gets:
  *
- * - `casual`: every opponent was an easy/medium bot — practice, no XP, no
- *   points, not in your record (#592). The card says so instead of counting.
+ * - `casual`: every opponent was an easy/medium bot — practice, not in your
+ *   record (#592). Whether it PAYS is a second question, `casualGamePays`
+ *   (#1656): the first few do, and then the card says so instead of counting.
  * - `counted`: everything else. `forfeit` is set when YOU gave the game up:
  *   XP still lands, cosmetic points don't (#636), and the points tile says so.
  */
@@ -233,7 +324,114 @@ export const earnedKindOf = (
   return { kind: "counted", forfeit };
 };
 
+// --- does a practice game pay? (#1656) ---------------------------------------
+
+/** Why an easy/medium game is worth polling for; the first that applies. */
+export type CasualPayReason = "first-game" | "practice" | "daily" | "hero-first";
+
+/**
+ * The casual-game poll decision. An easy/medium game used to pay nothing, so
+ * the card never polled for one. Under the onboarding economy it pays while
+ * any of these hold BEFORE the game, read off the pre-game `/me/stats`:
+ *
+ * - `first-game`: the account has no finished game yet.
+ * - `practice`: `bonuses.practice.used < cap`, the paid practice games.
+ * - `daily`: the day's first game is still ahead (any finished game counts).
+ * - `hero-first`: this hero has no finished game yet (points, not XP).
+ *
+ * `null` = it pays nothing and the card keeps the "No XP" note. That is also
+ * the answer whenever the api sent neither block: no `bonuses` and no `daily`
+ * is an api before the onboarding train, where nothing changed.
+ */
+export const casualGamePays = (
+  stats: Pick<AccountStats, "totalGames" | "byHero" | "bonuses" | "daily"> | null,
+  heroId: string | null,
+  now: number = Date.now(),
+): CasualPayReason | null => {
+  if (!stats) return null;
+  const bonuses = stats.bonuses ?? null;
+  const daily = stats.daily ?? null;
+  if (!bonuses && !daily) return null;
+  if (bonuses) {
+    if (bonuses.firstGame ? !bonuses.firstGame.earned : stats.totalGames === 0) return "first-game";
+    if (bonuses.practice && bonuses.practice.used < bonuses.practice.cap) return "practice";
+  }
+  if (daily) {
+    // Past `resetsAt` the block describes a day that is over: today is unplayed.
+    const reset = daily.resetsAt ? Date.parse(daily.resetsAt) : NaN;
+    if (!daily.playedToday || (Number.isFinite(reset) && now >= reset)) return "daily";
+  }
+  if (bonuses && heroId && !stats.byHero.some((row) => row.heroId === heroId && row.games > 0)) return "hero-first";
+  return null;
+};
+
+// --- the guest estimate (#1656) ----------------------------------------------
+
+/**
+ * What a signed-out player's game WOULD have paid as a brand-new account's
+ * first game. The one place the client mirrors the contract's constants, and
+ * only for a player the api knows nothing about: there is no payload to read
+ * for a guest. It is shown as an estimate and never used for a signed-in
+ * figure. Keep in step with unbrewed-api's economy constants.
+ */
+export const GUEST_ESTIMATE = {
+  /** FIRST_GAME_XP */
+  firstGameXp: 100,
+  /** HERO_FIRST_GAME_POINTS */
+  heroFirstGamePoints: 50,
+  /** Day 1 of the daily ladder `[10,15,20,25,30]`. */
+  dailyDayOneXp: 10,
+  /** First win of a UTC day. */
+  firstWinXp: 20,
+  /** A paid practice (easy/medium) game: played, and the win on top. */
+  practiceGameXp: 10,
+  practiceWinXp: 5,
+} as const;
+
+export interface GuestEstimate {
+  xp: number;
+  heroPoints: number;
+  /**
+   * False for a counted game (hard/expert bot, a person): its own game XP and
+   * points are the api's to compute and sit on top of these bonuses, so the
+   * figures are a floor rather than the total.
+   */
+  exact: boolean;
+}
+
+export const guestEstimate = (casual: boolean, won: boolean): GuestEstimate => ({
+  xp:
+    GUEST_ESTIMATE.firstGameXp +
+    GUEST_ESTIMATE.dailyDayOneXp +
+    (won ? GUEST_ESTIMATE.firstWinXp : 0) +
+    (casual ? GUEST_ESTIMATE.practiceGameXp + (won ? GUEST_ESTIMATE.practiceWinXp : 0) : 0),
+  heroPoints: GUEST_ESTIMATE.heroFirstGamePoints,
+  exact: casual,
+});
+
+/** "Sign in to keep this: you would have earned about 145 XP and 50 Hollow Oak points." */
+export const guestConversionLine = (estimate: GuestEstimate, heroName: string): string =>
+  `Sign in to keep this: you would have earned ${estimate.exact ? "about" : "at least"} ${estimate.xp.toLocaleString()} XP and ${estimate.heroPoints.toLocaleString()} ${heroName} points.`;
+
+/** The small print under it: these are the client's figures, not the api's. */
+export const GUEST_ESTIMATE_NOTE = "Estimate for a new account's first game.";
+
 // --- copy --------------------------------------------------------------------
+
+/** The practice-game notes (#1656): past the cap, and on a game that paid. */
+export const practicePaidNote = (cap: number): string =>
+  `No XP · your first ${cap} practice games paid`;
+export const practicePaidBody = (cap: number): string =>
+  `Easy and medium bot games are practice and stay out of your record. The first ${cap} paid XP; from here, play a hard bot, an expert bot or a person to earn XP and cosmetic points.`;
+/** "Practice game 3 of 5 · XP only, not in your record" */
+export const practiceGameCaption = (used: number, cap: number): string =>
+  `Practice game ${Math.min(used, cap)} of ${cap} · XP only, not in your record`;
+export const PRACTICE_POINTS_NOTE = "practice games pay XP only";
+
+/** "Day 3 streak" / "Tomorrow: +25 XP" — the daily tile once the game landed. */
+export const dailyStreakTitle = (daily: Pick<DailyStats, "streak">): string => `Day ${daily.streak} streak`;
+export const dailyTomorrowCaption = (daily: Pick<DailyStats, "playXpTomorrow">): string =>
+  `Tomorrow: +${daily.playXpTomorrow.toLocaleString()} XP`;
 
 export const EARNED_WAITING_CAPTION = "stats land once the game is recorded, usually under a minute";
 export const EARNED_TIMEOUT_CAPTION = "Still recording — your profile will catch up";

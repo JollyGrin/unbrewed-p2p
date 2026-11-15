@@ -9,6 +9,12 @@
  * the account page's "No XP" note instead of the bar; a forfeit keeps the
  * bar but the points tile says what conceding cost.
  *
+ * Onboarding (#1656): an easy/medium game that pays is drawn like a counted
+ * one (bar, XP, tiles) with a "Practice game 3 of 5" caption; the bonuses a
+ * game triggered are line items under the bar ("First game +100"); and when
+ * the api sends the `daily` block a fourth tile shows the day streak and what
+ * tomorrow pays. With neither block in the payload the card is the #1399 one.
+ *
  * Nothing here computes a number. Every figure is a snapshot the page held
  * before the game or a refetch after it landed (`useGameEarned`); while the
  * api is still counting the card says so, and if it never catches up in time
@@ -23,8 +29,15 @@ import {
   EARNED_TIMEOUT_CAPTION,
   EARNED_WAITING_CAPTION,
   LevelBar,
+  PRACTICE_POINTS_NOTE,
+  bonusRowText,
+  dailyStreakTitle,
+  dailyTomorrowCaption,
   landedLevelBar,
   pointsCaption,
+  practiceGameCaption,
+  practicePaidBody,
+  practicePaidNote,
   streakLabel,
   waitingLevelBar,
   xpLine,
@@ -154,15 +167,24 @@ export const ProPostGameEarned = ({
   xpMultiplier?: number | null;
 }) => {
   if (view.phase === "casual") {
+    // The api's practice cap, when it sent one: the note then owns up to the
+    // games that DID pay. Without it this is the #592 note, word for word.
+    const cap = view.practiceCap !== null && view.practiceCap > 0 ? view.practiceCap : null;
     return (
       <Card compact={compact} phase="casual">
         <Text fontSize={compact ? "0.82rem" : "0.9rem"} fontWeight={600} color={MUTED} data-testid="post-game-earned-note">
-          {CASUAL_SPLIT_NOTE}
+          {cap !== null ? practicePaidNote(cap) : CASUAL_SPLIT_NOTE}
         </Text>
-        <Text fontSize="0.72rem" color={DIM}>
-          Easy and medium bot games are practice — play a hard bot, an expert bot or a person to earn XP and
-          cosmetic points.
-        </Text>
+        {cap !== null ? (
+          <Text fontSize="0.72rem" color={DIM} data-testid="post-game-earned-note-body">
+            {practicePaidBody(cap)}
+          </Text>
+        ) : (
+          <Text fontSize="0.72rem" color={DIM}>
+            Easy and medium bot games are practice — play a hard bot, an expert bot or a person to earn XP and
+            cosmetic points.
+          </Text>
+        )}
       </Card>
     );
   }
@@ -180,6 +202,7 @@ export const ProPostGameEarned = ({
   const bar = landed ? landedLevelBar(view.before.stats, view.after) : waitingLevelBar(view.before.stats);
   const delta = landed ? view.delta : null;
   const levelUp = !!delta?.levelUp;
+  const practiceUsed = landed && view.practice ? (view.after.bonuses?.practice ?? null) : null;
   const caption = landed
     ? levelUp
       ? "Level up — the bar starts over"
@@ -187,6 +210,34 @@ export const ProPostGameEarned = ({
     : view.phase === "timeout"
       ? EARNED_TIMEOUT_CAPTION
       : EARNED_WAITING_CAPTION;
+
+  // The bonuses this game triggered, as line items: only once landed, only
+  // the ones the two snapshots show flipping (`earnedBonuses`).
+  const bonuses = delta?.bonuses ?? [];
+  const bonusRows = bonuses.length > 0 && (
+    <Flex as="ul" direction="column" gap="0.1rem" listStyleType="none" m={0} p={0} data-testid="post-game-bonuses">
+      {bonuses.map((bonus) => {
+        const text = bonusRowText(bonus, heroName);
+        return (
+          <Flex
+            as="li"
+            key={bonus.kind}
+            justify="space-between"
+            align="baseline"
+            gap="0.75rem"
+            fontSize="0.78rem"
+            data-testid="post-game-bonus"
+            data-bonus={bonus.kind}
+          >
+            <Text color="rgba(250, 235, 215, 0.85)">{text.label}</Text>
+            <Text fontWeight={700} color="brand.accent" flexShrink={0} sx={{ fontVariantNumeric: "tabular-nums" }}>
+              {text.amount}
+            </Text>
+          </Flex>
+        );
+      })}
+    </Flex>
+  );
 
   const level = bar && (
     <Flex direction="column" gap="0.3rem" data-testid="post-game-level">
@@ -234,6 +285,12 @@ export const ProPostGameEarned = ({
         </Text>
       </Flex>
       <Bar bar={bar} levelUp={levelUp} />
+      {bonusRows}
+      {practiceUsed && (
+        <Text fontSize="0.7rem" color="rgba(250, 235, 215, 0.5)" data-testid="post-game-practice-caption">
+          {practiceGameCaption(practiceUsed.used, practiceUsed.cap)}
+        </Text>
+      )}
       {caption && (
         <Text fontSize="0.7rem" color="rgba(250, 235, 215, 0.5)" data-testid="post-game-earned-caption">
           {caption}
@@ -255,6 +312,8 @@ export const ProPostGameEarned = ({
     />
   ) : delta?.points === null || delta?.points === undefined ? (
     <Tile compact={compact} testId="post-game-points" title="Points pending" caption={`${heroName} cosmetics`} tone="muted" />
+  ) : view.practice && delta.points === 0 ? (
+    <Tile compact={compact} testId="post-game-points" title="No points" caption={PRACTICE_POINTS_NOTE} tone="muted" />
   ) : (
     <Tile
       compact={compact}
@@ -299,17 +358,43 @@ export const ProPostGameEarned = ({
     <Tile compact={compact} testId="post-game-badge" title="No new badge" caption={landed ? "" : "checked once recorded"} tone="muted" />
   );
 
+  // The daily tile (#1656): only when the api sent the block. Before the game
+  // lands it shows the day the page already knew about, muted; a player whose
+  // day had not started yet has no number to show until it does.
+  const dailyBefore = view.before.stats.daily;
+  const dailyAfter = landed ? view.after.daily : null;
+  const daily = dailyAfter ? (
+    <Tile
+      compact={compact}
+      testId="post-game-daily"
+      title={dailyStreakTitle(dailyAfter)}
+      caption={dailyTomorrowCaption(dailyAfter)}
+      tone={delta?.bonuses.some((bonus) => bonus.kind === "daily") ? "gold" : "plain"}
+    />
+  ) : dailyBefore && !landed ? (
+    <Tile
+      compact={compact}
+      testId="post-game-daily"
+      title={dailyBefore.playedToday ? dailyStreakTitle(dailyBefore) : "Daily streak…"}
+      caption="updates once recorded"
+      tone="muted"
+    />
+  ) : null;
+  // Four tiles do not fit abreast in the panel's half-width slot: two rows of two.
+  const tileCount = 2 + (streak ? 1 : 0) + (daily ? 1 : 0);
+
   return (
     <Card compact={compact} phase={view.phase}>
       {level}
       {/* The phone sheet lets the tiles wrap to two rows rather than squeeze three abreast. */}
       <Box
         display="grid"
-        gridTemplateColumns={compact ? "repeat(auto-fit, minmax(7.5rem, 1fr))" : "repeat(3, minmax(0, 1fr))"}
+        gridTemplateColumns={compact ? "repeat(auto-fit, minmax(7.5rem, 1fr))" : tileCount > 3 ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))"}
         gap={compact ? "0.5rem 0.6rem" : "0.5rem"}
       >
         {points}
         {streak}
+        {daily}
         {badge}
       </Box>
     </Card>
