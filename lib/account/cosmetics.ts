@@ -112,6 +112,12 @@ export interface CosmeticConstants {
   cardTierCosts: number[];
   /** Earned-point thresholds for each token-rim tier, ascending. */
   tokenRimThresholds: number[];
+  /**
+   * Points a hero's first finished game pays (#1656). Absent on an api older
+   * than the onboarding train, and never defaulted: no bonus row is shown
+   * without the api's own number.
+   */
+  heroFirstGamePoints?: number;
 }
 
 export interface CosmeticsPayload {
@@ -271,6 +277,9 @@ const normalizeConstants = (raw: unknown): CosmeticConstants => {
     tokenRimThresholds:
       normalizeLadder(row.tokenRimThresholds) ??
       FALLBACK_CONSTANTS.tokenRimThresholds,
+    ...(typeof row.heroFirstGamePoints === "number" && row.heroFirstGamePoints > 0
+      ? { heroFirstGamePoints: Math.round(row.heroFirstGamePoints) }
+      : {}),
   };
 };
 

@@ -362,6 +362,19 @@ export const CASUAL_SPLIT_NOTE = "No XP · not counted in your record";
 export const CASUAL_SPLIT_NOTE_PUBLIC = "No XP · not counted in the record";
 
 /**
+ * The owner's note once the api pays the first practice games (#1656): the
+ * easy/medium rows did earn XP, up to the cap. `cap` is `bonuses.practice.cap`
+ * off `/me/stats`; null (an api without the block, or anyone else's profile)
+ * keeps the notes above.
+ */
+export const casualSplitNote = (cap: number | null, owner: boolean): string =>
+  !owner
+    ? CASUAL_SPLIT_NOTE_PUBLIC
+    : cap !== null && cap > 0
+      ? `XP for your first ${cap} practice games · not counted in your record`
+      : CASUAL_SPLIT_NOTE;
+
+/**
  * One "58% · 12 games" pair. Small enough to sit four to a row.
  *
  * A `casual` split is the demoted form: games played, and nothing that looks
@@ -468,7 +481,7 @@ const Splits = ({
               label={`vs ${botTierLabel(bot).toLowerCase()}`}
               split={bot}
               casual={isCasualBot(bot)}
-              casualNote={owner ? CASUAL_SPLIT_NOTE : CASUAL_SPLIT_NOTE_PUBLIC}
+              casualNote={casualSplitNote(stats.bonuses?.practice?.cap ?? null, owner)}
             />
           ))}
         </SplitGroup>
