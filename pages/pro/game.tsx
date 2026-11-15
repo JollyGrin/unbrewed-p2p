@@ -5315,6 +5315,19 @@ const LiveGame = ({
     cosmeticConstants: cosmeticConstants ?? null,
     badges: badgeCase.badges,
   });
+  // "Next up" (p2p #1657): the same held data, for the strip under the earned
+  // card. Memoised so the strip only re-ranks when one of its sources moves.
+  const nextUpHeroId = endedView?.self.heroId ?? null;
+  const nextUp = useMemo(
+    () => ({
+      heroId: nextUpHeroId,
+      cosmeticHeroes,
+      cosmeticConstants: cosmeticConstants ?? null,
+      stats: accountStats,
+      badges: badgeCase.badges,
+    }),
+    [nextUpHeroId, cosmeticHeroes, cosmeticConstants, accountStats, badgeCase.badges],
+  );
 
   // "How it went" (p2p #1398). Two routes to the same damage numbers:
   //  1. `liveStats` folds every STATE's events as they arrive — instant on the
@@ -8147,6 +8160,7 @@ const LiveGame = ({
         clockMs,
         firstPlayer,
         xpMultiplier: roomInfo?.xpMultiplier ?? null,
+        nextUp,
       }}
       undoPending={undoPending}
       onUndo={requestUndo}

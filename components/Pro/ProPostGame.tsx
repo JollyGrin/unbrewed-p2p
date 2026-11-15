@@ -51,6 +51,7 @@ import { RematchNegotiation, RematchOfferPanel } from "@/components/Pro/RematchO
 import { ProPostGameEarned } from "@/components/Pro/ProPostGameEarned";
 import type { GameEarnedView } from "@/lib/pro/useGameEarned";
 import { PostGameHowItWent } from "@/components/Pro/PostGameHowItWent";
+import { NextUpHeld, ProPostGameNextUp } from "@/components/Pro/ProPostGameNextUp";
 
 /** What the page knows about this game beyond the view (see ProDock's `postGame`). */
 export interface ProPostGameContext {
@@ -85,6 +86,12 @@ export interface ProPostGameContext {
    * Match or a public table joined from the list) ever carries one (#1542).
    */
   xpMultiplier?: number | null;
+  /**
+   * "Next up" (p2p #1657): what the page holds for the strip under the slots —
+   * the played hero, the pre-game cosmetics / stats / badge case. Absent = no
+   * strip (a guest's sign-in row needs nothing from here).
+   */
+  nextUp?: NextUpHeld | null;
 }
 
 export interface ProPostGameProps extends ProPostGameContext {
@@ -101,6 +108,9 @@ export interface ProPostGameProps extends ProPostGameContext {
   onCopyShareLink?: () => void;
   shareLinkBusy?: boolean;
 }
+
+/** No held data: the strip can still say "sign in" to a guest, and nothing else. */
+const NO_NEXT_UP: NextUpHeld = { heroId: null, cosmeticHeroes: [], cosmeticConstants: null, stats: null, badges: [] };
 
 export const PANEL_SURFACE = {
   bg: "linear-gradient(180deg, rgba(58, 33, 64, 0.96), rgba(44, 24, 49, 0.98))",
@@ -390,6 +400,7 @@ export const ProPostGame = ({
   firstPlayer = null,
   earned,
   xpMultiplier = null,
+  nextUp = null,
 }: ProPostGameProps) => {
   const result = gameResultOf(view) ?? "no-winner";
   const victory = result === "victory";
@@ -599,6 +610,14 @@ export const ProPostGame = ({
       </Flex>
       {matchup}
       {slots}
+      <ProPostGameNextUp
+        accountStatus={accountStatus}
+        held={nextUp ?? NO_NEXT_UP}
+        earned={earned ?? null}
+        heroName={seatHeroName(view, { id: view.you, heroId: nextUp?.heroId ?? "" }, heroNameOf)}
+        victory={victory}
+        layout={layout}
+      />
       {actions}
     </Flex>
   );

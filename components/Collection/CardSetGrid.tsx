@@ -69,11 +69,16 @@ const CardSetCell = ({
   const tooLong = set.key.length > MAX_CARD_KEY_LENGTH;
   const affordable = cost !== null && available !== null && available >= cost;
   const enabled = canSpend && !maxed && !tooLong && affordable;
+  // The points are there, whether or not a spend can go through this second:
+  // the mark is about the balance, the button about the request.
+  const canAfford = affordable && !tooLong;
 
   return (
     <Box
       data-testid={`card-set-${set.key}`}
       data-tier={currentTier}
+      // Read by /collection's deep link (#1657) to find a card worth scrolling to.
+      data-affordable={canAfford ? "true" : undefined}
       w={{ base: "8.5rem", sm: "9.5rem" }}
       bg="rgba(72, 40, 79, 0.06)"
       borderRadius="0.6rem"
@@ -84,9 +89,31 @@ const CardSetCell = ({
       display="flex"
       flexDirection="column"
     >
-      <Box w="100%" sx={{ aspectRatio: "63 / 88" }} mb="0.45rem">
+      <Box w="100%" sx={{ aspectRatio: "63 / 88" }} mb="0.45rem" position="relative">
         {/* The real renderer, wearing the real rim — see the module note. */}
         <Card card={withRimTier(set.card, rimTierName(currentTier))} />
+        {canAfford && (
+          <Text
+            as="span"
+            data-testid="card-can-afford"
+            position="absolute"
+            top="0.3rem"
+            left="0.3rem"
+            px="0.4rem"
+            py="0.1rem"
+            borderRadius="999px"
+            bg="brand.accent"
+            color="brand.surfaceDim"
+            fontSize="0.62rem"
+            fontWeight={700}
+            letterSpacing="0.04em"
+            textTransform="uppercase"
+            boxShadow="0 1px 3px rgba(0,0,0,0.45)"
+            pointerEvents="none"
+          >
+            Can afford
+          </Text>
+        )}
       </Box>
       <Text fontSize="0.8rem" fontWeight={700} lineHeight="1.15" noOfLines={2}>
         {set.title}

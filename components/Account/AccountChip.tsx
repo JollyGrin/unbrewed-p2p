@@ -20,6 +20,7 @@ import {
   useAccount,
 } from "@/lib/account/useAccount";
 import { signInLink } from "@/lib/account/signInLink";
+import { useUnseenUpgrade } from "@/lib/collection/upgradeSeen";
 import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
 /**
@@ -57,8 +58,29 @@ const menuItemStyles = {
  * The dark surface is deliberate: it's the readable one on the /pro HUD, and
  * the parchment navbar already renders this same dropdown today.
  */
+/**
+ * The "an upgrade is waiting" dot (p2p #1657; the pattern is
+ * ChangelogNavLink's pill). Decorative: the control it sits on says the same
+ * thing in its accessible name.
+ */
+const UpgradeDot = (props: React.ComponentProps<typeof Box>) => (
+  <Box
+    as="span"
+    data-testid="collection-nav-dot"
+    aria-hidden
+    boxSize="0.5rem"
+    flexShrink={0}
+    borderRadius="full"
+    bg="brand.accent"
+    boxShadow="0 0 0 1px rgba(0,0,0,0.35)"
+    pointerEvents="none"
+    {...props}
+  />
+);
+
 const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   const [signingOut, setSigningOut] = useState(false);
+  const unseenUpgrade = useUnseenUpgrade();
   const linkProps = newTab
     ? { target: "_blank", rel: "noopener noreferrer" }
     : {};
@@ -84,6 +106,9 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
           {link.dividerBefore && <MenuDivider borderColor="whiteAlpha.300" />}
           <MenuItem as={NextLink} href={link.href} {...linkProps} {...menuItemStyles}>
             {link.label}
+            {link.href === "/collection" && unseenUpgrade && (
+              <UpgradeDot ml="0.45rem" title="Upgrade available" />
+            )}
           </MenuItem>
         </Fragment>
       ))}
@@ -126,6 +151,9 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
 export const AccountChip = () => {
   const { status, account } = useAccount();
   const router = useRouter();
+  // The Collection link lives inside this menu, so the dot is repeated on the
+  // chip itself: a dot nobody sees until they open the menu pulls nobody in.
+  const unseenUpgrade = useUnseenUpgrade();
 
   if (status === "loading" || status === "offline") return null;
 
@@ -167,7 +195,8 @@ export const AccountChip = () => {
       <MenuButton
         as={Button}
         variant="unstyled"
-        aria-label={`Account: ${account.username}`}
+        aria-label={`Account: ${account.username}${unseenUpgrade ? ", upgrade available" : ""}`}
+        position="relative"
         display="inline-flex"
         alignItems="center"
         h="1.9rem"
@@ -209,6 +238,7 @@ export const AccountChip = () => {
             {account.username}
           </Text>
         </Box>
+        {unseenUpgrade && <UpgradeDot position="absolute" top="0.05rem" right="-0.1rem" />}
       </MenuButton>
       <AccountMenuList />
     </Menu>
