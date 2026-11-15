@@ -6,13 +6,51 @@ import { Card } from "../CardFactory/Card";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
 import { cardTokenHeight } from "./position.type";
 
-const PEEK_WIDTH = 220;
-const PEEK_HEIGHT = cardTokenHeight(PEEK_WIDTH);
+export const PEEK_WIDTH = 220;
+export const PEEK_HEIGHT = cardTokenHeight(PEEK_WIDTH);
 const GAP = 14;
 const MARGIN = 8;
+/**
+ * The strip along the bottom of the screen where the hand fan is drawn (its
+ * cards show 164px) — the peek keeps out of it, so the previewed card is never
+ * mixed in with the hand.
+ */
+export const HAND_RESERVE = 176;
 
 /** Where the peek anchors — the hovered token's viewport rect. */
 export type PeekAnchor = Pick<DOMRect, "top" | "bottom" | "left" | "width">;
+
+/**
+ * Top-left of the peek for a token at `anchor`: above it; else below, if that
+ * clears the hand; else beside it (right, then left); else as low as the hand
+ * allows, over the token itself (the peek ignores the pointer).
+ */
+export const peekPosition = (
+  anchor: PeekAnchor,
+  viewport: { width: number; height: number },
+  reserveBottom = HAND_RESERVE,
+): { x: number; y: number } => {
+  const cx = anchor.left + anchor.width / 2;
+  const centredX = Math.min(
+    Math.max(cx - PEEK_WIDTH / 2, MARGIN),
+    Math.max(MARGIN, viewport.width - PEEK_WIDTH - MARGIN),
+  );
+  const floor = Math.max(MARGIN, viewport.height - reserveBottom - PEEK_HEIGHT);
+  const above = anchor.top - PEEK_HEIGHT - GAP;
+  if (above >= MARGIN) return { x: centredX, y: Math.min(above, floor) };
+  const below = anchor.bottom + GAP;
+  if (below <= floor) return { x: centredX, y: below };
+  const besideY = Math.min(
+    Math.max((anchor.top + anchor.bottom) / 2 - PEEK_HEIGHT / 2, MARGIN),
+    floor,
+  );
+  const right = anchor.left + anchor.width + GAP;
+  if (right + PEEK_WIDTH <= viewport.width - MARGIN)
+    return { x: right, y: besideY };
+  const left = anchor.left - GAP - PEEK_WIDTH;
+  if (left >= MARGIN) return { x: left, y: besideY };
+  return { x: centredX, y: floor };
+};
 
 /**
  * Owner-only preview of a face-down card token, floating above the hovered
@@ -23,13 +61,10 @@ export const CardPeek: FC<{ card: DeckImportCardType; anchor: PeekAnchor }> = ({
   card,
   anchor,
 }) => {
-  const cx = anchor.left + anchor.width / 2;
-  const x = Math.min(
-    Math.max(cx - PEEK_WIDTH / 2, MARGIN),
-    window.innerWidth - PEEK_WIDTH - MARGIN,
-  );
-  const above = anchor.top - PEEK_HEIGHT - GAP;
-  const y = above >= MARGIN ? above : anchor.bottom + GAP;
+  const { x, y } = peekPosition(anchor, {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
   return (
     <Box

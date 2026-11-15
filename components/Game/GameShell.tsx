@@ -4,6 +4,7 @@ import { GameLayout } from "@/components/Game/game.layout";
 import { CommandMenu } from "@/components/Game/CommandMenu/command-menu";
 import { ActionLog } from "@/components/Game/ActionLog/action-log";
 import { ReportBugButton } from "@/components/Game/ReportBugButton";
+import { TableSounds } from "@/components/Game/Sound/table-sounds";
 import { heroTokenSources } from "@/components/Positions/heroToken";
 import { TokenLibraryModal } from "@/components/Positions/token-library.modal";
 import { TokenEditPanel } from "@/components/Positions/token-edit.panel";
@@ -14,16 +15,18 @@ import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
   BoardActions,
   BoardToken,
+  COMPACT_CARD_TOKEN_WIDTH,
   DEFAULT_CARD_TOKEN_WIDTH,
   DEFAULT_PLAYER_COLOR,
   OwnedToken,
   PlayCardToTable,
   PositionBlob,
+  canFlip,
   cardTokenHeight,
   migrateBlob,
   newTokenId,
 } from "@/components/Positions/position.type";
-import { initPositionBlob } from "@/lib/sandbox/initGame";
+import { initPositionBlob, joinSeat } from "@/lib/sandbox/initGame";
 import { SaveTokensToDeck } from "@/components/Positions/save-tokens-to-deck";
 import { useBagDecks } from "@/lib/bag/useBag";
 import { useWebGame } from "@/lib/contexts/WebGameProvider";
@@ -47,6 +50,13 @@ import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { loadChunk } from "@/lib/lazyChunk";
 import { throttle } from "lodash";
+import {
+  ExitTo,
+  announceExit,
+  announceLanding,
+  tokenScreenRect,
+} from "@/components/BoardCanvas/tokenMotion";
+import { noteHandArrival } from "@/components/Game/Hand/fanMotion";
 
 // dice-box-threejs touches window/document on load, so render it client-only.
 // If its chunk still fails after loadChunk's retry, the board goes on without
@@ -67,6 +77,9 @@ import {
 import { GameMenusProvider } from "@/components/Game/GameMenus/game-menus";
 import { useDeckOpenWarning } from "@/components/Game/useDeckOpenWarning";
 import { DeckOpenWarningDialog } from "@/components/Game/deck-open-warning.modal";
+import { KeybindLayer } from "@/components/Game/Keybinds/keybind-layer";
+import { KeyHint } from "@/components/Game/Keybinds/key-hint";
+import { useBoardKeybinds } from "@/components/Game/Keybinds/use-board-keybinds";
 
 export type ModalType = "hand" | "discard" | "deck" | "commit" | false;
 
@@ -129,12 +142,14 @@ export const GameShell = () => {
           {...{ playToTableRef, boardActionsRef }}
         />
         <DiceOverlay />
+        <TableSounds />
         <ReportBugButton />
         <ActionLog />
         <CommandMenu
           openModal={requestModal}
           openTokenLibrary={tokenLibraryDisclosure.onOpen}
         />
+        <KeybindLayer />
       </GameMenusProvider>
     </GameLayout>
   );
@@ -382,6 +397,12 @@ const BoardContainer = ({
         card,
         ...(opts?.faceDown ? { faceDown: true } : {}),
       };
+      // Motion only: the token arrives from where the card was drawn, and a
+      // card played face-down from the hand turns over as it lands.
+      announceLanding(token.id, {
+        from: opts?.from,
+        flipFromFace: !!opts?.faceDown && !!opts?.from,
+      });
       sendTokens([...myTokens, token]);
     },
     [myTokens, self, sendTokens],
@@ -394,9 +415,27 @@ const BoardContainer = ({
   // pool zone (playerstate channel) and removes the token (playerposition
   // channel) — a card is never deleted outright.
   const returnTableCard = useCallback(
-    (t: BoardToken, addTo: typeof addCardToHand, logText: string) => {
+    (
+      t: BoardToken,
+      addTo: typeof addCardToHand,
+      logText: string,
+      to: ExitTo,
+    ) => {
       const pool = players?.[self]?.pool;
       if (!t.card || !pool) return;
+      // Motion only: the card flies to its pile, or the hand takes it from
+      // where the token is drawn.
+      announceExit(t.id, to);
+      if (to === "hand") {
+        const r = tokenScreenRect(t.id);
+        noteHandArrival(
+          r && {
+            x: r.left + r.width / 2,
+            y: r.top + r.height / 2,
+            width: r.width,
+          },
+        );
+      }
       setPlayerState()({ pool: addTo(pool, t.card) });
       sendTokens(myTokens.filter((m) => m.id !== t.id));
       setSelectedId(null);
@@ -439,7 +478,7 @@ const BoardContainer = ({
     if (!pool?.hand?.length) return;
     const cards = pool.hand.splice(0, pool.hand.length);
     const { x, y } = centerRef.current();
-    const w = 130;
+    const w = COMPACT_CARD_TOKEN_WIDTH;
     const h = cardTokenHeight(w);
     const gap = Math.round(w * 0.5);
     const startX = x - ((cards.length - 1) * gap) / 2;
@@ -490,8 +529,24 @@ const BoardContainer = ({
     // a fresh join's (lib/sandbox/initGame.ts).
     // Resolved inside the effect so a changing `deckFor` result can't re-arm
     // the timer on every render; the seat's deck under hotseat (#1563).
+    // Seat = the lowest seat no board on the table is in, so each
+    // newcomer's fighters line up in a corner of their own; players arriving
+    // together share out the free seats by name (joinSeat).
+    const seat = joinSeat(
+      Object.fromEntries(
+        Object.keys(blobs).map((name) => [
+          name,
+          migrateBlob(blobs[name]).tokens,
+        ]),
+      ),
+      Object.keys(
+        (gameState?.content as GameState | undefined)?.players ?? {},
+      ),
+      self,
+    );
     const timer = setTimeout(
-      () => sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self)),
+      () =>
+        sendBlob(initPositionBlob(deckFor?.(self) ?? starredDeck, self, seat)),
       1500,
     );
     return () => clearTimeout(timer);
@@ -536,6 +591,52 @@ const BoardContainer = ({
     logAction(`Asked to pick up ${pickupToken.owner}'s card`);
   }, [pickupToken, claimTableCard, logAction]);
 
+  // What can be done with the selection. Built once and handed to BOTH the
+  // panel buttons below and the keyboard shortcuts (lib/keybinds), so a key
+  // press runs the very closure its button runs: same motion, same log line.
+  const selectedCard = selected?.card ? selected : null;
+  const selectedPiece = !selectedCard && selected?.imageUrl ? selected : null;
+  const cardActions = selectedCard && {
+    flip: () => flipTableCard(selectedCard),
+    toHand: () =>
+      returnTableCard(
+        selectedCard,
+        addCardToHand,
+        "Returned a card to hand",
+        "hand",
+      ),
+    toDiscard: () =>
+      returnTableCard(
+        selectedCard,
+        addCardToDiscard,
+        "Discarded a card from the table",
+        "discard",
+      ),
+  };
+  const pieceActions = selectedPiece && {
+    flip: () => flipPiece(selectedPiece),
+    remove: () => deleteToken(selectedPiece.id),
+  };
+  useBoardKeybinds({
+    flip:
+      cardActions?.flip ??
+      // The piece panel only shows Flip for a two-faced piece.
+      (selectedPiece && !selectedPiece.overlay && canFlip(selectedPiece)
+        ? pieceActions?.flip
+        : undefined),
+    toHand: cardActions?.toHand,
+    remove: cardActions?.toDiscard ?? pieceActions?.remove,
+    discardCard: cardActions?.toDiscard,
+    clear:
+      selectedId || pickupId
+        ? () => {
+            setSelectedId(null);
+            setPickupId(null);
+            setPeek(null);
+          }
+        : undefined,
+  });
+
   return (
     <Box h={"100%"} minH={0} overflow="hidden" position="relative">
       <BoardCanvas
@@ -562,6 +663,7 @@ const BoardContainer = ({
         zIndex={250}
         size="sm"
         leftIcon={<PlusSquareIcon />}
+        rightIcon={<KeyHint action="addToken" />}
         bg="brand.parchment"
         color="brand.surfaceDim"
         fontFamily="SpaceGrotesk"
@@ -581,43 +683,37 @@ const BoardContainer = ({
           onPickup={requestPickup}
           onClose={() => setPickupId(null)}
         />
-      ) : selected?.card ? (
+      ) : selectedCard && cardActions ? (
         <CardTokenPanel
-          token={selected}
-          onFlip={() => flipTableCard(selected)}
-          onToHand={() =>
-            returnTableCard(selected, addCardToHand, "Returned a card to hand")
-          }
-          onToDiscard={() =>
-            returnTableCard(
-              selected,
-              addCardToDiscard,
-              "Discarded a card from the table",
-            )
-          }
+          token={selectedCard}
+          onFlip={cardActions.flip}
+          onToHand={cardActions.toHand}
+          onToDiscard={cardActions.toDiscard}
           onToDeckTop={() =>
             returnTableCard(
-              selected,
+              selectedCard,
               addCardToDeckTop,
               "Placed a table card on top of deck",
+              "deck",
             )
           }
           onToDeckBottom={() =>
             returnTableCard(
-              selected,
+              selectedCard,
               addCardToDeckBottom,
               "Placed a table card on bottom of deck",
+              "deck",
             )
           }
-          onResize={(size, h) => patchToken(selected.id, { size, h })}
+          onResize={(size, h) => patchToken(selectedCard.id, { size, h })}
           onClose={() => setSelectedId(null)}
         />
-      ) : selected?.imageUrl ? (
+      ) : selectedPiece && pieceActions ? (
         <TokenEditPanel
-          token={selected}
-          onChange={(patch) => patchToken(selected.id, patch)}
-          onFlip={() => flipPiece(selected)}
-          onDelete={() => deleteToken(selected.id)}
+          token={selectedPiece}
+          onChange={(patch) => patchToken(selectedPiece.id, patch)}
+          onFlip={pieceActions.flip}
+          onDelete={pieceActions.remove}
           onClose={() => setSelectedId(null)}
         />
       ) : null}

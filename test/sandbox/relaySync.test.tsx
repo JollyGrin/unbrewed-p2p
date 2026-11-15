@@ -682,6 +682,39 @@ describe("card conservation, two clients + relay", () => {
     expectConserved([again, bob], ["alice", "bob"]);
   });
 
+  // #1630: every client re-seeds its own board on a reset, all at once. With
+  // no seat they all took corner 0 and the fighters stacked.
+  it("New game and Change my deck: two players' fighters never share a corner", () => {
+    const { alice, bob } = setupTwo();
+    const row = (who: string) =>
+      migrateBlob(onRelay(who).blob)
+        .tokens.filter((t) => t.rim)
+        .map((t) => `${t.x},${t.y}`);
+
+    // bob commits; alice adopts the new epoch from his snapshot
+    act(() => bob.ctx().forceGameReset());
+    mockRelay.flush();
+    advance(100);
+    mockRelay.flush();
+    expect(alice.ctx().resetStatus.epoch).toBe(1);
+    expect(bob.ctx().resetStatus.epoch).toBe(1);
+    const afterReset = { alice: row("alice"), bob: row("bob") };
+    expect(afterReset.alice.length).toBeGreaterThan(0);
+    expect(afterReset.bob).toHaveLength(afterReset.alice.length);
+    expect(afterReset.alice[0]).toBe("150,170");
+    expect(afterReset.bob[0]).toBe(`${1200 - 150 - 88},${1000 - 170 - 88}`);
+    expect(afterReset.bob.filter((at) => afterReset.alice.includes(at))).toEqual([]);
+
+    // a deck change re-seeds one player, who keeps that corner
+    act(() => bob.ctx().switchDeck(HOLLOW_OAK as unknown as DeckImportType));
+    mockRelay.flush();
+    expect(row("bob")).toEqual(afterReset.bob);
+    expect(row("alice")).toEqual(afterReset.alice);
+    act(() => alice.ctx().switchDeck(HOLLOW_OAK as unknown as DeckImportType));
+    mockRelay.flush();
+    expect(row("alice")).toEqual(afterReset.alice);
+  });
+
   // Taking turns between the tabs. Two tabs writing in the SAME round trip
   // are two writers on one last-write-wins blob — not something a client
   // can make safe, and not what a person with one pair of hands does.

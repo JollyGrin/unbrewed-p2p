@@ -74,7 +74,7 @@ describe("HandFan drag-to-table", () => {
     pointer("pointerup", 50);
 
     expect(stalePlay).not.toHaveBeenCalled();
-    expect(livePlay).toHaveBeenCalledWith(2, { screenPos: { x: 50, y: 0 } });
+    expect(livePlay).toHaveBeenCalledWith(2, expect.objectContaining({ screenPos: { x: 50, y: 0 } }));
   });
 
   it("plays nothing when the card left the hand mid-drag", () => {
@@ -107,7 +107,7 @@ describe("HandFan drag-to-table", () => {
 
     pointer("pointerup", 60, 1);
     expect(play).toHaveBeenCalledTimes(1);
-    expect(play).toHaveBeenCalledWith(0, { screenPos: { x: 60, y: 0 } });
+    expect(play).toHaveBeenCalledWith(0, expect.objectContaining({ screenPos: { x: 60, y: 0 } }));
   });
 
   it("a drop off the board plays nothing and flies the card back", () => {
@@ -136,7 +136,7 @@ describe("HandFan drag-to-table", () => {
     render(<HandFan cards={[ACE, BOLT]} functions={fns(play)} />);
     startDrag("Bolt");
     pointer("pointerup", 50);
-    expect(play).toHaveBeenCalledWith(1, { screenPos: { x: 50, y: 0 } });
+    expect(play).toHaveBeenCalledWith(1, expect.objectContaining({ screenPos: { x: 50, y: 0 } }));
   });
 });
 

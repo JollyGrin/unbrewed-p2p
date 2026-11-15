@@ -1,12 +1,16 @@
 import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
-import { SavedToken, cardTokenHeight } from "./position.type";
+import {
+  COMPACT_CARD_TOKEN_WIDTH,
+  SavedToken,
+  cardTokenHeight,
+} from "./position.type";
 
 /**
- * Hero/rule cards spawn narrower than a played card (DEFAULT_CARD_TOKEN_WIDTH
- * is 260): they sit on the table for the whole game as reference, so they need
- * to stay legible on zoom without dominating a 1200x1000 map.
+ * Hero/rule cards spawn narrower than a played card (DEFAULT_CARD_TOKEN_WIDTH):
+ * they sit on the table for the whole game as reference, so they need to stay
+ * legible on zoom without dominating a 1200x1000 map.
  */
-export const HERO_CARD_TOKEN_WIDTH = 130;
+export const HERO_CARD_TOKEN_WIDTH = COMPACT_CARD_TOKEN_WIDTH;
 
 /**
  * Turn a card flagged `isCharacterCard` into a saved image token.

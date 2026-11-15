@@ -8,6 +8,12 @@
  */
 import { PlayerState } from "@/lib/gamesocket/message";
 
+/**
+ * Each player's actionLog is a ring buffer of this many entries (it rides in
+ * every state broadcast, so it stays small).
+ */
+export const ACTION_LOG_LIMIT = 25;
+
 export interface SandboxLogEntry {
   key: string;
   player: string;

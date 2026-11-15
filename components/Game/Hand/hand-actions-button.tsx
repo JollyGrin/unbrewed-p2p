@@ -4,6 +4,7 @@ import styled from "@emotion/styled";
 import { colors, fonts } from "@/styles/style";
 import { PoolType } from "@/components/DeckPool/PoolFns";
 import { DeckCommand } from "@/components/Game/CommandMenu/deckCommands";
+import { useKeyLabels } from "@/components/Game/Keybinds/key-hint";
 
 /**
  * The "Hand actions" pill: a single dropdown (label + chevron) that lists the
@@ -17,6 +18,7 @@ export const HandActionsButton: React.FC<{
   commands: DeckCommand[];
   pool: PoolType | undefined;
 }> = ({ commands, pool }) => {
+  const keyLabel = useKeyLabels();
   return (
     <Menu placement="top-end" isLazy>
       <MenuButton as={Pill} aria-label="Hand actions">
@@ -40,6 +42,7 @@ export const HandActionsButton: React.FC<{
               key={cmd.id}
               onClick={cmd.run}
               isDisabled={disabled}
+              command={keyLabel(cmd.id)}
               bg="transparent"
               _hover={{ bg: colors.brand.highlight }}
               _focus={{ bg: colors.brand.highlight }}
