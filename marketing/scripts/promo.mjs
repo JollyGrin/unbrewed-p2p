@@ -32,6 +32,7 @@ if (!existsSync(props)) {
 const COMPOSITIONS = {
   cosmetics: "CosmeticsAnnouncement",
   "pomni-adventures": "BonusShowcase",
+  "pomni-teaser": "DeckTeaser",
 };
 const composition = COMPOSITIONS[slug] ?? "DeckAnnouncement";
 

@@ -1,0 +1,61 @@
+{
+  "deckSlug": "1y_5",
+  "stripeColours": ["#d42a46", "#527ae2"],
+  "highlights": [
+    {
+      "title": "Welcome to the Amazing Digital Circus!",
+      "effect": "regroup",
+      "kicker": "Set up the turn"
+    },
+    {
+      "title": "Team Bad Guys",
+      "effect": "splash",
+      "kicker": "Side by side, splash the zone"
+    },
+    {
+      "title": "ricochet super move",
+      "effect": "scaling",
+      "kicker": "Adventures load the shot"
+    }
+  ],
+  "pairs": [
+    {
+      "front": "Adventure1: YOur new Home",
+      "back": "Reward 1",
+      "effect": "reach",
+      "featured": true,
+      "caption": "Flip the character card: Pomni turns ranged for the rest of the game."
+    },
+    {
+      "front": "Adventure 2:President Pomni 2: Last stand",
+      "back": "reward 2",
+      "effect": "exile",
+      "featured": false,
+      "caption": "Rip up to three cards out of an opponent's discard pile for good.",
+      "still": "img/showcase/pomni/reward2.webp"
+    },
+    {
+      "front": "Adventure 3:night of the living Jax",
+      "back": "Reward 3",
+      "effect": "revive",
+      "featured": true,
+      "caption": "Jax went down? Bring him back into the fight, once.",
+      "still": "img/showcase/pomni/reward3.webp"
+    },
+    {
+      "front": "Adventure 4: Pomni’s Perilous Pilgrimage",
+      "back": "Reward 4",
+      "effect": "move",
+      "featured": false,
+      "caption": "Keep her clear of every enemy's zone and Pomni's move jumps.",
+      "still": "img/showcase/pomni/reward4.webp"
+    },
+    {
+      "front": "Adventure 5: Overtime at Spudsy's Delivery Service",
+      "back": "Reward 5",
+      "effect": "blindBoost",
+      "featured": false,
+      "caption": "Blind boost her attacks off the top of the deck, and with Jax beside her the boost goes back under."
+    }
+  ]
+}

@@ -21,8 +21,11 @@ import {
   showcaseDuration,
 } from "./BonusShowcase";
 import { bonusShowcaseSchema } from "./BonusShowcase/schema";
+import { DeckTeaser, deckTeaserMetadata, teaserTimeline } from "./DeckTeaser";
+import { deckTeaserSchema } from "./DeckTeaser/schema";
 import taranis from "../props/taranis.json";
 import pomniAdventures from "../props/pomni-adventures.json";
+import pomniTeaser from "../props/pomni-teaser.json";
 import cosmetics from "../props/cosmetics.json";
 
 export const RemotionRoot: React.FC = () => {
@@ -83,6 +86,24 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={bonusShowcaseSchema.parse(pomniAdventures)}
         calculateMetadata={bonusShowcaseMetadata}
         durationInFrames={showcaseDuration(pomniAdventures.beats.length)}
+        fps={FPS}
+        width={1920}
+        height={1080}
+      />
+      {/* The blended cut (#1654): a playthrough montage of one deck, built
+          from DeckAnnouncement + BonusShowcase scenes. */}
+      <Composition
+        id="DeckTeaser"
+        component={DeckTeaser}
+        schema={deckTeaserSchema}
+        defaultProps={deckTeaserSchema.parse(pomniTeaser)}
+        calculateMetadata={deckTeaserMetadata}
+        durationInFrames={
+          teaserTimeline(
+            pomniTeaser.highlights.length,
+            pomniTeaser.pairs.map((pair) => pair.featured),
+          ).total
+        }
         fps={FPS}
         width={1920}
         height={1080}

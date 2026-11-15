@@ -45,6 +45,9 @@ const MODULES = [
   "BonusShowcase/layout",
   "BonusShowcase/timeline",
   "BonusShowcase/flourish",
+  "DeckTeaser/layout",
+  "DeckTeaser/timeline",
+  "DeckTeaser/flourish",
 ];
 
 /** Transpile the module graph into a temp dir, mirroring src's layout. */
@@ -108,6 +111,8 @@ const cosmeticsTimelineModule = modules["CosmeticsAnnouncement/timeline"];
 const cosmeticsFlourish = modules["CosmeticsAnnouncement/flourish"];
 const showcaseTimelineModule = modules["BonusShowcase/timeline"];
 const showcaseFlourish = modules["BonusShowcase/flourish"];
+const teaserTimelineModule = modules["DeckTeaser/timeline"];
+const teaserFlourish = modules["DeckTeaser/flourish"];
 
 /** The fan anchors HowItPlays hands the flourish — geometry is irrelevant here. */
 const anchors = (count) =>
@@ -192,6 +197,38 @@ const CASES = [
         beat.from + 40,
         beat.from + 130,
       ]),
+    };
+  }),
+  ...[
+    { highlights: 3, featured: [true, false, true, false, false] },
+    { highlights: 4, featured: [false, true, false] },
+    { highlights: 2, featured: [true, true, true, true] },
+  ].map(({ highlights, featured }) => {
+    const timeline = teaserTimelineModule.teaserTimeline(highlights, featured);
+    const cues = teaserFlourish.teaserCues(timeline);
+    const flashes = featured.filter((f) => !f).length;
+    const firstPlay = timeline.segments.find((s) => s.kind === "play");
+    const firstReward = timeline.segments.find((s) => s.kind === "reward");
+    return {
+      label: `teaser: ${highlights} highlights, ${featured.map((f) => (f ? "F" : "f")).join("")}`,
+      timeline,
+      bursts: teaserFlourish.burstsFor(timeline),
+      // name + a stamp and a flip per featured pair + a spark per flash + hit + sting
+      expectedBursts: 3 + 2 * (featured.length - flashes) + flashes,
+      cueFrames: new Set([
+        cues.nameSlam,
+        ...cues.stamps,
+        ...cues.flipLands,
+        ...cues.flashLands,
+        cues.hit,
+        cues.sting,
+      ]),
+      dim: (frame) => teaserFlourish.ambientDim(frame, timeline),
+      reading: [
+        firstPlay.from + 60,
+        firstReward.from + 40,
+        firstReward.from + 130,
+      ],
     };
   }),
 ];

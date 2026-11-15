@@ -270,6 +270,7 @@ export const Chip: React.FC<{
         fontSize: 64 * scale,
         lineHeight: 1,
         color: palette.ink,
+        whiteSpace: "nowrap",
       }}
     >
       {children}

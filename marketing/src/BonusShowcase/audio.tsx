@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { interpolate } from "remotion";
 import {
   clampBoth,
@@ -26,6 +25,35 @@ const RISER_RATE = 0.6;
 const RISER_LENGTH = Math.round((0.54 * 30) / RISER_RATE);
 /** The bed is gone by the sting — the jingle buttons the video. */
 const MUSIC_FADE_OUT_FROM = 40;
+
+/**
+ * One RewardBeat's sound, from the beat's first frame: out of the track, the
+ * goal blip, the COMPLETE slam, the flip, the vignette's own cues, home. The
+ * teaser plays RewardBeats too, so it mounts this as-is.
+ */
+export const RewardBeatCues: React.FC<{
+  from: number;
+  effect: EffectParams;
+}> = ({ from, effect }) => (
+  <>
+    <Cue sfx="card-swish" from={from + CUE.cardOut} volume={0.5} />
+    <Cue sfx="reveal-blip-low" from={from + CUE.frontIn} volume={0.3} />
+    <Cue sfx="name-slam" from={from + CUE.stamp} volume={0.7} />
+    <Cue sfx="slam-sub" from={from + CUE.stamp} volume={0.35} />
+    <Cue sfx="card-swish" from={from + CUE.flip} volume={0.5} />
+    <Cue sfx="boost-coin" from={from + CUE.flipLand} volume={0.4} />
+    {effectCues(effect).map((cue, at) => (
+      <Cue
+        key={at}
+        sfx={cue.sfx}
+        from={from + CUE.effect + cue.at}
+        volume={cue.volume}
+        playbackRate={cue.playbackRate}
+      />
+    ))}
+    <Cue sfx="card-swish" from={from + CUE.cardHome} volume={0.3} />
+  </>
+);
 
 export const ShowcaseAudio: React.FC<{
   timeline: ShowcaseTimeline;
@@ -73,28 +101,7 @@ export const ShowcaseAudio: React.FC<{
 
       {/* each pair — out of the track, goal blip, COMPLETE slam, flip, the reward */}
       {beats.map((beat, index) => (
-        <Fragment key={index}>
-          <Cue sfx="card-swish" from={beat.from + CUE.cardOut} volume={0.5} />
-          <Cue
-            sfx="reveal-blip-low"
-            from={beat.from + CUE.frontIn}
-            volume={0.3}
-          />
-          <Cue sfx="name-slam" from={beat.from + CUE.stamp} volume={0.7} />
-          <Cue sfx="slam-sub" from={beat.from + CUE.stamp} volume={0.35} />
-          <Cue sfx="card-swish" from={beat.from + CUE.flip} volume={0.5} />
-          <Cue sfx="boost-coin" from={beat.from + CUE.flipLand} volume={0.4} />
-          {effectCues(effects[index]).map((cue, at) => (
-            <Cue
-              key={at}
-              sfx={cue.sfx}
-              from={beat.from + CUE.effect + cue.at}
-              volume={cue.volume}
-              playbackRate={cue.playbackRate}
-            />
-          ))}
-          <Cue sfx="card-swish" from={beat.from + CUE.cardHome} volume={0.3} />
-        </Fragment>
+        <RewardBeatCues key={index} from={beat.from} effect={effects[index]} />
       ))}
 
       {/* outro — rewards line up, the name slams, the url, the sting */}

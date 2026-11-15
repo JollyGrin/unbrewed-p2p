@@ -299,11 +299,17 @@ export const loadBonusDeck = async (
   {
     deckSlug,
     pairs,
-  }: { deckSlug: string; pairs: { front: string; back: string }[] },
+    featuredCards = [],
+  }: {
+    deckSlug: string;
+    pairs: { front: string; back: string }[];
+    /** main-deck cards to load faces for too (the teaser plays some) */
+    featuredCards?: DeckSelection["featuredCards"];
+  },
   signal?: AbortSignal,
 ): Promise<BonusDeck> => {
   const data = await fetchDeckData(deckSlug, signal);
-  const deck = deckPromoFrom(data, { deckSlug, featuredCards: [] });
+  const deck = deckPromoFrom(data, { deckSlug, featuredCards });
 
   const extras = Array.isArray(data.extraCards)
     ? (data.extraCards as Record<string, unknown>[])
