@@ -17,6 +17,8 @@ import { AccountPage } from "./AccountPage";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { __resetBadgeStoreForTests } from "@/lib/account/useBadges";
+import { QUEST_FIXTURES } from "@/lib/account/fixtures/quests";
+import { __resetQuestsStoreForTests } from "@/lib/account/useQuests";
 import type { ReplayIndexEntry } from "@/lib/pro/replayStore";
 
 jest.mock("next/router", () => ({
@@ -98,6 +100,7 @@ const gamesRequests = () =>
 beforeEach(() => {
   __resetAccountStoreForTests();
   __resetBadgeStoreForTests();
+  __resetQuestsStoreForTests();
   savedReplays = [];
   fetchMock = jest.fn();
   global.fetch = fetchMock as unknown as typeof fetch;
@@ -318,5 +321,51 @@ describe("AccountPage — signed in", () => {
     const links = await screen.findAllByRole("link", { name: /Replay/ });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/pro/replays?open=r1234abcd");
+  });
+});
+
+describe("AccountPage — quests panel (#1658)", () => {
+  const signedIn = (quests: Response | undefined) =>
+    install((url) => {
+      if (url.endsWith("/me")) return reply(200, { user: USER });
+      if (url.endsWith("/me/quests")) return quests;
+      if (url.endsWith("/me/stats")) return reply(200, { totalGames: 3, daily: QUEST_FIXTURES.halfDone.daily });
+      return undefined;
+    });
+  const requests = (path: string) =>
+    fetchMock.mock.calls.filter(([url]: [string]) => url.endsWith(path));
+
+  it("shows the checklist and today's streak under the header", async () => {
+    signedIn(reply(200, QUEST_FIXTURES.halfDone.quests));
+
+    renderPage();
+
+    expect(await screen.findByTestId("quests-panel")).toBeInTheDocument();
+    expect(screen.getByText("3 of 6 done")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("quests-streak")).toHaveTextContent("Day 3"));
+    // The panel and the record block read ONE stats request between them.
+    expect(requests("/me/quests")).toHaveLength(1);
+    expect(requests("/me/stats")).toHaveLength(1);
+  });
+
+  it.each([404, 503])("renders nothing when /me/quests answers %i", async (status) => {
+    signedIn(reply(status, {}));
+
+    renderPage();
+
+    await screen.findByText("JollyGrin");
+    await waitFor(() => expect(requests("/me/quests")).toHaveLength(1));
+    await waitFor(() => expect(requests("/me/stats")).toHaveLength(1));
+    expect(screen.queryByTestId("quests-panel")).toBeNull();
+    expect(screen.queryByTestId("quests-teaser")).toBeNull();
+  });
+
+  it("asks a guest nothing about quests", async () => {
+    install((url) => (url.endsWith("/me") ? reply(401, {}) : undefined));
+
+    renderPage();
+
+    await screen.findByText("Sign in with Discord");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

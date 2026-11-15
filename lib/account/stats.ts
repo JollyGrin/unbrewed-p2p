@@ -18,6 +18,7 @@
 import { knownBotTierMeta } from "../pro/botTiers";
 
 import { API_URL } from "./apiUrl";
+import { type DailyBonus, normalizeDaily } from "./quests";
 
 /** Games below which a win rate is noise rather than a statistic. */
 export const MIN_WIN_RATE_GAMES = 5;
@@ -95,6 +96,11 @@ export interface AccountStats {
   byMap: MapStat[] | null;
   byOpponentKind: OpponentKindStats | null;
   firstPlayer: FirstPlayerStats | null;
+  /**
+   * The day streak and what it pays (#1658). Optional as well as nullable: an
+   * API without the daily bonus doesn't send it, and absent = no streak UI.
+   */
+  daily?: DailyBonus | null;
 }
 
 /** Why stats didn't arrive. `unavailable` is the catch-all → quiet state. */
@@ -238,15 +244,11 @@ export const normalizeStats = (body: unknown): AccountStats => {
     })),
     byOpponentKind: normalizeOpponentKind(root.byOpponentKind),
     firstPlayer: normalizeFirstPlayer(root.firstPlayer),
+    daily: normalizeDaily(root.daily),
   };
 };
 
-/**
- * The signed-in player's aggregate record.
- *
- * The player id is never sent: the API derives it from the session cookie.
- */
-export const fetchAccountStats = async (): Promise<StatsResult> => {
+const requestAccountStats = async (): Promise<StatsResult> => {
   try {
     const res = await fetch(`${API_URL}/me/stats`, {
       credentials: "include",
@@ -263,6 +265,31 @@ export const fetchAccountStats = async (): Promise<StatsResult> => {
   } catch {
     return fail("unavailable");
   }
+};
+
+/** How long a pending request is worth sharing; past it, a caller re-asks. */
+const SHARE_MS = 5_000;
+
+let inFlight: { request: Promise<StatsResult>; at: number } | null = null;
+
+/**
+ * The signed-in player's aggregate record.
+ *
+ * The player id is never sent: the API derives it from the session cookie.
+ *
+ * Callers that ask WHILE a request is in flight share it (#1658): the nav's
+ * streak chip and the page under it both read this payload, and mount in the
+ * same commit. Nothing is cached past the response — a later call re-asks —
+ * and a request that has been pending longer than {@link SHARE_MS} is not
+ * waited on by anyone new, so one hung fetch can't stall every later reader.
+ */
+export const fetchAccountStats = (): Promise<StatsResult> => {
+  if (inFlight && Date.now() - inFlight.at < SHARE_MS) return inFlight.request;
+  const request = requestAccountStats().finally(() => {
+    if (inFlight?.request === request) inFlight = null;
+  });
+  inFlight = { request, at: Date.now() };
+  return request;
 };
 
 // --- presentation helpers ----------------------------------------------------

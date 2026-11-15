@@ -20,6 +20,8 @@ import {
   useAccount,
 } from "@/lib/account/useAccount";
 import { signInLink } from "@/lib/account/signInLink";
+import { streakChipLabel } from "@/lib/account/quests";
+import { useDailyBonus } from "@/lib/account/useQuests";
 import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
 /**
@@ -126,6 +128,10 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
 export const AccountChip = () => {
   const { status, account } = useAccount();
   const router = useRouter();
+  // #1658: the day streak, from day 2. Null for a guest (nothing is asked),
+  // while loading, and on an API without the daily bonus — the button is then
+  // exactly what it was.
+  const streak = streakChipLabel(useDailyBonus());
 
   if (status === "loading" || status === "offline") return null;
 
@@ -208,6 +214,24 @@ export const AccountChip = () => {
           >
             {account.username}
           </Text>
+          {streak && (
+            <Text
+              as="span"
+              data-testid="account-streak-chip"
+              title={`${streak} of your daily streak`}
+              fontFamily="SpaceGrotesk"
+              fontSize="0.62rem"
+              fontWeight={700}
+              lineHeight="1.6"
+              px="0.4rem"
+              borderRadius="full"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              whiteSpace="nowrap"
+            >
+              {streak}
+            </Text>
+          )}
         </Box>
       </MenuButton>
       <AccountMenuList />

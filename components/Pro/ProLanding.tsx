@@ -25,6 +25,7 @@ const NextMatchBanner = dynamic(() => import("@/components/Tournaments/NextMatch
   ssr: false,
 });
 import { HeroPreviewModal } from "@/components/Pro/HeroPreviewModal";
+import { QuestsPanel } from "@/components/Quests/QuestsPanel";
 import { ProHeroVideo } from "@/components/Pro/ProHeroVideo";
 import { MAP_CATALOG } from "@/lib/pro/mapCatalog";
 import type { HeroListing } from "@/lib/pro/protocol";
@@ -410,6 +411,10 @@ export const ProLanding = () => {
 
           {/* side cards */}
           <Flex flexDir="column" gap="0.7rem" minW={0}>
+            {/* Quests (#1658): the checklist + today's streak for a signed-in
+                player, a teaser for a guest, and nothing at all when the API
+                has no quests to send. In the side column, clear of the play bar. */}
+            <QuestsPanel tone="dark" withHref={withDebug} />
             {isNew ? (
               <Box {...CARD} borderColor="rgba(57,183,168,0.45)" bg="rgba(57,183,168,0.08)">
                 <CardHead>New to Pro?</CardHead>

@@ -7,11 +7,12 @@
  * sign-out reverts to the guest chip.
  */
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { AccountChip, InGameAccountChip } from "./AccountChip";
 import { API_URL } from "@/lib/account/apiUrl";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
+import { __resetQuestsStoreForTests } from "@/lib/account/useQuests";
 
 const mockTournaments = jest.fn();
 const mockNextView = jest.fn();
@@ -48,6 +49,7 @@ const renderChip = () =>
 
 beforeEach(() => {
   __resetAccountStoreForTests();
+  __resetQuestsStoreForTests();
   mockAsPath = "/";
   mockTournaments.mockReturnValue(null);
   fetchMock = jest.fn();
@@ -370,5 +372,43 @@ describe("the navbar menu loads /me/tournaments lazily (p2p #1269)", () => {
     expect(mockTournaments).not.toHaveBeenCalled();
     fireEvent.click(screen.getByLabelText("Account: JollyGrin"));
     await waitFor(() => expect(mockTournaments).toHaveBeenCalled());
+  });
+});
+
+describe("AccountChip — day streak chip (#1658)", () => {
+  const withDaily = (daily: unknown) =>
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/me/stats") ? reply(200, { totalGames: 9, daily }) : reply(200, { user: USER }),
+    );
+  const questsRequests = () =>
+    fetchMock.mock.calls.filter(([url]: [string]) => url.endsWith("/me/quests"));
+
+  it("shows Day N beside the name from a 2-day streak", async () => {
+    withDaily({ streak: 3, bestStreak: 3, playedToday: true });
+    renderChip();
+    expect(await screen.findByTestId("account-streak-chip")).toHaveTextContent("Day 3");
+    // The button alone never asks for the quest list.
+    expect(questsRequests()).toHaveLength(0);
+  });
+
+  it.each([[{ streak: 1 }], [{ streak: 0 }], [undefined]])(
+    "shows nothing for %j",
+    async (daily) => {
+      withDaily(daily);
+      renderChip();
+      await screen.findByText(USER.username);
+      await waitFor(() =>
+        expect(fetchMock.mock.calls.some(([url]: [string]) => url.endsWith("/me/stats"))).toBe(true),
+      );
+      await act(async () => {});
+      expect(screen.queryByTestId("account-streak-chip")).toBeNull();
+    },
+  );
+
+  it("a guest costs no stats request", async () => {
+    fetchMock.mockResolvedValue(reply(401, { user: null }));
+    renderChip();
+    await screen.findByLabelText("Sign in with Discord");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
