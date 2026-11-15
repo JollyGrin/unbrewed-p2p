@@ -1,0 +1,22 @@
+{
+  "deckSlug": "1y_5",
+  "tagline": "Run Caine's five Adventures and cash in a reward for every one",
+  "featuredCards": [
+    {
+      "title": "Welcome to the Amazing Digital Circus!",
+      "caption": "Move both fighters, patch someone up, dig for the right card. The turn you spend lining up today's Adventure."
+    },
+    {
+      "title": "Team Bad Guys",
+      "caption": "Win or lose, keep Pomni and Jax side by side and this fight splashes two damage around the target's zone. The duo plays best as a pair."
+    },
+    {
+      "title": "Fear not, my skibidi sigmas!",
+      "caption": "A defence that wipes out the other card's effects, then grows a point for every Adventure you've finished."
+    },
+    {
+      "title": "ricochet super move",
+      "caption": "The cash-out. A 3 that climbs with every completed Adventure, so a full run fires it as an 8. One shot, then it's gone."
+    }
+  ]
+}
