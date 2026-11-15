@@ -358,3 +358,13 @@ describe("ProLanding — the bot ladder as it actually ships", () => {
     expect(container.textContent ?? "").not.toMatch(/between moves|last turn/i);
   });
 });
+
+describe("ProLanding — quests (#1658)", () => {
+  it("teases a guest with the starter list and a sign-in link, adding no play link", () => {
+    renderLanding();
+    const teaser = screen.getByTestId("quests-teaser");
+    expect(teaser).toHaveTextContent("Play your first game");
+    expect(within(teaser).getByRole("link", { name: "Sign in with Discord" })).toBeInTheDocument();
+    expect(within(teaser).getAllByRole("link")).toHaveLength(1);
+  });
+});

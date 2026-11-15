@@ -541,3 +541,32 @@ describe("botTierLabel — never shows a raw wire id (#933)", () => {
     expect(botTierLabel(row("jevx3"))).not.toMatch(/jev/i);
   });
 });
+
+describe("fetchAccountStats — shared in-flight request (#1658)", () => {
+  const reply200 = () => ({ ok: true, status: 200, json: async () => ({ totalGames: 2 }) }) as Response;
+
+  it("concurrent callers share one request; a later call re-asks", async () => {
+    const fetchMock = jest.fn(async () => reply200());
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const [a, b] = await Promise.all([fetchAccountStats(), fetchAccountStats()]);
+    expect(a).toBe(b);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await fetchAccountStats();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("nobody new waits on a request that has hung", async () => {
+    jest.useFakeTimers();
+    try {
+      const fetchMock = jest.fn(() => new Promise<Response>(() => {}));
+      global.fetch = fetchMock as unknown as typeof fetch;
+      void fetchAccountStats();
+      jest.setSystemTime(Date.now() + 5_001);
+      fetchMock.mockImplementation(async () => reply200());
+      expect((await fetchAccountStats()).ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});

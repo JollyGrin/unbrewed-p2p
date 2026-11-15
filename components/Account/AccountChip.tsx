@@ -20,6 +20,8 @@ import {
   useAccount,
 } from "@/lib/account/useAccount";
 import { signInLink } from "@/lib/account/signInLink";
+import { streakChipLabel } from "@/lib/account/quests";
+import { useDailyBonus } from "@/lib/account/useQuests";
 import { useUnseenUpgrade } from "@/lib/collection/upgradeSeen";
 import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
@@ -151,6 +153,10 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
 export const AccountChip = () => {
   const { status, account } = useAccount();
   const router = useRouter();
+  // #1658: the day streak, from day 2. Null for a guest (nothing is asked),
+  // while loading, and on an API without the daily bonus — the button is then
+  // exactly what it was.
+  const streak = streakChipLabel(useDailyBonus());
   // The Collection link lives inside this menu, so the dot is repeated on the
   // chip itself: a dot nobody sees until they open the menu pulls nobody in.
   const unseenUpgrade = useUnseenUpgrade();
@@ -237,6 +243,26 @@ export const AccountChip = () => {
           >
             {account.username}
           </Text>
+          {streak && (
+            <Text
+              as="span"
+              data-testid="account-streak-chip"
+              title={`${streak} of your daily streak`}
+              fontFamily="SpaceGrotesk"
+              fontSize="0.62rem"
+              fontWeight={700}
+              lineHeight="1.6"
+              px="0.4rem"
+              borderRadius="full"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              whiteSpace="nowrap"
+              // Clear of the Collection upgrade dot on the button's corner.
+              mr={unseenUpgrade ? "0.5rem" : undefined}
+            >
+              {streak}
+            </Text>
+          )}
         </Box>
         {unseenUpgrade && <UpgradeDot position="absolute" top="0.05rem" right="-0.1rem" />}
       </MenuButton>
