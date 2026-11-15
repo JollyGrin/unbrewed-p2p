@@ -46,7 +46,9 @@ const AWS_PROFILE = "unbrewed-cdn";
 const BUCKET_PREFIX = "s3://unbrewed-cdn/changelog";
 const CDN_BASE = "https://cdn.unbrewed.xyz";
 const CACHE_CONTROL = "public, max-age=31536000, immutable";
-const POSTER_SECOND = 1;
+// Deck promos open with a card flip that is edge-on at ~1s (a thin vertical
+// line). By 3s the hero card and name have settled in every promo so far.
+const POSTER_SECOND = 3;
 const POSTER_WIDTH = 1280;
 
 function usage() {
