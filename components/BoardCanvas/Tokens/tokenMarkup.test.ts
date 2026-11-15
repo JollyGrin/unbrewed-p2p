@@ -166,3 +166,105 @@ describe("tokenMarkup — an image that failed to load (#1029)", () => {
     expect(draw({}, true, false, true)).not.toContain("Image unavailable");
   });
 });
+
+describe("tokenMarkup — fighter medallion (rim, initials, heart plate)", () => {
+  const HERO: Partial<OwnedToken> = {
+    imageUrl: URL,
+    clip: "circle",
+    label: "Appa",
+    rim: "#5fb94e",
+    initials: "A",
+    size: 88,
+    h: 88,
+    counter: { link: "hero" },
+    counterDisplay: 14,
+  };
+
+  it("draws the round portrait with a rim in the deck colour", () => {
+    const svg = draw(HERO);
+    expect(svg).toContain(`href="${URL}"`);
+    expect(svg).toContain("tokclip-me1");
+    expect(svg).toContain('class="rim"');
+    expect(svg).toContain('stroke="#5fb94e"');
+    expect(svg).not.toContain('class="monogram"');
+    expect(svg).toContain("Appa");
+  });
+
+  it("shows the counter as a heart that the board can still wire", () => {
+    const svg = draw(HERO);
+    expect(svg).toContain('class="counter heart"');
+    expect(svg).toContain(">14</text>");
+    expect(svg).toContain("hero HP — click +1, right-click −1");
+    // one counter only: the corner badge is replaced, not doubled
+    expect(svg.match(/class="counter/g)).toHaveLength(1);
+    const dom = document.createElement("div");
+    dom.innerHTML = `<svg>${svg}</svg>`;
+    expect(dom.querySelectorAll("g.counter")).toHaveLength(1);
+  });
+
+  it("a token without a rim keeps the plain corner badge", () => {
+    const svg = draw({ ...HERO, rim: undefined });
+    expect(svg).toContain('class="counter"');
+    expect(svg).not.toContain("heart");
+    expect(svg).not.toContain('class="rim"');
+  });
+
+  it("draws initials on a rim-coloured disc when there is no image", () => {
+    const svg = draw({ rim: "#ff0000", initials: "DV", size: 88, label: "Darth Vader" });
+    expect(svg).toContain('class="monogram"');
+    expect(svg).toContain('r="44" fill="#ff0000"');
+    expect(svg).toContain(">DV</text>");
+    expect(svg).toContain('class="rim"');
+    expect(svg).not.toContain("<image");
+  });
+
+  it("picks the ink that contrasts with the disc", () => {
+    expect(draw({ rim: "#1b232b", initials: "D" })).toContain('fill="#F7ECD7">D<');
+    expect(draw({ rim: "#f6e8dd", initials: "E" })).toContain('fill="#2C1831">E<');
+  });
+
+  it("a nameless fighter still gets a deliberate face", () => {
+    const svg = draw({ rim: "#0750f8", initials: "" });
+    expect(svg).toContain('class="monogram"');
+    expect(svg).not.toContain("<text");
+  });
+
+  it("initials alone use the player's colour, and at most three letters", () => {
+    const svg = draw({ initials: "ABCDE", color: "#48284F" });
+    expect(svg).toContain('fill="#48284F"');
+    expect(svg).toContain(">ABC</text>");
+    expect(svg).not.toContain('class="rim"');
+  });
+
+  it("falls back to the monogram, not the ?, when the art fails (#1029)", () => {
+    const svg = draw(HERO, true, false, true);
+    expect(svg).not.toContain("<image");
+    expect(svg).not.toContain("Image unavailable");
+    expect(svg).toContain(">A</text>");
+    expect(svg).toContain('class="rim"');
+    expect(svg).toContain('class="counter heart"');
+  });
+
+  it("ignores a rim that is not a hex colour, and escapes initials", () => {
+    const svg = draw({
+      rim: 'red" onload="x',
+      initials: "<b>",
+      counter: { value: 2 },
+      counterDisplay: 2,
+    } as Partial<OwnedToken>);
+    expect(svg).not.toContain("onload");
+    expect(svg).not.toContain('class="rim"');
+    expect(svg).not.toContain("heart");
+    expect(svg).toContain("&lt;b&gt;");
+  });
+
+  it("never touches a card token", () => {
+    const svg = draw({
+      rim: "#ff0000",
+      initials: "X",
+      card: { title: "Feint", type: "versatile" },
+    } as Partial<OwnedToken>);
+    expect(svg).not.toContain('class="rim"');
+    expect(svg).not.toContain('class="monogram"');
+  });
+});

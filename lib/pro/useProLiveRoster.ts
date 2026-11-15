@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HeroListing, PROTOCOL_VERSION, ServerMsg } from "./protocol";
+import { HeroListing, LobbyListing, PROTOCOL_VERSION, ServerMsg } from "./protocol";
 import { isClientStale, markClientStale, serverIsNewer } from "./staleClient";
 
 /** What the landing needs to tell "still loading" apart from "never arrived". */
@@ -8,7 +8,15 @@ export interface ProLiveRosterState {
   heroes: HeroListing[] | null;
   /** the socket closed/errored before a HEROES reply — the roster is not coming */
   offline: boolean;
+  /**
+   * The open public lobbies (LIST_LOBBIES), only when the caller asked for them
+   * with `withLobbies`. Null until (or unless) the reply lands.
+   */
+  lobbies?: LobbyListing[] | null;
 }
+
+/** How long a `withLobbies` socket waits for LOBBIES once HEROES is in. */
+const LOBBIES_GRACE_MS = 3000;
 
 /**
  * One-shot LIST_HEROES fetch for pages that just need to know which heroes
@@ -29,7 +37,8 @@ export interface ProLiveRosterState {
 export function useProLiveRosterState(
   wsUrl: string | undefined,
   debug = false,
-  autoReload = true
+  autoReload = true,
+  withLobbies = false
 ): ProLiveRosterState {
   const [state, setState] = useState<ProLiveRosterState>({
     heroes: null,
@@ -52,6 +61,15 @@ export function useProLiveRosterState(
     // `ws.close()` isn't mistaken for the connection dying.
     let answered = false;
     let disposeStale = () => {};
+    // `withLobbies` (the /pro launcher's "N waiting" line) rides the same
+    // one-shot socket: the socket closes once both replies are in, or a short
+    // grace after HEROES so a slow LOBBIES never holds it open.
+    let heroesIn = false;
+    let lobbiesIn = !withLobbies;
+    let grace: ReturnType<typeof setTimeout> | undefined;
+    const closeWhenDone = () => {
+      if (heroesIn && lobbiesIn) ws.close();
+    };
     ws.onopen = () => {
       ws.send(
         JSON.stringify({
@@ -60,6 +78,7 @@ export function useProLiveRosterState(
           ...(debug ? { debug: true } : {}),
         })
       );
+      if (withLobbies) ws.send(JSON.stringify({ v: PROTOCOL_VERSION, type: "LIST_LOBBIES" }));
     };
     ws.onmessage = (e) => {
       let msg: ServerMsg;
@@ -79,8 +98,17 @@ export function useProLiveRosterState(
       }
       if (msg.type === "HEROES") {
         answered = true;
-        setState({ heroes: msg.heroes, offline: false });
-        ws.close();
+        heroesIn = true;
+        const heroes = msg.heroes;
+        setState((prev) => ({ ...prev, heroes, offline: false }));
+        if (!lobbiesIn) grace = setTimeout(() => ws.close(), LOBBIES_GRACE_MS);
+        closeWhenDone();
+      }
+      if (msg.type === "LOBBIES" && withLobbies) {
+        lobbiesIn = true;
+        const lobbies = msg.lobbies;
+        setState((prev) => ({ ...prev, lobbies }));
+        closeWhenDone();
       }
     };
     ws.onclose = () => {
@@ -90,10 +118,11 @@ export function useProLiveRosterState(
       // Unmount/re-run: suppress the onclose handler so tearing down a healthy
       // socket never reports offline.
       answered = true;
+      if (grace) clearTimeout(grace);
       disposeStale();
       ws.close();
     };
-  }, [wsUrl, debug, autoReload]);
+  }, [wsUrl, debug, autoReload, withLobbies]);
 
   return state;
 }

@@ -126,6 +126,7 @@ const selectionRing = ({
  * counter badge, so it follows every drag; inert so it never eats a grab.
  */
 const labelPlate = ({ w, h, text }: { w: number; h: number; text: string }) => {
+  // position.type's labelWidth mirrors this for the spawn layout
   const lw = text.length * 6.2 + 14;
   return `<g class="label" transform="translate(${w / 2}, ${h + 12})" pointer-events="none">
   <rect x="${-lw / 2}" y="-9" width="${lw}" height="18" rx="9" fill="#2C1831" stroke="#E7CC98" stroke-width="1" opacity="0.9" />
@@ -161,7 +162,94 @@ const counterBadge = ({
   <text text-anchor="middle" dominant-baseline="central" font-family="Verdana, sans-serif" font-size="10.5" font-weight="700" fill="#2C1831">${escapeAttr(text)}</text>
 </g>`;
 
+/** `#rgb` / `#rrggbb` only: a rim colour arrives over the wire from a peer. */
+export const hexColor = (value: unknown): string | undefined =>
+  typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())
+    ? value.trim()
+    : undefined;
+
+/** Whichever of cream and ink contrasts more with the colour (they tie at a
+ * WCAG relative luminance of about 0.19). */
+export const inkOn = (hex: string): string => {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.replace(/./g, "$&$&") : h;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(full.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.19 ? "#2C1831" : "#F7ECD7";
+};
+
+/**
+ * Face of a fighter with no image (or a failed one): its initials on a disc
+ * of the rim colour, with an inner hairline so it reads as a struck coin and
+ * not as the plain starter disc. No initials = the hairline and a centre dot.
+ */
+const monogram = ({
+  w,
+  h,
+  color,
+  text,
+}: {
+  w: number;
+  h: number;
+  color: string;
+  text: string;
+}) => {
+  const r = Math.min(w, h) / 2;
+  const ink = inkOn(color);
+  const fontSize = Math.round(r * (text.length > 2 ? 0.62 : text.length > 1 ? 0.8 : 1.05));
+  const mark = text
+    ? `<text x="${w / 2}" y="${h / 2}" text-anchor="middle" dominant-baseline="central" font-family="Georgia, 'Times New Roman', serif" font-size="${fontSize}" font-weight="700" fill="${ink}">${escapeAttr(text)}</text>`
+    : `<circle cx="${w / 2}" cy="${h / 2}" r="${r * 0.22}" fill="${ink}" fill-opacity="0.8" />`;
+  return `<svg class="monogram" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="${w / 2}" cy="${h / 2}" r="${r}" fill="${escapeAttr(color)}" />
+  <circle cx="${w / 2}" cy="${h / 2}" r="${r * 0.76}" fill="none" stroke="${ink}" stroke-opacity="0.45" stroke-width="1.5" />
+  ${mark}
+</svg>`;
+};
+
+/**
+ * Coloured rim of a fighter medallion, drawn over the face and inside the
+ * token's box. Dark and cream hairlines either side keep any deck colour
+ * (near-black, near-white) readable on any map.
+ */
+const rimRing = ({ w, h, color }: { w: number; h: number; color: string }) => {
+  const r = Math.min(w, h) / 2;
+  const band = Math.max(3, Math.round(r * 0.13));
+  return `<g class="rim" pointer-events="none">
+  <circle cx="${w / 2}" cy="${h / 2}" r="${r - 0.75}" fill="none" stroke="#1A0F1D" stroke-width="1.5" />
+  <circle cx="${w / 2}" cy="${h / 2}" r="${r - 1.5 - band / 2}" fill="none" stroke="${escapeAttr(color)}" stroke-width="${band}" />
+  <circle cx="${w / 2}" cy="${h / 2}" r="${r - 1.5 - band}" fill="none" stroke="#F7ECD7" stroke-opacity="0.75" stroke-width="1" />
+</g>`;
+};
+
+/**
+ * A fighter medallion's counter: the number on a heart, top-right like the
+ * corner badge it replaces. Keeps `class="counter"` — the board wires its
+ * click (+1) and right-click (−1) to that.
+ */
+const heartPlate = ({
+  w,
+  text,
+  title,
+}: {
+  w: number;
+  text: string;
+  title: string;
+}) =>
+  `<g class="counter heart" transform="translate(${w - 8}, 9)" cursor="pointer">
+  <title>${escapeAttr(title)}</title>
+  <path d="M0 15 C-5 10.5 -17 3 -17 -6 C-17 -12 -12.5 -16 -8 -16 C-4.5 -16 -1.5 -14 0 -11 C1.5 -14 4.5 -16 8 -16 C12.5 -16 17 -12 17 -6 C17 3 5 10.5 0 15 Z" fill="#D8412F" stroke="#F7ECD7" stroke-width="2" stroke-linejoin="round" />
+  <text y="-3" text-anchor="middle" dominant-baseline="central" font-family="Verdana, sans-serif" font-size="${
+    text.length > 2 ? 10 : 13
+  }" font-weight="700" fill="#FFFFFF">${escapeAttr(text)}</text>
+</g>`;
+
 export const TokenMarkup = {
+  monogram,
+  rimRing,
+  heartPlate,
   circle,
   image,
   sheetCell,

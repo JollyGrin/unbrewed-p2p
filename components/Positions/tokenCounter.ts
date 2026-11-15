@@ -49,8 +49,14 @@ export const counterDisplay = (
     case undefined:
       return num(counter.value) ?? 0;
     case "hero":
-    case "sidekick":
-      return pool?.[counter.link]?.hp ?? null;
+      return pool?.hero?.hp ?? null;
+    case "sidekick": {
+      const sidekick = pool?.sidekick;
+      // The HUD shows a fielded sidekick with no printed health as 0, and
+      // adjusts it from there (adjustHp): the piece's heart says the same.
+      const fielded = (sidekick?.quantity ?? 0) > 0;
+      return sidekick?.hp ?? (fielded ? 0 : null);
+    }
     case "extra":
       return extraHp(counter, pool) ?? null;
     default:

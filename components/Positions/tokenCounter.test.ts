@@ -180,6 +180,18 @@ describe("hero and sidekick links are never clamped", () => {
     expect(adjustTokenCounter({ link: "sidekick" }, undefined, 1)).toBeNull();
   });
 
+  test("a fielded sidekick with no printed health reads 0 and adjusts from there, like the HUD", () => {
+    const pool = lucyPool();
+    pool.sidekick = { ...pool.sidekick, hp: null, quantity: 1 };
+    expect(counterDisplay({ link: "sidekick" }, pool)).toBe(0);
+    adjustTokenCounter({ link: "sidekick" }, pool, 1);
+    expect(pool.sidekick.hp).toBe(1);
+    expect(counterDisplay({ link: "sidekick" }, pool)).toBe(1);
+    // no sidekick fielded: the HUD has no row, the badge has nothing to read
+    pool.sidekick = { ...pool.sidekick, hp: null, quantity: 0 };
+    expect(counterDisplay({ link: "sidekick" }, pool)).toBeNull();
+  });
+
   test("a link this client doesn't know shows '–' and ignores clicks", () => {
     const future = { link: "villain" } as unknown as TokenCounter;
     expect(counterDisplay(future, lucyPool())).toBeNull();

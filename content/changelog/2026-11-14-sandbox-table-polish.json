@@ -1,0 +1,18 @@
+{
+  "id": "2026-11-14-sandbox-table-polish",
+  "date": "2026-11-14",
+  "title": "The sandbox table comes alive",
+  "summary": "Cards now fly, flip and settle on the table, your fighters start on the board as tokens, the activity log groups repeats, the table has sound, and almost everything has a keyboard shortcut.",
+  "body": [
+    "Cards fly from your deck into your hand, turn over where they sit, and lift while you drag them. Played cards land smaller by default, so the board stays clear. Health rolls over instead of snapping.",
+    "A new table starts with your hero and sidekicks on the board as portrait tokens. Tap a fighter's heart to change their health and the panel follows. Decks without token art get their initials instead.",
+    "The activity log folds repeated actions into one line, like \"Drew a card ×5\". Dice rolls group the same way and keep every result.",
+    "Draws, plays, flips, discards, pieces, health and dice all make a sound. Set the volume, turn other players' sounds on or off, or mute from the speaker button at the top left.",
+    "Press ? on the table to see every keyboard shortcut. Click any shortcut to set a new key. If that key is already in use, you are told, and one click puts the defaults back."
+  ],
+  "tags": ["feature"],
+  "pro": false,
+  "highlight": true,
+  "video": { "slug": "sandbox-polish" },
+  "cta": { "label": "Set up a table", "href": "/table" }
+}

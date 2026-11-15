@@ -5,7 +5,7 @@ import {
   cardTokenHeight,
   shownSheet,
 } from "@/components/Positions/position.type";
-import { TokenMarkup } from "./index";
+import { TokenMarkup, hexColor } from "./index";
 import { cardTokenMarkup, sheetImageMarkup } from "./cardFace";
 
 export type IconSvg = (
@@ -51,6 +51,19 @@ export function tokenMarkup(
   },
 ): string {
   const { w, h } = tokenSize(d);
+  // Fighter medallion: a valid rim colour on anything but a card.
+  const rim = d.card ? undefined : hexColor(d.rim);
+  const initials =
+    !d.card && typeof d.initials === "string"
+      ? Array.from(d.initials.trim()).slice(0, 3).join("")
+      : undefined;
+  const monogram = () =>
+    TokenMarkup.monogram({
+      w,
+      h,
+      color: rim ?? hexColor(d.color) ?? "#2C1831",
+      text: initials ?? "",
+    });
   const round = !d.card && Boolean(d.imageUrl) && d.clip === "circle";
   let inner: string;
   if (d.card) {
@@ -64,7 +77,11 @@ export function tokenMarkup(
       color: d.color,
     });
   } else if (d.imageUrl && opts.brokenImage) {
-    inner = TokenMarkup.missingImage({ w, h, round });
+    // a fighter whose art is gone falls back to its monogram, not to "?"
+    inner =
+      initials !== undefined || rim
+        ? monogram()
+        : TokenMarkup.missingImage({ w, h, round });
   } else if (d.imageUrl) {
     const sheet = shownSheet(d);
     inner = !sheet
@@ -95,9 +112,14 @@ export function tokenMarkup(
         // token and free of characters that break url(#…) references.
         maskId: `cut-${safeId(d.id)}`,
       }) ?? TokenMarkup.circle({ color: d.color, size: w });
+  } else if (initials !== undefined || rim) {
+    inner = monogram();
   } else {
     inner = TokenMarkup.circle({ color: d.color, size: w });
   }
+  // The rim hugs a round face: a clipped image, or the monogram disc.
+  const medallion = Boolean(rim) && !d.icon && (round || !d.imageUrl || opts.brokenImage);
+  if (medallion) inner += TokenMarkup.rimRing({ w, h, color: rim! });
   if (opts.selected && opts.own) {
     inner += TokenMarkup.selectionRing({ w, h, round });
   }
@@ -107,7 +129,7 @@ export function tokenMarkup(
   if (d.counter) {
     const linked =
       d.counter.link === "extra" ? "character" : d.counter.link;
-    inner += TokenMarkup.counterBadge({
+    inner += (rim ? TokenMarkup.heartPlate : TokenMarkup.counterBadge)({
       w,
       text: d.counterDisplay == null ? "–" : String(d.counterDisplay),
       title: opts.own

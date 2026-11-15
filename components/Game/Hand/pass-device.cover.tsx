@@ -36,6 +36,9 @@ export const PassDeviceCover = () => {
   return (
     <Cover
       type="button"
+      // No table shortcut runs for the incoming seat while the table is
+      // handed over (lib/keybinds/guards.ts). Switch seat has its own listener.
+      data-table-keys-off=""
       aria-label={`${seatLabel(hotseat.active)}'s turn — tap to reveal the hand`}
       onClick={() => setCovered(false)}
     >

@@ -376,7 +376,7 @@ describe("init options", () => {
 describe("$exception scrubbing (#1526)", () => {
   const sanitize = () => load({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test", NODE_ENV: "production" }).sanitizeEvent;
   const exception = (properties: Record<string, unknown>) =>
-    ({ uuid: "u", event: "$exception", properties }) as unknown as Parameters<ReturnType<typeof sanitize>>[0];
+    ({ uuid: "u", event: "$exception", properties }) as unknown as NonNullable<Parameters<ReturnType<typeof sanitize>>[0]>;
 
   it("scrubs each message in $exception_list, leaves types and frames alone", () => {
     const frames = { type: "raw", frames: [{ filename: "/_next/a.js", lineno: 1 }] };

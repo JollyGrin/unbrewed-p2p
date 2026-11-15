@@ -143,3 +143,134 @@ export const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   typeof window.matchMedia === "function" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Whether decorative motion may run at all: not under reduced motion, and not
+ * where there is no frame clock or media query to ask (server, jsdom), so
+ * state always lands in one step there.
+ */
+export const motionAllowed = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  typeof requestAnimationFrame === "function" &&
+  !prefersReducedMotion();
+
+/** A card arriving in the fan (drawn, or back from the table). */
+export const ARRIVE: SpringConfig = { k: 340, zeta: 0.82 };
+/** More new cards than this at once is a hand being dealt or restored. */
+export const MAX_ARRIVALS = 3;
+/** Each further card of one batch starts this much later, seconds. */
+export const ARRIVAL_STAGGER = 0.045;
+
+type KeyedCard = { title?: string; type?: string; value?: unknown; boost?: unknown };
+const cardKey = (c: KeyedCard) =>
+  `${c.title ?? ""}|${c.type ?? ""}|${c.value ?? ""}|${c.boost ?? ""}`;
+
+/**
+ * Indices of the cards in `next` that were not in `prev`. Cards are matched by
+ * what they are, not by object identity (a hand that came over the wire is all
+ * new objects), earliest first: with two copies of a card, the later one is
+ * the arrival, which is where a drawn card goes.
+ *
+ * Empty when there was no hand before (the deal, a rejoin) or when more than
+ * MAX_ARRIVALS cards turned up at once.
+ */
+export const handArrivals = (
+  prev: readonly KeyedCard[] | undefined,
+  next: readonly KeyedCard[] | undefined,
+): number[] => {
+  if (!prev || !next || next.length <= prev.length) return [];
+  const have = new Map<string, number>();
+  prev.forEach((c) => have.set(cardKey(c), (have.get(cardKey(c)) ?? 0) + 1));
+  const arrivals: number[] = [];
+  next.forEach((c, i) => {
+    const k = cardKey(c);
+    const n = have.get(k) ?? 0;
+    if (n > 0) have.set(k, n - 1);
+    else arrivals.push(i);
+  });
+  return arrivals.length > MAX_ARRIVALS ? [] : arrivals;
+};
+
+/**
+ * For each card of `next`, where that card was in `prev`, or -1 for one that
+ * was not there. Same matching as handArrivals (by what the card is, earliest
+ * first), so the fan can keep each card's motion with the card when the hand
+ * changes under it: discarding a card to the left of one that is still flying
+ * in must not hand the flight to its neighbour.
+ */
+export const handCarryOver = (
+  prev: readonly KeyedCard[] | undefined,
+  next: readonly KeyedCard[] | undefined,
+): number[] => {
+  const slots = new Map<string, number[]>();
+  (prev ?? []).forEach((c, i) => {
+    const k = cardKey(c);
+    const list = slots.get(k);
+    if (list) list.push(i);
+    else slots.set(k, [i]);
+  });
+  return (next ?? []).map((c) => slots.get(cardKey(c))?.shift() ?? -1);
+};
+
+/**
+ * A screen-space offset expressed in the frame of a fan slot rotated by
+ * `rotDeg`, so a card can be drawn that far from its slot.
+ */
+export const toSlotFrame = (
+  dx: number,
+  dy: number,
+  rotDeg: number,
+): { x: number; y: number } => {
+  const a = (-rotDeg * Math.PI) / 180;
+  return {
+    x: dx * Math.cos(a) - dy * Math.sin(a),
+    y: dx * Math.sin(a) + dy * Math.cos(a),
+  };
+};
+
+/**
+ * Where an arriving card starts, as an offset and scale in its slot's frame.
+ *
+ * The slot is turned by `rotDeg` about its bottom centre (`pivot`, on
+ * screen); the arriving card is drawn upright, scaled about that same point.
+ * So its centre sits at pivot + R(rot)·offset + (0, -scale·height/2), and the
+ * offset that puts it on `origin` is the inverse of that.
+ */
+export const arrivalStart = (
+  origin: { x: number; y: number; width: number },
+  pivot: { x: number; y: number },
+  rotDeg: number,
+  card: { width: number; height: number },
+): { x: number; y: number; scale: number } => {
+  const scale = Math.max(0.1, origin.width / card.width);
+  const local = toSlotFrame(
+    origin.x - pivot.x,
+    origin.y - pivot.y + (scale * card.height) / 2,
+    rotDeg,
+  );
+  return { x: local.x, y: local.y, scale };
+};
+
+/** Scale that draws a card `cardWidth` px wide at a board token's width. */
+export const ghostScaleOnBoard = (
+  tokenWidth: number,
+  zoom: number,
+  cardWidth: number,
+): number => (tokenWidth * zoom) / cardWidth;
+
+/** Where the next card to arrive in the fan comes from, when that is known. */
+type Origin = { x: number; y: number; width: number };
+let nextOrigin: { origin: Origin; at: number } | null = null;
+
+/** A card is about to arrive from this spot on screen (a table token). */
+export const noteHandArrival = (origin: Origin | null) => {
+  nextOrigin = origin ? { origin, at: Date.now() } : null;
+};
+
+/** The origin noted for the arriving card, if it is recent; used once. */
+export const takeHandArrival = (): Origin | null => {
+  const o = nextOrigin;
+  nextOrigin = null;
+  return o && Date.now() - o.at < 800 ? o.origin : null;
+};

@@ -26,6 +26,7 @@ import {
 } from "@/lib/hotseat/switchSeatKey";
 import { useHotseatFlag } from "@/lib/hotseat/hotseatSettings";
 import { HotseatSettings, KeyBadge } from "./hotseat-settings.popover";
+import { SoundControl } from "@/components/Game/Sound/sound-control";
 
 /**
  * Popper modifiers shared by the corner-pinned chip tooltips. `preventOverflow`
@@ -111,6 +112,7 @@ export const HeaderContainer: FC<{ openPositionModal: () => void }> = ({
       <ChipCluster>
         <InviteChip />
         <HotseatChip />
+        <SoundControl />
         <ConnectionChip status={connectionStatus} />
       </ChipCluster>
       {rulesFor && rulesPool && (

@@ -3,6 +3,9 @@ import { MutableRefObject, RefObject, useEffect, useRef, useState } from "react"
 import { OwnedToken } from "../Positions/position.type";
 import { IconSvg, tokenMarkup, tokenSize } from "./Tokens/tokenMarkup";
 import { publishBoardTransform, setBoardSvg } from "./boardTransform";
+import { setBoardViewControls } from "./boardView";
+import { TokenAnimator, createTokenAnimator } from "./tokenMotion";
+import { soundDragEnd, soundDragMove } from "@/lib/sound";
 
 /** The map image's size; the first render fits it to the viewport. */
 const MAP_W = 1200;
@@ -86,6 +89,14 @@ export const useCanvas = ({
   const [brokenImages, setBrokenImages] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  // Token motion (tokenMotion.ts) owns each token's transform. A flip swaps
+  // the face half-way through by asking for one more render.
+  const [flipTick, setFlipTick] = useState(0);
+  const motionRef = useRef<TokenAnimator | null>(null);
+  if (!motionRef.current)
+    motionRef.current = createTokenAnimator({
+      onFlipMid: () => setFlipTick((n) => n + 1),
+    });
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -116,8 +127,16 @@ export const useCanvas = ({
     const unrotate = ([x, y]: [number, number]) =>
       rotated ? { x: MAP_W - x, y: MAP_H - y } : { x, y };
 
+    const motion = motionRef.current!;
+    motion.beginRender(tokens, {
+      draggingId: draggingIdRef.current,
+      rotated,
+    });
+
     const markup = (d: OwnedToken): string => {
-      const inner = tokenMarkup(d, {
+      // a token turning over shows its old face until it is edge-on
+      const face = motion.faceOverride(d.id);
+      const inner = tokenMarkup(face ? { ...d, ...face } : d, {
         own: isOwn(d),
         selected: d.id === selectedId,
         iconSvg,
@@ -139,23 +158,33 @@ export const useCanvas = ({
       .drag<SVGGElement, OwnedToken>()
       .on("start", function (_event, d) {
         draggingIdRef.current = d.id;
-        d3.select(this).raise();
+        // The lift starts here; the token is NOT raised here (see "drag").
+        motion.dragStart(d.id);
         g.attr("cursor", "grabbing");
         onCardPeek?.(null);
       })
       .on("drag", function (event: { x: number; y: number }, d) {
+        // Bring the token over its neighbours once it actually moves, by
+        // moving the neighbours under it rather than the held node (a touch
+        // keeps sending its events to that node, see renderGroup).
+        // Raising it on pointer-down moved the node mid-click and the
+        // browser then dropped the click: the first press on a counter badge
+        // of any token but the top one did nothing (#1630).
+        const parent = this.parentNode;
+        while (parent && this.nextSibling)
+          parent.insertBefore(this.nextSibling, this);
         // Local echo: the dragged token tracks the pointer at frame rate;
         // the network send may be throttled and lag a tick behind.
-        d3.select(this).attr(
-          "transform",
-          `translate(${event.x}, ${event.y})`,
-        );
+        motion.dragTo(d.id, event.x, event.y);
         move?.({ ...d, x: event.x, y: event.y });
+        soundDragMove({ x: event.x, y: event.y, card: d.card });
       })
-      .on("end", () => {
+      .on("end", (_event, d) => {
         draggingIdRef.current = null;
+        motion.dragEnd(d.id);
         g.attr("cursor", "grab");
         move?.flush?.();
+        soundDragEnd();
       })
       .touchable(true);
 
@@ -163,19 +192,57 @@ export const useCanvas = ({
       groupSel: d3.Selection<SVGGElement, unknown, null, undefined>,
       items: OwnedToken[],
     ) => {
-      const sel = groupSel
+      const bound = groupSel
         .selectAll<SVGGElement, OwnedToken>("g.tok")
         // Key by id so DOM reordering (raise) doesn't scramble datum binding.
-        .data(items, (d) => (d as OwnedToken).id)
-        .join((enter) => enter.append("g").attr("class", "tok"))
+        .data(items, (d) => (d as OwnedToken).id);
+      bound
+        .exit<OwnedToken>()
         .each(function (d) {
-          // wire position — except for the actively dragged token, whose
-          // transform the drag handler owns until the pointer releases
-          if (d.id === draggingIdRef.current) return;
-          d3.select(this).attr("transform", `translate(${d.x}, ${d.y})`);
+          motion.exit(this as SVGGElement, d);
         })
-        .html(markup)
+        .remove();
+      const all = bound
+        .enter()
+        .append("g")
+        .attr("class", "tok")
+        .merge(bound);
+
+      // The token being pressed or dragged never moves in the DOM (#1640).
+      // d3's `join` would `order()` every node back to its data position
+      // here, the held one included: moving a node between pointer-down and
+      // pointer-up makes the browser drop the click (a heart press did
+      // nothing when a render landed mid-press), and a dragged token ended up
+      // under other players' tokens until its next move. So the others are
+      // put in order around it.
+      const heldId = draggingIdRef.current;
+      const heldNode =
+        heldId == null ? null : all.filter((d) => d.id === heldId).node();
+      (heldNode ? all.filter((d) => d.id !== heldId) : all).order();
+      // Whatever now follows the held token (a token another player just
+      // added) goes under it, again without moving the held node itself.
+      // Done before my own tokens are raised below, so those end up above
+      // other players' tokens here too.
+      if (heldNode?.parentNode)
+        while (heldNode.nextSibling)
+          heldNode.parentNode.insertBefore(heldNode.nextSibling, heldNode);
+
+      all
+        .each(function (d) {
+          // wire position — except for the actively dragged token, which
+          // follows the pointer until it is released (tokenMotion.ts)
+          const { w, h } = tokenSize(d);
+          motion.place(this, d, w, h);
+        })
         .attr("opacity", (d) => (isOwn(d) ? 1 : 0.8));
+
+      // The token being dragged is left exactly as it is until it is put
+      // down: no new markup, no re-wiring, no move in the DOM. A touch keeps
+      // sending its events to the element it started on, so replacing that
+      // element (or the drag behaviour that knows the gesture) mid-drag cut
+      // the drag off after its first move and its `end` never fired.
+      const sel = heldNode ? all.filter((d) => d.id !== heldId) : all;
+      sel.html(markup);
 
       // An image face that fails to load would otherwise draw nothing at all.
       sel
@@ -204,8 +271,15 @@ export const useCanvas = ({
         .filter((d) => isOwn(d) && !(d.overlay && d.locked))
         .call(drag)
         // Keep the local player's tokens painted last (on top) within their
-        // layer so they can always be grabbed under overlapping tokens.
-        .raise();
+        // layer so they can always be grabbed under overlapping tokens; the
+        // one being dragged stays above them without being moved itself.
+        .each(function () {
+          const parent = this.parentNode;
+          if (!parent) return;
+          if (heldNode && heldNode.parentNode === parent)
+            parent.insertBefore(this, heldNode);
+          else parent.appendChild(this);
+        });
 
       // Only image pieces and cards open the on-board panel; discs and icons
       // are managed from the token menu instead.
@@ -257,6 +331,7 @@ export const useCanvas = ({
 
     renderGroup(gOverlays, tokens.filter((t) => t.overlay));
     renderGroup(gPieces, tokens.filter((t) => !t.overlay));
+    motion.endRender();
 
     // Click on empty board space clears the selection.
     canvas.on("click", () => onSelect?.(null));
@@ -306,16 +381,21 @@ export const useCanvas = ({
       };
     }
 
-    // fit + center the map on first render (moves map and tokens together)
-    if (isFirstRender) {
+    // fit + center the map (moves map and tokens together)
+    const fitView = () => {
       const scale = Math.min(width / MAP_W, height / MAP_H, 1);
       const tx = (width - MAP_W * scale) / 2;
       const ty = (height - MAP_H * scale) / 2;
-      canvas.call(
-        zoom.transform,
-        d3.zoomIdentity.translate(tx, ty).scale(scale),
-      );
-    }
+      return d3.zoomIdentity.translate(tx, ty).scale(scale);
+    };
+    if (isFirstRender) canvas.call(zoom.transform, fitView());
+
+    // Keyboard zoom / recentre (lib/keybinds), a short glide like the wheel.
+    setBoardViewControls({
+      zoomBy: (factor) =>
+        canvas.transition().duration(140).call(zoom.scaleBy, factor),
+      fit: () => canvas.transition().duration(220).call(zoom.transform, fitView()),
+    });
 
     // Publish the live transform (covers the initial fit and any resize/re-run)
     // so a freshly-mounted overlay gets the current value without a zoom event.
@@ -342,8 +422,61 @@ export const useCanvas = ({
     screenToBoardRef,
     brokenImages,
     rotated,
+    flipTick,
   ]);
 
+  // Safety net for a drag whose own `end` never arrives (seen on touch: the
+  // drag behaviour is re-attached by the renders its moves cause, and the new
+  // instance does not know the gesture). Once no pointer is down, a tick
+  // later so a normal `end` always runs first, the token is put down and the
+  // last position flushed. With nothing held this does nothing.
+  const moveRef = useRef(move);
+  moveRef.current = move;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const settle = () => {
+      timer = null;
+      if (draggingIdRef.current != null) {
+        draggingIdRef.current = null;
+        if (gRef.current) d3.select(gRef.current).attr("cursor", "grab");
+        moveRef.current?.flush?.();
+      }
+      motionRef.current?.releaseAll();
+      soundDragEnd(); // lands a lifted token once; silent if `end` already ran
+    };
+    const later = () => {
+      if (timer == null) timer = setTimeout(settle, 0);
+    };
+    // touch is judged by the touch events below (a second finger lifting is
+    // not a release); mouse and pen by no button being left down
+    const onPointer = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" && e.buttons === 0) later();
+    };
+    const onTouch = (e: TouchEvent) => {
+      if (e.touches.length === 0) later();
+    };
+    window.addEventListener("pointerup", onPointer);
+    window.addEventListener("pointercancel", onPointer);
+    window.addEventListener("touchend", onTouch);
+    window.addEventListener("touchcancel", onTouch);
+    window.addEventListener("blur", later);
+    return () => {
+      if (timer != null) clearTimeout(timer);
+      window.removeEventListener("pointerup", onPointer);
+      window.removeEventListener("pointercancel", onPointer);
+      window.removeEventListener("touchend", onTouch);
+      window.removeEventListener("touchcancel", onTouch);
+      window.removeEventListener("blur", later);
+    };
+  }, [gRef]);
+
   // Clear the shared svg reference when the board unmounts.
-  useEffect(() => () => setBoardSvg(null), []);
+  useEffect(
+    () => () => {
+      setBoardSvg(null);
+      setBoardViewControls(null);
+      motionRef.current?.dispose();
+    },
+    [],
+  );
 };
