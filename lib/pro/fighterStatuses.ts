@@ -24,6 +24,7 @@
  * `ViewFighter.statuses` entry through `fighterStatusBadgesFor` generically.
  */
 import type { FighterId, GameEvent, PlayerId, PlayerView, ViewPrompt, ViewFighter, ViewSecretMark } from "./protocol";
+import { MOVE_SET_KIND, moveSetUntil } from "./fighterMove";
 
 /** Board-token rim badge presentation for one status (icon + label + colors). */
 export interface FighterStatusBadge {
@@ -40,6 +41,9 @@ export interface FighterStatusBadge {
   /** stacks, for a marker that has more than one. Drawn beside the icon so the depth
    *  reads off the BOARD; absent/1 renders the icon alone (a lone mark needs no "1"). */
   count?: number;
+  /** a value drawn beside the icon whatever it is — MOVE_SET's current move, where
+   *  0 and 1 are exactly the readings that matter. Absent on every other badge. */
+  text?: string;
 }
 
 /** Client-only status kinds for a v38 secret mark (see the registry rows). */
@@ -69,6 +73,21 @@ export const FIGHTER_STATUS_BADGES: Record<string, FighterStatusBadge> = {
     title: "Rooted — pinned in place, cannot move",
     bg: "#3A4A55",
     color: "#DCEBF2",
+  },
+  // v40 (issue #1623 ↔ engine #1059): the fighter's move is NOT its printed one right
+  // now — POMNI's Reward 4 (4), King Kong's Smash and grab / Jason's "cannot move" (0).
+  // `fighterStatusBadgesFor` fills in the number and the expiry from the fighter; this
+  // row is the look, and what an entry reads as if the view somehow carries no `move`.
+  // Warm amber, clear of PINNED's slate: a changed move and a pin are different facts
+  // and can sit on one token together.
+  [MOVE_SET_KIND]: {
+    kind: MOVE_SET_KIND,
+    key: MOVE_SET_KIND,
+    icon: "👣",
+    label: "Move changed",
+    title: "Move changed — not this fighter's printed move",
+    bg: "#7A4A12",
+    color: "#FFE9C2",
   },
   // Protocol v38 SECRET FIGHTER MARKS (issue #1453 ↔ engine #918; the Xenomorph's
   // Marked Blip). CLIENT-ONLY kinds: the engine never puts a secret mark on
@@ -177,10 +196,22 @@ const genericMarkerBadge = (name: string): FighterMarkerBadge => ({
  * an explicit clear, or the fighter's defeat — which clears markers engine-side).
  */
 export const fighterStatusBadgesFor = (
-  fighter: Pick<ViewFighter, "statuses">
+  fighter: Pick<ViewFighter, "statuses" | "move">
 ): FighterStatusBadge[] =>
   (fighter.statuses ?? [])
     .map((s): FighterStatusBadge | null => {
+      if (s.kind === MOVE_SET_KIND) {
+        // The status carries no number: the value is `ViewFighter.move`.
+        const base = FIGHTER_STATUS_BADGES[MOVE_SET_KIND];
+        if (typeof fighter.move !== "number") return base;
+        const until = moveSetUntil(fighter);
+        return {
+          ...base,
+          label: `Move ${fighter.move}`,
+          title: `Move ${fighter.move} — changed from its printed value${until ? `, ${until}` : ""}`,
+          text: String(fighter.move),
+        };
+      }
       if (s.kind !== "MARKED") return FIGHTER_STATUS_BADGES[s.kind] ?? null;
       // A MARKED entry with no name is malformed (the engine always sets one); treat
       // it as an unknown marker rather than dropping the fact on the floor.

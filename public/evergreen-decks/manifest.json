@@ -491,6 +491,18 @@
         "file": "data/heroes/william-afton.rules.ts",
         "commit": "0e45346e1cd08ace931cae254d7633edf9ff54a0"
       }
+    },
+    {
+      "heroId": "pomni",
+      "deckId": "1y_5",
+      "version_id": "NVDqtJ4W-",
+      "frozenAt": "2026-11-14",
+      "digest": "sha256:d3a0da4001036c590e6fbdf4b9dfb8eb2ba522a54c2ca038e30b4800652b5f7e",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/pomni.rules.ts",
+        "commit": "41361953"
+      }
     }
   ]
 }

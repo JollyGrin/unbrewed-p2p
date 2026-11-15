@@ -29,7 +29,11 @@ if (!existsSync(props)) {
 // Most props files are a deck launch. A handful are one-off campaign videos
 // with their own composition; they are listed here so the command stays one
 // command rather than sprouting a second script per video.
-const COMPOSITIONS = { cosmetics: "CosmeticsAnnouncement" };
+const COMPOSITIONS = {
+  cosmetics: "CosmeticsAnnouncement",
+  "pomni-adventures": "BonusShowcase",
+  "pomni-teaser": "DeckTeaser",
+};
 const composition = COMPOSITIONS[slug] ?? "DeckAnnouncement";
 
 const step = (bin, args) => {

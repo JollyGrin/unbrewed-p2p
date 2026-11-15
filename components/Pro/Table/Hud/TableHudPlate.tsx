@@ -25,6 +25,10 @@ export interface TableHudPlateProps {
   /** the hero is alive but off the board (pose-derived) */
   offBoard?: boolean;
   sidekickHps: { id: string; hp: number; defeated: boolean }[];
+  /** compact quest-track reading ("A2★1", POMNI — #1623). The one piece of deck
+   *  state a plate carries, because without it nothing on the tabletop HUD says an
+   *  Adventure is running at all; the track itself is in the seat sheet. */
+  trackTag?: { text: string; spoken: string } | null;
   portraitUrl: string | null;
   seatColor: string;
   piles: { deck: number; discard: number; hand: number };
@@ -46,6 +50,7 @@ export const TableHudPlate = ({
   heroHp,
   offBoard = false,
   sidekickHps,
+  trackTag = null,
   portraitUrl,
   seatColor,
   piles,
@@ -141,6 +146,24 @@ export const TableHudPlate = ({
             {heroHp ?? "–"}
           </Text>
         </Flex>
+        {trackTag && (
+          <Text
+            data-testid={`table-hud-track-${seat}`}
+            aria-label={trackTag.spoken}
+            fontFamily="SpaceGrotesk"
+            fontWeight={700}
+            fontSize="0.62rem"
+            lineHeight={1}
+            flexShrink={0}
+            px="0.22rem"
+            py="0.2rem"
+            borderRadius="0.3rem"
+            bg="#2B3A8C"
+            color="#FFE58A"
+          >
+            {trackTag.text}
+          </Text>
+        )}
         {offBoard && (
           <Text
             data-testid={`table-hud-offboard-${seat}`}

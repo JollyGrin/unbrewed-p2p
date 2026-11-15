@@ -139,6 +139,13 @@ export type CardImageRef = {
   rows?: number;
   /** 0-based cell index within the sheet */
   index?: number;
+  /**
+   * The FILE is a landscape card saved a quarter turn round in a portrait frame
+   * (POMNI's Adventure / Reward faces, #1623): "ccw" = turn it a quarter turn
+   * counter-clockwise to read it. A property of the upload, so it lives beside the
+   * url and every renderer that draws the image turns it. Single images only.
+   */
+  turn?: "ccw";
 };
 
 export type DeckImportCardType = {

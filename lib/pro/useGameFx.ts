@@ -201,6 +201,7 @@ export function useGameFx(
     const reviveAtMs = new Map<FighterId, number>();
     let reviveEndMs = 0;
     const reviveStepMs = Math.round(REVIVE_STEP_MS * paceRef.current);
+    let calloutCount = 0;
     const later = (delayMs: number, run: () => void) => {
       if (delayMs <= 0) run();
       else timersRef.current.push(setTimeout(run, delayMs));
@@ -277,6 +278,17 @@ export function useGameFx(
             if (sound) sfx.play("defeat", e.mine ? { rate: 0.8 } : undefined);
             emitBoardFx(e.space, "defeat", "K.O.");
           });
+          break;
+        }
+        case "callout": {
+          // Word callouts (#1623): shown one after another so two in one batch — an
+          // Adventure completing AND the reach it grants — never stack on one space.
+          // After the combat arc when one is in flight, like the revive. The `revive`
+          // board kind is the existing word-sized positive callout; no sound.
+          const atMs =
+            (arcConsumed ? timing.arcLaunchMs + timing.arcFlightMs : 0) + calloutCount * reviveStepMs * 2;
+          calloutCount += 1;
+          later(atMs, () => emitBoardFx(e.space, "revive", e.text));
           break;
         }
         case "turn":

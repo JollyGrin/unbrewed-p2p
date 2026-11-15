@@ -264,9 +264,11 @@ export const TableFighterStatusBadges = ({ badges }: { badges: FighterStatusBadg
     {badges.map((sb) => (
       <Box
         key={sb.key}
-        w={`${STATUS_ROW.dot}px`}
+        minW={`${STATUS_ROW.dot}px`}
         h={`${STATUS_ROW.dot}px`}
-        borderRadius="50%"
+        px={sb.text != null ? "3px" : undefined}
+        gap="1px"
+        borderRadius="999px"
         bg={sb.bg}
         color={sb.color}
         border="1px solid #fff"
@@ -278,6 +280,7 @@ export const TableFighterStatusBadges = ({ badges }: { badges: FighterStatusBadg
         data-fighter-badge="status"
       >
         {sb.icon}
+        {sb.text != null ? <span>{sb.text}</span> : null}
       </Box>
     ))}
   </Box>

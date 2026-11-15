@@ -135,7 +135,10 @@ const parseRuleCards = (raw: unknown): Ability[] => {
   return raw
     .map((card) => card as Record<string, unknown>)
     .map((card) => ({
-      name: String(card.title ?? "").trim().toUpperCase() || undefined,
+      name:
+        String(card.title ?? "")
+          .trim()
+          .toUpperCase() || undefined,
       text: String(card.content ?? "")
         .replace(/\s+/g, " ")
         .trim(),
@@ -160,15 +163,16 @@ const asCard = (raw: Record<string, unknown>): PromoCard => ({
 
 const key = (title: string) => title.trim().toLowerCase();
 
+type DeckData = Record<string, unknown>;
+
 /**
- * Loads + validates the deck. Every failure throws with the offending value in
- * the message: a bad `deckSlug` or a mistyped card title has to stop the render
- * (this runs in calculateMetadata, before frame 0), never render blank.
+ * Fetches `public/evergreen-decks/<deckSlug>.json` and returns its
+ * `deck_data`. Throws with the path on a bad slug or a JSON with no hero.
  */
-export const loadDeckPromo = async (
-  { deckSlug, featuredCards }: DeckSelection,
+const fetchDeckData = async (
+  deckSlug: string,
   signal?: AbortSignal,
-): Promise<DeckPromo> => {
+): Promise<DeckData> => {
   const src = `evergreen-decks/${deckSlug}.json`;
   const res = await fetch(staticFile(src), { signal });
   if (!res.ok) {
@@ -177,17 +181,27 @@ export const loadDeckPromo = async (
     );
   }
 
-  const json = (await res.json()) as { deck_data?: Record<string, unknown> };
+  const json = (await res.json()) as { deck_data?: DeckData };
   const data = json.deck_data;
   if (!data) return fail(`public/${src} has no deck_data block.`);
 
   const hero = data.hero as Record<string, unknown> | undefined;
   if (!hero?.name) return fail(`public/${src} has no deck_data.hero.name.`);
+  return data;
+};
 
+/** The deck promo's view of an already-fetched `deck_data`. */
+const deckPromoFrom = (
+  data: DeckData,
+  { deckSlug, featuredCards }: DeckSelection,
+): DeckPromo => {
+  const hero = data.hero as Record<string, unknown>;
   const rawCards = Array.isArray(data.cards)
     ? (data.cards as Record<string, unknown>[])
     : [];
-  if (rawCards.length === 0) return fail(`public/${src} has no cards.`);
+  if (rawCards.length === 0) {
+    return fail(`public/evergreen-decks/${deckSlug}.json has no cards.`);
+  }
 
   const byTitle = new Map(
     rawCards.map((card) => [key(String(card.title ?? "")), card]),
@@ -230,5 +244,122 @@ export const loadDeckPromo = async (
       portraitUrl: resolveArt(hero.tokenImageUrl as string | undefined),
     },
     featured,
+  };
+};
+
+/**
+ * Loads + validates the deck. Every failure throws with the offending value in
+ * the message: a bad `deckSlug` or a mistyped card title has to stop the render
+ * (this runs in calculateMetadata, before frame 0), never render blank.
+ */
+export const loadDeckPromo = async (
+  selection: DeckSelection,
+  signal?: AbortSignal,
+): Promise<DeckPromo> =>
+  deckPromoFrom(await fetchDeckData(selection.deckSlug, signal), selection);
+
+// ---- bonus cards (side decks: Adventures, Rewards, …) ----
+
+/**
+ * A card from the deck's `extraCards` — the side-deck faces that are not
+ * shuffled into the draw pile (POMNI's Adventure and Reward cards). They ship
+ * as whole-card art, often rotated to landscape: `turn` says which way the
+ * printed art has to be spun to read upright.
+ */
+export type BonusCard = PromoCard & { turn?: "cw" | "ccw" };
+
+export type Fighter = { name: string; hp: number; portraitUrl?: string };
+
+export type BonusDeck = DeckPromo & {
+  sidekick?: Fighter;
+  /** the deck's first rule card — for POMNI, "Caine's Adventures" */
+  ruleCard?: { title: string; text: string };
+  /** front/back pairs in the order the props listed them */
+  pairs: { front: BonusCard; back: BonusCard }[];
+};
+
+/** Titles in extraCards carry stray newlines and no-break spaces. */
+const bonusKey = (title: string) =>
+  title.replace(/\s+/g, " ").trim().toLowerCase();
+
+const asBonusCard = (raw: Record<string, unknown>): BonusCard => {
+  const turn = (raw.cardImage as Record<string, unknown> | undefined)?.turn;
+  return {
+    ...asCard(raw),
+    ...(turn === "cw" || turn === "ccw" ? { turn } : {}),
+  };
+};
+
+/**
+ * The deck plus the side-deck pairs a showcase asked for, by title, from
+ * `extraCards`. A missing title fails before frame 0 with every real title
+ * listed — same contract as the featured cards.
+ */
+export const loadBonusDeck = async (
+  {
+    deckSlug,
+    pairs,
+    featuredCards = [],
+  }: {
+    deckSlug: string;
+    pairs: { front: string; back: string }[];
+    /** main-deck cards to load faces for too (the teaser plays some) */
+    featuredCards?: DeckSelection["featuredCards"];
+  },
+  signal?: AbortSignal,
+): Promise<BonusDeck> => {
+  const data = await fetchDeckData(deckSlug, signal);
+  const deck = deckPromoFrom(data, { deckSlug, featuredCards });
+
+  const extras = Array.isArray(data.extraCards)
+    ? (data.extraCards as Record<string, unknown>[])
+    : [];
+  if (extras.length === 0) {
+    return fail(
+      `${deckSlug} has no extraCards, so there is no side deck to show.`,
+    );
+  }
+  const byTitle = new Map(
+    extras.map((card) => [bonusKey(String(card.title ?? "")), card]),
+  );
+  const find = (title: string) => {
+    const match = byTitle.get(bonusKey(title));
+    if (!match) {
+      const known = extras
+        .map((card) => JSON.stringify(bonusKey(String(card.title))))
+        .join(", ");
+      return fail(
+        `"${title}" is not in ${deckSlug}'s extraCards. Available: ${known}`,
+      );
+    }
+    return asBonusCard(match);
+  };
+
+  const sidekick = data.sidekick as Record<string, unknown> | undefined;
+  const rule = Array.isArray(data.ruleCards)
+    ? (data.ruleCards[0] as Record<string, unknown> | undefined)
+    : undefined;
+
+  return {
+    ...deck,
+    sidekick: sidekick?.name
+      ? {
+          name: String(sidekick.name).trim(),
+          hp: Number(sidekick.hp ?? 0),
+          portraitUrl: resolveArt(sidekick.tokenImageUrl as string | undefined),
+        }
+      : undefined,
+    ruleCard: rule?.title
+      ? {
+          title: String(rule.title).trim(),
+          text: String(rule.content ?? "")
+            .replace(/\s+/g, " ")
+            .trim(),
+        }
+      : undefined,
+    pairs: pairs.map(({ front, back }) => ({
+      front: find(front),
+      back: find(back),
+    })),
   };
 };
