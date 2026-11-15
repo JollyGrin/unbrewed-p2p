@@ -60,7 +60,8 @@ say "balanced decks" not "official decks", no emoji.
   master `<promos>/<slug>.mp4` (falling back to `<slug>-discord.mp4` only if
   the master is missing) and always re-encodes it (720p max, libx264
   `-preset slow -crf 26`, aac 96k, faststart) to `<out>/<slug>.mp4`, plus
-  `<out>/<slug>-poster.webp` (a frame at 1s, 1280 wide), into a git-ignored
+  `<out>/<slug>-poster.webp` (a frame at 3s, past the deck promos'
+  opening card flip, 1280 wide), into a git-ignored
   `.changelog-media/changelog/` by default. Prints sizes and warns above 6MB.
   With `--upload` it runs `aws --profile unbrewed-cdn s3 cp` for both files to
   `s3://unbrewed-cdn/changelog/` (immutable cache headers), refuses to
