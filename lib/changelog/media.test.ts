@@ -16,7 +16,7 @@ describe("changelog media helpers", () => {
       const { videoUrl, posterUrl } = require("./media");
       expect(videoUrl("tabletop")).toBe("https://cdn.unbrewed.xyz/changelog/tabletop.mp4");
       expect(posterUrl("tabletop")).toBe(
-        "https://cdn.unbrewed.xyz/changelog/tabletop-poster.webp",
+        "https://cdn.unbrewed.xyz/changelog/tabletop-poster.webp?v=2",
       );
     });
   });
@@ -26,7 +26,7 @@ describe("changelog media helpers", () => {
     jest.isolateModules(() => {
       const { posterUrl } = require("./media");
       expect(posterUrl("tabletop")).toBe(
-        "https://cdn.unbrewed.xyz/changelog/tabletop-poster.webp",
+        "https://cdn.unbrewed.xyz/changelog/tabletop-poster.webp?v=2",
       );
     });
   });
@@ -46,7 +46,7 @@ describe("changelog media helpers", () => {
       const { videoUrl, posterUrl } = require("./media");
       expect(videoUrl("tabletop")).toBe("https://example.invalid/changelog/tabletop.mp4");
       expect(posterUrl("tabletop")).toBe(
-        "https://example.invalid/changelog/tabletop-poster.webp",
+        "https://example.invalid/changelog/tabletop-poster.webp?v=2",
       );
     });
   });

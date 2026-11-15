@@ -13,5 +13,13 @@ const base = rawBase || DEFAULT_MEDIA_BASE;
 export const videoUrl = (slug: string): string | null =>
   slug ? `${base}/changelog/${slug}.mp4` : null;
 
+/**
+ * Posters are served with a one-year immutable cache, so a regenerated poster
+ * under the same key never reaches browsers or the Cloudflare edge. Bump this
+ * whenever posters are re-uploaded with --force.
+ *   v2: frame moved from 1s (mid card flip) to 3s.
+ */
+const POSTER_VERSION = 2;
+
 export const posterUrl = (slug: string): string | null =>
-  slug ? `${base}/changelog/${slug}-poster.webp` : null;
+  slug ? `${base}/changelog/${slug}-poster.webp?v=${POSTER_VERSION}` : null;
