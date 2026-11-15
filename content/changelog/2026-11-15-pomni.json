@@ -6,5 +6,6 @@
   "tags": ["deck"],
   "pro": true,
   "highlight": false,
+  "video": { "slug": "pomni-teaser" },
   "cta": { "label": "Play POMNI in Pro", "href": "/pro" }
 }
