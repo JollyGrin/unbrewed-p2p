@@ -2422,6 +2422,24 @@ describe("enrichLines — POMNI's Adventure track, reach change and deck-bottom 
     expect(lines.join(" ")).not.toMatch(/Reward 2/);
   });
 
+  it("a removal nobody can be credited with reads as the game's, not the Pomni seat's (#1645)", () => {
+    const batch: GameEvent[] = [{ type: "CARD_TUCKED", player: "p2", card: "a/feint#1", pile: "EXILE" }];
+    expect(enrichLines([], batch, seated("p1", { p1: "kenshiro", p2: "pomni" }))).toEqual([
+      { text: "Opponent's feint is removed from the game", who: "game", cards: ["a/feint#1"] },
+    ]);
+  });
+
+  it("passes combatCards through: Kenshiro's own Death Omen Star at cleanup is not a Reward 2 (#1645)", () => {
+    const batch: GameEvent[] = [
+      { type: "EFFECT_RESOLVING", source: "pomni/ricochet-super-move#1", window: "AFTER", player: "p2" },
+      { type: "CARD_TUCKED", player: "p1", card: "kenshiro/death-omen-star#1", pile: "EXILE" },
+      { type: "COMBAT_ENDED" },
+    ];
+    const base = seated("p1", { p1: "kenshiro", p2: "pomni" });
+    const withCombat = { ...base, combatCards: ["pomni/ricochet-super-move#1", "kenshiro/death-omen-star#1"] };
+    expect(enrichLines([], batch, withCombat).map((l) => l.text).join(" ")).not.toMatch(/Reward 2/);
+  });
+
   it("leaves Luke's TRAINING tuck wording exactly as it was", () => {
     expect(text([{ type: "CARD_TUCKED", player: "p1", card: "a/feint#1", pile: "TRAINING" }])).toEqual([
       "You tucked feint under your hero card (TRAINING)",

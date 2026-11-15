@@ -216,8 +216,9 @@ export const trackRewardText = (text: string | undefined): string =>
 
 export interface TrackTuckLine {
   text: string;
-  /** the seat the line belongs to (colours it as that player's move) */
-  actor: PlayerId;
+  /** the seat the line belongs to (colours it as that player's move); null = nobody
+   *  can be named, so the line reads as the game's, not either seat's (#1645) */
+  actor: PlayerId | null;
   cards: CardInstanceId[];
 }
 
@@ -225,7 +226,67 @@ interface TuckEvent {
   player: PlayerId;
   card: CardInstanceId;
   pile: string;
+  controller?: PlayerId;
 }
+
+/** What the engine's combat cleanup emits between the last effect and COMBAT_ENDED
+ *  (engine combat.ts `cleanup`): the played cards and their boosts leaving, nothing else.
+ *  Never an EFFECT_RESOLVING. */
+const CLEANUP_EVENTS = new Set<GameEvent["type"]>([
+  "CARD_DISCARDED",
+  "CARD_TUCKED",
+  "CARD_RETURNED_TO_HAND",
+  "CARD_SHUFFLED_INTO_DECK",
+  "DECK_SHUFFLED",
+]);
+
+/**
+ * Is the tuck at `index` the combat CLEANUP filing a played card away, rather than an
+ * effect moving a card? A played card marked by its own AFTER block ("remove this card
+ * from the game" — Kenshiro's Death Omen Star, POMNI's ricochet super move) is not
+ * moved by that block: the mark is read at cleanup, after EVERY after-combat effect,
+ * defender's first then the attacker's (engine #1645 research). So the nearest
+ * EFFECT_RESOLVING before it can be the OTHER fighter's AFTER block — that marker
+ * names the wrong seat. Two facts together say "cleanup": the card is one of this
+ * combat's played cards, and only cleanup-shaped events stand between it and
+ * COMBAT_ENDED. Either alone is not enough — a card discarded at cleanup can be
+ * removed from that discard pile later in the same batch, and an effect's removal can
+ * be the last thing before cleanup.
+ */
+const isCleanupTuck = (
+  e: TuckEvent,
+  batch: GameEvent[],
+  index: number,
+  combatCards: readonly CardInstanceId[] | undefined
+): boolean => {
+  // Only the combat that is ENDING counts. A batch can hold more than one (a bonus
+  // attack starts right after the first cleanup), and a card the first combat filed
+  // away can be exiled out of the discard pile during the second.
+  let start = 0;
+  for (let i = index - 1; i >= 0; i--) {
+    if (batch[i].type === "COMBAT_ENDED") {
+      start = i + 1;
+      break;
+    }
+  }
+  // the pre-batch view's combat is the one open at the batch's START: stale once it ended
+  let played = start === 0 && (combatCards?.includes(e.card) ?? false);
+  for (let i = start; i < index && !played; i++) {
+    const b = batch[i];
+    if (b.type === "CARDS_REVEALED") played = b.attackerCard === e.card || b.defenderCard === e.card;
+    // an additional defense card is not in CARDS_REVEALED; it is announced on its own
+    else if (b.type === "ADDITIONAL_DEFENSE_PLAYED") played = b.card === e.card;
+    // the card's own block ran in this batch: it was in play, not in a pile
+    else if (b.type === "EFFECT_RESOLVING") played = b.source === e.card;
+  }
+  if (!played) return false;
+  for (let i = index + 1; i < batch.length; i++) {
+    const b = batch[i];
+    if (b.type === "COMBAT_ENDED") return true;
+    if (!CLEANUP_EVENTS.has(b.type)) return false;
+  }
+  return false;
+};
 
 const stepOfCard = (
   card: CardInstanceId
@@ -257,9 +318,9 @@ const stripLabelStats = (label: string): string =>
  * game on ANOTHER seat (POMNI's Reward 2 takes cards out of an opponent's discard
  * pile) carries only its HOST in `player` — the Boba Fett bounty lesson the other way
  * round: nothing on the event says who did it. The effect that did is the nearest
- * `EFFECT_RESOLVING` before it in the batch, and its `player` is the actor. A card
- * the host removed itself (a used reward, a played *ricochet super move*) has the
- * host's own effect there instead.
+ * `EFFECT_RESOLVING` before it in the batch, and its `player` is the actor — except
+ * for a played card filed away at combat cleanup (*ricochet super move*, Death Omen
+ * Star), which is always its own controller's doing; see the note at that branch.
  *
  * The track's own faces are recognised by card id and need no context. Everything
  * else in the removed pile needs `ctx.heroOf`: see the note at that branch.
@@ -274,6 +335,9 @@ export const trackTuckLine = (
     you: string;
     /** a seat's hero id; without it no ordinary card's removal is narrated here */
     heroOf?: (p: PlayerId) => string | undefined;
+    /** the played cards of the combat open before this batch (the pre-batch view's
+     *  `combat`), so a cleanup tuck is recognised when its reveal was an earlier batch */
+    combatCards?: readonly CardInstanceId[];
   }
 ): TrackTuckLine | null | undefined => {
   const hit = stepOfCard(e.card);
@@ -323,17 +387,41 @@ export const trackTuckLine = (
   // (EXILE is the engine's generic one — Kenshiro exiles cards too), so the tuck is
   // a track move only if the seat whose effect did it plays a track hero. Anyone
   // else's removal is left to the caller, worded as it was before this deck.
-  let actor: PlayerId = e.player;
-  for (let i = index - 1; i >= 0; i--) {
-    const b = batch[i];
-    if (b.type === "EFFECT_RESOLVING") {
-      actor = b.player;
-      break;
+  //
+  // Who did it (#1645, engine read on feature/pomni):
+  //  - combat cleanup filing a self-removed played card: its controller, always
+  //    (the mark is the card's own AFTER block; see isCleanupTuck);
+  //  - any other removal is an op inside an effect run, and every such run emits
+  //    EFFECT_RESOLVING first — re-emitted after a prompt answer — so the nearest
+  //    marker before it is the actor;
+  //  - no marker at all: unknown. The engine only removes without one from a 'SYSTEM'
+  //    run (no shipped deck does), but if it happens the line must not guess a seat —
+  //    the old fallback credited the pile's OWNER, which on a POMNI seat read "by Pomni".
+  let actor: PlayerId | null = null;
+  if (isCleanupTuck(e, batch, index, ctx.combatCards)) actor = e.controller ?? e.player;
+  else {
+    for (let i = index - 1; i >= 0; i--) {
+      const b = batch[i];
+      if (b.type === "EFFECT_RESOLVING") {
+        actor = b.player;
+        break;
+      }
     }
   }
-  const actorHero = ctx.heroOf?.(actor);
-  if (!actorHero || !def.heroes.includes(actorHero)) return undefined;
   const title = stripLabelStats(ctx.label(e.card));
+  const isTrackHero = (p: PlayerId) => {
+    const hero = ctx.heroOf?.(p);
+    return !!hero && def.heroes.includes(hero);
+  };
+  if (actor === null) {
+    // Nobody to credit. A track seat's own pile gets a line that names no actor (the
+    // generic "tucked under their hero card" would credit the owner all over again);
+    // anyone else's is left to the caller exactly as before this deck.
+    if (!isTrackHero(e.player)) return undefined;
+    const whose = e.player === ctx.you ? "Your" : `${ctx.seat(e.player)}'s`;
+    return { text: `${whose} ${title} is removed from the game`, actor: null, cards: [e.card] };
+  }
+  if (!isTrackHero(actor)) return undefined;
   if (actor !== e.player) {
     const via = def.removesFromOthers ? ` (${def.rewardWord} ${def.removesFromOthers})` : "";
     return {
