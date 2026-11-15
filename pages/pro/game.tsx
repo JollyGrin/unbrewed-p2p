@@ -5315,19 +5315,6 @@ const LiveGame = ({
     cosmeticConstants: cosmeticConstants ?? null,
     badges: badgeCase.badges,
   });
-  // "Next up" (p2p #1657): the same held data, for the strip under the earned
-  // card. Memoised so the strip only re-ranks when one of its sources moves.
-  const nextUpHeroId = endedView?.self.heroId ?? null;
-  const nextUp = useMemo(
-    () => ({
-      heroId: nextUpHeroId,
-      cosmeticHeroes,
-      cosmeticConstants: cosmeticConstants ?? null,
-      stats: accountStats,
-      badges: badgeCase.badges,
-    }),
-    [nextUpHeroId, cosmeticHeroes, cosmeticConstants, accountStats, badgeCase.badges],
-  );
 
   // "How it went" (p2p #1398). Two routes to the same damage numbers:
   //  1. `liveStats` folds every STATE's events as they arrive — instant on the
@@ -5490,6 +5477,26 @@ const LiveGame = ({
   // replays the token when one exists). Runs once when a `?room=` has a token.
   const reconnectedRef = useRef(false);
   const tournament = useTournamentGame(tournamentRoom, { socket, room, joined, setJoined, reconnectedRef, setSelectedHeroId, setSelectedMapId, setSelectedFormat, setRolledHero });
+  // "Next up" (p2p #1657): the same held data, for the strip under the earned
+  // card. Memoised so the strip only re-ranks when one of its sources moves.
+  const nextUpHeroId = endedView?.self.heroId ?? null;
+  const inTournament = !!tournament.at;
+  const nextUp = useMemo(
+    () => ({
+      heroId: nextUpHeroId,
+      cosmeticHeroes,
+      cosmeticConstants: cosmeticConstants ?? null,
+      stats: accountStats,
+      badges: badgeCase.badges,
+      // What to play next (p2p #1659): the Rematch link's own setup for the
+      // bot ladder, the roster for a hero never piloted. A tournament game
+      // never rematches, so it gets no ladder either.
+      setup: inTournament ? null : finishedSetup,
+      roster: heroes,
+      hiddenBotUnlocked: tierUnlock.unlocked,
+    }),
+    [nextUpHeroId, cosmeticHeroes, cosmeticConstants, accountStats, badgeCase.badges, inTournament, finishedSetup, heroes, tierUnlock.unlocked],
+  );
   useEffect(() => {
     if (joined || !room || tournament.ownsSeat || reconnectedRef.current || typeof window === "undefined") return;
     // Only THIS TAB's own seat auto-reconnects (refresh). A fresh tab with a

@@ -7,6 +7,10 @@
  * the nearest goals. Winners and losers get the same strip; a guest gets one
  * row pointing at sign-in.
  *
+ * Below the near goals it also says what to play next (p2p #1659): the bot
+ * ladder's one-tap rematch a tier up after a win, progress toward the hidden
+ * bot, and a hero never piloted with a one-tap bot game as it.
+ *
  * It draws from what the page already holds — the pre-game cosmetics, stats
  * and badge case — so it is on screen with the panel's first paint, and it
  * re-ranks once the earned poll lands and this game's points and XP are real.
@@ -16,9 +20,10 @@
  * played hero's affordable tier is written to `lib/collection/upgradeSeen`.
  */
 import { useEffect, useMemo } from "react";
+import Link from "next/link";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
-import { TbArrowUpRight } from "react-icons/tb";
+import { TbArrowUpRight, TbPlayerPlayFilled } from "react-icons/tb";
 
 import { useSignInReturn } from "@/components/Account/AccountChip";
 import type { Badge } from "@/lib/account/badges";
@@ -28,8 +33,21 @@ import { signInLink } from "@/lib/account/signInLink";
 import type { AccountStats } from "@/lib/account/stats";
 import type { AccountState } from "@/lib/account/useAccount";
 import { noteAffordableUpgrade } from "@/lib/collection/upgradeSeen";
+import { availableBotTiers } from "@/lib/pro/botTiers";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
-import { NextUpRow, affordableTier, collectionHref, heroAfterGame, nextUpCopy, nextUpRows } from "@/lib/pro/nextUp";
+import {
+  NewHeroInput,
+  NextUpRow,
+  affordableTier,
+  botTierPlayed,
+  collectionHref,
+  heroAfterGame,
+  nextUpCopy,
+  nextUpRows,
+} from "@/lib/pro/nextUp";
+import type { HeroListing } from "@/lib/pro/protocol";
+import type { FinishedGameSetup } from "@/lib/pro/rematch";
+import { TIER_UNLOCK, winsVsRequired } from "@/lib/pro/tierUnlock";
 import type { GameEarnedView } from "@/lib/pro/useGameEarned";
 
 /** What the page holds that the strip ranks from (see `ProPostGameContext.nextUp`). */
@@ -44,6 +62,15 @@ export interface NextUpHeld {
   stats: AccountStats | null;
   /** The badge case (the shared store, which the earned poll re-probes on landing). */
   badges: readonly Badge[];
+  // --- what to play next (p2p #1659); all optional, absent = no such row ---
+  /** The finished game's setup (the Rematch link's source); null until the replay bundle lands. */
+  setup?: FinishedGameSetup | null;
+  /** The server's hero listings: the playable roster and each hero's bot tiers. */
+  roster?: readonly HeroListing[] | null;
+  /** The hidden tier is already open to this player (the allowlist), so no progress row. */
+  hiddenBotUnlocked?: boolean;
+  /** Games per hero across all players, if the page ever holds it (it does not fetch it). */
+  heroPlays?: Readonly<Record<string, number>> | null;
 }
 
 const DIM = "rgba(250, 235, 215, 0.6)";
@@ -68,10 +95,83 @@ export const nextUpFor = (
   // What a win pays is the api's to know. The one honest sample the page has is
   // this game, if it was a win that landed: its XP is what "one more" is worth.
   const winXp = landed && victory && !landed.forfeit ? landed.delta.xp : null;
-  return { rows: nextUpRows({ guest: false, hero, constants, stats, winXp, badges: held.badges }), hero, constants };
+
+  // --- what to play next (p2p #1659) ---
+  const setup = held.setup ?? null;
+  const tier = botTierPlayed(setup);
+  // The freshest `bonuses` in hand: this game's own once the poll lands.
+  const bonuses = (stats && "bonuses" in stats ? stats.bonuses : null) ?? held.stats?.bonuses ?? null;
+  const practice = bonuses?.practice ?? null;
+  const ladder = setup
+    ? {
+        setup,
+        won: victory,
+        offered: availableBotTiers(held.roster ? [...held.roster] : null, [setup.yourHeroId, ...setup.otherSeats.map((seat) => seat.heroId)]),
+        practiceSpent: !!practice && practice.cap > 0 && practice.used >= practice.cap,
+      }
+    : null;
+  // The held record is the page-load fetch. When the landed total says it
+  // predates this game, a win vs the required tier is one it has not counted.
+  const heldIsPreGame = !!landed && !!held.stats && landed.after.totalGames > held.stats.totalGames;
+  const expertWins =
+    held.stats && !held.hiddenBotUnlocked
+      ? winsVsRequired(held.stats) + (heldIsPreGame && victory && tier === TIER_UNLOCK.requires ? 1 : 0)
+      : null;
+  const newHero = held.roster && held.cosmeticConstants ? newHeroInput(held, landed?.after.playedHeroes ?? [], tier) : null;
+
+  return {
+    rows: nextUpRows({ guest: false, hero, constants, stats, winXp, badges: held.badges, ladder, expertWins, newHero }),
+    hero,
+    constants,
+  };
 };
 
-const Row = ({ row, heroName, compact }: { row: NextUpRow; heroName: string; compact: boolean }) => {
+/**
+ * The new-hero row's facts. "Never piloted" is read from `/me/cosmetics` (a
+ * hero's first finished game pays points, so any earned total means a game),
+ * widened by every other record of a finished game the page holds. A hero
+ * whose points are UNKNOWN (an outage) counts as piloted: never promise a
+ * first-game bonus on a guess.
+ */
+const newHeroInput = (held: NextUpHeld, playedNow: readonly string[], tier: NewHeroInput["tier"]): NewHeroInput => ({
+  // The maintained decks only: a suggestion to a newcomer is not the place
+  // for a community or lab deck.
+  roster: (held.roster ?? []).filter((hero) => hero.deckSection === "recommended" && hero.tier !== "lab" && hero.tier !== "reflavored"),
+  piloted: [
+    ...(held.heroId ? [held.heroId] : []),
+    ...held.cosmeticHeroes.filter((row) => row.earned !== 0).map((row) => row.heroId),
+    ...(held.stats?.byHero ?? []).flatMap((row) => (row.heroId && row.games > 0 ? [row.heroId] : [])),
+    ...playedNow,
+  ],
+  points: held.cosmeticConstants?.heroFirstGamePoints ?? null,
+  tier,
+  heroPlays: held.heroPlays ?? null,
+});
+
+const PLAY_BTN = {
+  size: "sm",
+  minH: TAP_TARGET,
+  flexShrink: 0,
+  variant: "outline",
+  borderColor: "rgba(231, 204, 152, 0.35)",
+  color: "brand.parchment",
+  fontWeight: 600,
+  borderRadius: "8px",
+  _hover: { bg: "rgba(255, 255, 255, 0.08)", textDecoration: "none" },
+} as const;
+
+const Row = ({
+  row,
+  heroName,
+  compact,
+  leavesTable,
+}: {
+  row: NextUpRow;
+  heroName: string;
+  compact: boolean;
+  /** A human is (or may be) still at this table: a new game opens beside it, like every other link out. */
+  leavesTable: boolean;
+}) => {
   const onSignInClick = useSignInReturn();
   const copy = nextUpCopy(row, heroName);
   const gold = row.kind === "unlock";
@@ -116,6 +216,22 @@ const Row = ({ row, heroName, compact }: { row: NextUpRow; heroName: string; com
         data-testid="next-up-sign-in"
       >
         Sign in
+      </Button>
+    ) : row.kind === "ladder" ? (
+      // The Rematch button's own link with the bots a tier up: same tab, same flow.
+      <Button as={Link} href={row.href} {...PLAY_BTN} leftIcon={<TbPlayerPlayFilled size="0.8rem" />} data-testid="next-up-ladder">
+        Play
+      </Button>
+    ) : row.kind === "new-hero" ? (
+      <Button
+        as={Link}
+        href={row.href}
+        {...(leavesTable ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+        {...PLAY_BTN}
+        leftIcon={<TbPlayerPlayFilled size="0.8rem" />}
+        data-testid="next-up-new-hero"
+      >
+        Play
       </Button>
     ) : null;
   const progress = "progress" in row ? Math.round(Math.max(0, Math.min(1, row.progress)) * 100) : null;
@@ -181,6 +297,7 @@ export const ProPostGameNextUp = ({
 
   if (rows.length === 0) return null;
   const panel = layout === "panel";
+  const leavesTable = botTierPlayed(held.setup ?? null) === null;
   return (
     <Flex
       direction="column"
@@ -207,7 +324,7 @@ export const ProPostGameNextUp = ({
         gap="0.5rem"
       >
         {rows.map((row) => (
-          <Row key={rowKey(row)} row={row} heroName={heroName} compact={!panel} />
+          <Row key={rowKey(row)} row={row} heroName={heroName} compact={!panel} leavesTable={leavesTable} />
         ))}
       </Box>
     </Flex>

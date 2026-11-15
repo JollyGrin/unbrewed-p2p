@@ -14,6 +14,12 @@
  * `constants`, never a copy. A source that did not arrive contributes no row,
  * and no sources at all is an empty list — the strip renders nothing.
  *
+ * Below those sit three suggestions for the next game itself (p2p #1659): the
+ * bot ladder (beat a tier, get a one-tap rematch one tier up), progress toward
+ * the hidden bot, and a hero never piloted. A goal that is at least half way
+ * (`NEAR_MISS`) outranks them; one further off does not, so a new account's
+ * three 0% bars do not bury the one row that says what to play next.
+ *
  * "How close" is one scale for every goal: the fraction of the CURRENT step
  * already covered (points toward this card's price, earned points between two
  * rim thresholds, XP within the level, a badge's own `(12/25)`). That is what
@@ -24,7 +30,12 @@ import type { CosmeticConstants, HeroCosmetics } from "@/lib/account/cosmetics";
 import { emptyHeroCosmetics, rimProgress, rimTierName } from "@/lib/account/cosmetics";
 import type { AccountStats } from "@/lib/account/stats";
 import { levelProgress } from "@/lib/account/stats";
+import { knownBotTierMeta } from "@/lib/pro/botTiers";
 import { COSMETIC_RIM_PAINTS } from "@/lib/pro/cosmetics";
+import type { BotDifficulty } from "@/lib/pro/protocol";
+import type { FinishedGameSetup } from "@/lib/pro/rematch";
+import { rematchQuery } from "@/lib/pro/rematch";
+import { TIER_UNLOCK } from "@/lib/pro/tierUnlock";
 
 /** How many rows the strip ever shows. */
 export const NEXT_UP_LIMIT = 3;
@@ -43,9 +54,23 @@ export type NextUpRow =
   | ({ kind: "card"; heroId: string; tier: number } & Goal)
   | ({ kind: "rim"; heroId: string; tier: number } & Goal)
   | ({ kind: "level"; level: number; oneMoreWin: boolean } & Goal)
-  | ({ kind: "badge"; id: string; name: string; current: number; target: number } & Goal);
+  | ({ kind: "badge"; id: string; name: string; current: number; target: number } & Goal)
+  | NextUpSuggestion;
 
-export type NextUpGoal = Exclude<NextUpRow, { kind: "sign-in" } | { kind: "unlock" }>;
+/** What to play next (p2p #1659). Each one is a row only when it applies. */
+export type NextUpSuggestion =
+  /**
+   * You beat `from`; `href` is the same setup with the bots at `to`.
+   * `practiceSpent`: the paid easy/medium games are used up, so `to` is the
+   * first tier that still pays XP.
+   */
+  | { kind: "ladder"; from: BotDifficulty; to: BotDifficulty; practiceSpent: boolean; href: string }
+  /** Wins vs Expert toward the hidden tier (`TIER_UNLOCK`). `progress` draws the bar. */
+  | { kind: "hidden-bot"; wins: number; target: number; progress: number }
+  /** A hero never piloted; `points` is what its first game pays, `href` a bot game as it. */
+  | { kind: "new-hero"; heroId: string; heroName: string; points: number; href: string };
+
+export type NextUpGoal = Exclude<NextUpRow, { kind: "sign-in" } | { kind: "unlock" } | NextUpSuggestion>;
 
 // --- card tiers --------------------------------------------------------------
 
@@ -174,6 +199,125 @@ const badgeGoal = (badges: readonly Badge[]): NextUpGoal | null => {
   return best;
 };
 
+// --- what to play next (p2p #1659) -------------------------------------------
+
+/** The climb. The hidden tier is not a rung: it is earned, not suggested. */
+const LADDER: readonly BotDifficulty[] = ["easy", "medium", "hard", "expert"];
+/** The lowest tier whose games pay XP without a cap. */
+const PAID_TIER: BotDifficulty = "hard";
+/** What a new-hero game is played against when the last game names no usable tier. */
+const DEFAULT_TRY_TIER: BotDifficulty = "medium";
+
+const gameHref = (setup: FinishedGameSetup): string =>
+  `/pro/game?${new URLSearchParams(rematchQuery(setup)).toString()}`;
+
+/**
+ * The one difficulty every other seat was a bot at, or null: a human at the
+ * table, mixed tiers, or no other seat at all is not a rung of the ladder.
+ */
+export const botTierPlayed = (setup: FinishedGameSetup | null): BotDifficulty | null => {
+  const first = setup?.otherSeats[0]?.bot ?? null;
+  if (!setup || !first) return null;
+  return setup.otherSeats.every((seat) => seat.bot === first) ? first : null;
+};
+
+/**
+ * The tier a win vs `beaten` leads to, or null when there is none to offer.
+ * One rung up, except once practice pay is spent: then easy and medium both
+ * point at the first tier that still pays. `offered` is what the server will
+ * accept for this room's heroes (`availableBotTiers`); a rung it does not
+ * serve is never suggested.
+ */
+export const ladderStep = (
+  beaten: BotDifficulty | null,
+  offered: readonly string[],
+  practiceSpent: boolean,
+): BotDifficulty | null => {
+  const rung = beaten ? LADDER.indexOf(beaten) : -1;
+  if (rung < 0 || rung >= LADDER.length - 1) return null;
+  const paid = LADDER.indexOf(PAID_TIER);
+  const to = practiceSpent && rung < paid ? PAID_TIER : LADDER[rung + 1];
+  return offered.includes(to) ? to : null;
+};
+
+export interface LadderInput {
+  /** The finished game's setup; null until the replay bundle lands (then: no row). */
+  setup: FinishedGameSetup | null;
+  /** You won it outright. */
+  won: boolean;
+  /** Tiers the server accepts for this room's heroes. */
+  offered: readonly string[];
+  /** `bonuses.practice` says the paid easy/medium games are all used. */
+  practiceSpent: boolean;
+}
+
+const ladderRow = (input: LadderInput | null | undefined): NextUpSuggestion | null => {
+  if (!input || !input.won || !input.setup) return null;
+  const from = botTierPlayed(input.setup);
+  const spent = input.practiceSpent && (from === "easy" || from === "medium");
+  const to = ladderStep(from, input.offered, spent);
+  if (!from || !to) return null;
+  const setup = { ...input.setup, otherSeats: input.setup.otherSeats.map((seat) => ({ ...seat, bot: to })) };
+  return { kind: "ladder", from, to, practiceSpent: spent, href: gameHref(setup) };
+};
+
+/** A row from the first Expert win until the unlock; none before, none after. */
+const hiddenBotRow = (expertWins: number | null | undefined): NextUpSuggestion | null => {
+  const target = TIER_UNLOCK.wins;
+  if (typeof expertWins !== "number" || expertWins <= 0 || expertWins >= target) return null;
+  return { kind: "hidden-bot", wins: expertWins, target, progress: expertWins / target };
+};
+
+export interface NewHeroInput {
+  /** The heroes a player can pick, in the order the server lists them. */
+  roster: readonly { heroId: string; name: string }[];
+  /** Every hero id known to have a finished game, the one just played included. */
+  piloted: readonly string[];
+  /** `constants.heroFirstGamePoints`; null/absent (an older api) = no row. */
+  points: number | null | undefined;
+  /** The tier the last game's bots played at, to keep the next one familiar. */
+  tier?: BotDifficulty | null;
+  /** Games per hero across all players, when the page has it: the least-played wins. */
+  heroPlays?: Readonly<Record<string, number>> | null;
+}
+
+/**
+ * The hero to suggest: one never piloted, the least played overall when that
+ * is known, otherwise (and on a tie) the roster's first.
+ */
+export const pickNewHero = (
+  input: Pick<NewHeroInput, "roster" | "piloted" | "heroPlays">,
+): { heroId: string; name: string } | null => {
+  const piloted = new Set(input.piloted);
+  const fresh = input.roster.filter((hero) => !piloted.has(hero.heroId));
+  if (fresh.length === 0) return null;
+  const plays = input.heroPlays;
+  if (!plays) return fresh[0];
+  return fresh.reduce((best, hero) => ((plays[hero.heroId] ?? 0) < (plays[best.heroId] ?? 0) ? hero : best));
+};
+
+/** A fresh duel as `heroId` against one bot (the server picks the bot's hero). */
+export const newHeroHref = (heroId: string, tier: BotDifficulty): string =>
+  gameHref({
+    formatId: "duel",
+    itemsWereOff: false,
+    mapId: null,
+    turnTimerSeconds: 0,
+    mulliganWasOn: true,
+    yourHeroId: heroId,
+    otherSeats: [{ player: "p2", heroId: "", bot: tier }],
+  });
+
+const newHeroRow = (input: NewHeroInput | null | undefined): NextUpSuggestion | null => {
+  if (!input || typeof input.points !== "number" || input.points <= 0) return null;
+  const hero = pickNewHero(input);
+  if (!hero) return null;
+  // Easy, medium and hard are served for every hero; anything above is not a
+  // tier to meet a new deck at.
+  const tier = input.tier && LADDER.indexOf(input.tier) >= 0 && input.tier !== "expert" ? input.tier : DEFAULT_TRY_TIER;
+  return { kind: "new-hero", heroId: hero.heroId, heroName: hero.name, points: input.points, href: newHeroHref(hero.heroId, tier) };
+};
+
 // --- the ranking -------------------------------------------------------------
 
 export interface NextUpInput {
@@ -190,7 +334,16 @@ export interface NextUpInput {
   badges: readonly Badge[];
   /** The deck's card keys, when known — see `currentCardTiers`. */
   cardKeys?: readonly string[];
+  /** The bot ladder's facts; absent = no ladder row. */
+  ladder?: LadderInput | null;
+  /** Recorded wins vs Expert; null/absent (no record, or already unlocked) = no row. */
+  expertWins?: number | null;
+  /** The new-hero suggestion's facts; absent = no row. */
+  newHero?: NewHeroInput | null;
 }
+
+/** A goal at least this far through its step outranks the suggestions. */
+export const NEAR_MISS = 0.5;
 
 /** Fixed order for equally-close goals, so the strip never reshuffles between renders. */
 const TIE_ORDER: Record<NextUpGoal["kind"], number> = { card: 0, rim: 1, level: 2, badge: 3 };
@@ -219,7 +372,15 @@ export const nextUpRows = (input: NextUpInput): NextUpRow[] => {
   if (level) goals.push(level);
   const badge = badgeGoal(input.badges);
   if (badge) goals.push(badge);
-  return [...rows, ...rankGoals(goals)].slice(0, NEXT_UP_LIMIT);
+  // In the ticket's order: the follow-up to this game, then the long climb,
+  // then something different.
+  const suggestions = [ladderRow(input.ladder), hiddenBotRow(input.expertWins), newHeroRow(input.newHero)].filter(
+    (row): row is NextUpSuggestion => row !== null,
+  );
+  const ranked = rankGoals(goals);
+  const near = ranked.filter((goal) => goal.progress >= NEAR_MISS);
+  const far = ranked.filter((goal) => goal.progress < NEAR_MISS);
+  return [...rows, ...near, ...suggestions, ...far].slice(0, NEXT_UP_LIMIT);
 };
 
 // --- the played hero, after the game -----------------------------------------
@@ -262,6 +423,9 @@ export const tierName = (tier: number): string => {
 /** Where an unlock row's button goes: that hero, selected, on /collection. */
 export const collectionHref = (heroId: string): string => `/collection?hero=${encodeURIComponent(heroId)}`;
 
+/** "Hard bot" for a tier this client shows; the bare id for one it does not. */
+const botLabel = (tier: BotDifficulty): string => knownBotTierMeta(tier)?.label ?? `${tier} bot`;
+
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
 export interface NextUpCopy {
@@ -299,6 +463,23 @@ export const nextUpCopy = (row: NextUpRow, heroName: string): NextUpCopy => {
       return {
         title: `${row.name}: ${row.current.toLocaleString()} / ${row.target.toLocaleString()}`,
         caption: `${row.toGo.toLocaleString()} to go for the badge`,
+      };
+    case "ladder":
+      return {
+        title: `Ready for the ${botLabel(row.to)}?`,
+        caption: row.practiceSpent
+          ? `Practice XP is used up. ${botLabel(row.to)}s are where XP continues.`
+          : `You beat the ${botLabel(row.from)}. Same setup, one step up.`,
+      };
+    case "hidden-bot":
+      return {
+        title: `${row.wins}/${row.target} expert wins`,
+        caption: `Win ${row.target} vs the Expert bot to unlock a hidden bot`,
+      };
+    case "new-hero":
+      return {
+        title: `Try ${row.heroName}`,
+        caption: `First game as a new hero pays +${plural(row.points, "point", "points")}`,
       };
   }
 };
