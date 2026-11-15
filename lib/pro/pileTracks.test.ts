@@ -337,16 +337,58 @@ describe("trackTuckLine (feed)", () => {
     });
 
     it("an effect's removal right before cleanup keeps its effect's seat", () => {
-      // Kenshiro's Vacuum Finger Strike (attacker, so its AFTER is last) exiles a card out of
-      // Pomni's discard: not a played card, so not cleanup — still Kenshiro's, not narrated.
+      // A shape pin, not a shipped card: an AFTER block (the attacker's, so the last to
+      // run) that exiles a card out of the opponent's discard pile, with cleanup right
+      // behind it. The removed card was not played this combat, so this is not cleanup,
+      // and the block's own seat (Kenshiro's, not a track hero) did it: not narrated.
+      // (Kenshiro's Vacuum Finger Strike is IMMEDIATELY, so its removal never sits here.)
+      const EXILER = "kenshiro/test-after-exile#1";
       const batch: GameEvent[] = [
-        { type: "CARDS_REVEALED", attackerCard: "kenshiro/hokuto-vacuum-finger-strike#1", defenderCard: null } as GameEvent,
-        after("kenshiro/hokuto-vacuum-finger-strike#1", "p1"),
+        { type: "CARDS_REVEALED", attackerCard: EXILER, defenderCard: null } as GameEvent,
+        after(EXILER, "p1"),
         tuck("p2", "pomni/ricochet-super-move#2", "EXILE"),
-        { type: "CARD_DISCARDED", player: "p1", card: "kenshiro/hokuto-vacuum-finger-strike#1", reason: "COMBAT" } as GameEvent,
+        { type: "CARD_DISCARDED", player: "p1", card: EXILER, reason: "COMBAT" } as GameEvent,
         ENDED,
       ];
       expect(at(batch, 2, "p2")).toBeUndefined();
+    });
+
+    it("only the combat that is ending counts: a card the first one filed away is fair game in the second", () => {
+      // Combat 1 discards Kenshiro's played card X at cleanup; a bonus attack opens combat 2
+      // in the same batch, and Pomni's AFTER block there exiles X out of his discard pile.
+      // X was "played" — in combat 1 — and cleanup events then COMBAT_ENDED follow it, so a
+      // check not scoped to the ending combat read this as Kenshiro filing his own card.
+      const X = "kenshiro/hokuto-bone-demolisher#1";
+      const BONUS = "pomni/test-bonus-attack#1";
+      const batch: GameEvent[] = [
+        { type: "CARDS_REVEALED", attackerCard: X, defenderCard: null } as GameEvent,
+        after(X, "p1"),
+        { type: "CARD_DISCARDED", player: "p1", card: X, reason: "COMBAT" } as GameEvent,
+        ENDED,
+        { type: "CARDS_REVEALED", attackerCard: BONUS, defenderCard: null } as GameEvent,
+        after(BONUS, "p2"),
+        tuck("p1", X, "EXILE"),
+        { type: "CARD_DISCARDED", player: "p2", card: BONUS, reason: "COMBAT" } as GameEvent,
+        ENDED,
+      ];
+      const removed = `Opponent removed your ${X} from the game (Reward 2)`;
+      expect(at(batch, 6, "p1")?.text).toBe(removed);
+      // and the pre-batch view's combat (combat 1) is stale once it has ended
+      expect(at(batch, 6, "p1", [X])?.text).toBe(removed);
+    });
+
+    it("an additional defense card is a played card too, though CARDS_REVEALED does not name it", () => {
+      const EXTRA = "kenshiro/death-omen-star#2";
+      const batch: GameEvent[] = [
+        { type: "CARDS_REVEALED", attackerCard: RICOCHET, defenderCard: OMEN } as GameEvent,
+        { type: "ADDITIONAL_DEFENSE_PLAYED", player: "p1", card: EXTRA } as GameEvent,
+        after(RICOCHET, "p2"),
+        tuck("p2", RICOCHET, "EXILE"),
+        { type: "CARD_DISCARDED", player: "p1", card: OMEN, reason: "COMBAT" } as GameEvent,
+        tuck("p1", EXTRA, "EXILE"),
+        ENDED,
+      ];
+      expect(at(batch, 5, "p2")).toBeUndefined();
     });
 
     it("with no EFFECT_RESOLVING at all, nobody is credited — never the Pomni seat by default", () => {

@@ -259,10 +259,23 @@ const isCleanupTuck = (
   index: number,
   combatCards: readonly CardInstanceId[] | undefined
 ): boolean => {
-  let played = combatCards?.includes(e.card) ?? false;
-  for (let i = 0; i < index && !played; i++) {
+  // Only the combat that is ENDING counts. A batch can hold more than one (a bonus
+  // attack starts right after the first cleanup), and a card the first combat filed
+  // away can be exiled out of the discard pile during the second.
+  let start = 0;
+  for (let i = index - 1; i >= 0; i--) {
+    if (batch[i].type === "COMBAT_ENDED") {
+      start = i + 1;
+      break;
+    }
+  }
+  // the pre-batch view's combat is the one open at the batch's START: stale once it ended
+  let played = start === 0 && (combatCards?.includes(e.card) ?? false);
+  for (let i = start; i < index && !played; i++) {
     const b = batch[i];
     if (b.type === "CARDS_REVEALED") played = b.attackerCard === e.card || b.defenderCard === e.card;
+    // an additional defense card is not in CARDS_REVEALED; it is announced on its own
+    else if (b.type === "ADDITIONAL_DEFENSE_PLAYED") played = b.card === e.card;
     // the card's own block ran in this batch: it was in play, not in a pile
     else if (b.type === "EFFECT_RESOLVING") played = b.source === e.card;
   }
