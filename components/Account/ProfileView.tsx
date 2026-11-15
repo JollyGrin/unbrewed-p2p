@@ -41,6 +41,8 @@ export interface ProfileViewProps {
   subtitle: string;
   /** Owner-only header controls (sign out, and the way to the leaderboard). */
   headerAction?: React.ReactNode;
+  /** Owner-only, directly under the header: the quests panel (#1658). */
+  lead?: React.ReactNode;
   /**
    * Owner-only sections, rendered between the badge case and the match history
    * — the Discord perks card today. A public profile passes nothing, which is
@@ -59,6 +61,7 @@ export const ProfileView = ({
   owner = false,
   subtitle,
   headerAction,
+  lead,
   children,
 }: ProfileViewProps) => (
   <>
@@ -72,6 +75,7 @@ export const ProfileView = ({
       subtitle={subtitle}
       action={headerAction}
     />
+    {lead}
     <AccountStatsSection view={stats} owner={owner} name={username} />
     <AccountBadgeCase state={badges} readOnly={!owner} name={username} />
     {children}

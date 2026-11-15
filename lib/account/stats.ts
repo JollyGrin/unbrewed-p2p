@@ -250,12 +250,7 @@ export const normalizeStats = (body: unknown): AccountStats => {
   };
 };
 
-/**
- * The signed-in player's aggregate record.
- *
- * The player id is never sent: the API derives it from the session cookie.
- */
-export const fetchAccountStats = async (): Promise<StatsResult> => {
+const requestAccountStats = async (): Promise<StatsResult> => {
   try {
     const res = await fetch(`${API_URL}/me/stats`, {
       credentials: "include",
@@ -272,6 +267,31 @@ export const fetchAccountStats = async (): Promise<StatsResult> => {
   } catch {
     return fail("unavailable");
   }
+};
+
+/** How long a pending request is worth sharing; past it, a caller re-asks. */
+const SHARE_MS = 5_000;
+
+let inFlight: { request: Promise<StatsResult>; at: number } | null = null;
+
+/**
+ * The signed-in player's aggregate record.
+ *
+ * The player id is never sent: the API derives it from the session cookie.
+ *
+ * Callers that ask WHILE a request is in flight share it (#1658): the nav's
+ * streak chip and the page under it both read this payload, and mount in the
+ * same commit. Nothing is cached past the response — a later call re-asks —
+ * and a request that has been pending longer than {@link SHARE_MS} is not
+ * waited on by anyone new, so one hung fetch can't stall every later reader.
+ */
+export const fetchAccountStats = (): Promise<StatsResult> => {
+  if (inFlight && Date.now() - inFlight.at < SHARE_MS) return inFlight.request;
+  const request = requestAccountStats().finally(() => {
+    if (inFlight?.request === request) inFlight = null;
+  });
+  inFlight = { request, at: Date.now() };
+  return request;
 };
 
 // --- presentation helpers ----------------------------------------------------

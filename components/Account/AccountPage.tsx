@@ -26,6 +26,7 @@ import { useState } from "react";
 
 import { ProfileView } from "@/components/Account/ProfileView";
 import { AccountShell, Panel } from "@/components/Account/Shell";
+import { QuestsPanel } from "@/components/Quests/QuestsPanel";
 import { signOut, useAccount } from "@/lib/account/useAccount";
 import { signInLink } from "@/lib/account/signInLink";
 import { useAccountStats } from "@/lib/account/useAccountStats";
@@ -194,6 +195,8 @@ export const AccountPage = () => {
         stats={statsView}
         history={history}
         headerAction={<OwnerActions username={account.username} />}
+        // #1658: renders nothing (no gap either) until the API sends quests.
+        lead={<QuestsPanel tone="parchment" mb="1rem" />}
       />
       {/*
         #1571: the Discord server perks card (Sync now / Unlink) is hidden for
