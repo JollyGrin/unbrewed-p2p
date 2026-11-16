@@ -9,7 +9,7 @@ import { render, screen } from "@testing-library/react";
 import { CASUAL_SPLIT_NOTE } from "@/components/Account/AccountStats";
 import { FORFEIT_POINTS_NOTE } from "@/components/Pro/ForfeitDialog";
 import type { DailyStats, StatsBonuses } from "@/lib/account/bonuses";
-import { EARNED_TIMEOUT_CAPTION, EARNED_WAITING_CAPTION, EarnedSnapshot, PRACTICE_POINTS_NOTE } from "@/lib/pro/earned";
+import { EARNED_TIMEOUT_CAPTION, EARNED_WAITING_CAPTION, EarnedSnapshot, PRACTICE_POINTS_NOTE, PRACTICE_SPENT_DAILY_CAPTION } from "@/lib/pro/earned";
 import type { EarnedLanded, EarnedPending, GameEarnedView } from "@/lib/pro/useGameEarned";
 import { PLACEHOLDER_HATCH, ProPostGameEarned } from "./ProPostGameEarned";
 
@@ -261,5 +261,71 @@ describe("the daily streak tile (#1656)", () => {
     );
     expect(screen.getByTestId("post-game-daily")).toHaveTextContent("Day 3 streak");
     expect(screen.getByTestId("post-game-daily")).toHaveTextContent("updates once recorded");
+  });
+});
+
+describe("onboarding polish (#1666)", () => {
+  it("a new account's first easy-bot win: the rows under '+175 XP' add up to it", () => {
+    draw(
+      landed({
+        practice: true,
+        after: { ...landed().after, level: 1, xp: 175, xpForNext: 300, bonuses: bonuses(1) },
+        delta: {
+          ...landed().delta,
+          xp: 175,
+          points: 50,
+          heroPoints: 50,
+          bonuses: [
+            { kind: "first-game", xp: 100 },
+            { kind: "practice", game: 1, cap: 5, xp: 15 },
+            { kind: "hero-first", points: 50 },
+            { kind: "daily", day: 1, xp: 10 },
+            { kind: "first-win", xp: 20 },
+            { kind: "quest", id: "first-win", title: "Win a game", xp: 30 },
+          ],
+        },
+      }),
+    );
+    expect(screen.getByTestId("post-game-xp-delta")).toHaveTextContent("+175 XP");
+    const rows = screen.getAllByTestId("post-game-bonus").map((row) => row.textContent ?? "");
+    expect(rows).toEqual([
+      "First game+100",
+      "Practice game 1 of 5+15",
+      "First game as Hollow Oak+50 points",
+      "Daily bonus · day 1+10",
+      "First win today+20",
+      "Quest complete: Win a game+30",
+    ]);
+    const xp = rows.filter((row) => !row.endsWith("points")).reduce((sum, row) => sum + Number(row.slice(row.lastIndexOf("+") + 1)), 0);
+    expect(xp).toBe(175);
+    expect(screen.getByTestId("post-game-practice-caption")).toHaveTextContent("Practice game 1 of 5 · XP only, not in your record");
+  });
+
+  it("two quests completed by one game are two rows", () => {
+    draw(
+      landed({
+        delta: {
+          ...landed().delta,
+          bonuses: [
+            { kind: "quest", id: "harder-bot", title: "Beat a Hard or Expert bot", xp: 30 },
+            { kind: "quest", id: "three-heroes", title: "Play three different heroes", xp: 30 },
+          ],
+        },
+      }),
+    );
+    expect(screen.getAllByTestId("post-game-bonus").map((row) => row.getAttribute("data-bonus"))).toEqual(["quest", "quest"]);
+  });
+
+  it("a 6th practice game paid only by the daily bonus: no 'Practice game 5 of 5'", () => {
+    draw(
+      landed({
+        practice: true,
+        after: { ...landed().after, xp: 3534, bonuses: bonuses(5) },
+        delta: { ...landed().delta, xp: 30, points: 0, heroPoints: 220, bonuses: [{ kind: "daily", day: 1, xp: 10 }, { kind: "first-win", xp: 20 }] },
+      }),
+    );
+    const caption = screen.getByTestId("post-game-practice-caption");
+    expect(caption).toHaveTextContent(PRACTICE_SPENT_DAILY_CAPTION);
+    expect(caption).not.toHaveTextContent("5 of 5");
   });
 });

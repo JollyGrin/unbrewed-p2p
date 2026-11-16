@@ -67,6 +67,17 @@ describe("normalizeBadgeCase", () => {
     expect(kase.selected).toEqual(["first-win"]);
   });
 
+  it("reads the structured `progress` when sent; absent or unusable is null and the text is left alone (#1666)", () => {
+    const row = (progress: unknown) => ({ id: "veteran", unlocked: false, unlockedWhy: "Play 100 games (12/100)", progress });
+    const read = (progress: unknown) => normalizeBadgeCase({ badges: [row(progress)] }).badges[0];
+    expect(read({ current: 12, target: 100 }).progress).toEqual({ current: 12, target: 100 });
+    for (const junk of [undefined, null, "12/100", { current: "12", target: 100 }, { current: 3, target: 0 }, { current: -1, target: 5 }]) {
+      expect(read(junk)).toMatchObject({ progress: null, unlockedWhy: "Play 100 games (12/100)" });
+    }
+    // The older payload (no field at all) parses to the same row it always did.
+    expect(normalizeBadgeCase(CATALOG).badges[1]).toMatchObject({ id: "veteran", unlockedWhy: "Play 100 games (12/100)", progress: null });
+  });
+
   it("keeps the worn list in the order the API sent it", () => {
     // Never re-sorted, here or anywhere: slot 1 is the disc in front on the HUD
     // and the order is the player's own statement about their badges.

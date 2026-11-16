@@ -31,6 +31,19 @@ describe("normalizeBonuses", () => {
       daily: null,
     });
   });
+
+  it("reads `quests: { xp }` when the api sends it, and leaves the key off entirely when it does not (#1666)", () => {
+    expect(normalizeBonuses({ firstGame: { xp: 100, earned: true }, quests: { xp: 60 } })).toEqual({
+      firstGame: { xp: 100, earned: true },
+      practice: null,
+      daily: null,
+      quests: { xp: 60 },
+    });
+    expect(normalizeBonuses({ quests: { xp: 30 } })?.quests).toEqual({ xp: 30 });
+    expect(normalizeBonuses({ firstGame: { xp: 100, earned: true } })).not.toHaveProperty("quests");
+    // The flat practice pay of the same api change is read as sent.
+    expect(normalizeBonuses({ practice: { cap: 5, used: 2, xpPerGame: 15, xpPerWin: 0, xp: 30 } })?.practice).toEqual({ cap: 5, used: 2, xpPerGame: 15, xpPerWin: 0, xp: 30 });
+  });
 });
 
 describe("normalizeDaily", () => {

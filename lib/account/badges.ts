@@ -35,6 +35,11 @@ export interface Badge {
   unlocked: boolean;
   /** Requirement plus progress, e.g. `"Play 25 games (12/25)"`. Sent for unlocked badges too. */
   unlockedWhy: string;
+  /**
+   * The same progress as a structured field (#1666), when the api sends it.
+   * Absent/null on an older api: readers fall back to parsing `unlockedWhy`.
+   */
+  progress?: { current: number; target: number } | null;
 }
 
 export interface BadgeCase {
@@ -111,6 +116,16 @@ const readSelected = (body: unknown): string[] => {
  * off it — but a missing name/blurb/hint only costs that row its text, because
  * a badge the player can SEE and not read still beats a hole in the grid.
  */
+/** `progress: { current, target }` off a badge row, or null when it is absent or unusable. */
+const normalizeBadgeProgress = (raw: unknown): { current: number; target: number } | null => {
+  const row = asRecord(raw);
+  if (!row) return null;
+  const { current, target } = row;
+  if (typeof current !== "number" || typeof target !== "number") return null;
+  if (!Number.isFinite(current) || !Number.isFinite(target) || current < 0 || target <= 0) return null;
+  return { current, target };
+};
+
 const normalizeBadge = (raw: unknown): Badge | null => {
   const row = asRecord(raw);
   const id = row ? asString(row.id) : null;
@@ -121,6 +136,7 @@ const normalizeBadge = (raw: unknown): Badge | null => {
     blurb: asString(row.blurb) ?? "",
     unlocked: row.unlocked === true,
     unlockedWhy: asString(row.unlockedWhy) ?? "",
+    progress: normalizeBadgeProgress(row.progress),
   };
 };
 

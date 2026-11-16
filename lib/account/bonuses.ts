@@ -17,6 +17,12 @@ export interface StatsBonuses {
   practice: { cap: number; used: number; xpPerGame: number; xpPerWin: number; xp: number } | null;
   /** Lifetime daily-bonus XP, once the api's daily ticket lands. */
   daily: { xp: number } | null;
+  /**
+   * Lifetime starter-quest XP (#1666). Optional even on the parsed side: an
+   * api before the quests total sends none, and readers then fall back to
+   * the `/me/quests` rows alone.
+   */
+  quests?: { xp: number } | null;
 }
 
 /** `daily` on `/me/stats`: the UTC-day streak and what it pays. */
@@ -49,7 +55,8 @@ export const normalizeBonuses = (raw: unknown): StatsBonuses | null => {
   const firstGame = asRecord(root.firstGame);
   const practice = asRecord(root.practice);
   const daily = asRecord(root.daily);
-  if (!firstGame && !practice && !daily) return null;
+  const quests = asRecord(root.quests);
+  if (!firstGame && !practice && !daily && !quests) return null;
   return {
     firstGame: firstGame ? { xp: asCount(firstGame.xp), earned: firstGame.earned === true } : null,
     practice: practice
@@ -62,6 +69,8 @@ export const normalizeBonuses = (raw: unknown): StatsBonuses | null => {
         }
       : null,
     daily: daily ? { xp: asCount(daily.xp) } : null,
+    // Only when sent: an older payload parses to exactly what it always did.
+    ...(quests ? { quests: { xp: asCount(quests.xp) } } : {}),
   };
 };
 

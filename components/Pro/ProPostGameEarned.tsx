@@ -11,7 +11,9 @@
  *
  * Onboarding (#1656): an easy/medium game that pays is drawn like a counted
  * one (bar, XP, tiles) with a "Practice game 3 of 5" caption; the bonuses a
- * game triggered are line items under the bar ("First game +100"); and when
+ * game triggered are line items under the bar ("First game +100", and since
+ * #1666 the practice pay and any starter quest it completed, so the rows add
+ * up to the headline); and when
  * the api sends the `daily` block a fourth tile shows the day streak and what
  * tomorrow pays. With neither block in the payload the card is the #1399 one.
  *
@@ -30,12 +32,13 @@ import {
   EARNED_WAITING_CAPTION,
   LevelBar,
   PRACTICE_POINTS_NOTE,
+  bonusRowKey,
   bonusRowText,
   dailyStreakTitle,
   dailyTomorrowCaption,
   landedLevelBar,
   pointsCaption,
-  practiceGameCaption,
+  practiceCaptionFor,
   practicePaidBody,
   practicePaidNote,
   streakLabel,
@@ -221,7 +224,7 @@ export const ProPostGameEarned = ({
         return (
           <Flex
             as="li"
-            key={bonus.kind}
+            key={bonusRowKey(bonus)}
             justify="space-between"
             align="baseline"
             gap="0.75rem"
@@ -288,7 +291,7 @@ export const ProPostGameEarned = ({
       {bonusRows}
       {practiceUsed && (
         <Text fontSize="0.7rem" color="rgba(250, 235, 215, 0.5)" data-testid="post-game-practice-caption">
-          {practiceGameCaption(practiceUsed.used, practiceUsed.cap)}
+          {practiceCaptionFor(practiceUsed, bonuses)}
         </Text>
       )}
       {caption && (
