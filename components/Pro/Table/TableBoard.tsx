@@ -188,6 +188,7 @@ export const TableBoard = ({
   moveHint = null,
   imgMaxH,
   zoomable = false,
+  zoomGestures = true,
   rotated = false,
   fitInset,
   fighterFigure,
@@ -654,6 +655,7 @@ export const TableBoard = ({
       imageAlt={map.meta.title}
       imgMaxH={imgMaxH}
       zoomable={zoomable}
+      zoomGestures={zoomGestures}
       rotated={rotated}
       fitInset={fitInset}
       tiltDeg={DEFAULT_TILT_DEG}

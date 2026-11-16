@@ -176,13 +176,23 @@ export interface ZoomPan {
  *                 frame's unscaled units (see lib/pro/fitContent). The initial
  *                 fit places that box instead of the layout box. Keep it a
  *                 stable callback — the fit recomputes when its identity changes.
+ * @param gestures which gestures move the view (issue #1679). `true` (default):
+ *                 wheel, drag and pinch, as on /pro/game. `"touch"`: for a
+ *                 board embedded in a page that scrolls — the wheel and a
+ *                 mouse drag are left to the page, and the caller sets
+ *                 `touch-action: pan-y` so a vertical finger drag scrolls the
+ *                 page too; a pinch and a sideways finger drag still zoom and
+ *                 pan (a phone auto-focuses small picks, so the visitor needs
+ *                 a way to look around). `false`: none. The board is fitted to
+ *                 its box in every case.
  */
 export function useZoomPan(
   enabled: boolean,
   frameRef: RefObject<HTMLElement>,
   inset: ZoomPanInset = {},
   rotated = false,
-  measureContent?: () => ContentBox | null
+  measureContent?: () => ContentBox | null,
+  gestures: boolean | "touch" = true
 ): ZoomPan {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomPanState>(IDENTITY);
@@ -286,7 +296,7 @@ export function useZoomPan(
   // Native, non-passive wheel listener so preventDefault actually sticks
   // (React's synthetic onWheel is passive and can't cancel page scroll).
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || gestures !== true) return;
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
@@ -301,7 +311,7 @@ export function useZoomPan(
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [enabled, zoomAt]);
+  }, [enabled, gestures, zoomAt]);
 
   // Turning the phone changes which way the map stands, so the player's old
   // pan/zoom no longer means anything — drop back to the fresh fit rather than
@@ -436,7 +446,9 @@ export function useZoomPan(
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent) => {
-      if (!enabled) return;
+      if (!enabled || !gestures) return;
+      // Touch-only: a mouse (or pen) press is not a board gesture.
+      if (gestures === "touch" && e.pointerType !== "touch") return;
       // A press that begins inside an inset panel (header drag, collapse caret)
       // is the panel's own gesture — never start a board pan from it (issue
       // #216). The panel header also stopPropagation()s, so this is a backstop.
@@ -450,7 +462,7 @@ export function useZoomPan(
         panning.current = false;
       }
     },
-    [enabled]
+    [enabled, gestures]
   );
 
   // Track moves at the window level while any pointer is down, so a fast drag

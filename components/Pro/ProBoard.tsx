@@ -173,6 +173,12 @@ export interface ProBoardProps {
    * give it a height (issue #450). */
   zoomable?: boolean;
   /**
+   * `zoomable` only: which gestures move the view (see lib/pro/useZoomPan).
+   * `"touch"` is for a board embedded in a scrolling page (issue #1679): the
+   * wheel and a vertical finger drag stay the page's. Default true.
+   */
+  zoomGestures?: boolean | "touch";
+  /**
    * Stand the map on end (issue #708, mobile portrait only). Unmatched maps are
    * landscape art; on a phone held upright the unrotated fit is width-bound and
    * leaves two thirds of the screen as empty table. `zoomable` only — the
@@ -237,6 +243,7 @@ export const ProBoard = ({
   moveHint = null,
   imgMaxH,
   zoomable = false,
+  zoomGestures = true,
   rotated = false,
   fitInset,
   tokenLife = null,
@@ -261,7 +268,7 @@ export const ProBoard = ({
   // Pinch/scroll zoom + drag pan (issue #120). The transform rides the
   // shrink-wrap frame below so the art and every overlay move as one unit;
   // when `zoomable` is false the hook attaches nothing and returns no transform.
-  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated);
+  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated, undefined, zoomGestures);
   // Rotated-portrait hoist (issue #708): region panels + the zone legend pin
   // to the untransformed screen instead of the board's own zoom/pan frame —
   // see useRegionPanels's own `upright` doc.
@@ -430,7 +437,13 @@ export const ProBoard = ({
       h={zoomable ? "100%" : undefined}
       position={zoomable ? "relative" : undefined}
       overflow={zoomable ? "hidden" : undefined}
-      sx={zoomable ? { touchAction: "none", cursor: "grab" } : undefined}
+      sx={
+        !zoomable || !zoomGestures
+          ? undefined
+          : zoomGestures === "touch"
+            ? { touchAction: "pan-y" }
+            : { touchAction: "none", cursor: "grab" }
+      }
       {...zoom.handlers}
     >
       {/* Zoomable: pinned to the viewport's top-left so the fit transform is

@@ -58,7 +58,13 @@ export type AnalyticsEvent =
   | "ws_closed_unexpected"
   | "client_error"
   | "client_version_stale"
-  | "chunk_load_failed";
+  | "chunk_load_failed"
+  // Puzzles (#1679). Per try and per click, never per move.
+  | "puzzle_started"
+  | "puzzle_attempt_finished"
+  | "puzzle_solved"
+  | "puzzle_next_clicked"
+  | "puzzle_full_game_clicked";
 
 export type AnalyticsProps = Record<string, string | number | boolean | null | undefined>;
 

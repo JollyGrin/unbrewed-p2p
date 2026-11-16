@@ -150,6 +150,35 @@ export const boardFitInsetFor = ({
   };
 };
 
+/**
+ * Room for a puzzle's face-up opponent hand (issue #1679). That box is live
+ * information the visitor plans around, so — unlike the hand drawer or the log —
+ * the board must not sit under it. `panel` is the box's right and bottom edge
+ * in the stage's own px (null: not shown).
+ *
+ *  - portrait: the board moves down below it;
+ *  - otherwise (rail, desktop): the board moves right of it, but only where
+ *    that costs no board size — when the room left beside the box is still
+ *    wider than the (landscape, about 4:3) map is at the stage's height. In a
+ *    narrower box the board keeps its size and the box, which collapses, floats
+ *    over its edge as before.
+ */
+export const OPEN_HAND_GAP = 8;
+const MAP_ASPECT = 4 / 3;
+export const insetForOpenHand = (
+  base: Required<ZoomPanInset>,
+  mode: "desktop" | "portrait" | "rail",
+  stage: { width: number; height: number },
+  panel: { right: number; bottom: number } | null
+): Required<ZoomPanInset> => {
+  if (!panel) return base;
+  if (mode === "portrait") return { ...base, top: Math.max(base.top, panel.bottom + OPEN_HAND_GAP) };
+  const left = Math.max(base.left, panel.right + OPEN_HAND_GAP);
+  const roomW = stage.width - left - base.right;
+  const roomH = stage.height - base.top - base.bottom;
+  return roomH > 0 && roomW >= roomH * MAP_ASPECT ? { ...base, left } : base;
+};
+
 /** Which mobile shell is mounted — the dock's `mobile` prop. */
 export type MobileShell = "portrait" | "rail" | "hud" | false;
 

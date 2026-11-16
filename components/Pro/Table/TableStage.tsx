@@ -67,6 +67,8 @@ export interface TableStageProps {
   imageAlt: string;
   imgMaxH?: string;
   zoomable?: boolean;
+  /** See ProBoard's `zoomGestures`. Default true. */
+  zoomGestures?: boolean | "touch";
   rotated?: boolean;
   fitInset?: ZoomPanInset;
   tiltDeg?: number;
@@ -111,6 +113,7 @@ export const TableStage = ({
   imageAlt,
   imgMaxH,
   zoomable = false,
+  zoomGestures = true,
   rotated = false,
   fitInset,
   tiltDeg = DEFAULT_TILT_DEG,
@@ -175,7 +178,7 @@ export const TableStage = ({
     return contentBoxFromRects(frame.getBoundingClientRect(), layoutW, drawn);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- frameW/tiltDeg/yawDeg stand in for "the drawing changed"
   }, [frameW, frameH, tiltDeg, yawDeg, rotated, zoomable]);
-  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated, measureContent);
+  const zoom = useZoomPan(zoomable, frameRef, fitInset, zoomable && rotated, measureContent, zoomGestures);
 
   // Same mobile auto-focus-zoom ProBoard runs (issue #831): with nothing to
   // pick, a whole-board fit is correct — but the instant a prompt offers gold
@@ -243,7 +246,13 @@ export const TableStage = ({
       h={zoomable ? "100%" : undefined}
       position={zoomable ? "relative" : undefined}
       overflow={zoomable ? "hidden" : undefined}
-      sx={zoomable ? { touchAction: "none", cursor: "grab" } : undefined}
+      sx={
+        !zoomable || !zoomGestures
+          ? undefined
+          : zoomGestures === "touch"
+            ? { touchAction: "pan-y" }
+            : { touchAction: "none", cursor: "grab" }
+      }
       // The table surface (phase-5 target #4 — "the surround is flat dead
       // colour"). A flat void around the board reads as "unfinished"; a
       // soft, warm vignette reads as "the rest of the table the board is

@@ -280,10 +280,10 @@ describe("the open opponent hand", () => {
     expect(within(panel).queryByText(/as of turn/)).toBeNull();
   });
 
-  it("reads an optional `hand` off the opponent view when no prop is passed", async () => {
+  it("reads the puzzle room's `openHand` off the opponent view when no prop is passed", async () => {
     mount(<Panel url="ws://puzzle" />);
     await open("ws://puzzle", "PZ1");
-    await state("ws://puzzle", [], { ...VIEW, opponent: { ...VIEW.opponent!, hand: VIEW.self.hand } as PlayerView["opponent"] });
+    await state("ws://puzzle", [], { ...VIEW, opponent: { ...VIEW.opponent!, openHand: VIEW.self.hand } });
     expect(within(screen.getByTestId("revealed-hand-panel")).getByText("face up")).toBeInTheDocument();
   });
 
