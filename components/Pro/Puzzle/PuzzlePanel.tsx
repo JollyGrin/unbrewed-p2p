@@ -55,6 +55,11 @@ export interface PuzzlePanelProps {
   /** How long the final board stays in view before the verdict covers it (ms). */
   resultDelayMs?: number;
   /**
+   * Waiting contexts only: the panel has gone quiet (it renders nothing on a
+   * failure there), so the host can put its own screen back.
+   */
+  onUnavailable?: () => void;
+  /**
    * What the panel has to show, for a host that covers it until there is
    * something to play (the landing still, #1680): `loading` until a
    * position is on the table (again for each new room: "Next puzzle", a
@@ -156,6 +161,7 @@ export const PuzzlePanel = ({
   onPuzzleChange,
   wsUrl = PRO_WS_URL,
   resultDelayMs = PUZZLE_RESULT_DELAY_MS,
+  onUnavailable,
   onStatus,
 }: PuzzlePanelProps) => {
   const waiting = isWaitingContext(context);
@@ -166,6 +172,9 @@ export const PuzzlePanel = ({
   // one, picked once the catalogue is in. "Next puzzle" moves it from inside.
   const [currentId, setCurrentId] = useState<string | null>(puzzleId ?? null);
   const [allDone, setAllDone] = useState(false);
+  // A second lap (#1681): with everything solved, a wait still has a puzzle to
+  // offer. The puzzles run again in catalogue order; the solved record stays.
+  const [replay, setReplay] = useState(false);
   useEffect(() => {
     if (!puzzleId) return;
     setCurrentId(puzzleId);
@@ -269,7 +278,9 @@ export const PuzzlePanel = ({
   );
 
   // Paused or covered by a verdict: the view takes no pointer, focus or key.
-  const blocked = paused || verdict !== null;
+  // (Not for a verdict left over once the puzzles ran out: the "all solved"
+  // card that takes the stage then has buttons of its own.)
+  const blocked = paused || (verdict !== null && !allDone);
   const stageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     stageRef.current?.toggleAttribute("inert", blocked);
@@ -279,20 +290,33 @@ export const PuzzlePanel = ({
   // all" — but only when that is true: while the puzzle on the table is itself
   // unsolved (a watched solution) there is no next, and no such button.
   const nextUp = catalogue.puzzles ? nextUnsolvedPuzzle(catalogue.puzzles, solved, currentId) : null;
-  const canGoNext = !!catalogue.puzzles && (!!nextUp || (!!currentId && solved.includes(currentId)));
+  const canGoNext = !!catalogue.puzzles && (replay || !!nextUp || (!!currentId && solved.includes(currentId)));
   const nextPuzzle = useCallback(() => {
     if (!catalogue.puzzles) return;
     const done = readSolvedPuzzles();
-    const next = nextUnsolvedPuzzle(catalogue.puzzles, done, currentId);
-    if (!next && !(currentId && done.includes(currentId))) return;
+    // On a second lap "next" is simply the next one in the catalogue; after the
+    // last one the lap is over and the panel says so again.
+    const next = replay
+      ? (catalogue.puzzles[catalogue.puzzles.findIndex((p) => p.id === currentId) + 1] ?? null)
+      : nextUnsolvedPuzzle(catalogue.puzzles, done, currentId);
+    if (!replay && !next && !(currentId && done.includes(currentId))) return;
     track("puzzle_next_clicked", { puzzle_id: currentId ?? undefined, context, next_puzzle_id: next?.id });
     if (!next) {
+      setReplay(false);
       setAllDone(true);
       return;
     }
     setCurrentId(next.id);
     onPuzzleChange?.(next.id);
-  }, [catalogue.puzzles, currentId, context, onPuzzleChange]);
+  }, [catalogue.puzzles, currentId, context, onPuzzleChange, replay]);
+  const playAgain = useCallback(() => {
+    const first = catalogue.puzzles?.[0];
+    if (!first) return;
+    setReplay(true);
+    setAllDone(false);
+    setCurrentId(first.id);
+    onPuzzleChange?.(first.id);
+  }, [catalogue.puzzles, onPuzzleChange]);
 
   // "Try again": the same room's next try — unless the solution has been shown
   // in it, in which case only a fresh room lets an honest solve count.
@@ -318,6 +342,12 @@ export const PuzzlePanel = ({
   );
 
   const failed = phase === "unavailable" || phase === "lost" || (!puzzleId && !currentId && catalogue.status === "unavailable");
+  const gone = failed && waiting;
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
+  useEffect(() => {
+    if (gone) onUnavailableRef.current?.();
+  }, [gone]);
   const status: PuzzlePanelStatus = failed ? "unavailable" : allDone || !started || phase === "expired" || (phase === "playing" && !!snapshot && !!info) ? "ready" : "loading";
   const onStatusRef = useRef(onStatus);
   onStatusRef.current = onStatus;
@@ -325,7 +355,7 @@ export const PuzzlePanel = ({
     onStatusRef.current?.(status);
   }, [status]);
   // In a waiting context a broken puzzle is simply not there.
-  if (failed && waiting) return null;
+  if (gone) return null;
 
   const playing = phase === "playing" && !!snapshot && !!info;
   const controlsOff = !playing || blocked;
@@ -339,6 +369,12 @@ export const PuzzlePanel = ({
       <Cover testId="puzzle-all-solved" dim={false}>
         <Display fontSize="2rem">You solved them all</Display>
         <Small>More puzzles are on the way.</Small>
+        {/* A wait has no way out to a full game, so it must not end here (#1681). */}
+        {waiting && !!catalogue.puzzles?.length && (
+          <Button {...BTN_GOLD} data-testid="puzzle-play-again" onClick={playAgain} isDisabled={paused}>
+            Play them again
+          </Button>
+        )}
         {fullGameButton}
       </Cover>
     );

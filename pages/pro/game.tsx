@@ -170,6 +170,8 @@ import {
   type PairEvent,
 } from "@/lib/pro/lobbyPair";
 import { FoundPanel, QuickMatchLabel, SearchingPanel } from "@/components/Pro/QuickMatchDock";
+import { LobbyWaitBar, QuickWaitBar, ShowWaitPuzzleLink, WaitPuzzle } from "@/components/Pro/Puzzle/WaitPuzzle";
+import { lobbyHoldMs, markWaitPuzzleSkipped, skipsWaitPuzzle, useWaitPuzzleFits, useWaitPuzzleHidden } from "@/lib/pro/waitPuzzle";
 import { GameViewBody, useGameViewState, heroDeckMeta, NO_MOTION, prettyHeroId, BTN, heroNameOf, BTN_GOLD, usePendingMoveTimeout, TABLE_BG } from "@/components/Pro/GameView";
 
 /** sessionStorage key for a toast that has to survive a full navigation (#1556). */
@@ -1379,6 +1381,7 @@ const HeroSelectLobby = ({
   bonusSummary = null,
   heroPips,
   dockPanel = null,
+  waitPanel = null,
   p1HeroName,
   p2Status = null,
   pairMode = null,
@@ -1451,6 +1454,12 @@ const HeroSelectLobby = ({
   heroPips?: ReadonlyMap<string, QuickPlayAvatar>;
   /** replaces Create + Quick Match (and the summary) while a search runs or lands */
   dockPanel?: ReactNode;
+  /**
+   * A puzzle while a Quick Match search waits (#1681): takes the roster's place
+   * in its column (the ribbon stays). The roster is hidden, not unmounted, so
+   * its search, filters and scroll are as they were when it comes back.
+   */
+  waitPanel?: ReactNode;
   /** the P1 plate's fighter while a search runs (the hero the search committed) */
   p1HeroName?: string | null;
   /** the duel P2 plate while a search runs ("Searching…") or lands (the opponent) */
@@ -2309,7 +2318,7 @@ const HeroSelectLobby = ({
           position="relative"
           onMouseEnter={clearStagePreview}
         >
-          <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none">
+          <Flex align="center" justify="space-between" gap="0.75rem" flexWrap="wrap" flex="none" display={waitPanel ? "none" : undefined}>
             <Flex align="baseline" gap="0.5rem">
               <Text fontFamily="LeagueGothic" fontSize="1.25rem" letterSpacing="0.1em" color="brand.accent">
                 SELECT YOUR HERO
@@ -2425,10 +2434,13 @@ const HeroSelectLobby = ({
           {/* …kept while paired (#1556); the page disables its Join / 👋. */}
           {(!fixedSetup || pairMode) && ribbon}
 
+          {/* #1681: a puzzle for the wait, where the roster was. */}
+          {waitPanel}
+
           {/* The roster is its own scroll region on desktop — the page behind it
               stays put, so Create/seats/stage never move. The fade at the foot
               is the only hint that there is more below. */}
-          <Box position="relative" flex="1" minH="0">
+          <Box position="relative" flex="1" minH="0" display={waitPanel ? "none" : undefined}>
             <Box
               ref={rosterRef}
               data-testid="pro-roster-scroll"
@@ -3459,6 +3471,10 @@ const LiveGame = ({
   // for QUICK_FOUND_MS, then the table. Roster and ribbon stay live throughout.
   const [quickStartedAt, setQuickStartedAt] = useState<number | null>(null);
   const [quickFoundAt, setQuickFoundAt] = useState<number | null>(null);
+  // #1681: "Go" on the gold bar spends the rest of the countdown at once.
+  const [quickGo, setQuickGo] = useState(false);
+  // #1681: this page JOINED a room by its link (as opposed to creating one).
+  const [joinedByLink, setJoinedByLink] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const beginQuickMatch = (heroId: string) => {
     setSelectedHeroId(heroId);
@@ -3469,6 +3485,7 @@ const LiveGame = ({
     setQuickSearch(startQuickMatch(heroId, shownLobbies));
     setQuickStartedAt(Date.now());
     setQuickFoundAt(null);
+    setQuickGo(false);
     setInviteCopied(false);
     // One `hero_picked` per search, however many lobbies it walks (#1512).
     trackHeroPicked(heroId, "quickmatch");
@@ -3480,7 +3497,7 @@ const LiveGame = ({
   }, [quickLanded, quickFoundAt]);
   const [quickNow, setQuickNow] = useState(() => Date.now());
   // The table opens once the countdown is spent AND the first STATE is in.
-  const quickFoundDone = quickFoundAt !== null && quickNow - quickFoundAt >= QUICK_FOUND_MS && !!snapshot;
+  const quickFoundDone = quickFoundAt !== null && (quickGo || quickNow - quickFoundAt >= QUICK_FOUND_MS) && !!snapshot;
   const quickTicking = !!quickSearch && !quickFoundDone;
   useEffect(() => {
     if (!quickTicking) return;
@@ -3787,6 +3804,102 @@ const LiveGame = ({
     }
   }, [error]);
 
+  // ---- A puzzle while you wait (#1681) ------------------------------------
+  // Two dead times get the PuzzlePanel inline: a Quick Match search that is
+  // sitting in its own open room, and a created lobby nobody has joined yet.
+  // Never in a tournament room, a rematch wait, a wave pair's room, a bot room
+  // or someone else's room, and never on a viewport too small for the panel
+  // (lib/pro/waitPuzzle.ts). The panel has its own socket; nothing here touches
+  // the game socket, the room's token or the URL.
+  const quickPuzzleFits = useWaitPuzzleFits("quick");
+  const lobbyPuzzleFits = useWaitPuzzleFits("lobby");
+  const waitPuzzlePref = useWaitPuzzleHidden();
+  // The panel reported it has nothing to show (it renders nothing then): the
+  // waiting screens go back to what they were, for the rest of this page.
+  const [waitPuzzleGone, setWaitPuzzleGone] = useState(false);
+  const onWaitPuzzleUnavailable = useCallback(() => setWaitPuzzleGone(true), []);
+  const waitPuzzleUp = waitPuzzlePref.known && !waitPuzzleGone;
+  // "Wanted": there is room for it here and nothing is broken; only the
+  // visitor's own switch can still be in the way (so the way back is offered).
+  const quickPuzzleWanted = quickPuzzleFits && waitPuzzleUp;
+  const lobbyPuzzleWanted = lobbyPuzzleFits && waitPuzzleUp;
+
+  // Quick Match: armed once the search is WAITING in its own room. A search
+  // that joins someone at once never mounts the panel just to pause it.
+  const quickPuzzleWaiting = showQuickDock && !!quickSearch && isQuickMatchWaiting(quickSearch) && !!roomInfo;
+  const [quickPuzzleArmed, setQuickPuzzleArmed] = useState(false);
+  useEffect(() => {
+    if (!quickSearch) setQuickPuzzleArmed(false);
+    else if (quickPuzzleWaiting && quickFoundAt === null) setQuickPuzzleArmed(true);
+  }, [quickSearch, quickPuzzleWaiting, quickFoundAt]);
+  const quickPuzzleShown = showQuickDock && quickPuzzleArmed && quickPuzzleWanted && !waitPuzzlePref.hidden;
+
+  // A created lobby: armed while we sit ALONE in a two-seat room of humans (so
+  // the host, never a joiner). When the first STATE lands the table is held
+  // back behind the gold bar for a moment (`lobbyHoldMs`), so a click in
+  // progress on the puzzle is not hijacked.
+  // Two seats only: a 3-player or 2v2 host needs the waiting screen's team
+  // preview and seat roster, which the one-bar layout has no room for.
+  // A rematch wait, a pair's room and a room joined by its link are excluded
+  // by page state; that is written down per room so a refresh keeps it.
+  const waitNotOurs = !!firedRematch || !!pair || joinedByLink;
+  useEffect(() => {
+    if (roomId && waitNotOurs) markWaitPuzzleSkipped(roomId);
+  }, [roomId, waitNotOurs]);
+  const lobbyAlone =
+    joined &&
+    !quickSearch &&
+    !waitNotOurs &&
+    !!roomId &&
+    !!roomInfo &&
+    roomInfo.seats.length === 1 &&
+    roomInfo.requiredPlayers === 2 &&
+    !snapshot &&
+    !tournament.at &&
+    !tournamentRoom &&
+    !lobbyHasBot &&
+    !error &&
+    !gameLost &&
+    !skipsWaitPuzzle(roomId);
+  const [lobbyPuzzleRoom, setLobbyPuzzleRoom] = useState<string | null>(null);
+  useEffect(() => {
+    if (lobbyAlone) setLobbyPuzzleRoom(roomId);
+    // …and a room that turns out not to be ours to fill (a pair formed, say) is let go.
+    else if (waitNotOurs) setLobbyPuzzleRoom(null);
+  }, [lobbyAlone, waitNotOurs, roomId]);
+  // The table has been shown for this room: the waiting screen never comes back.
+  const [lobbyEnteredRoom, setLobbyEnteredRoom] = useState<string | null>(null);
+  const lobbyPuzzleArmed =
+    lobbyPuzzleRoom !== null && lobbyPuzzleRoom === roomId && lobbyEnteredRoom !== roomId && !tournament.at && !waitNotOurs && !quickSearch;
+  const lobbyPuzzleShown = lobbyPuzzleArmed && lobbyPuzzleWanted && !waitPuzzlePref.hidden;
+  const lobbyHolding = lobbyPuzzleShown && !!snapshot;
+  const lobbyHold = lobbyHoldMs(roomInfo?.turnTimerSeconds);
+  const [lobbyHoldAt, setLobbyHoldAt] = useState<number | null>(null);
+  const [lobbyNow, setLobbyNow] = useState(() => Date.now());
+  const enterLobbyTable = useCallback(() => setLobbyEnteredRoom(roomId), [roomId]);
+  useEffect(() => {
+    if (!snapshot || !roomId) return;
+    // The game is on and nothing is holding it back: this room is entered.
+    // Nor is there a click to protect in a tab nobody is looking at (the
+    // "go do something else" wait): the clock is running, open the table.
+    if (!lobbyHolding || (typeof document !== "undefined" && document.hidden)) {
+      setLobbyEnteredRoom(roomId);
+      return;
+    }
+    const startedAt = Date.now();
+    setLobbyHoldAt(startedAt);
+    setLobbyNow(startedAt);
+    const tick = setInterval(() => setLobbyNow(Date.now()), 250);
+    const done = setTimeout(() => setLobbyEnteredRoom(roomId), lobbyHold);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(done);
+    };
+    // `snapshot` changes with every STATE: only its arrival matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!snapshot, lobbyHolding, roomId, lobbyHold]);
+  const [lobbyLinkCopied, setLobbyLinkCopied] = useState(false);
+
   if (tournament.preJoinScreen) return tournament.preJoinScreen;
 
   // #1542: a Quick Match search keeps the picker up (the dock shows its state).
@@ -3890,6 +4003,7 @@ const LiveGame = ({
           onToggleSound={toggleSound}
           onBot={selectedHeroId ? playBotInstead : undefined}
           onCancel={cancelQuickMatch}
+          onShowPuzzle={quickPuzzleArmed && quickPuzzleWanted && waitPuzzlePref.hidden ? () => waitPuzzlePref.setHidden(false) : undefined}
         />
       );
     }
@@ -3981,6 +4095,28 @@ const LiveGame = ({
           bonusSummary={bonusLabel}
           heroPips={lobbyHeroPips(shownLobbies, roomId)}
           dockPanel={dockPanel}
+          waitPanel={
+            quickPuzzleShown ? (
+              <>
+                <QuickWaitBar
+                  elapsed={elapsedLabel(quickStartedAt === null ? 0 : quickNow - quickStartedAt)}
+                  onCancel={cancelQuickMatch}
+                  onHide={() => waitPuzzlePref.setHidden(true)}
+                  found={
+                    quickFoundAt !== null
+                      ? {
+                          name: opponentName,
+                          secondsLeft: Math.ceil((QUICK_FOUND_MS - Math.max(0, quickNow - quickFoundAt)) / 1000),
+                          onGo: () => setQuickGo(true),
+                          goDisabled: quickGo,
+                        }
+                      : null
+                  }
+                />
+                <WaitPuzzle context="quick_search" paused={quickFoundAt !== null} onUnavailable={onWaitPuzzleUnavailable} />
+              </>
+            ) : null
+          }
           pairMode={pairMode}
           p1HeroName={showQuickDock ? quickHeroName : undefined}
           p2Status={
@@ -4014,6 +4150,7 @@ const LiveGame = ({
             if (tournament.pick(heroId, wasRolled)) return;
             if (room) {
               joinRoom(room, heroId);
+              setJoinedByLink(true); // someone else's room: no waiting puzzle (#1681)
               setSelectedHeroId(heroId);
               setRolledHero(wasRolled);
               setJoined(true);
@@ -4147,7 +4284,9 @@ const LiveGame = ({
   // created room sits here (correctly) until the opponent joins. (Any room
   // with no state yet shows this; the room id is also in the URL now, so
   // don't gate on its absence.)
-  if (!snapshot) {
+  // #1681: …and stays here a moment longer (`lobbyHolding`) when a puzzle was up
+  // as the game started: the gold bar, a short countdown, then the table.
+  if (!snapshot || lobbyHolding) {
     // Quick Match (#687) never reaches this screen since #1542: its search and
     // its own open table both live in the picker's dock (see showQuickDock).
     if (roomId) {
@@ -4167,6 +4306,44 @@ const LiveGame = ({
       const myWaitingHeroName =
         heroNameOf(heroes, selectedHeroId ?? roomInfo?.roster?.find((r) => r.player === roomInfo.you)?.heroId ?? null);
       const boardUnknown = (reconnectedRef.current || tournament.boardUnknown) && !rolledMapId;
+      // #1681: with a puzzle up, the screen is one bar (room, link, publish,
+      // chime) and the panel fills the rest. No panel: the screen below, as ever.
+      if (lobbyPuzzleShown) {
+        return (
+          <Flex direction="column" gap="0.6rem" h="100svh" maxW="84rem" mx="auto" p="0.75rem" data-testid="lobby-wait-puzzle">
+            <LobbyWaitBar
+              title={`ROOM ${roomId}`}
+              waiting={
+                `${myWaitingHeroName ? `You are ${myWaitingHeroName}${rolledHero ? " 🎲" : ""} · ` : ""}` +
+                "waiting for an opponent, the game starts when they join"
+              }
+              rule={roomInfo?.turnTimerSeconds ? `⏱ ${roomInfo.turnTimerSeconds}s per decision` : null}
+              joinUrl={joinUrl}
+              onCopy={() =>
+                void navigator.clipboard
+                  ?.writeText(joinUrl)
+                  .then(() => {
+                    setLobbyLinkCopied(true);
+                    trackInviteCopied("pro");
+                  })
+                  .catch(() => {})
+              }
+              copied={lobbyLinkCopied}
+              roomPublic={roomPublic}
+              onTogglePublic={() => setVisibility(!roomPublic)}
+              soundOn={soundOn}
+              onToggleSound={toggleSound}
+              onHide={() => waitPuzzlePref.setHidden(true)}
+              joined={
+                lobbyHolding
+                  ? { secondsLeft: Math.ceil((lobbyHold - Math.max(0, lobbyNow - (lobbyHoldAt ?? lobbyNow))) / 1000), onGo: enterLobbyTable }
+                  : null
+              }
+            />
+            <WaitPuzzle context="lobby_wait" paused={lobbyHolding} onUnavailable={onWaitPuzzleUnavailable} />
+          </Flex>
+        );
+      }
       return (
         <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em" data-testid="waiting-title">
@@ -4344,6 +4521,7 @@ const LiveGame = ({
           <Text fontSize="0.8rem" opacity={0.6} textAlign="center">
             Go do something else — this tab chimes and renames itself the moment the game starts.
           </Text>
+          {lobbyPuzzleArmed && lobbyPuzzleWanted && waitPuzzlePref.hidden && <ShowWaitPuzzleLink onShow={() => waitPuzzlePref.setHidden(false)} />}
           <Text fontSize="0.8rem" opacity={0.5} display={tournament.at || pair ? "none" : undefined}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>

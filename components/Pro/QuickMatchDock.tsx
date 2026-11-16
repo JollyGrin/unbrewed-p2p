@@ -87,6 +87,8 @@ export interface SearchingPanelProps {
   onToggleSound: () => void;
   onBot?: () => void;
   onCancel: () => void;
+  /** #1681: the visitor switched the waiting puzzle off; this brings it back */
+  onShowPuzzle?: () => void;
 }
 
 export const SearchingPanel = ({
@@ -99,6 +101,7 @@ export const SearchingPanel = ({
   onToggleSound,
   onBot,
   onCancel,
+  onShowPuzzle,
 }: SearchingPanelProps) => (
   <Box
     data-testid="quick-match-searching"
@@ -152,6 +155,11 @@ export const SearchingPanel = ({
       {onBot && (
         <MiniButton onClick={onBot} testId="quick-match-bot">
           Bot instead
+        </MiniButton>
+      )}
+      {onShowPuzzle && (
+        <MiniButton onClick={onShowPuzzle} testId="wait-show">
+          Show puzzle
         </MiniButton>
       )}
       <MiniButton onClick={onCancel} testId="quick-match-cancel">
