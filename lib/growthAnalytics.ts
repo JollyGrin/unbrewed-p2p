@@ -94,7 +94,7 @@ export const useEntryEvent = (
   });
 };
 
-export type LandingSection = "chooser" | "tables" | "intent" | "pro" | "progression" | "decks";
+export type LandingSection = "chooser" | "puzzle" | "tables" | "intent" | "pro" | "progression" | "decks";
 
 /** A landing CTA click, sent as `cta: "<section>:<href>"`. */
 export const trackLandingCta = (section: LandingSection, href: string): void =>

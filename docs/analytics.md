@@ -71,14 +71,15 @@ field is protocol v39 (engine #894); `lib/pro/protocol.ts` is synced to it, so t
 ## Taxonomy
 Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table` (`/table`), `irl` (`/irl`, `/offline`), `pro` (`/pro/game`).
 
-1. **Growth:** `$pageview` (referrer/UTM), `landing_cta_clicked`, `share_link_opened`,
+1. **Growth:** `$pageview` (referrer/UTM), `landing_cta_clicked`, `landing_puzzle_opened`, `share_link_opened`,
    `invite_link_copied`, `join_link_opened`, `login_started`, `login_completed` (+ `$identify`), `pwa_installed`, `app_first_open`.
    `$pageview` already carries referrer, UTM and landing page (posthog-js campaign params). The events below (#1513) live in
    `lib/growthAnalytics.ts`; each is sent **at most once per page load** (a re-render, a second click or a URL the page rewrites
    itself sends nothing).
    | Event | Properties | Trigger |
    |---|---|---|
-   | `landing_cta_clicked` | cta `<section>:<href>`, from_page | A click on a landing CTA (`components/LandingPage/`): `chooser` (Play now options), `tables` (the four table cards), `intent` ("I want to…" card), `pro` (Pro band buttons), `progression` (collection/leaderboard/tournaments), `decks` (2D/3D picks, "Open your bag"). In-page anchors, changelog, footer and nav are not CTAs. |
+   | `landing_cta_clicked` | cta `<section>:<href>`, from_page | A click on a landing CTA (`components/LandingPage/`): `chooser` (Play now options), `tables` (the four table cards), `intent` ("I want to…" card), `pro` (Pro band buttons), `progression` (collection/leaderboard/tournaments), `decks` (2D/3D picks, "Open your bag"), `puzzle` (the landing puzzle's "Open the puzzles page", shown only when the puzzle could not be loaded). In-page anchors, changelog, footer and nav are not CTAs. |
+   | `landing_puzzle_opened` | puzzle_id | The click on the landing puzzle's still that loads the live panel (`components/LandingPage/PuzzleBand.tsx`, #1680). Sent on the click, before anything is known about the engine; what happens next is the panel's `puzzle_*` events with `context: "landing"`. |
    | `share_link_opened` | kind `deck`\|`map`\|`replay`, source `share_page` | `/share/{deck,map,replay}/<id>` once the id is known (`ShareLanding`, `ReplaySharePage`; the routes and the 404.html rescue render the same components). |
    | `share_link_opened` | kind `deck`, source `deeplink` | `?deckId=` present when `/irl`, `/offline` or `/table` first has its query (`lib/hooks/useDeckLink.ts`), only when that is the URL the browser loaded (or the 404 page forwarded an old `/offline/<deckId>` link). In-app links (the bag's "Playtest in person") and the deckId `/irl` writes after an in-game deck switch are not counted. |
    | `invite_link_copied` | mode `sandbox`\|`sandbox-table`\|`pro` | The clipboard write succeeded: `/connect` "Copy Invite Link" (`InviteLink`), `/table` friend's seat "Copy" (`InviteScreen`), pro lobby "copy link", the in-game room chip (`ProHud`) and mobile menu "Copy join link". The native Share sheet and replay share links are not counted here. |

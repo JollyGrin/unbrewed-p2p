@@ -1,0 +1,15 @@
+{
+  "puzzleId": "taranis-one-swing",
+  "version": 1,
+  "goal": "Defeat The Hollow Oak this turn",
+  "source": "Training puzzle · you are King Taranis",
+  "heroes": {
+    "solver": "King Taranis",
+    "enemy": "The Hollow Oak"
+  },
+  "image": {
+    "src": "/puzzles/landing-still.webp",
+    "width": 1200,
+    "height": 898
+  }
+}
