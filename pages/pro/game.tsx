@@ -171,7 +171,7 @@ import {
 } from "@/lib/pro/lobbyPair";
 import { FoundPanel, QuickMatchLabel, SearchingPanel } from "@/components/Pro/QuickMatchDock";
 import { LobbyWaitBar, QuickWaitBar, ShowWaitPuzzleLink, WaitPuzzle } from "@/components/Pro/Puzzle/WaitPuzzle";
-import { lobbyHoldMs, useWaitPuzzleFits, useWaitPuzzleHidden } from "@/lib/pro/waitPuzzle";
+import { lobbyHoldMs, markWaitPuzzleSkipped, skipsWaitPuzzle, useWaitPuzzleFits, useWaitPuzzleHidden } from "@/lib/pro/waitPuzzle";
 import { GameViewBody, useGameViewState, heroDeckMeta, NO_MOTION, prettyHeroId, BTN, heroNameOf, BTN_GOLD, usePendingMoveTimeout, TABLE_BG } from "@/components/Pro/GameView";
 
 /** sessionStorage key for a toast that has to survive a full navigation (#1556). */
@@ -3834,34 +3834,43 @@ const LiveGame = ({
   }, [quickSearch, quickPuzzleWaiting, quickFoundAt]);
   const quickPuzzleShown = showQuickDock && quickPuzzleArmed && quickPuzzleWanted && !waitPuzzlePref.hidden;
 
-  // A created lobby: armed while we sit ALONE in a room of humans (so the host,
-  // never a joiner), and kept for that room once others trickle in. When the
-  // first STATE lands the table is held back behind the gold bar for a moment
-  // (`lobbyHoldMs`), so a click in progress on the puzzle is not hijacked.
+  // A created lobby: armed while we sit ALONE in a two-seat room of humans (so
+  // the host, never a joiner). When the first STATE lands the table is held
+  // back behind the gold bar for a moment (`lobbyHoldMs`), so a click in
+  // progress on the puzzle is not hijacked.
+  // Two seats only: a 3-player or 2v2 host needs the waiting screen's team
+  // preview and seat roster, which the one-bar layout has no room for.
+  // A rematch wait, a pair's room and a room joined by its link are excluded
+  // by page state; that is written down per room so a refresh keeps it.
+  const waitNotOurs = !!firedRematch || !!pair || joinedByLink;
+  useEffect(() => {
+    if (roomId && waitNotOurs) markWaitPuzzleSkipped(roomId);
+  }, [roomId, waitNotOurs]);
   const lobbyAlone =
     joined &&
     !quickSearch &&
-    !joinedByLink &&
+    !waitNotOurs &&
     !!roomId &&
     !!roomInfo &&
     roomInfo.seats.length === 1 &&
-    roomInfo.requiredPlayers > 1 &&
+    roomInfo.requiredPlayers === 2 &&
     !snapshot &&
     !tournament.at &&
     !tournamentRoom &&
-    !pair &&
-    !firedRematch &&
     !lobbyHasBot &&
     !error &&
-    !gameLost;
+    !gameLost &&
+    !skipsWaitPuzzle(roomId);
   const [lobbyPuzzleRoom, setLobbyPuzzleRoom] = useState<string | null>(null);
   useEffect(() => {
     if (lobbyAlone) setLobbyPuzzleRoom(roomId);
-  }, [lobbyAlone, roomId]);
+    // …and a room that turns out not to be ours to fill (a pair formed, say) is let go.
+    else if (waitNotOurs) setLobbyPuzzleRoom(null);
+  }, [lobbyAlone, waitNotOurs, roomId]);
   // The table has been shown for this room: the waiting screen never comes back.
   const [lobbyEnteredRoom, setLobbyEnteredRoom] = useState<string | null>(null);
   const lobbyPuzzleArmed =
-    lobbyPuzzleRoom !== null && lobbyPuzzleRoom === roomId && lobbyEnteredRoom !== roomId && !tournament.at && !pair && !quickSearch;
+    lobbyPuzzleRoom !== null && lobbyPuzzleRoom === roomId && lobbyEnteredRoom !== roomId && !tournament.at && !waitNotOurs && !quickSearch;
   const lobbyPuzzleShown = lobbyPuzzleArmed && lobbyPuzzleWanted && !waitPuzzlePref.hidden;
   const lobbyHolding = lobbyPuzzleShown && !!snapshot;
   const lobbyHold = lobbyHoldMs(roomInfo?.turnTimerSeconds);
@@ -3871,7 +3880,9 @@ const LiveGame = ({
   useEffect(() => {
     if (!snapshot || !roomId) return;
     // The game is on and nothing is holding it back: this room is entered.
-    if (!lobbyHolding) {
+    // Nor is there a click to protect in a tab nobody is looking at (the
+    // "go do something else" wait): the clock is running, open the table.
+    if (!lobbyHolding || (typeof document !== "undefined" && document.hidden)) {
       setLobbyEnteredRoom(roomId);
       return;
     }
@@ -4298,15 +4309,13 @@ const LiveGame = ({
       // #1681: with a puzzle up, the screen is one bar (room, link, publish,
       // chime) and the panel fills the rest. No panel: the screen below, as ever.
       if (lobbyPuzzleShown) {
-        const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
-        const seated = roomInfo?.seats.length ?? 1;
         return (
           <Flex direction="column" gap="0.6rem" h="100svh" maxW="84rem" mx="auto" p="0.75rem" data-testid="lobby-wait-puzzle">
             <LobbyWaitBar
               title={`ROOM ${roomId}`}
               waiting={
                 `${myWaitingHeroName ? `You are ${myWaitingHeroName}${rolledHero ? " 🎲" : ""} · ` : ""}` +
-                (required <= 2 ? "waiting for an opponent, the game starts when they join" : `waiting for players, ${seated}/${required} seats joined`)
+                "waiting for an opponent, the game starts when they join"
               }
               rule={roomInfo?.turnTimerSeconds ? `⏱ ${roomInfo.turnTimerSeconds}s per decision` : null}
               joinUrl={joinUrl}

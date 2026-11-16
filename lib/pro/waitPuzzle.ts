@@ -86,6 +86,36 @@ export const useWaitPuzzleHidden = (): { hidden: boolean; known: boolean; setHid
   return { hidden, known, setHidden };
 };
 
+/**
+ * Rooms whose wait is not ours to fill (a rematch wait, a wave pair's room, a
+ * room this tab joined by its link). What makes them so is page state, which a
+ * refresh loses while the tab's seat is resumed, so it is written down per tab.
+ */
+export const WAIT_PUZZLE_SKIP_ROOMS_KEY = "unbrewed-pro-wait-puzzle-skip-rooms";
+const SKIP_ROOMS_MAX = 20;
+
+const readSkipRooms = (): string[] => {
+  try {
+    const raw = JSON.parse(window.sessionStorage.getItem(WAIT_PUZZLE_SKIP_ROOMS_KEY) || "[]");
+    return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
+export const skipsWaitPuzzle = (roomId: string | null | undefined): boolean =>
+  !!roomId && typeof window !== "undefined" && readSkipRooms().includes(roomId);
+
+export const markWaitPuzzleSkipped = (roomId: string): void => {
+  const rooms = readSkipRooms();
+  if (rooms.includes(roomId)) return;
+  try {
+    window.sessionStorage.setItem(WAIT_PUZZLE_SKIP_ROOMS_KEY, JSON.stringify([...rooms, roomId].slice(-SKIP_ROOMS_MAX)));
+  } catch {
+    /* storage blocked: the exclusion holds until a refresh */
+  }
+};
+
 /** The lobby's hold, same length as Quick Play's "Match found" countdown. */
 export const LOBBY_HOLD_MS = 3_000;
 /** The hold in a room on a short move timer. */

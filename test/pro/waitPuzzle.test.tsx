@@ -27,7 +27,8 @@ import type { HeroListing, LobbyListing, PlayerView } from "@/lib/pro/protocol";
 import { dropTicketFragment } from "@/lib/pro/tournamentTicket";
 import { fixtureMatch } from "@/lib/tournaments/fixtures";
 import { __resetNextMatchForTests } from "@/lib/tournaments/useNextMatch";
-import { LOBBY_HOLD_MS, LOBBY_HOLD_SHORT_MS, WAIT_PUZZLE_HIDDEN_KEY, lobbyHoldMs, waitPuzzleMedia } from "@/lib/pro/waitPuzzle";
+import { sfx } from "@/lib/pro/sfx";
+import { LOBBY_HOLD_MS, LOBBY_HOLD_SHORT_MS, WAIT_PUZZLE_HIDDEN_KEY, WAIT_PUZZLE_SKIP_ROOMS_KEY, lobbyHoldMs, waitPuzzleMedia } from "@/lib/pro/waitPuzzle";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
 // The stand-in panel: its props on data attributes, and a way to fail.
@@ -155,6 +156,8 @@ afterEach(() => {
 });
 
 const panel = () => screen.queryByTestId("puzzle-panel");
+/** The real table (the in-game view) is on screen. */
+const table = () => screen.queryAllByTestId("pro-game-view").length > 0;
 const bar = () => screen.queryByTestId("wait-bar");
 const dock = (testId: string) => screen.getAllByTestId(testId)[0];
 
@@ -219,16 +222,30 @@ describe("Quick Match search", () => {
     expect(panel()).not.toBeInTheDocument();
     expect(bar()).not.toBeInTheDocument();
     expect(screen.queryByTestId("quick-match-found")).not.toBeInTheDocument();
-  });
+    expect(table()).toBe(true);
+  }, 20_000);
 
   it("Go enters the table at once (when the first STATE is in)", async () => {
     await searchInOwnRoom();
     await opponentSits("MINE");
     await deliver(STATE);
     expect(panel()).toHaveAttribute("data-paused", "true");
+    expect(table()).toBe(false);
     await click(screen.getByTestId("wait-go"));
     expect(panel()).not.toBeInTheDocument();
     expect(bar()).not.toBeInTheDocument();
+    expect(table()).toBe(true);
+  });
+
+  it("Go before the first STATE waits for it, then enters without the rest of the countdown", async () => {
+    await searchInOwnRoom();
+    await opponentSits("MINE");
+    await click(screen.getByTestId("wait-go"));
+    expect(panel()).toHaveAttribute("data-paused", "true"); // nothing to enter yet
+    expect(screen.getByTestId("wait-go")).toBeDisabled();
+    await deliver(STATE);
+    expect(panel()).not.toBeInTheDocument();
+    expect(table()).toBe(true);
   });
 
   it("Cancel on the bar leaves the search like the dock's Cancel: the room is unlisted first", async () => {
@@ -301,12 +318,61 @@ describe("a created lobby", () => {
       jest.advanceTimersByTime(LOBBY_HOLD_MS - 200);
     });
     expect(panel()).toBeInTheDocument();
+    expect(table()).toBe(false);
     await act(async () => {
       jest.advanceTimersByTime(400);
     });
     expect(panel()).not.toBeInTheDocument();
     expect(bar()).not.toBeInTheDocument();
     expect(screen.queryByTestId("lobby-wait-puzzle")).not.toBeInTheDocument();
+    expect(table()).toBe(true);
+  });
+
+  it("the match-found chime still plays exactly once, hold or no hold", async () => {
+    const play = jest.spyOn(sfx, "play").mockImplementation(() => undefined as never);
+    const chimes = () => play.mock.calls.filter(([name]) => name === "match-found").length;
+    const realNow = Date.now.bind(Date);
+    let skew = 0;
+    const clock = jest.spyOn(Date, "now").mockImplementation(() => realNow() + skew);
+    try {
+      await createLobby();
+      expect(chimes()).toBe(0);
+      skew = 60_000; // the cue only rings for a host who really waited (lobbyCue's dwell)
+      await opponentSits("MINE");
+      await deliver(STATE);
+      expect(chimes()).toBe(1);
+      expect(bar()).toHaveAttribute("data-gold", "true");
+      await deliver(STATE);
+      await click(screen.getByTestId("wait-go"));
+      await deliver(STATE);
+      expect(table()).toBe(true);
+      expect(chimes()).toBe(1);
+    } finally {
+      clock.mockRestore();
+      play.mockRestore();
+    }
+  });
+
+  it("a tab nobody is looking at gets no hold: the table opens with the game", async () => {
+    await createLobby();
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    try {
+      await deliver(STATE);
+      expect(panel()).not.toBeInTheDocument();
+      expect(table()).toBe(true);
+    } finally {
+      delete (document as unknown as { hidden?: boolean }).hidden;
+    }
+  });
+
+  it("a host who refreshes while waiting gets the puzzle back", async () => {
+    await createLobby();
+    cleanup();
+    FakeWebSocket.reset();
+    await mount({ room: "MINE" }); // this tab's own seat: the page RECONNECTs
+    await deliver({ type: "ROOM_JOINED", roomId: "MINE", token: "tok2", you: "p1", seats: ["p1"], requiredPlayers: 2 });
+    await flush();
+    expect(panel()).toHaveAttribute("data-context", "lobby_wait");
   });
 
   it("Go opens the table at once, and later STATEs never bring the waiting screen back", async () => {
@@ -315,9 +381,11 @@ describe("a created lobby", () => {
     expect(bar()).toHaveAttribute("data-gold", "true");
     await click(screen.getByTestId("wait-go"));
     expect(panel()).not.toBeInTheDocument();
+    expect(table()).toBe(true);
     await deliver(STATE);
     expect(panel()).not.toBeInTheDocument();
     expect(bar()).not.toBeInTheDocument();
+    expect(table()).toBe(true);
   });
 
   it("a room on a short move timer holds the table for half as long", async () => {
@@ -402,14 +470,42 @@ describe("no puzzle where the wait is not ours to fill", () => {
     expect(screen.getByTestId("waiting-title")).toHaveTextContent("ROOM THEIRS");
     expect(panel()).not.toBeInTheDocument();
     expect(bar()).not.toBeInTheDocument();
+    expect(JSON.parse(window.sessionStorage.getItem(WAIT_PUZZLE_SKIP_ROOMS_KEY) ?? "[]")).toEqual(["THEIRS"]);
   });
 
-  it("a rematch wait", async () => {
+  it("a duel joined by its link whose host then left: still not the joiner's lobby", async () => {
+    await mount({ hero: HERO, room: "THEIRS" });
+    await click(screen.getAllByTestId("pro-create-button")[0]);
+    await deliver({ type: "ROOM_JOINED", roomId: "THEIRS", token: "tok", you: "p2", seats: ["p2"], requiredPlayers: 2 });
+    await flush();
+    expect(panel()).not.toBeInTheDocument();
+  });
+
+  it("a rematch wait, also after a refresh", async () => {
     await mount({ rematch: "1", hero: HERO });
     await deliver({ type: "ROOM_CREATED", roomId: "AGAIN", token: "tok", you: "p1" });
     await flush();
     expect(screen.getByTestId("waiting-title")).toHaveTextContent("ROOM AGAIN");
     expect(panel()).not.toBeInTheDocument();
+    expect(JSON.parse(window.sessionStorage.getItem(WAIT_PUZZLE_SKIP_ROOMS_KEY) ?? "[]")).toEqual(["AGAIN"]);
+
+    // The refresh: the rematch keys left the URL when the link fired, so this
+    // load looks like any host coming back to a room. It is still a rematch wait.
+    cleanup();
+    FakeWebSocket.reset();
+    await mount({ room: "AGAIN" });
+    await deliver({ type: "ROOM_JOINED", roomId: "AGAIN", token: "tok2", you: "p1", seats: ["p1"], requiredPlayers: 2 });
+    await flush();
+    expect(screen.getByTestId("waiting-title")).toHaveTextContent("ROOM AGAIN");
+    expect(panel()).not.toBeInTheDocument();
+  });
+
+  it("a three-seat or 2v2 room: the host keeps the waiting screen with its seat roster", async () => {
+    await createLobby({ formatId: "ffa-3", requiredPlayers: 3 });
+    expect(screen.getByTestId("waiting-title")).toHaveTextContent("ROOM MINE");
+    expect(screen.getByText(/1\/3 seats joined/)).toBeInTheDocument();
+    expect(panel()).not.toBeInTheDocument();
+    expect(bar()).not.toBeInTheDocument();
   });
 
   it("a room with a bot in it", async () => {

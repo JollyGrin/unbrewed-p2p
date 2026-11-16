@@ -11,13 +11,13 @@
  *
  * Presentation only. The page (pages/pro/game.tsx) decides when any of this is
  * shown and what "Go" does; lib/pro/waitPuzzle.ts holds the shared decisions.
- * The panel is loaded lazily: it carries a whole in-game view of its own.
+ * The panel is loaded lazily: it carries a whole in-game view of its own. A
+ * chunk that fails to load counts as "no puzzle", like any other failure.
  */
-import dynamic from "next/dynamic";
 import { Box, Button, Flex, Text, keyframes } from "@chakra-ui/react";
-import type { ReactNode } from "react";
-
-const PuzzlePanel = dynamic(() => import("@/components/Pro/Puzzle/PuzzlePanel"), { ssr: false });
+import { useEffect, useRef, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
+import type { PuzzlePanelProps } from "@/components/Pro/Puzzle/PuzzlePanel";
 
 const spin = keyframes`to { transform: rotate(360deg) }`;
 
@@ -50,23 +50,35 @@ const BarButton = ({ children, active, ...rest }: { children: ReactNode; active?
   </Button>
 );
 
-/** "Go": the one button on the gold bar. */
-const GoButton = ({ onGo, disabled }: { onGo: () => void; disabled?: boolean }) => (
-  <Button
-    {...BAR_BUTTON}
-    data-testid="wait-go"
-    onClick={onGo}
-    isDisabled={disabled}
-    px="1.1rem"
-    bg="brand.surfaceDim"
-    color="brand.accent"
-    border="1px solid"
-    borderColor="brand.surfaceDim"
-    _hover={{ bg: "brand.surface" }}
-  >
-    Go
-  </Button>
-);
+/**
+ * "Go": the one button on the gold bar. It takes the focus the pausing panel
+ * is about to drop (its view goes inert), so a keyboard player is not sent
+ * back to the top of the page with three seconds on the clock.
+ */
+const GoButton = ({ onGo, disabled }: { onGo: () => void; disabled?: boolean }) => {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const active = document.activeElement;
+    if (!active || active === document.body || active.closest('[data-testid="wait-puzzle"]')) ref.current?.focus({ preventScroll: true });
+  }, []);
+  return (
+    <Button
+      {...BAR_BUTTON}
+      ref={ref}
+      data-testid="wait-go"
+      onClick={onGo}
+      isDisabled={disabled}
+      px="1.1rem"
+      bg="brand.surfaceDim"
+      color="brand.accent"
+      border="1px solid"
+      borderColor="brand.surfaceDim"
+      _hover={{ bg: "brand.surface" }}
+    >
+      Go
+    </Button>
+  );
+};
 
 const Bar = ({ gold, testId, children }: { gold: boolean; testId: string; children: ReactNode }) => (
   <Flex
@@ -103,11 +115,29 @@ const Note = ({ children, ...rest }: { children: ReactNode } & Record<string, un
   </Text>
 );
 
-/** The gold half of both bars: who arrived, the countdown, "Go". */
-const Arrived = ({ title, secondsLeft, onGo, goDisabled }: { title: string; secondsLeft: number; onGo: () => void; goDisabled?: boolean }) => (
+/**
+ * The gold half of both bars: who arrived, the countdown, "Go". `announce`:
+ * read the title out (once; the ticking seconds are not part of it). Off where
+ * the page already announces the same thing (Quick Match's dock panel).
+ */
+const Arrived = ({
+  title,
+  secondsLeft,
+  onGo,
+  goDisabled,
+  announce,
+}: {
+  title: string;
+  secondsLeft: number;
+  onGo: () => void;
+  goDisabled?: boolean;
+  announce: boolean;
+}) => (
   <>
-    <Flex role="status" aria-live="assertive" align="baseline" gap="0.6rem" flexWrap="wrap" flex="1" minW="0">
-      <Title data-testid="wait-bar-title">{title}</Title>
+    <Flex align="baseline" gap="0.6rem" flexWrap="wrap" flex="1" minW="0">
+      <Title data-testid="wait-bar-title" {...(announce ? { role: "status", "aria-live": "assertive" } : {})}>
+        {title}
+      </Title>
       <Note fontWeight={600}>
         Entering table in{" "}
         <Box as="b" data-testid="wait-bar-seconds" fontFamily="BebasNeueRegular" fontSize="1.15rem" sx={{ fontVariantNumeric: "tabular-nums" }}>
@@ -131,7 +161,7 @@ export interface QuickWaitBarProps {
 export const QuickWaitBar = ({ elapsed, onCancel, onHide, found }: QuickWaitBarProps) => (
   <Bar gold={!!found} testId="wait-bar">
     {found ? (
-      <Arrived title={`Match found · ${found.name}`} secondsLeft={found.secondsLeft} onGo={found.onGo} goDisabled={found.goDisabled} />
+      <Arrived title={`Match found · ${found.name}`} secondsLeft={found.secondsLeft} onGo={found.onGo} goDisabled={found.goDisabled} announce={false} />
     ) : (
       <>
         <Box
@@ -143,7 +173,7 @@ export const QuickWaitBar = ({ elapsed, onCancel, onHide, found }: QuickWaitBarP
           borderTopColor="brand.accent"
           sx={{ animation: `${spin} 0.9s linear infinite`, "@media (prefers-reduced-motion: reduce)": { animation: "none" } }}
         />
-        <Flex role="status" align="baseline" gap="0.6rem" flexWrap="wrap" flex="1" minW="0">
+        <Flex align="baseline" gap="0.6rem" flexWrap="wrap" flex="1" minW="0">
           <Title data-testid="wait-bar-title">Finding a match</Title>
           <Note opacity={0.75}>
             Waiting{" "}
@@ -167,7 +197,7 @@ export const QuickWaitBar = ({ elapsed, onCancel, onHide, found }: QuickWaitBarP
 export interface LobbyWaitBarProps {
   /** "ROOM AB12" */
   title: string;
-  /** "Waiting for an opponent" / "Waiting for players — 2/3 seats joined" */
+  /** "You are King Kong · waiting for an opponent…" */
   waiting: string;
   /** "⏱ 60s" etc.; null = nothing */
   rule: string | null;
@@ -199,10 +229,10 @@ export const LobbyWaitBar = ({
 }: LobbyWaitBarProps) => (
   <Bar gold={!!joined} testId="wait-bar">
     {joined ? (
-      <Arrived title="Opponent joined" secondsLeft={joined.secondsLeft} onGo={joined.onGo} />
+      <Arrived title="Opponent joined" secondsLeft={joined.secondsLeft} onGo={joined.onGo} announce />
     ) : (
       <>
-        <Flex role="status" align="baseline" gap="0.6rem" flexWrap="wrap" flex="1" minW="0">
+        <Flex align="baseline" gap="0.6rem" flexWrap="wrap" flex="1" minW="0">
           <Title data-testid="waiting-title">{title}</Title>
           <Note opacity={0.75} data-testid="wait-bar-waiting">
             {waiting}
@@ -256,11 +286,31 @@ export interface WaitPuzzleProps {
 }
 
 /** The panel in a box that takes whatever height its column has left. */
-export const WaitPuzzle = ({ context, paused, onUnavailable }: WaitPuzzleProps) => (
-  <Box data-testid="wait-puzzle" flex="1" minH="0" minW="0">
-    <PuzzlePanel context={context} paused={paused} onUnavailable={onUnavailable} />
-  </Box>
-);
+export const WaitPuzzle = ({ context, paused, onUnavailable }: WaitPuzzleProps) => {
+  // Loaded by hand rather than with next/dynamic: a chunk that will not load
+  // has to end as `onUnavailable` (the old screen back), not as a thrown error.
+  const [Panel, setPanel] = useState<ComponentType<PuzzlePanelProps> | null>(null);
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
+  useEffect(() => {
+    let live = true;
+    import("@/components/Pro/Puzzle/PuzzlePanel")
+      .then((mod) => {
+        if (live) setPanel(() => mod.default);
+      })
+      .catch(() => {
+        if (live) onUnavailableRef.current();
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <Box data-testid="wait-puzzle" flex="1" minH="0" minW="0">
+      {Panel && <Panel context={context} paused={paused} onUnavailable={onUnavailable} />}
+    </Box>
+  );
+};
 
 /** The way back once the switch is off: one quiet line on the old screens. */
 export const ShowWaitPuzzleLink = ({ onShow }: { onShow: () => void }) => (

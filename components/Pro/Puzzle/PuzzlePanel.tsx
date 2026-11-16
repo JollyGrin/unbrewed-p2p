@@ -266,7 +266,9 @@ export const PuzzlePanel = ({
   );
 
   // Paused or covered by a verdict: the view takes no pointer, focus or key.
-  const blocked = paused || verdict !== null;
+  // (Not for a verdict left over once the puzzles ran out: the "all solved"
+  // card that takes the stage then has buttons of its own.)
+  const blocked = paused || (verdict !== null && !allDone);
   const stageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     stageRef.current?.toggleAttribute("inert", blocked);

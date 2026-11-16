@@ -22,8 +22,9 @@
  *      enters at once.
  *  (b) Lobby: A creates a room, plays a puzzle action, B joins by the link:
  *      A sees the gold bar, then the table.
- *  (c) Cancel leaves a usable picker; the off switch is remembered; a small
- *      viewport keeps today's screens.
+ *  (c) Cancel leaves a usable picker; the off switch is remembered; with every
+ *      puzzle solved "Play them again" starts over; a small viewport keeps
+ *      today's screens.
  *
  * Throughout: the game socket is the one the page opened first and stays open;
  * the puzzle has its own socket, closed when the table opens; the room's token,
@@ -173,6 +174,18 @@ const playOnePuzzleAction = async (page) => {
     { timeout: 10_000 }
   );
   await page.waitForTimeout(400);
+};
+/** Solve the puzzle on the table: a hint before every action, then the hinted action. */
+const solveByHints = async (page) => {
+  for (let i = 0; i < 12; i += 1) {
+    const s = await puzzle(page, `(rec) => ({ legal: rec.state.legalActions.length, result: rec.result })`);
+    if (!s || s.result) return;
+    if (s.legal === 0) {
+      await page.waitForTimeout(200);
+      continue;
+    }
+    await playOnePuzzleAction(page);
+  }
 };
 const filledPips = (page) => page.locator('[data-testid="puzzle-pip"][data-filled="true"]').count();
 
@@ -343,6 +356,7 @@ const lobby = async (browser) => {
   const goldAt = Date.now();
   check(/Opponent joined/.test(await a.locator('[data-testid="wait-bar"]').innerText()), 'B joined: A\'s bar is gold and reads "Opponent joined"');
   check((await count(a, "wait-go")) === 1, 'B joined: "Go" and the countdown are in the gold bar');
+  check(await a.evaluate(() => document.activeElement?.getAttribute("data-testid") === "wait-go"), 'B joined: keyboard focus is on "Go"');
   await shot(a, "b3-lobby-opponent-joined-paused");
   await assertPaused(a, "B joined", pips);
   const entered = await assertAtTable(a, "A");
@@ -392,6 +406,29 @@ const switches = async (browser) => {
   await waitPuzzlePlaying(a);
   check(true, "the dock's Puzzle button brings it back");
   await a.context().close();
+
+  // Every puzzle solved: a wait still has something to offer, and the record is kept.
+  const l = await seat(browser);
+  await openPicker(l);
+  const engine = (await l.evaluate(() => window.__ws[0].ws.url)).replace(/^ws/, "http").replace(/\/+$/, "");
+  const ids = (await (await fetch(`${engine}/puzzles.json`)).json()).puzzles.map((p) => p.id);
+  await l.evaluate((rest) => localStorage.setItem("unbrewed-pro-puzzles-solved", JSON.stringify(rest)), ids.slice(1));
+  await visible(l, "pro-create-button").click();
+  await l.locator('[data-testid="lobby-wait-puzzle"]').waitFor({ timeout: 20_000 });
+  await waitPuzzlePlaying(l);
+  check((await l.locator('[data-testid="puzzle-panel"]').getAttribute("data-puzzle")) === ids[0], `one puzzle left unsolved: the wait opens it (${ids[0]})`);
+  await solveByHints(l);
+  await l.locator('[data-testid="puzzle-next"]').click({ timeout: 15_000 });
+  await l.locator('[data-testid="puzzle-all-solved"]').waitFor({ timeout: 10_000 });
+  check((await count(l, "puzzle-full-game")) === 0, '"You solved them all" in a wait: no full-game button');
+  await shot(l, "c3-lobby-all-solved");
+  await l.locator('[data-testid="puzzle-play-again"]').click({ timeout: 5_000 }); // a real click: fails if the card is inert
+  await l.waitForFunction((id) => document.querySelector('[data-testid="puzzle-panel"]')?.getAttribute("data-puzzle") === id && !document.querySelector('[data-testid="puzzle-all-solved"]'), ids[0], { timeout: 15_000 });
+  await waitPuzzlePlaying(l);
+  check((await count(l, "puzzle-result-solved")) === 0 && (await filledPips(l)) > 0, '"Play them again" starts over from the first puzzle, on a clean board');
+  check(await l.evaluate((all) => JSON.stringify(JSON.parse(localStorage.getItem("unbrewed-pro-puzzles-solved"))) === JSON.stringify([...all.slice(1), all[0]]), ids), "the solved record is kept (all of them, none cleared)");
+  check(l.__errors.length === 0, `no page errors${l.__errors[0] ? `: ${l.__errors[0].slice(0, 200)}` : ""}`);
+  await l.context().close();
 
   // The picker's column needs more height than the lobby screen does.
   const q = await seat(browser, { width: 1280, height: 660 });

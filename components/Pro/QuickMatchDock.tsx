@@ -159,7 +159,7 @@ export const SearchingPanel = ({
       )}
       {onShowPuzzle && (
         <MiniButton onClick={onShowPuzzle} testId="wait-show">
-          🧩 Puzzle
+          Show puzzle
         </MiniButton>
       )}
       <MiniButton onClick={onCancel} testId="quick-match-cancel">
