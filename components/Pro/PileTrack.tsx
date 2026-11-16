@@ -125,12 +125,12 @@ const PIP_LOOK: Record<PileTrackStepState, { bg: string; color: string; ring: st
   held: { bg: TRACK_GOLD, color: "#2C1831", ring: TRACK_GOLD },
   active: { bg: TRACK_BLUE, color: "#FFFFFF", ring: TRACK_GOLD },
   upcoming: { bg: "transparent", color: "rgba(250,235,215,0.75)", ring: "rgba(250,235,215,0.45)" },
-  spent: { bg: "rgba(250,235,215,0.14)", color: "rgba(250,235,215,0.55)", ring: "rgba(250,235,215,0.2)" },
+  spent: { bg: "rgba(192,57,43,0.85)", color: "#FFFFFF", ring: "#E74C3C" },
   unknown: { bg: "transparent", color: "rgba(250,235,215,0.4)", ring: "rgba(250,235,215,0.2)" },
 };
 
 /** The whole track in five dots: gold = reward held, ringed blue = active,
- *  hollow = still in the deck, struck through = reward used up. */
+ *  hollow = still in the deck, red + struck through = reward used up. */
 const TrackPips = ({ track }: { track: PileTrackView }) => (
   <Flex gap="0.2rem" flexShrink={0} data-testid="pile-track-pips">
     {track.steps.map((s) => {

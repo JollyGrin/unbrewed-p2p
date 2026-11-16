@@ -114,7 +114,7 @@ describe("pileTrackFor", () => {
 
 describe("display helpers", () => {
   it("takes the goal's name from after the colon and drops the stray newline / no-break space", () => {
-    expect(trackGoalSubtitle("Adventure1: YOur new Home")).toBe("YOur new Home");
+    expect(trackGoalSubtitle("Adventure1: Your new Home")).toBe("Your new Home");
     expect(trackGoalSubtitle("Adventure 2:President Pomni 2: Last stand")).toBe("President Pomni 2: Last stand");
     expect(trackGoalSubtitle("Adventure 4:\nPomni’s Perilous Pilgrimage")).toBe("Pomni’s Perilous Pilgrimage");
     expect(trackGoalSubtitle("Adventure 5: \nOvertime at Spudsy's Delivery Service")).toBe(
