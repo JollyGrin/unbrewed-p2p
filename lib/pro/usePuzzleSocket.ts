@@ -71,6 +71,9 @@ export type PuzzleSocketPhase =
   | "lost" // had a room, then the socket closed
   | "expired"; // the server dropped the room after its idle window (PUZZLE_CLOSED)
 
+/** A room that is over for good: only a fresh one (`restart()`, another puzzle) leaves these. */
+export const isTerminalPuzzlePhase = (phase: PuzzleSocketPhase): boolean => phase === "unavailable" || phase === "lost" || phase === "expired";
+
 export interface UsePuzzleSocketReturn {
   /** What `<GameView socket>` consumes. */
   socket: UseProSocketReturn;
@@ -168,7 +171,9 @@ export function usePuzzleSocket(
     setRevealState(revealRef.current);
     if (next.info) setInfo(next.info);
     setSnapshot(next.snapshot);
-    setPhase("playing");
+    // A room that has ended stays ended: a STATE that was still waiting its
+    // turn here must not put a dead board back in play.
+    setPhase((now) => (isTerminalPuzzlePhase(now) ? now : "playing"));
   }, []);
   const push = useCallback(
     (item: Applied) => {
@@ -182,6 +187,22 @@ export function usePuzzleSocket(
     drainTimerRef.current = null;
     queueRef.current = [];
   }, []);
+
+  // The room is over (never opened, dropped, lost). Whatever was still queued
+  // belongs to it, and so do the verdict, the hint and a played solution:
+  // the panel's "Start again" / "Reload puzzle" must not sit under a stale
+  // verdict.
+  const endRoom = useCallback(
+    (phase: "unavailable" | "lost" | "expired") => {
+      clearQueue();
+      setOpen(false);
+      setResult(null);
+      setHint(null);
+      setSolution(null);
+      setPhase(phase);
+    },
+    [clearQueue]
+  );
 
   const send = useCallback((msg: ClientMsg) => {
     const ws = wsRef.current;
@@ -230,8 +251,7 @@ export function usePuzzleSocket(
     const giveUp = setTimeout(() => {
       if (!alive || hadStateRef.current) return;
       alive = false;
-      setOpen(false);
-      setPhase("unavailable");
+      endRoom("unavailable");
       try {
         ws.close();
       } catch {
@@ -329,8 +349,7 @@ export function usePuzzleSocket(
           // The server dropped an idle room; the socket is of no further use.
           // `restart()` opens a fresh room (the caller decides when).
           alive = false;
-          setOpen(false);
-          setPhase("expired");
+          endRoom("expired");
           ws.close();
           break;
         case "ERROR":
@@ -342,7 +361,7 @@ export function usePuzzleSocket(
           else if (hadStateRef.current && msg.code === "SERVER_ERROR") setServerError(true);
           else if (FATAL_CODES.has(msg.code) || !hadStateRef.current) {
             setError({ code: msg.code, message: msg.message });
-            setPhase(hadStateRef.current ? "lost" : "unavailable");
+            endRoom(hadStateRef.current ? "lost" : "unavailable");
             alive = false;
             ws.close();
           }
@@ -355,8 +374,7 @@ export function usePuzzleSocket(
     const onGone = () => {
       if (!alive) return;
       alive = false;
-      setOpen(false);
-      setPhase(hadStateRef.current ? "lost" : "unavailable");
+      endRoom(hadStateRef.current ? "lost" : "unavailable");
     };
     ws.onclose = onGone;
     ws.onerror = onGone;
@@ -376,7 +394,7 @@ export function usePuzzleSocket(
       }
       if (wsRef.current === ws) wsRef.current = null;
     };
-  }, [wsUrl, puzzleId, enabled, generation, push, clearQueue]);
+  }, [wsUrl, puzzleId, enabled, generation, push, clearQueue, endRoom]);
 
   const claimActionSlot = useCallback((action: Action) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return false;

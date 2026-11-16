@@ -1917,6 +1917,13 @@ export interface GameViewFeatures {
    * sideways finger drag still move the board. The board is fitted either way.
    */
   boardGestures: boolean;
+  /**
+   * the HUD controls that write THIS DEVICE's /pro/game settings (combat pace,
+   * slow mode, hide opponents' cosmetics, tabletop figure style and zone
+   * discs). Off, for a panel on a page that is not the game (#1687): the stored
+   * settings still apply, but a puzzle cannot change how the real game plays.
+   */
+  deviceSettings: boolean;
 }
 
 /** /pro/game: everything on. */
@@ -1932,6 +1939,7 @@ export const FULL_GAME_FEATURES: GameViewFeatures = {
   turnReminder: true,
   tableBoard: true,
   boardGestures: true,
+  deviceSettings: true,
 };
 
 /**
@@ -3829,21 +3837,21 @@ export const GameViewBody = ({
     // Only offered once an opponent has actually published something —
     // otherwise it is a chip that visibly does nothing in every guest
     // game, which is most of them.
-    onToggleOpponentCosmetics: cosmetics.hasOpponentCosmetics ? toggleHideCosmetics : undefined,
+    onToggleOpponentCosmetics: features.deviceSettings && cosmetics.hasOpponentCosmetics ? toggleHideCosmetics : undefined,
     slowModeOn: slowMode,
-    onToggleSlowMode: toggleSlowMode,
+    onToggleSlowMode: features.deviceSettings ? toggleSlowMode : undefined,
     slowModeHolding: !!slowModeHeld,
     pace,
-    onCyclePace: cyclePace,
+    onCyclePace: features.deviceSettings ? cyclePace : undefined,
     boardView,
     onToggleBoardView: features.tableBoard ? toggleBoardView : undefined,
     boardViewLockedHint: boardViewLockedHint(mode),
     figureStyle: boardView === "table" && figureStyles.length > 0 ? figureStyle : undefined,
     figureStyles: boardView === "table" ? figureStyles : undefined,
-    onChooseFigureStyle: boardView === "table" && figureStyles.length > 0 ? chooseFigureStyle : undefined,
+    onChooseFigureStyle: features.deviceSettings && boardView === "table" && figureStyles.length > 0 ? chooseFigureStyle : undefined,
     // Zone discs (#1395): a tabletop-only control, like the figure style.
     zoneDiscs: boardView === "table" ? zoneDiscs : undefined,
-    onToggleZoneDiscs: boardView === "table" ? toggleZoneDiscs : undefined,
+    onToggleZoneDiscs: features.deviceSettings && boardView === "table" ? toggleZoneDiscs : undefined,
     // The credit for the miniature each seat's hero stands as on the table.
     figureCreditFor: boardView === "table" ? (seat: string) => pieceCredit(heroPiece(seat)) : undefined,
     turnReminderOn,
@@ -4619,6 +4627,11 @@ export interface GameViewProps {
    * When given, the view raises NO toast on the host page. Read at mount.
    */
   onNotice?: OnViewNotice;
+  /**
+   * Receives the view's activity log (newest batch first) whenever it changes,
+   * for a host that shows it outside the view (#1687: beside a puzzle's board).
+   */
+  onLog?: (entries: ProLogEntry[]) => void;
   /** The `slowMode` the socket was opened with, so the hold spotlight matches it. */
   slowMode?: boolean;
   /**
@@ -4636,10 +4649,17 @@ const GameViewInner = ({
   opponentHandLabel,
   sound,
   onNotice,
+  onLog,
   slowMode = false,
   fallback = null,
 }: Omit<GameViewProps, "contained" | "features"> & { features: GameViewFeatures }) => {
   const state = useGameViewState({ socket, slowMode, features, sound, onNotice });
+  const onLogRef = useRef(onLog);
+  onLogRef.current = onLog;
+  const { logEntries } = state;
+  useEffect(() => {
+    onLogRef.current?.(logEntries);
+  }, [logEntries]);
   if (!socket.snapshot) return <>{fallback}</>;
   return <GameViewBody socket={socket} state={state} host={{ slowMode }} features={features} opponentHand={opponentHand} opponentHandLabel={opponentHandLabel} />;
 };

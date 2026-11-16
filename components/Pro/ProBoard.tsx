@@ -468,6 +468,7 @@ export const ProBoard = ({
       >
       <Box
         as="img"
+        data-pro-board-map=""
         src={map.meta.imageUrl}
         alt={map.meta.title}
         maxW="100%"

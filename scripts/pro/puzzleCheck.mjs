@@ -20,6 +20,14 @@
  * and URL path are untouched, a wheel and a touch drag over the board scroll
  * the PAGE, no toast is raised, and leaving the page closes the socket.
  *
+ * Review fixes (#1687), also here so a real browser enforces them: a room that
+ * ends under a verdict (the server's idle close, a dropped socket) leaves
+ * "Start again" / "Reload puzzle" pressable (the stage is not `inert`; the
+ * clicks are real ones); focus moves to the verdict's main button; at desktop
+ * width this try's log stands beside the board; a solve after the solution was
+ * watched is not shown as a first-try solve; the view's menu offers no control
+ * that writes this device's /pro/game settings.
+ *
  * How it plays: the panel's own buttons are clicked (Hint, Reset, Try again,
  * Show the solution, Next puzzle). Game actions go down the page's own puzzle
  * socket, taken from what the server offered: the hint's action to win, a
@@ -143,6 +151,46 @@ const contained = (page) =>
     return { out: out.slice(0, 5), stray };
   });
 
+/** The stage (the board's box) is not inert, so what stands on it can be pressed. */
+const stageLive = (page) => page.evaluate(() => {
+  const stage = document.querySelector('[data-testid="puzzle-stage"]');
+  return !!stage && !stage.hasAttribute("inert") && !stage.inert;
+});
+
+/** How many puzzle rooms this page has opened. */
+const roomCount = (page) => page.evaluate(() => window.__pz.filter((r) => r.room).length);
+
+/**
+ * With a verdict up, end the room under it and press the card's button with a
+ * real click (Playwright refuses to click what cannot be hit: an inert stage
+ * fails here). `how`: "idle" hands the page the server's own PUZZLE_CLOSED
+ * frame (the engine's idle window is minutes long); "drop" closes the socket.
+ */
+const endRoomUnderVerdict = async (page, how) => {
+  const rooms = await roomCount(page);
+  const card = how === "idle" ? "puzzle-expired" : "puzzle-lost";
+  const button = how === "idle" ? "Start again" : "Reload puzzle";
+  await page.evaluate((kind) => {
+    const rec = [...window.__pz].reverse().find((r) => r.ws.readyState === 1 && r.room);
+    if (kind === "idle") rec.ws.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ v: rec.state.v, type: "PUZZLE_CLOSED", roomId: rec.room, reason: "idle" }) }));
+    else rec.ws.close();
+  }, how);
+  await page.locator(`[data-testid="${card}"]`).waitFor({ timeout: 10_000 });
+  await page.waitForTimeout(300);
+  check(await stageLive(page), `${how === "idle" ? "idle-closed" : "socket dropped"} under a verdict: the stage is not inert`);
+  check((await page.locator('[data-testid="puzzle-result-solved"], [data-testid="puzzle-result-failed"]').count()) === 0, "…and the dead room's verdict is gone");
+  const pressed = await page
+    .locator(`[data-testid="${card}"]`)
+    .getByRole("button", { name: button })
+    .click({ timeout: 5_000 })
+    .then(() => true, () => false);
+  check(pressed, `"${button}" takes a real click`);
+  if (!pressed) throw new Error(`"${button}" could not be clicked`);
+  await page.waitForFunction((n) => window.__pz.filter((r) => r.room).length > n, rooms, { timeout: 15_000 });
+  await waitPlaying(page);
+  check(await stageLive(page), `"${button}" opens a fresh room, playable`);
+};
+
 const waitPlaying = async (page, sinceSeq = 0) => {
   await page.waitForFunction(
     (seq) => {
@@ -221,6 +269,29 @@ const run = async (browser, width, height) => {
   check((await page.locator('[data-testid="puzzle-pip"][data-filled="true"]').count()) === (await page.locator('[data-testid="puzzle-pip"]').count()), "all action pips full at the start");
   check((await page.locator('[data-testid="revealed-hand-panel"]').innerText()).includes("Opponent's hand"), 'the face-up hand box reads "Opponent\'s hand · shown in puzzles"');
   await shot(page, `${tag}-1-playing`);
+  // This try's log: beside the board on a wide panel, behind the view's button otherwise.
+  const logShown = await page.locator('[data-testid="puzzle-log"]').count();
+  if (width >= 1200) {
+    check(logShown === 1 && (await page.locator('[data-testid="puzzle-log"]').isVisible()), "desktop: this try's log stands beside the board, no button needed");
+    const logBox = await page.locator('[data-testid="puzzle-log"]').boundingBox();
+    const stageBox = await page.locator('[data-testid="puzzle-stage"]').boundingBox();
+    check(!!logBox && !!stageBox && logBox.x >= stageBox.x + stageBox.width - 1 && stageBox.width >= 700, `the log takes a column of its own (${Math.round(logBox?.width ?? 0)}px) and leaves the board ${Math.round(stageBox?.width ?? 0)}px`);
+  } else {
+    check(logShown === 0, "phone: no log column (the view's Log button has it)");
+  }
+  // The view's menu: nothing in it writes this device's /pro/game settings.
+  const menu = page.locator('[data-testid="pro-game-view"] [aria-label="Game menu"]');
+  if ((await menu.count()) > 0) {
+    await menu.first().click();
+    await page.waitForTimeout(400);
+    const rows = await page.evaluate(() => [...document.querySelectorAll('[data-testid="puzzle-panel"] [role="menuitem"]')].map((el) => el.textContent ?? ""));
+    check(!rows.some((t) => /pace|slow mode|cosmetic|figure|zone disc/i.test(t)), `the view's menu has no per-device game setting (${rows.length} rows: ${rows.join(" | ") || "none"})`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+  } else {
+    const chips = await page.evaluate(() => [...document.querySelectorAll('[data-testid="pro-game-view"] button')].map((el) => `${el.getAttribute("aria-label") ?? ""} ${el.textContent ?? ""}`));
+    check(!chips.some((t) => /pace|slow mode|cosmetic|figure|zone disc/i.test(t)), "the view's chips have no per-device game setting");
+  }
   let c = await contained(page);
   check(c.out.length === 0 && c.stray === 0, `nothing renders outside the panel box${c.out.length ? `: ${c.out.join(", ")}` : ""}${c.stray ? ` (${c.stray} stray portals)` : ""}`);
 
@@ -290,6 +361,12 @@ const run = async (browser, width, height) => {
   await page.locator('[data-testid="puzzle-result-failed"]').waitFor({ timeout: 10_000 });
   const failedText = await page.locator('[data-testid="puzzle-result-failed"]').innerText();
   check(/survives/i.test(failedText) && /\d+ HP left/.test(failedText), `failed result: "${failedText.replace(/\s+/g, " ").slice(0, 80)}"`);
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "puzzle-try-again"), 'focus is on the verdict\'s main button ("Try again")');
+  if (width >= 1200) {
+    const lines = await page.locator('[data-testid="puzzle-log-line"]').allInnerTexts();
+    check(lines.length > 1, `the log lists the try in plain language (${lines.length} lines, last: "${lines[lines.length - 1]}")`);
+  }
   check((await page.locator('[data-testid="puzzle-pip"][data-filled="true"]').count()) === 0, "pips empty after the turn");
   await shot(page, `${tag}-2-failed`);
 
@@ -317,6 +394,16 @@ const run = async (browser, width, height) => {
   check(c.out.length === 0 && c.stray === 0, `still nothing outside the panel box${c.out.length ? `: ${c.out.join(", ")}` : ""}`);
   check(await page.evaluate((id) => JSON.parse(localStorage.getItem("unbrewed-pro-puzzles-solved") || "[]").includes(id), first), "the solve is remembered in localStorage");
   check((await page.locator(`[data-testid="puzzle-strip-item"][data-puzzle="${first}"]`).getAttribute("data-solved")) === "true", "the strip ticks the solved puzzle");
+  check(await page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "puzzle-next"), 'focus is on the verdict\'s main button ("Next puzzle")');
+  check(!(await stageLive(page)), "under the verdict the board is inert");
+
+  // A room that ends under a verdict: the server's idle close, then a dropped socket.
+  await endRoomUnderVerdict(page, "idle");
+  await winByHints(page);
+  await page.locator('[data-testid="puzzle-result-solved"]').waitFor({ timeout: 10_000 });
+  await endRoomUnderVerdict(page, "drop");
+  await winByHints(page);
+  await page.locator('[data-testid="puzzle-result-solved"]').waitFor({ timeout: 10_000 });
 
   // Next puzzle.
   const firstSocket = await page.evaluate(() => window.__pz.filter((r) => r.room).length);
@@ -346,6 +433,14 @@ const run = async (browser, width, height) => {
   await page.locator('[data-testid="puzzle-try-again"]').click();
   await page.waitForFunction((n) => window.__pz.filter((r) => r.room).length > n, rooms, { timeout: 15_000 });
   check(true, '"Try again" after the solution opens a fresh room');
+  // …and a solve in that fresh room is not passed off as the visitor's own.
+  await waitPlaying(page);
+  await winByHints(page);
+  await page.locator('[data-testid="puzzle-result-solved"]').waitFor({ timeout: 10_000 });
+  const replayText = (await page.locator('[data-testid="puzzle-result-solved"]').innerText()).replace(/\s+/g, " ");
+  check(/Solved after seeing the solution/i.test(replayText) && !/first try/i.test(replayText), `a solve after the watched solution: "${replayText.slice(0, 90)}"`);
+  check(await page.evaluate((id) => JSON.parse(localStorage.getItem("unbrewed-pro-puzzles-solved") || "[]").includes(id), second), "…and it is remembered, so \"Next puzzle\" moves on");
+  await shot(page, `${tag}-8-solved-after-solution`);
 
   // The host page is untouched, and no toast was raised.
   check((await page.title()) === title, `page title unchanged ("${title}")`);

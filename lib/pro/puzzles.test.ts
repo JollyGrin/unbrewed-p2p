@@ -1,7 +1,7 @@
 /** Puzzle helpers (issue #1679): progress, catalogue, the board's room for the open hand, notice routing. */
 import { toast } from "react-hot-toast";
 import { insetForOpenHand, OPEN_HAND_GAP } from "./mobileLayout";
-import { fetchPuzzleCatalogue } from "./puzzleCatalogue";
+import { PUZZLE_LOAD_TIMEOUT_MS, fetchPuzzleCatalogue } from "./puzzleCatalogue";
 import { __resetPuzzleProgressForTests, markPuzzleSolved, nextUnsolvedPuzzle, PUZZLE_PROGRESS_KEY, readSolvedPuzzles } from "./puzzleProgress";
 import { makeViewToast } from "./viewNotices";
 
@@ -84,6 +84,26 @@ describe("fetchPuzzleCatalogue", () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
     expect(await fetchPuzzleCatalogue({ wsUrl: "ws://x" })).toBeNull();
+  });
+
+  it("is null when the request stalls: no answer within the timeout, and the request is aborted (#1687)", async () => {
+    jest.useFakeTimers();
+    try {
+      let signal: AbortSignal | undefined;
+      global.fetch = jest.fn((_url: string, init?: RequestInit) => {
+        signal = init?.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }) as unknown as typeof fetch;
+      let settled: unknown = "pending";
+      void fetchPuzzleCatalogue({ wsUrl: "ws://x" }).then((v) => (settled = v));
+      await jest.advanceTimersByTimeAsync(PUZZLE_LOAD_TIMEOUT_MS - 100);
+      expect(settled).toBe("pending");
+      await jest.advanceTimersByTimeAsync(200);
+      expect(settled).toBeNull();
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

@@ -171,6 +171,7 @@ import {
 } from "@/lib/pro/lobbyPair";
 import { FoundPanel, QuickMatchLabel, SearchingPanel } from "@/components/Pro/QuickMatchDock";
 import { LobbyWaitBar, QuickWaitBar, ShowWaitPuzzleLink, WaitPuzzle } from "@/components/Pro/Puzzle/WaitPuzzle";
+import type { PuzzlePanelStatus } from "@/components/Pro/Puzzle/PuzzlePanel";
 import { lobbyHoldMs, markWaitPuzzleSkipped, skipsWaitPuzzle, useWaitPuzzleFits, useWaitPuzzleHidden } from "@/lib/pro/waitPuzzle";
 import { GameViewBody, useGameViewState, heroDeckMeta, NO_MOTION, prettyHeroId, BTN, heroNameOf, BTN_GOLD, usePendingMoveTimeout, TABLE_BG } from "@/components/Pro/GameView";
 
@@ -3817,7 +3818,25 @@ const LiveGame = ({
   // The panel reported it has nothing to show (it renders nothing then): the
   // waiting screens go back to what they were, for the rest of this page.
   const [waitPuzzleGone, setWaitPuzzleGone] = useState(false);
-  const onWaitPuzzleUnavailable = useCallback(() => setWaitPuzzleGone(true), []);
+  // …and the lobby's panel reported a puzzle on the table. Until then the
+  // lobby keeps its classic waiting screen (the panel loads out of sight), so
+  // the screen is never an empty box under a bar (#1687). Latched: a later
+  // "loading" (the next puzzle's room) does not bring the classic screen back.
+  const [lobbyPuzzleReady, setLobbyPuzzleReady] = useState(false);
+  const onQuickPuzzleStatus = useCallback((status: PuzzlePanelStatus) => {
+    if (status === "unavailable") setWaitPuzzleGone(true);
+  }, []);
+  // The classic screen goes away under the visitor when the puzzle is up: if
+  // the keyboard was on one of its buttons, it lands on the bar's "Copy link"
+  // instead of falling off the page.
+  const lobbyFocusToBarRef = useRef(false);
+  const onLobbyPuzzleStatus = useCallback((status: PuzzlePanelStatus) => {
+    if (status === "unavailable") setWaitPuzzleGone(true);
+    else if (status === "ready") {
+      lobbyFocusToBarRef.current = !!document.activeElement?.closest("[data-classic-waiting]");
+      setLobbyPuzzleReady(true);
+    }
+  }, []);
   const waitPuzzleUp = waitPuzzlePref.known && !waitPuzzleGone;
   // "Wanted": there is room for it here and nothing is broken; only the
   // visitor's own switch can still be in the way (so the way back is offered).
@@ -3872,7 +3891,19 @@ const LiveGame = ({
   const lobbyPuzzleArmed =
     lobbyPuzzleRoom !== null && lobbyPuzzleRoom === roomId && lobbyEnteredRoom !== roomId && !tournament.at && !waitNotOurs && !quickSearch;
   const lobbyPuzzleShown = lobbyPuzzleArmed && lobbyPuzzleWanted && !waitPuzzlePref.hidden;
-  const lobbyHolding = lobbyPuzzleShown && !!snapshot;
+  // Mounted is not yet seen: the one-bar layout takes the screen once the
+  // panel has a puzzle up. Each showing of the panel starts unseen again.
+  useEffect(() => {
+    if (!lobbyPuzzleShown) setLobbyPuzzleReady(false);
+  }, [lobbyPuzzleShown]);
+  const lobbyPuzzleUp = lobbyPuzzleShown && lobbyPuzzleReady;
+  useEffect(() => {
+    if (!lobbyPuzzleUp || !lobbyFocusToBarRef.current) return;
+    lobbyFocusToBarRef.current = false;
+    document.querySelector<HTMLElement>('[data-testid="wait-copy"]')?.focus({ preventScroll: true });
+  }, [lobbyPuzzleUp]);
+  // No hold for a puzzle the visitor never saw: the table opens with the game.
+  const lobbyHolding = lobbyPuzzleUp && !!snapshot;
   const lobbyHold = lobbyHoldMs(roomInfo?.turnTimerSeconds);
   const [lobbyHoldAt, setLobbyHoldAt] = useState<number | null>(null);
   const [lobbyNow, setLobbyNow] = useState(() => Date.now());
@@ -4113,7 +4144,7 @@ const LiveGame = ({
                       : null
                   }
                 />
-                <WaitPuzzle context="quick_search" paused={quickFoundAt !== null} onUnavailable={onWaitPuzzleUnavailable} />
+                <WaitPuzzle context="quick_search" paused={quickFoundAt !== null} onStatus={onQuickPuzzleStatus} />
               </>
             ) : null
           }
@@ -4306,46 +4337,37 @@ const LiveGame = ({
       const myWaitingHeroName =
         heroNameOf(heroes, selectedHeroId ?? roomInfo?.roster?.find((r) => r.player === roomInfo.you)?.heroId ?? null);
       const boardUnknown = (reconnectedRef.current || tournament.boardUnknown) && !rolledMapId;
-      // #1681: with a puzzle up, the screen is one bar (room, link, publish,
-      // chime) and the panel fills the rest. No panel: the screen below, as ever.
-      if (lobbyPuzzleShown) {
-        return (
-          <Flex direction="column" gap="0.6rem" h="100svh" maxW="84rem" mx="auto" p="0.75rem" data-testid="lobby-wait-puzzle">
-            <LobbyWaitBar
-              title={`ROOM ${roomId}`}
-              waiting={
-                `${myWaitingHeroName ? `You are ${myWaitingHeroName}${rolledHero ? " 🎲" : ""} · ` : ""}` +
-                "waiting for an opponent, the game starts when they join"
-              }
-              rule={roomInfo?.turnTimerSeconds ? `⏱ ${roomInfo.turnTimerSeconds}s per decision` : null}
-              joinUrl={joinUrl}
-              onCopy={() =>
-                void navigator.clipboard
-                  ?.writeText(joinUrl)
-                  .then(() => {
-                    setLobbyLinkCopied(true);
-                    trackInviteCopied("pro");
-                  })
-                  .catch(() => {})
-              }
-              copied={lobbyLinkCopied}
-              roomPublic={roomPublic}
-              onTogglePublic={() => setVisibility(!roomPublic)}
-              soundOn={soundOn}
-              onToggleSound={toggleSound}
-              onHide={() => waitPuzzlePref.setHidden(true)}
-              joined={
-                lobbyHolding
-                  ? { secondsLeft: Math.ceil((lobbyHold - Math.max(0, lobbyNow - (lobbyHoldAt ?? lobbyNow))) / 1000), onGo: enterLobbyTable }
-                  : null
-              }
-            />
-            <WaitPuzzle context="lobby_wait" paused={lobbyHolding} onUnavailable={onWaitPuzzleUnavailable} />
-          </Flex>
-        );
-      }
-      return (
-        <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
+      // The board this room plays on, as the waiting screens name it. A Random
+      // pick is already resolved by the time we get here, so the lobby names
+      // the board that was actually rolled (#685).
+      const waitingBoardTitle = rolledMapId
+        ? `${catalogEntry(rolledMapId)?.title ?? "the default board"} 🎲`
+        : selectedMapId === CUSTOM_MAP_ID
+          ? "a custom board"
+          : catalogEntry(selectedMapId)?.title ?? "the default board";
+      const submitMapLink = mapSubmit ? (
+        <Link
+          as="button"
+          data-testid="lobby-submit-map"
+          onClick={() => setSubmitMapOpen(true)}
+          bg="transparent"
+          fontFamily="SpaceGrotesk"
+          fontSize="0.75rem"
+          letterSpacing="0.06em"
+          opacity={0.55}
+          _hover={{ opacity: 1, color: "brand.accent" }}
+          display="inline-flex"
+          alignItems="center"
+          gap="0.3rem"
+        >
+          happy with this board? submit it to unbrewed <TbExternalLink size="0.8rem" />
+        </Link>
+      ) : null;
+      const submitMapDialog = mapSubmit ? (
+        <SubmitMapDialog isOpen={submitMapOpen} onClose={() => setSubmitMapOpen(false)} map={mapSubmit.map} json={mapSubmit.json} />
+      ) : null;
+      const classicWaiting = (
+        <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" data-classic-waiting="">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em" data-testid="waiting-title">
             {pair ? `Waiting for ${pairPartnerName(pair.with)}…` : tournament.at ? "YOUR MATCH ROOM" : `ROOM ${roomId}`}
           </Text>
@@ -4358,13 +4380,7 @@ const LiveGame = ({
             {(() => {
               const required = roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers;
               const seated = roomInfo?.seats.length ?? 1;
-              // A Random pick is already resolved by the time we get here, so
-              // the lobby names the board that was actually rolled (#685).
-              const boardTitle = rolledMapId
-                ? `${catalogEntry(rolledMapId)?.title ?? "the default board"} 🎲`
-                : selectedMapId === CUSTOM_MAP_ID
-                  ? "a custom board"
-                  : catalogEntry(selectedMapId)?.title ?? "the default board";
+              const boardTitle = waitingBoardTitle;
               const waiting =
                 required <= 2
                   ? "Waiting for an opponent — the game starts the moment they join."
@@ -4525,32 +4541,79 @@ const LiveGame = ({
           <Text fontSize="0.8rem" opacity={0.5} display={tournament.at || pair ? "none" : undefined}>
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
-          {mapSubmit && (
-            <Link
-              as="button"
-              onClick={() => setSubmitMapOpen(true)}
-              bg="transparent"
-              fontFamily="SpaceGrotesk"
-              fontSize="0.75rem"
-              letterSpacing="0.06em"
-              opacity={0.55}
-              _hover={{ opacity: 1, color: "brand.accent" }}
-              display="inline-flex"
-              alignItems="center"
-              gap="0.3rem"
-            >
-              happy with this board? submit it to unbrewed <TbExternalLink size="0.8rem" />
-            </Link>
-          )}
-          {mapSubmit && (
-            <SubmitMapDialog
-              isOpen={submitMapOpen}
-              onClose={() => setSubmitMapOpen(false)}
-              map={mapSubmit.map}
-              json={mapSubmit.json}
-            />
-          )}
+          {submitMapLink}
         </Flex>
+      );
+      // #1681: with a puzzle up, the screen is one bar (room, link, publish,
+      // chime) and the panel fills the rest. No panel: the classic screen, as
+      // ever. #1687: the classic screen also stays while the panel is still
+      // loading: it is mounted out of sight (full size, so its view measures
+      // the box it will have) and takes the screen when it reports `ready`.
+      // One tree for both, so the panel and its room survive the switch.
+      if (lobbyPuzzleShown) {
+        return (
+          <>
+            {!lobbyPuzzleUp && classicWaiting}
+            <Flex
+              direction="column"
+              gap="0.6rem"
+              h="100svh"
+              maxW="84rem"
+              mx="auto"
+              p="0.75rem"
+              data-testid="lobby-wait-puzzle"
+              data-ready={lobbyPuzzleUp ? "true" : "false"}
+              {...(lobbyPuzzleUp
+                ? {}
+                : { position: "fixed" as const, inset: 0, w: "100%", visibility: "hidden" as const, pointerEvents: "none" as const, "aria-hidden": true })}
+            >
+              {lobbyPuzzleUp && (
+                <LobbyWaitBar
+                  title={`ROOM ${roomId}`}
+                  waiting={
+                    `${myWaitingHeroName ? `You are ${myWaitingHeroName}${rolledHero ? " 🎲" : ""} · ` : ""}` +
+                    "waiting for an opponent, the game starts when they join"
+                  }
+                  board={boardUnknown ? null : `playing on ${waitingBoardTitle}`}
+                  extra={submitMapLink}
+                  rule={roomInfo?.turnTimerSeconds ? `⏱ ${roomInfo.turnTimerSeconds}s per decision` : null}
+                  joinUrl={joinUrl}
+                  onCopy={() =>
+                    void navigator.clipboard
+                      ?.writeText(joinUrl)
+                      .then(() => {
+                        setLobbyLinkCopied(true);
+                        trackInviteCopied("pro");
+                      })
+                      .catch(() => {})
+                  }
+                  copied={lobbyLinkCopied}
+                  roomPublic={roomPublic}
+                  onTogglePublic={() => setVisibility(!roomPublic)}
+                  soundOn={soundOn}
+                  onToggleSound={toggleSound}
+                  onHide={() => waitPuzzlePref.setHidden(true)}
+                  joined={
+                    lobbyHolding
+                      ? { secondsLeft: Math.ceil((lobbyHold - Math.max(0, lobbyNow - (lobbyHoldAt ?? lobbyNow))) / 1000), onGo: enterLobbyTable }
+                      : null
+                  }
+                />
+              )}
+              <WaitPuzzle context="lobby_wait" paused={lobbyHolding} onStatus={onLobbyPuzzleStatus} />
+            </Flex>
+            {submitMapDialog}
+          </>
+        );
+      }
+      // The same three places as above, so the dialog (open or not) is the
+      // same element whichever screen stands around it.
+      return (
+        <>
+          {classicWaiting}
+          {null}
+          {submitMapDialog}
+        </>
       );
     }
     return (

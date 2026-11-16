@@ -13,7 +13,7 @@
  * puzzlePanel.test.tsx, and the two-browser run is scripts/pro/waitPuzzleCheck.mjs.
  */
 import "@testing-library/jest-dom";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ChakraProvider } from "@chakra-ui/react";
@@ -31,14 +31,40 @@ import { sfx } from "@/lib/pro/sfx";
 import { LOBBY_HOLD_MS, LOBBY_HOLD_SHORT_MS, WAIT_PUZZLE_HIDDEN_KEY, WAIT_PUZZLE_SKIP_ROOMS_KEY, lobbyHoldMs, waitPuzzleMedia } from "@/lib/pro/waitPuzzle";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
-// The stand-in panel: its props on data attributes, and a way to fail.
+// The stand-in panel: its props on data attributes, a way to fail, and its
+// `onStatus` report: "ready" as it mounts (a puzzle is up) unless a test holds
+// that back to play the loading stretch itself.
+const mockPanel = { readyAtMount: true, mounts: 0 };
 jest.mock("../../components/Pro/Puzzle/PuzzlePanel", () => {
-  const Stub = (props: { context: string; paused?: boolean; onUnavailable?: () => void }) => (
-    <div data-testid="puzzle-panel" data-context={props.context} data-paused={props.paused ? "true" : "false"}>
-      <button type="button" data-testid="stub-puzzle-fail" onClick={() => props.onUnavailable?.()} />
-    </div>
-  );
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { useEffect } = require("react");
+  const Stub = (props: { context: string; paused?: boolean; onStatus?: (status: string) => void }) => {
+    useEffect(() => {
+      mockPanel.mounts += 1;
+      props.onStatus?.(mockPanel.readyAtMount ? "ready" : "loading");
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return (
+      <div data-testid="puzzle-panel" data-context={props.context} data-paused={props.paused ? "true" : "false"}>
+        <button type="button" data-testid="stub-puzzle-ready" onClick={() => props.onStatus?.("ready")} />
+        <button type="button" data-testid="stub-puzzle-loading" onClick={() => props.onStatus?.("loading")} />
+        <button type="button" data-testid="stub-puzzle-fail" onClick={() => props.onStatus?.("unavailable")} />
+      </div>
+    );
+  };
   return { __esModule: true, default: Stub, PuzzlePanel: Stub };
+});
+
+/** A minimal engine-native board, for the Custom… option (as in itemsChip.test.tsx). */
+const CUSTOM_MAP_JSON = JSON.stringify({
+  schemaVersion: "1.0",
+  id: "wedding-crashers",
+  meta: { title: "Wedding Crashers", minPlayers: 2, maxPlayers: 2, specialRules: false },
+  zones: [{ id: "z", color: "#fff", label: "Z" }],
+  spaces: [
+    { id: "a", x: 0.1, y: 0.1, zones: ["z"], adjacentTo: ["b"], start: { slot: 1 } },
+    { id: "b", x: 0.2, y: 0.2, zones: ["z"], adjacentTo: ["a"], start: { slot: 2 } },
+  ],
 });
 
 const HERO = "king-kong";
@@ -133,6 +159,8 @@ beforeAll(() => {
 beforeEach(() => {
   FakeWebSocket.reset();
   SENT = [];
+  mockPanel.readyAtMount = true;
+  mockPanel.mounts = 0;
   viewportFits = { quick: true, lobby: true };
   window.matchMedia = ((query: string) => ({
     matches: (query === waitPuzzleMedia("quick") && viewportFits.quick) || (query === waitPuzzleMedia("lobby") && viewportFits.lobby),
@@ -297,11 +325,87 @@ describe("a created lobby", () => {
     expect(screen.getByTestId("waiting-title")).toHaveTextContent("ROOM MINE");
     expect(screen.getByTestId("wait-bar-waiting")).toHaveTextContent("You are King Kong");
     expect(screen.getByTestId("wait-bar-waiting")).toHaveTextContent("45s per decision");
+    // The board the room plays on is still said (#1687).
+    expect(screen.getByTestId("wait-bar-waiting")).toHaveTextContent(/playing on \S/);
     expect(screen.getByTestId("wait-bar-link")).toHaveTextContent("/pro/game?room=MINE");
     expect(screen.getByTestId("wait-copy")).toBeInTheDocument();
     expect(screen.getByTestId("lobby-sound-toggle")).toBeInTheDocument();
     await click(screen.getByTestId("wait-public"));
     expect(frames("SET_VISIBILITY")).toEqual([expect.objectContaining({ roomId: "MINE", public: true })]);
+  });
+
+  it("keeps the classic waiting screen until the panel has a puzzle up, then swaps without remounting it (#1687)", async () => {
+    mockPanel.readyAtMount = false;
+    await createLobby();
+    // The panel is mounted (loading, out of sight); the screen is the classic one.
+    expect(panel()).toBeInTheDocument();
+    expect(screen.getByTestId("lobby-wait-puzzle")).toHaveAttribute("data-ready", "false");
+    expect(screen.getByTestId("lobby-wait-puzzle")).toHaveStyle({ visibility: "hidden" });
+    expect(bar()).not.toBeInTheDocument();
+    expect(screen.getByTestId("waiting-title")).toHaveTextContent("ROOM MINE");
+    expect(screen.getByText("copy link")).toBeInTheDocument();
+    expect(screen.getByText(/playing on/)).toBeInTheDocument();
+
+    const mounted = panel();
+    await click(screen.getByTestId("stub-puzzle-ready"));
+    expect(screen.getByTestId("lobby-wait-puzzle")).toHaveAttribute("data-ready", "true");
+    expect(screen.getByTestId("lobby-wait-puzzle")).not.toHaveStyle({ visibility: "hidden" });
+    expect(bar()).toBeInTheDocument();
+    expect(screen.queryByText("copy link")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("waiting-title")).toHaveLength(1);
+    // The very same panel (and so its socket and its room): not a second one.
+    expect(panel()).toBe(mounted);
+    expect(mockPanel.mounts).toBe(1);
+    // "Next puzzle" loads a new room: the classic screen does not flash back.
+    await click(screen.getByTestId("stub-puzzle-loading"));
+    expect(bar()).toBeInTheDocument();
+    expect(screen.queryByText("copy link")).not.toBeInTheDocument();
+  });
+
+  it("a custom board keeps its board line and its 'submit it' link in the bar (#1687)", async () => {
+    mockPanel.readyAtMount = false;
+    await mount();
+    // The Custom… board, with a board pasted in.
+    await click(screen.getByRole("button", { name: /All \d+ boards/ }));
+    await click(within(screen.getByRole("dialog", { name: "Choose a board" })).getByLabelText(/Custom board/));
+    await act(async () => {
+      fireEvent.change(screen.getByPlaceholderText(/paste map JSON/), { target: { value: CUSTOM_MAP_JSON } });
+    });
+    await click(screen.getAllByTestId("pro-create-button")[0]);
+    await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
+    await flush();
+
+    // Classic screen first, with its link. (The dialog itself is not opened
+    // here: jsdom's selector engine cannot run Chakra's focus lock.)
+    expect(bar()).not.toBeInTheDocument();
+    expect(screen.getByTestId("lobby-submit-map")).toBeInTheDocument();
+
+    await click(screen.getByTestId("stub-puzzle-ready"));
+    // The one-bar layout: the board line, and the link within reach, once.
+    expect(screen.getByTestId("wait-bar-waiting")).toHaveTextContent("playing on a custom board");
+    expect(within(bar()!).getByTestId("lobby-submit-map")).toBeInTheDocument();
+    expect(screen.getAllByTestId("lobby-submit-map")).toHaveLength(1);
+    expect(mockPanel.mounts).toBe(1);
+  });
+
+  it("the keyboard is not dropped when the classic screen gives way: focus goes to the bar's Copy link (#1687)", async () => {
+    mockPanel.readyAtMount = false;
+    await createLobby();
+    const classicCopy = screen.getByText("copy link");
+    classicCopy.focus();
+    expect(classicCopy).toHaveFocus();
+    await click(screen.getByTestId("stub-puzzle-ready"));
+    expect(screen.getByTestId("wait-copy")).toHaveFocus();
+  });
+
+  it("a game that starts while the panel is still loading opens the table at once: no hold for a puzzle nobody saw (#1687)", async () => {
+    mockPanel.readyAtMount = false;
+    await createLobby();
+    await opponentSits("MINE");
+    await deliver(STATE);
+    expect(table()).toBe(true);
+    expect(panel()).not.toBeInTheDocument();
+    expect(bar()).not.toBeInTheDocument();
   });
 
   it("the game starting pauses the panel behind the gold bar, then opens the table", async () => {

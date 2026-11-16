@@ -8,6 +8,13 @@ import { trackLandingCta, trackOnce } from "@/lib/growthAnalytics";
 // Types only (erased at build): the panel itself is imported on the click.
 import type { PuzzlePanelProps, PuzzlePanelStatus } from "@/components/Pro/Puzzle/PuzzlePanel";
 
+/**
+ * How long the panel's code may take to arrive before the still says it could
+ * not be loaded (lib/pro/puzzleCatalogue's PUZZLE_LOAD_TIMEOUT_MS, restated:
+ * importing that module here would put it in the landing page's own bundle).
+ */
+export const PANEL_LOAD_TIMEOUT_MS = 8_000;
+
 /** The game table's felt (GameView's TABLE_BG), so the swap to the live panel keeps its colours. */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
 const RULE = "1px solid rgba(224, 168, 46, 0.25)";
@@ -26,7 +33,7 @@ const BOX_MIN_H = { base: "34rem", md: "32rem" };
 type Stage = "still" | "opening" | "live" | "failed";
 
 /** How long the still waits for the live board's picture before it gives way anyway. */
-const BOARD_WAIT_MS = 2500;
+export const BOARD_WAIT_MS = 2500;
 
 /**
  * The landing puzzle (issue #1680): a still of the position with the goal as
@@ -52,9 +59,25 @@ export const LandingPuzzle = () => {
     if (stageRef.current === "opening" || stageRef.current === "live") return;
     trackOnce("landing_puzzle_opened", { puzzle_id: LANDING_PUZZLE.id });
     setStage("opening");
+    // A chunk that stalls is a chunk that did not load: the still and its link.
+    let settled = false;
+    const giveUp = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      setStage((now) => (now === "opening" ? "failed" : now));
+    }, PANEL_LOAD_TIMEOUT_MS);
     import("@/components/Pro/Puzzle/PuzzlePanel").then(
-      (mod) => setPanel(() => mod.PuzzlePanel),
-      () => setStage("failed"), // the chunk did not load
+      (mod) => {
+        clearTimeout(giveUp);
+        // Late, after the still gave up: kept for the visitor's "Try again".
+        setPanel(() => mod.PuzzlePanel);
+      },
+      () => {
+        clearTimeout(giveUp);
+        if (settled) return;
+        settled = true;
+        setStage("failed"); // the chunk did not load
+      },
     );
   }, []);
 
@@ -68,14 +91,16 @@ export const LandingPuzzle = () => {
       return;
     }
     if (status !== "ready" || boardWait.current) return;
-    // "Ready" is the first position arriving; the board's picture may still be
-    // on its way. Hold the still until it is in (or a moment has passed), so
-    // the swap is board for board and not board for bare table.
+    // "Ready" is the first position arriving: the view is not rendered yet
+    // (its frame measures itself first) and the board's picture may still be
+    // on its way. Hold the still until the picture is in (or a moment has
+    // passed), so the swap is board for board and not board for bare table.
     const started = Date.now();
     const drawn = () => {
-      const view = liveRef.current?.querySelector('[data-testid="pro-game-view"]');
-      if (!view) return true; // a state without a board ("You solved them all")
-      const map = view.querySelector("img");
+      const panel = liveRef.current?.querySelector('[data-testid="puzzle-panel"]');
+      // A state without a board ("You solved them all", "Start again"): nothing to wait for.
+      if (panel?.getAttribute("data-board") !== "true") return true;
+      const map = panel.querySelector<HTMLImageElement>('[data-testid="pro-game-view"] img[data-pro-board-map]');
       return (!!map && map.complete) || Date.now() - started >= BOARD_WAIT_MS;
     };
     const goLive = () => {

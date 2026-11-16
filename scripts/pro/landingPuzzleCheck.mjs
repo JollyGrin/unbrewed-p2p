@@ -37,8 +37,14 @@ const SIZES = (process.env.SIZES ?? "1280x800,390x844").split(",").map((s) => s.
 if (OUT) mkdirSync(OUT, { recursive: true });
 
 const STILL_JSON = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../public/puzzles/landing-still.json"), "utf8"));
-/** What only the puzzle panel's code contains: the message that opens a puzzle room. */
-const PANEL_MARK = "CREATE_PUZZLE_ROOM";
+/**
+ * What only the puzzle panel's code contains: the solved verdict's test id.
+ * (Not "CREATE_PUZZLE_ROOM": lib/pro/protocol.ts names that message in a
+ * comment, a dev build keeps comments, and the landing page's roster socket
+ * already imports that file, so the landing bundle matched it without holding
+ * any of the panel.)
+ */
+const PANEL_MARK = "puzzle-result-solved";
 
 const failures = [];
 const fail = (msg) => {
@@ -154,6 +160,33 @@ const newContext = async (browser, width, height) => {
   return context;
 };
 
+/** The board picture's URL, learnt in the first run, for `runSlowBoard`. */
+let boardPictureUrl = null;
+
+/**
+ * Record, at the instant the block turns `live`, whether the board under the
+ * still is drawn: `window.__swap = { view, complete, width, src, afterBoardMs }`
+ * (`afterBoardMs`: how long the panel had had a board on the table by then).
+ */
+const watchSwap = (page) =>
+  page.evaluate((sel) => {
+    const box = document.querySelector(sel);
+    let boardAt = null;
+    const look = () => {
+      if (boardAt === null && document.querySelector('[data-testid="puzzle-panel"][data-board="true"]')) boardAt = performance.now();
+      if (box.getAttribute("data-stage") !== "live" || window.__swap) return;
+      const img = box.querySelector('[data-testid="pro-game-view"] img[data-pro-board-map]');
+      window.__swap = {
+        view: !!box.querySelector('[data-testid="pro-game-view"]'),
+        complete: !!img && img.complete,
+        width: img?.naturalWidth ?? 0,
+        src: img?.currentSrc || img?.src || null,
+        afterBoardMs: boardAt === null ? null : Math.round(performance.now() - boardAt),
+      };
+    };
+    new MutationObserver(look).observe(box, { attributes: true, subtree: true, childList: true });
+  }, BOX);
+
 const run = async (browser, width, height) => {
   const tag = `${width}`;
   console.log(`\n== ${width}×${height} ==`);
@@ -221,6 +254,9 @@ const run = async (browser, width, height) => {
     }).observe({ type: "layout-shift", buffered: false });
   });
 
+  // What is under the still at the very moment it gives way (#1687).
+  await watchSwap(page);
+
   // Not on the button: anywhere on the still plays (here, the board's picture).
   const picture = await page.locator(`${STILL} img`).boundingBox();
   await page.mouse.click(picture.x + picture.width / 2, picture.y + picture.height / 3);
@@ -236,7 +272,9 @@ const run = async (browser, width, height) => {
   await waitPlaying(page);
   check((await page.locator(STILL).count()) === 0, "the still is replaced by the live panel");
   check(await page.evaluate(() => !!document.activeElement?.querySelector('[data-testid="puzzle-panel"]')), "focus is handed to the live panel");
-  check(await page.evaluate(() => document.querySelector('[data-testid="pro-game-view"] img')?.complete === true), "the board's picture was in when the still gave way");
+  const swap = await page.evaluate(() => window.__swap);
+  check(!!swap && swap.view && swap.complete && swap.width > 0, `at the moment the still gave way the board was drawn (${JSON.stringify(swap)})`);
+  boardPictureUrl = swap?.src ?? boardPictureUrl;
   check((await page.locator('[data-testid="puzzle-panel"]').getAttribute("data-context")) === "landing", 'the panel runs with context="landing"');
   await page.waitForTimeout(1500);
   if (OUT) await page.screenshot({ path: `${OUT}/${tag}-3-live.png` });
@@ -289,6 +327,38 @@ const run = async (browser, width, height) => {
   await context.close();
 };
 
+/**
+ * The board's picture held back: the panel is ready long before its board can
+ * be drawn. The still must stay until the picture is in (#1687).
+ */
+const runSlowBoard = async (browser, width, height, delayMs = 1500) => {
+  console.log(`\n== ${width}×${height}, board picture ${delayMs} ms late ==`);
+  if (!boardPictureUrl) return fail("no board picture seen in the first run: slow-board check not run");
+  const context = await newContext(browser, width, height);
+  const picture = new URL(boardPictureUrl);
+  let held = 0;
+  await context.route(
+    (url) => url.pathname === picture.pathname && url.host === picture.host,
+    async (route) => {
+      held += 1;
+      await new Promise((r) => setTimeout(r, delayMs));
+      await route.continue();
+    }
+  );
+  const page = await context.newPage();
+  await page.goto(`${BASE}/`, { waitUntil: "load" });
+  await page.locator(BOX).scrollIntoViewIfNeeded();
+  await watchSwap(page);
+  await page.locator('[data-testid="landing-puzzle-play"]').click();
+  await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("data-stage") === "live", BOX, { timeout: 60_000 });
+  const swap = await page.evaluate(() => window.__swap);
+  check(held > 0, `the board's picture was held back (${held} request${held === 1 ? "" : "s"} to ${picture.pathname})`);
+  check(!!swap && swap.view && swap.complete && swap.width > 0, `the still waited for it: at the swap the board was drawn (${JSON.stringify(swap)})`);
+  check(!!swap && swap.afterBoardMs !== null && swap.afterBoardMs >= delayMs - 400, `…${swap?.afterBoardMs} ms after the board was first on the table`);
+  if (OUT) await page.screenshot({ path: `${OUT}/${width}-7-slow-board-live.png` });
+  await context.close();
+};
+
 /** The engine cut off: the still stays, with a link to /puzzles. */
 const runUnreachable = async (browser, width, height) => {
   console.log(`\n== ${width}×${height}, engine unreachable ==`);
@@ -314,6 +384,7 @@ const runUnreachable = async (browser, width, height) => {
 const browser = await chromium.launch();
 try {
   for (const [w, h] of SIZES) await run(browser, w, h);
+  await runSlowBoard(browser, ...SIZES[0]);
   await runUnreachable(browser, ...SIZES[0]);
 } catch (e) {
   fail(`aborted: ${e.message.split("\n")[0]}`);
