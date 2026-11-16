@@ -56,7 +56,7 @@ import {
 } from "./slowModeQueue";
 import { useAccount } from "@/lib/account/useAccount";
 import { useBadges } from "@/lib/account/useBadges";
-import { useCosmetics } from "@/lib/account/useCosmetics";
+import { useCosmetics, type CosmeticsStatus } from "@/lib/account/useCosmetics";
 import type { CosmeticConstants, HeroCosmetics } from "@/lib/account/cosmetics";
 import { cosmeticsField, identityFields } from "./playerIdentity";
 import {
@@ -158,6 +158,11 @@ export interface UseProSocketReturn {
    */
   cosmeticHeroes: HeroCosmetics[];
   cosmeticConstants: CosmeticConstants;
+  /**
+   * How that read went (p2p #1668): only "ready" makes a hero missing from
+   * `cosmeticHeroes` mean "nothing earned yet" rather than "unknown".
+   */
+  cosmeticsStatus: CosmeticsStatus;
   /**
    * The seat identity a CREATE_ROOM/JOIN_ROOM would carry has settled: the
    * account probe answered, and for a signed-in player the worn badges and the
@@ -1830,6 +1835,7 @@ export function useProSocket(
     // the page diffs against THIS copy rather than mounting a second hook.
     cosmeticHeroes: cosmetics.heroes,
     cosmeticConstants: cosmetics.constants,
+    cosmeticsStatus: cosmetics.status,
     status,
     roomId,
     roomInfo,

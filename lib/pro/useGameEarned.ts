@@ -26,7 +26,7 @@ import type { AccountStats, StatsResult } from "@/lib/account/stats";
 import { fetchAccountStats } from "@/lib/account/stats";
 import type { Badge } from "@/lib/account/badges";
 import type { CosmeticConstants, CosmeticsResult, HeroCosmetics } from "@/lib/account/cosmetics";
-import { FALLBACK_CONSTANTS, fetchCosmetics } from "@/lib/account/cosmetics";
+import { FALLBACK_CONSTANTS, emptyHeroCosmetics, fetchCosmetics } from "@/lib/account/cosmetics";
 import type { Quest, QuestsResult } from "@/lib/account/quests";
 import { fetchQuests } from "@/lib/account/quests";
 import { reprobeBadges } from "@/lib/account/useBadges";
@@ -161,6 +161,27 @@ export const readAfterLanding = async (
   };
 };
 
+/**
+ * The hero's pre-game cosmetics row, for the snapshot's points baseline
+ * (#1668). The page's own row wins; without one, a GOOD read (`known`) means
+ * the hero has earned nothing yet, which is a baseline of 0 (the same reading
+ * `readAfterLanding` and `useCosmetics.heroFor` make), while a degraded or
+ * failed read leaves it unknown. After a landing on this page the last landed
+ * figure replaces either, since the page-load copy no longer describes the
+ * hero.
+ */
+export const baselineHero = (
+  heroId: string | null,
+  heroes: readonly HeroCosmetics[],
+  known: boolean,
+  landed: { heroId: string; points: number | null } | null = null,
+): HeroCosmetics | null => {
+  if (!heroId) return null;
+  const held = heroes.find((row) => row.heroId === heroId) ?? (known ? emptyHeroCosmetics(heroId, true) : null);
+  if (landed?.heroId !== heroId) return held;
+  return { ...(held ?? emptyHeroCosmetics(heroId, false)), earned: landed.points };
+};
+
 // --- the hook ----------------------------------------------------------------
 
 export interface GameEarnedInput {
@@ -178,6 +199,13 @@ export interface GameEarnedInput {
   stats: AccountStats | null;
   /** The pre-game cosmetics, as the socket's `useCosmetics` holds them. */
   cosmeticHeroes: HeroCosmetics[];
+  /**
+   * The pre-game cosmetics read came back GOOD (`useCosmetics` is "ready"),
+   * so a hero it has no row for has earned nothing yet: a baseline of 0, not
+   * an unknown one (#1668). False/absent (still loading, degraded, failed)
+   * keeps a missing row unknown.
+   */
+  cosmeticsKnown?: boolean;
   /** The api's ladder; null falls back to the client's copy of it. */
   cosmeticConstants: CosmeticConstants | null;
   /** The badge case, as `useBadges` holds it. */
@@ -248,6 +276,11 @@ export const useGameEarned = (input: GameEarnedInput, deps: EarnedPollDeps = DEF
   // rematch diffs against its own start. Null until an answer arrives; the
   // quest row then falls back to the `bonuses.quests` total.
   const questsDoneRef = useRef<string[] | null>(null);
+  // The hero points the last landing read (#1668), for the same reason as
+  // `landedStatsRef`: the page's cosmetics are the page-load copy, so a
+  // rematch as the same hero must start from what the last game left, known
+  // or not, rather than count that game's points again.
+  const landedPointsRef = useRef<{ heroId: string; points: number | null } | null>(null);
 
   const { roomId, gameOver, signedIn, heroId } = input;
   const kindKey = input.kind?.kind ?? null;
@@ -287,7 +320,7 @@ export const useGameEarned = (input: GameEarnedInput, deps: EarnedPollDeps = DEF
       setState({ phase: "casual", practiceCap: baseline?.bonuses?.practice?.cap ?? null });
       return;
     }
-    const hero = current.cosmeticHeroes.find((row) => row.heroId === heroId) ?? null;
+    const hero = baselineHero(heroId, current.cosmeticHeroes, current.cosmeticsKnown === true, landedPointsRef.current);
     const before = takeEarnedSnapshot(baseline, heroId, hero, current.badges, questsDoneRef.current);
     if (!before) {
       setState({ phase: "no-baseline" });
@@ -307,6 +340,7 @@ export const useGameEarned = (input: GameEarnedInput, deps: EarnedPollDeps = DEF
       const after = await readAfterLanding(landed, before, poll, thresholds);
       if (token.cancelled) return;
       if (after.quests) questsDoneRef.current = doneQuestIds(after.quests);
+      landedPointsRef.current = { heroId: before.heroId, points: after.heroPoints };
       setState({ phase: "landed", before, after: after.stats, delta: earnedDelta(before, after), practice, thresholds: after.thresholds });
     });
     return () => {

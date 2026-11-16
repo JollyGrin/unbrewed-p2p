@@ -4,14 +4,15 @@
  * guest games never poll, a landed poll yields the delta, a timed-out one
  * stays a calm waiting state.
  */
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import type { AccountStats, StatsResult } from "@/lib/account/stats";
 import type { Badge } from "@/lib/account/badges";
 import type { CosmeticsResult } from "@/lib/account/cosmetics";
 import { FALLBACK_CONSTANTS, emptyHeroCosmetics } from "@/lib/account/cosmetics";
 import type { Quest, QuestsResult } from "@/lib/account/quests";
 import type { EarnedSnapshot } from "./earned";
-import { EarnedPollDeps, GameEarnedInput, PollToken, pollUntilLanded, readAfterLanding, useGameEarned } from "./useGameEarned";
+import { EarnedPollDeps, GameEarnedInput, GameEarnedView, PollToken, baselineHero, pollUntilLanded, readAfterLanding, useGameEarned } from "./useGameEarned";
+import { ProPostGameEarned } from "@/components/Pro/ProPostGameEarned";
 
 const stats = (over: Partial<AccountStats> = {}): AccountStats =>
   ({
@@ -315,6 +316,89 @@ describe("useGameEarned", () => {
     });
     await flush();
     expect(result.current).toMatchObject({ phase: "landed", delta: { xp: 56 } });
+  });
+
+  describe("a hero with no pre-game cosmetics row (#1668)", () => {
+    const CONSTANTS = { ...FALLBACK_CONSTANTS, heroFirstGamePoints: 50 };
+    const played = (games: number) => [{ heroId: "king-kong", games }] as AccountStats["byHero"];
+    /** `/me/cosmetics` after each landing, in order; the last one repeats. */
+    const cosmeticsAfter = (...earned: number[]): EarnedPollDeps["fetchCosmetics"] => {
+      const queue = [...earned];
+      return async () => ({
+        ok: true,
+        value: { heroes: [{ ...emptyHeroCosmetics("king-kong", true), earned: queue.length > 1 ? (queue.shift() as number) : queue[0] }], constants: CONSTANTS },
+      });
+    };
+    const tile = (view: GameEarnedView | null) => {
+      const { unmount } = render(<ProPostGameEarned view={view as GameEarnedView} heroName="King Kong" />);
+      const text = screen.getByTestId("post-game-points").textContent;
+      unmount();
+      return text;
+    };
+
+    it("baselineHero: the page's row wins, a good read without one is 0, a bad read is unknown, a landing replaces both", () => {
+      const row = { ...emptyHeroCosmetics("king-kong", true), earned: 220 };
+      expect(baselineHero("king-kong", [row], false)?.earned).toBe(220);
+      expect(baselineHero("king-kong", [], true)?.earned).toBe(0);
+      expect(baselineHero("king-kong", [], false)).toBeNull();
+      expect(baselineHero(null, [row], true)).toBeNull();
+      expect(baselineHero("king-kong", [row], true, { heroId: "king-kong", points: 240 })?.earned).toBe(240);
+      expect(baselineHero("king-kong", [], true, { heroId: "king-kong", points: null })?.earned).toBeNull();
+      expect(baselineHero("king-kong", [row], true, { heroId: "hollow-oak", points: 240 })?.earned).toBe(220);
+    });
+
+    it("first game on a new hero: a good pre-game read is a baseline of 0, so the tile lands on +50 pts", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3544, byHero: played(1) }))]);
+      const { result } = renderHook(() =>
+        useGameEarned(input({ heroId: "king-kong", cosmeticHeroes: [], cosmeticsKnown: true }), deps(fetchStats, { fetchCosmetics: cosmeticsAfter(50) })),
+      );
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({
+        phase: "landed",
+        before: { heroPoints: 0 },
+        delta: { points: 50, heroPoints: 50, bonuses: [{ kind: "hero-first", points: 50 }] },
+      });
+      expect(tile(result.current)).toContain("+50 pts");
+      expect(tile(result.current)).not.toContain("Points pending");
+    });
+
+    it("a degraded (or still loading) pre-game read stays unknown: Points pending, never an invented gain", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3544, byHero: played(1) }))]);
+      const { result } = renderHook(() =>
+        useGameEarned(input({ heroId: "king-kong", cosmeticHeroes: [], cosmeticsKnown: false }), deps(fetchStats, { fetchCosmetics: cosmeticsAfter(50) })),
+      );
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", before: { heroPoints: null }, delta: { points: null, heroPoints: 50 } });
+      expect(tile(result.current)).toContain("Points pending");
+    });
+
+    it("a rematch as that hero counts from the last landing, not from the page-load 0 again", async () => {
+      const { fetchStats } = scripted([
+        ok(stats({ totalGames: 41, xp: 3544, byHero: played(1) })),
+        ok(stats({ totalGames: 41, xp: 3544, byHero: played(1) })),
+        ok(stats({ totalGames: 42, xp: 3600, byHero: played(2) })),
+      ]);
+      const first = input({ heroId: "king-kong", cosmeticHeroes: [], cosmeticsKnown: true });
+      const fetchCosmetics = cosmeticsAfter(50, 70);
+      const { result, rerender } = renderHook((props: GameEarnedInput) => useGameEarned(props, deps(fetchStats, { fetchCosmetics })), { initialProps: first });
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", delta: { points: 50 } });
+
+      rerender({ ...first, roomId: "ROOM2", gameOver: false });
+      await flush();
+      rerender({ ...first, roomId: "ROOM2", gameOver: true });
+      await flush();
+      expect(result.current).toMatchObject({ phase: "waiting", before: { heroPoints: 50 } });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5_000);
+      });
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", delta: { points: 20, heroPoints: 70, bonuses: [] } });
+      expect(tile(result.current)).toContain("+20 pts");
+    });
   });
 
   describe("quest rows (#1666)", () => {
