@@ -940,7 +940,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1074, {40, 41}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -1097,7 +1097,76 @@
  * render the move chip from it (fall back to the printed move when absent); on a `MOVE_SET`
  * status, mark the chip as modified and show its expiry.
  */
-export const PROTOCOL_VERSION = 40;
+/**
+ * v41 (engine #1074 — PUZZLE ROOMS). ADDITIVE: four client messages, five server messages,
+ * two error codes, one optional view field (on two view shapes). Nothing a v40 client sends or reads moves, so
+ * v40 stays accepted (v39 rolls off).
+ *
+ * A puzzle is a frozen position the visitor solves in ONE turn ("defeat the enemy hero
+ * this turn"). A puzzle room is a server room started from that stored position: the
+ * visitor holds the solver seat, the other seat is a deterministic best-defence responder
+ * that replies instantly, and the opponent's hand is FACE UP. The client still knows zero
+ * rules — it renders `STATE` exactly as in a normal room and adds the messages below.
+ * Detection: `PROTOCOL_VERSION >= 41`, or `puzzles: true` in the `/healthz` JSON. The
+ * ordered catalogue is plain HTTP: `GET /puzzles.json` -> `{ ok: true, puzzles: PuzzleSummary[] }`.
+ *
+ * A puzzle room lives on its OWN socket and dies with it: no token, no RECONNECT, no login.
+ * One puzzle room per socket (a second CREATE_PUZZLE_ROOM replaces the first). A socket that
+ * holds a puzzle room takes only ACTION, PUZZLE_RESET, PUZZLE_HINT_REQUEST,
+ * PUZZLE_SOLUTION_REQUEST, CREATE_PUZZLE_ROOM, LIST_HEROES and LIST_LOBBIES; every other
+ * message answers ERROR{PUZZLE_UNSUPPORTED}. A socket seated in a normal room cannot open a
+ * puzzle room (ERROR{PUZZLE_UNSUPPORTED}) — open a second socket.
+ *
+ * Client -> server
+ * - `CREATE_PUZZLE_ROOM { puzzleId, context, analyticsId?, playerId?, displayName?, badge?,
+ *   badges?, cosmetics? }` — `context` says where the puzzle is embedded. The identity
+ *   fields mean what they mean on CREATE_ROOM and are all optional (guests send none).
+ *   Answers PUZZLE_INFO then STATE, or ERROR{UNKNOWN_PUZZLE | BAD_MESSAGE | ROOM_LIMIT}.
+ * - `ACTION { roomId, action }` — unchanged. Send only actions from `legalActions`
+ *   (MOVE_FIGHTER / RESPOND_PROMPT paths as in a normal room). FORFEIT is never offered and
+ *   is refused. An action after the try has ended answers ERROR{ILLEGAL_ACTION}.
+ * - `PUZZLE_RESET { roomId }` — back to the starting position, same room, same socket, a new
+ *   try. Legal at any time (it also stops a playing solution). Answers PUZZLE_INFO (with
+ *   `tryNumber` one higher) then STATE.
+ * - `PUZZLE_HINT_REQUEST { roomId }` — answers PUZZLE_HINT.
+ * - `PUZZLE_SOLUTION_REQUEST { roomId }` — ends the current try and plays the solution; see
+ *   PUZZLE_SOLUTION.
+ *
+ * Server -> client
+ * - `PUZZLE_INFO { roomId, you, puzzle, tryNumber, actionsAllowed, solutionShown }` — sent at
+ *   the start of EVERY try (create and each reset), always followed by that try's first
+ *   STATE. `puzzle` is the catalogue summary (goal line, both heroes, "from a real game ·
+ *   turn N" data, tags). `actionsAllowed` is the number of actions in the turn (2).
+ *   `solutionShown` is true once the solution has been played in this room.
+ * - `STATE` — as in a normal room, per action: one after the visitor's action, one after
+ *   each responder reply, each with that step's `events`. Differences, all in the view:
+ *   `view.opponent.openHand` and the opponent's `view.players[].openHand` are PRESENT
+ *   (the face-up hand, card instance ids like `self.hand`; names are in `view.catalog`); `view.canUndo` is absent; `legalActions` is `[]` whenever the visitor cannot
+ *   act, including after the try ended. Deck order and a face-down commit stay hidden.
+ *   The STATE that ends a failed try is frozen on the visitor's turn: `activePlayer`,
+ *   `turnNumber` are the puzzle turn's, `actionsRemaining` is 0, `phase` is PLAY, `winner`
+ *   and `prompt` are null and `events` stop before the opponent's TURN_STARTED — the
+ *   opponent's turn is never shown.
+ * - `PUZZLE_RESULT { roomId, result, tryNumber, seconds, hintUsed, solutionShown,
+ *   enemyHeroHp?, sourceActual? }` — the try ended by the visitor's own play, sent right
+ *   after the STATE that ended it. `result: "solved"`: the enemy hero was defeated this
+ *   turn; `sourceActual` is what the real player did, when the puzzle records it.
+ *   `result: "failed"`: the turn ended (or the game did) without it; `enemyHeroHp` is the
+ *   HP the enemy hero has left. `tryNumber` counts tries in this room, `seconds` is this
+ *   try's length. After it, only PUZZLE_RESET / PUZZLE_SOLUTION_REQUEST do anything.
+ * - `PUZZLE_HINT { roomId, text, action? }` — `text` is ALWAYS ready to show as it is.
+ *   `action`, when present, is the first action of a winning line and is a member of the
+ *   current `legalActions` (highlight it). Absent: no kill was found from here, no hint is
+ *   available, the try is over, or the solution is playing — `text` says which.
+ * - `PUZZLE_SOLUTION { roomId, status, steps }` — `status: "playing"` comes first, then a
+ *   STATE of the starting position, then one STATE per step (`steps` of them, a short
+ *   server-side delay apart, `legalActions: []`), then `status: "done"`. No PUZZLE_RESULT is
+ *   sent for a played solution. Afterwards the room waits for PUZZLE_RESET.
+ * - `PUZZLE_CLOSED { roomId, reason }` — the server closed the room (`"idle"`: no message
+ *   for the idle window). The socket stays open; create a new room to continue.
+ * - `ERROR{UNKNOWN_PUZZLE}` — no such puzzle id. `ERROR{PUZZLE_UNSUPPORTED}` — see above.
+ */
+export const PROTOCOL_VERSION = 41;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1866,6 +1935,10 @@ export interface ViewOpponent {
   // opaque/public/cosmetic/UNVERIFIED/never-telemetry treatment as `badge`.
   badges?: string[];
   handCount: number;
+  // v41 (#1074): the opponent's hand, FACE UP. Present ONLY in a puzzle room; absent in
+  // every other room, where the hand stays hidden behind `handCount`. Deliberately not
+  // named `hand`: no ordinary view may ever carry an opponent `hand`.
+  openHand?: CardInstanceId[];
   deckCount: number;
   discard: CardInstanceId[]; // discard is public
   ongoingScheme?: CardInstanceId | null; // public face-up ongoing scheme, if any (older views may omit)
@@ -1909,6 +1982,7 @@ export interface ViewPlayer {
   // identical for every viewer, never redacted (issue #98).
   team?: TeamId;
   hand?: CardInstanceId[]; // present only for the receiving player's own seat
+  openHand?: CardInstanceId[]; // v41 (#1074): a NON-self seat's face-up hand — puzzle rooms only (see ViewOpponent.openHand)
   handCount: number;
   deckCount: number;
   discard: CardInstanceId[];
@@ -2253,6 +2327,39 @@ export interface UndoActionSummary {
   action: Action["type"];
 }
 
+// ---------------------------------------------------------------------------
+// Puzzle rooms (v41, engine #1074) — see the v41 header note for the message flow.
+// ---------------------------------------------------------------------------
+
+/** Where a puzzle is embedded. Recorded with every attempt; changes no rule. */
+export type PuzzleContext = "landing" | "page" | "quick_search" | "lobby_wait";
+
+export interface PuzzleHero {
+  id: string; // hero id, as in HeroListing.id
+  name: string; // display name
+}
+
+/**
+ * One catalogued puzzle, as listed by `GET /puzzles.json` and carried by PUZZLE_INFO.
+ * Never holds a position or a solution.
+ */
+export interface PuzzleSummary {
+  id: string;
+  version: number; // moves when the position changes
+  type: "defeat_hero";
+  order: number; // catalogue order, easy -> hard
+  goal: { enemyHero: string; text: string }; // `text` is the goal line to show
+  heroes: { solver: PuzzleHero; enemy: PuzzleHero };
+  // Where the position came from. Show it anonymously ("From a real game · turn 14");
+  // a puzzle never carries a player name.
+  source: { kind: "human" | "bot" | "authored"; turn: number };
+  tags: string[]; // e.g. "tutorial"; may be empty
+  // `/puzzles.json` only, and only while the stats service answers: the share of players
+  // who solved it (0..1) and the number of recorded attempts. Absent = unknown.
+  solveRate?: number;
+  attempts?: number;
+}
+
 export type ClientMsg =
   // `debug` (v15/v18): true includes debug-only heroes in the HEROES listing.
   // Absent/false = hidden. See the v15 and v18 notes above.
@@ -2314,7 +2421,12 @@ export type ClientMsg =
   // actions. See the v35 header note.
   | { v: number; type: "REMATCH_OFFER"; roomId: string }
   | { v: number; type: "REMATCH_RESPOND"; roomId: string; accept: boolean }
-  | { v: number; type: "REMATCH_CANCEL"; roomId: string };
+  | { v: number; type: "REMATCH_CANCEL"; roomId: string }
+  // v41 (engine #1074): puzzle rooms. See the v41 header note.
+  | { v: number; type: "CREATE_PUZZLE_ROOM"; puzzleId: string; context: PuzzleContext; analyticsId?: string; playerId?: string; displayName?: string; badge?: string; badges?: string[]; cosmetics?: string }
+  | { v: number; type: "PUZZLE_RESET"; roomId: string }
+  | { v: number; type: "PUZZLE_HINT_REQUEST"; roomId: string }
+  | { v: number; type: "PUZZLE_SOLUTION_REQUEST"; roomId: string };
 
 // v35: why a rematch negotiation ended without a room. See the v35 header note.
 export type RematchClosedReason = "declined" | "cancelled" | "disconnected" | "timeout" | "unavailable";
@@ -2386,6 +2498,12 @@ export type ServerMsg =
   | { v: number; type: "REMATCH_OFFERED"; from: PlayerId }
   | { v: number; type: "REMATCH_READY"; roomId: string; token: string }
   | { v: number; type: "REMATCH_CLOSED"; reason: RematchClosedReason; player?: PlayerId }
+  // v41 (engine #1074): puzzle rooms. See the v41 header note.
+  | { v: number; type: "PUZZLE_INFO"; roomId: string; you: PlayerId; puzzle: PuzzleSummary; tryNumber: number; actionsAllowed: number; solutionShown: boolean }
+  | { v: number; type: "PUZZLE_RESULT"; roomId: string; result: "solved" | "failed"; tryNumber: number; seconds: number; hintUsed: boolean; solutionShown: boolean; enemyHeroHp?: number; sourceActual?: string }
+  | { v: number; type: "PUZZLE_HINT"; roomId: string; text: string; action?: Action }
+  | { v: number; type: "PUZZLE_SOLUTION"; roomId: string; status: "playing" | "done"; steps: number }
+  | { v: number; type: "PUZZLE_CLOSED"; roomId: string; reason: "idle" }
   | { v: number; type: "ERROR"; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -2416,4 +2534,7 @@ export type ErrorCode =
   | "TICKET_REQUIRED" // JOIN_ROOM without a ticket into a tournament room
   | "MATCHUP_LOCKED" // heroId / map differs from what the ticket locks
   | "TOURNAMENTS_DISABLED" // server has no tournament secret configured
+  // v41 (engine #1074): puzzle rooms. See the v41 header note.
+  | "UNKNOWN_PUZZLE" // CREATE_PUZZLE_ROOM named a puzzle id that is not in the catalogue
+  | "PUZZLE_UNSUPPORTED" // this message is not available on a socket that holds a puzzle room (or: a seated socket asked for one)
   | "SERVER_ERROR";

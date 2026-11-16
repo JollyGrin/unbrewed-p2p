@@ -37,6 +37,9 @@ const MESSAGES: Record<ErrorCode, string> = {
   TICKET_REQUIRED: "This is a tournament room — join it from the match page.",
   MATCHUP_LOCKED: "The organizer set this match's heroes and map, and this pick doesn't match them.",
   TOURNAMENTS_DISABLED: "Tournament games aren't available on this server right now.",
+  // v41 (engine #1074): puzzle rooms.
+  UNKNOWN_PUZZLE: "That puzzle isn't available any more.",
+  PUZZLE_UNSUPPORTED: "That isn't available in a puzzle.",
 };
 
 /** A tournament room's dead seat: it is released, not lost, and the way back is one click (p2p #1252). */
