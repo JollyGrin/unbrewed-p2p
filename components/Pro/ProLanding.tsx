@@ -750,6 +750,12 @@ export const ProLanding = () => {
 
 type Cta = { label: string; href: string };
 
+// One size for every slide and for the intro banner (#1673). The content is
+// bottom-anchored inside a fixed box, so a slide's copy length never moves the
+// frame; the summary clamps instead of growing it.
+const BANNER_HEIGHT = { base: "25rem", md: "23rem" };
+const BANNER_TEXT_LINES = { base: 5, md: 4 };
+
 const Banner = ({
   kicker,
   title,
@@ -776,7 +782,7 @@ const Banner = ({
     aria-label={kicker}
     position="relative"
     mt="0.75rem"
-    minH={{ base: "15rem", md: "16rem" }}
+    h={BANNER_HEIGHT}
     display="flex"
     alignItems="flex-end"
     borderRadius="0.8rem"
@@ -803,10 +809,11 @@ const Banner = ({
         fontSize={{ base: "2.6rem", md: "3.3rem" }}
         lineHeight="0.9"
         mt="0.3rem"
+        noOfLines={3}
       >
         {title}
       </Text>
-      <Text fontFamily="ArchivoNarrow" fontSize="1rem" lineHeight="1.4" opacity={0.9} mt="0.5rem">
+      <Text fontFamily="ArchivoNarrow" fontSize="1rem" lineHeight="1.4" opacity={0.9} mt="0.5rem" noOfLines={BANNER_TEXT_LINES}>
         {text}
       </Text>
       <Flex gap="0.5rem" mt="0.9rem" flexWrap="wrap">

@@ -235,6 +235,52 @@ describe("ProLanding — new vs returning visitors", () => {
   });
 });
 
+/** Every CSS rule Emotion has injected whose selector mentions one of the element's classes. */
+const ruleTextFor = (el: Element) => {
+  const classes = Array.from(el.classList);
+  const rules: string[] = [];
+  const walk = (list: CSSRuleList) => {
+    for (const rule of Array.from(list)) {
+      const text = rule.cssText;
+      const sel = (rule as CSSStyleRule).selectorText;
+      if (sel !== undefined && classes.some((c) => sel.includes(`.${c}`))) rules.push(text);
+      else if ("cssRules" in rule) walk((rule as CSSGroupingRule).cssRules);
+    }
+  };
+  for (const sheet of Array.from(document.styleSheets)) walk(sheet.cssRules);
+  return rules.join("\n");
+};
+
+describe("ProLanding — hero banner size (#1673)", () => {
+  // A min-height lets each slide's copy decide the frame, so the banner jumped
+  // as the carousel rotated. Every variant must pin a fixed `height` instead.
+  const expectFixedSize = (banner: HTMLElement) => {
+    const css = ruleTextFor(banner);
+    expect(css).toMatch(/(^|[\s;{])height:\s*25rem/);
+    expect(css).toMatch(/(^|[\s;{])height:\s*23rem/);
+    expect(css).not.toMatch(/min-height/);
+    expect(css).toMatch(/background-size:\s*cover/);
+  };
+
+  it("pins the intro banner to a fixed height", () => {
+    renderLanding();
+    expectFixedSize(screen.getByRole("heading", { level: 2, name: "A referee for every game" }).closest("section")!);
+  });
+
+  it("pins every featured slide to that same fixed height", async () => {
+    asReturning();
+    renderLanding();
+    const first = (await screen.findByRole("heading", { level: 2, name: "William Afton joins the lab" })).closest("section")!;
+    const firstCss = ruleTextFor(first);
+    expectFixedSize(first);
+    fireEvent.click(screen.getByRole("button", { name: "Show update 2 of 2" }));
+    const second = screen.getByRole("heading", { level: 2, name: "Quick Play: see who's here" }).closest("section")!;
+    expectFixedSize(second);
+    // same sizing rules on both slides, whatever the art or copy
+    expect(ruleTextFor(second).match(/height:[^;]+/g)).toEqual(firstCss.match(/height:[^;]+/g));
+  });
+});
+
 describe("ProLanding — what's new", () => {
   it("lists Pro changelog entries only", () => {
     renderLanding();
