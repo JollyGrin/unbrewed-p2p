@@ -20,13 +20,14 @@
  */
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import { useReducedMotion } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { colors, fonts } from "@/styles/style";
 import { ProLogLine, ProLogPhase } from "@/lib/pro/gameLog";
 import { CardInstanceId, GameEvent } from "@/lib/pro/protocol";
 import { spotlightCards } from "@/lib/pro/slowModeQueue";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import { CardFace } from "./ProHand";
+import { containedOwnsKeys, proVw, useProContained } from "@/lib/pro/contained";
 
 /** Everything the panel needs about the batch on screen, assembled by the page. */
 export interface ActionSpotlightBatch {
@@ -93,10 +94,15 @@ export const ActionSpotlight = ({
   // both advance the spotlight AND fire an action underneath it. Those two guards
   // stand down on `[aria-modal="true"]`, which this panel sets — so while a batch
   // is held, no game hotkey fires at all.
+  const frameEl = useProContained()?.el ?? null;
+  const frameElRef = useRef(frameEl);
+  frameElRef.current = frameEl;
   useEffect(() => {
     if (!batch) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" && e.key !== "Enter") return;
+      // An embedded panel (#1678) only answers keys while focus is inside it.
+      if (!containedOwnsKeys(frameElRef.current)) return;
       const target = e.target as HTMLElement | null;
       // never hijack a key someone is typing into (the bug-report dialog, chat)
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
@@ -136,7 +142,7 @@ export const ActionSpotlight = ({
         left="50%"
         transform="translateX(-50%)"
         zIndex={SPOTLIGHT_Z + 1}
-        maxW="min(38rem, calc(100vw - 2rem))"
+        maxW={`min(38rem, calc(${proVw(100)} - 2rem))`}
         gap="0.85rem"
         p="0.85rem"
         alignItems="stretch"

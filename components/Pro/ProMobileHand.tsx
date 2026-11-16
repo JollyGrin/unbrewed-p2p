@@ -26,6 +26,7 @@ import {
   handDrawerLayout,
 } from "@/lib/pro/mobileLayout";
 import { CardFace, HandCardAction, ProHand } from "@/components/Pro/ProHand";
+import { proVh } from "@/lib/pro/contained";
 
 export interface ProMobileHandProps {
   hand: CardInstanceId[];
@@ -160,7 +161,7 @@ export const HandDrawer = ({
         bottom={0}
         zIndex={162}
         pointerEvents="auto"
-        maxH="62svh"
+        maxH={proVh(62)}
         direction="column"
         gap="0.5rem"
         bg="brand.surfaceDim"

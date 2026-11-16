@@ -6,6 +6,7 @@
  * start at origin, expanded) and only then snap to the saved layout.
  */
 import { useCallback, useEffect, useState } from "react";
+import { useProContained } from "./contained";
 
 export type PlateSeat = string;
 
@@ -44,8 +45,15 @@ export interface UseHudPlates {
 export function useHudPlates(): UseHudPlates {
   const [plates, setPlates] = useState<PlatesState>(DEFAULT_STATE);
   const [hydrated, setHydrated] = useState(false);
+  // An embedded panel (#1678) neither wears the position dragged on /pro/game
+  // (it may lie outside a smaller box) nor overwrites it: in memory only.
+  const contained = useProContained() !== null;
 
   useEffect(() => {
+    if (contained) {
+      setHydrated(true);
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -56,11 +64,12 @@ export function useHudPlates(): UseHudPlates {
       /* storage blocked or malformed — keep defaults */
     }
     setHydrated(true);
-  }, []);
+  }, [contained]);
 
   const update = useCallback((seat: PlateSeat, partial: Partial<PlateLayout>) => {
     setPlates((cur) => {
       const next: PlatesState = { ...cur, [seat]: { ...(cur[seat] ?? DEFAULT_PLATE_LAYOUT), ...partial } };
+      if (contained) return next;
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -68,7 +77,7 @@ export function useHudPlates(): UseHudPlates {
       }
       return next;
     });
-  }, []);
+  }, [contained]);
 
   return { plates, hydrated, update };
 }

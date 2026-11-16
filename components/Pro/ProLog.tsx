@@ -17,6 +17,7 @@ import { ProLogEntry, ProLogActionGroup, groupLog, logEntriesToCsv } from "@/lib
 import { CardInstanceId } from "@/lib/pro/protocol";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import { CardFace } from "./ProHand";
+import { proVh, proVw } from "@/lib/pro/contained";
 
 export type { ProLogEntry };
 
@@ -26,7 +27,7 @@ const Panel = styled(Box)`
   bottom: 1rem;
   z-index: 145;
   width: 230px;
-  max-width: calc(100vw - 2rem);
+  max-width: calc(${proVw(100)} - 2rem);
   background-color: ${colors.brand.parchment};
   color: ${colors.brand.surfaceDim};
   border: 1px solid rgba(72, 40, 79, 0.25);
@@ -51,7 +52,7 @@ const SheetPanel = styled(Box)`
      overlay there, not a panel the hand row may sit on top of. Desktop's
      floating Panel keeps its own 145. */
   z-index: 171;
-  max-height: 68svh;
+  max-height: ${proVh(68)};
   display: flex;
   flex-direction: column;
   background-color: ${colors.brand.parchment};

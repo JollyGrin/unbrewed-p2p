@@ -7,6 +7,7 @@
  * expanded) and only then snap to the saved layout.
  */
 import { useCallback, useEffect, useState } from "react";
+import { useProContained } from "./contained";
 
 export interface DockLayout {
   /** drag offset from the dock's default slot, in px */
@@ -40,8 +41,15 @@ export interface UseDockLayout {
 export function useDockLayout(): UseDockLayout {
   const [layout, setLayout] = useState<DockLayout>(DEFAULT_DOCK_LAYOUT);
   const [hydrated, setHydrated] = useState(false);
+  // An embedded panel (#1678) neither wears the position dragged on /pro/game
+  // (it may lie outside a smaller box) nor overwrites it: in memory only.
+  const contained = useProContained() !== null;
 
   useEffect(() => {
+    if (contained) {
+      setHydrated(true);
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) setLayout(sanitize(JSON.parse(raw)));
@@ -49,11 +57,12 @@ export function useDockLayout(): UseDockLayout {
       /* storage blocked or malformed — keep defaults */
     }
     setHydrated(true);
-  }, []);
+  }, [contained]);
 
   const update = useCallback((partial: Partial<DockLayout>) => {
     setLayout((cur) => {
       const next = { ...cur, ...partial };
+      if (contained) return next;
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -61,7 +70,7 @@ export function useDockLayout(): UseDockLayout {
       }
       return next;
     });
-  }, []);
+  }, [contained]);
 
   return { layout, hydrated, update };
 }

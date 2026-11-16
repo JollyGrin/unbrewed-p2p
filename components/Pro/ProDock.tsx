@@ -40,6 +40,7 @@ import { useDockLayout } from "@/lib/pro/useDockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
 import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import { ProPostGame, ProPostGameContext, PANEL_SURFACE } from "@/components/Pro/ProPostGame";
+import { proVh } from "@/lib/pro/contained";
 
 /** Width of the dock's default right-edge slot. */
 const DOCK_WIDTH = "18.5rem";
@@ -269,7 +270,8 @@ export interface ProDockProps {
    */
   postGame?: ProPostGameContext;
   undoPending: boolean;
-  onUndo: () => void;
+  /** Omitted: this view offers no undo (an embedded puzzle, #1678), whatever `view.canUndo` says. */
+  onUndo?: () => void;
   canForfeit: boolean;
   onForfeit: () => void;
   /**
@@ -1194,7 +1196,7 @@ export const ProDock = ({
           (issue #154). Shown only while live and only when the server says we
           have an eligible last action (view.canUndo); disabled while a request
           is already in flight. The rewind itself is server-side — we just ask. */}
-      {view.phase === "PLAY" && !view.winner && view.canUndo && (
+      {view.phase === "PLAY" && !view.winner && view.canUndo && onUndo && (
         <Button
           size="sm"
           mt="0.4rem"
@@ -1250,7 +1252,7 @@ export const ProDock = ({
         compact: forcedMinimized ? "minimized" : boardPickCompact ? "board-pick" : null,
         primary,
         extra,
-        canUndo: view.phase === "PLAY" && !view.winner && !!view.canUndo,
+        canUndo: view.phase === "PLAY" && !view.winner && !!view.canUndo && !!onUndo,
         undoPending,
       },
       describe
@@ -1258,7 +1260,7 @@ export const ProDock = ({
     const onControl = (id: HexId) => {
       if (id === "primary" && primary) tapOnce(primary);
       else if (id === "more") setSheetOpen(true);
-      else if (id === "undo") onUndo();
+      else if (id === "undo") onUndo?.();
       else if (id === "end-move") stepping?.onEnd();
       else if (id === "cancel-move") stepping?.onCancel();
       else if (id === "open-sheet") {
@@ -1503,7 +1505,7 @@ export const ProDock = ({
           position="fixed"
           left={0}
           right={0}
-          bottom={mobileHandOpen ? "62svh" : 0}
+          bottom={mobileHandOpen ? proVh(62) : 0}
           // Above the hand drawer's scrim when it is lifted, so the question is
           // legible over the cards it is asking about.
           zIndex={mobileHandOpen ? 4 : 2}
@@ -1512,7 +1514,7 @@ export const ProDock = ({
           // `svh`, never `vh`: the mobile URL bar makes `vh` taller than the
           // visible viewport, which is what used to cut the bottom off a
           // combat panel.
-          maxH={mobileHandOpen ? "34svh" : mobileHandPeekHidden ? "80svh" : "72svh"}
+          maxH={mobileHandOpen ? proVh(34) : mobileHandPeekHidden ? proVh(80) : proVh(72)}
           borderTopRadius="1.1rem"
           overflow="hidden"
           borderTop="2px solid"
@@ -1553,7 +1555,7 @@ export const ProDock = ({
             pointerEvents="auto"
             w="100%"
             maxW="1000px"
-            maxH="calc(100vh - 4.5rem)"
+            maxH={`calc(${proVh(100, "vh")} - 4.5rem)`}
             overflowY="auto"
             p="1.75rem 2.25rem 1.5rem"
             boxShadow="0 30px 80px rgba(0, 0, 0, 0.55)"
@@ -1578,7 +1580,7 @@ export const ProDock = ({
         right: "0.75rem",
         top: "7.5rem",
         width: DOCK_WIDTH,
-        maxHeight: "calc(100vh - 8.5rem)",
+        maxHeight: `calc(${proVh(100, "vh")} - 8.5rem)`,
         display: "flex",
         flexDirection: "column",
         zIndex: dragging ? 200 : 140,
