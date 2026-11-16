@@ -20,6 +20,9 @@ import {
   useAccount,
 } from "@/lib/account/useAccount";
 import { signInLink } from "@/lib/account/signInLink";
+import { streakChipLabel } from "@/lib/account/quests";
+import { useDailyBonus } from "@/lib/account/useQuests";
+import { useUnseenUpgrade } from "@/lib/collection/upgradeSeen";
 import { AccountMenuTournaments } from "@/components/Tournaments/AccountMenuTournaments";
 
 /**
@@ -57,8 +60,29 @@ const menuItemStyles = {
  * The dark surface is deliberate: it's the readable one on the /pro HUD, and
  * the parchment navbar already renders this same dropdown today.
  */
+/**
+ * The "an upgrade is waiting" dot (p2p #1657; the pattern is
+ * ChangelogNavLink's pill). Decorative: the control it sits on says the same
+ * thing in its accessible name.
+ */
+const UpgradeDot = (props: React.ComponentProps<typeof Box>) => (
+  <Box
+    as="span"
+    data-testid="collection-nav-dot"
+    aria-hidden
+    boxSize="0.5rem"
+    flexShrink={0}
+    borderRadius="full"
+    bg="brand.accent"
+    boxShadow="0 0 0 1px rgba(0,0,0,0.35)"
+    pointerEvents="none"
+    {...props}
+  />
+);
+
 const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
   const [signingOut, setSigningOut] = useState(false);
+  const unseenUpgrade = useUnseenUpgrade();
   const linkProps = newTab
     ? { target: "_blank", rel: "noopener noreferrer" }
     : {};
@@ -84,6 +108,9 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
           {link.dividerBefore && <MenuDivider borderColor="whiteAlpha.300" />}
           <MenuItem as={NextLink} href={link.href} {...linkProps} {...menuItemStyles}>
             {link.label}
+            {link.href === "/collection" && unseenUpgrade && (
+              <UpgradeDot ml="0.45rem" title="Upgrade available" />
+            )}
           </MenuItem>
         </Fragment>
       ))}
@@ -126,6 +153,13 @@ const AccountMenuList = ({ newTab = false }: { newTab?: boolean }) => {
 export const AccountChip = () => {
   const { status, account } = useAccount();
   const router = useRouter();
+  // #1658: the day streak, from day 2. Null for a guest (nothing is asked),
+  // while loading, and on an API without the daily bonus — the button is then
+  // exactly what it was.
+  const streak = streakChipLabel(useDailyBonus());
+  // The Collection link lives inside this menu, so the dot is repeated on the
+  // chip itself: a dot nobody sees until they open the menu pulls nobody in.
+  const unseenUpgrade = useUnseenUpgrade();
 
   if (status === "loading" || status === "offline") return null;
 
@@ -167,7 +201,8 @@ export const AccountChip = () => {
       <MenuButton
         as={Button}
         variant="unstyled"
-        aria-label={`Account: ${account.username}`}
+        aria-label={`Account: ${account.username}${unseenUpgrade ? ", upgrade available" : ""}`}
+        position="relative"
         display="inline-flex"
         alignItems="center"
         h="1.9rem"
@@ -208,7 +243,28 @@ export const AccountChip = () => {
           >
             {account.username}
           </Text>
+          {streak && (
+            <Text
+              as="span"
+              data-testid="account-streak-chip"
+              title={`${streak} of your daily streak`}
+              fontFamily="SpaceGrotesk"
+              fontSize="0.62rem"
+              fontWeight={700}
+              lineHeight="1.6"
+              px="0.4rem"
+              borderRadius="full"
+              bg="brand.accent"
+              color="brand.surfaceDim"
+              whiteSpace="nowrap"
+              // Clear of the Collection upgrade dot on the button's corner.
+              mr={unseenUpgrade ? "0.5rem" : undefined}
+            >
+              {streak}
+            </Text>
+          )}
         </Box>
+        {unseenUpgrade && <UpgradeDot position="absolute" top="0.05rem" right="-0.1rem" />}
       </MenuButton>
       <AccountMenuList />
     </Menu>
@@ -280,6 +336,9 @@ export const InGameAccountChip = ({
 } = {}) => {
   const { status, account } = useAccount();
   const onSignInClick = useSignInReturn();
+  // #1666: the post-game strip announces an upgrade on THIS page, so the dot
+  // has to be drawn here too, or the player following "Upgrade" never sees it.
+  const unseenUpgrade = useUnseenUpgrade();
 
   if (status === "loading" || status === "offline") return null;
 
@@ -330,12 +389,14 @@ export const InGameAccountChip = ({
       >
         {account.username}
       </Text>
+      {unseenUpgrade && <UpgradeDot position="absolute" top="-0.1rem" right="-0.1rem" />}
     </>
   );
+  const label = `Signed in as ${account.username}${unseenUpgrade ? ", upgrade available" : ""}`;
 
   if (!withMenu) {
     return (
-      <Flex {...hudChipStyles} aria-label={`Signed in as ${account.username}`}>
+      <Flex {...hudChipStyles} position="relative" aria-label={label}>
         {identity}
       </Flex>
     );
@@ -349,7 +410,8 @@ export const InGameAccountChip = ({
         as={Flex}
         {...hudChipStyles}
         display="inline-flex"
-        aria-label={`Signed in as ${account.username}`}
+        position="relative"
+        aria-label={label}
         cursor="pointer"
         _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
       >

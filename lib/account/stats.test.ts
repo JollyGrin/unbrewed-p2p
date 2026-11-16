@@ -9,6 +9,7 @@ import {
   botTierLabel,
   casualGamesNote,
   countedRecord,
+  accountStatsUrl,
   fetchAccountStats,
   formatClock,
   headlineWinRate,
@@ -160,6 +161,41 @@ describe("fetchAccountStats", () => {
     const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toMatch(/\/me\/stats$/);
     expect(init.credentials).toBe("include");
+  });
+
+  it("`after` rides as a query param for the post-game poll; a plain read sends none (#1666)", async () => {
+    const spy = jest.fn(async () => reply(200, BASE));
+    install(spy);
+
+    expect(await fetchAccountStats({ after: 12 })).toMatchObject({ ok: true });
+    await fetchAccountStats({ after: 0 });
+    await fetchAccountStats({ after: null });
+    await fetchAccountStats({});
+
+    const urls = (spy.mock.calls as unknown as [string, RequestInit][]).map(([url]) => url);
+    expect(urls[0]).toMatch(/\/me\/stats\?after=12$/);
+    expect(urls[1]).toMatch(/\/me\/stats\?after=0$/);
+    expect(urls[2]).toMatch(/\/me\/stats$/);
+    expect(urls[3]).toMatch(/\/me\/stats$/);
+    expect((spy.mock.calls[0] as unknown as [string, RequestInit])[1].credentials).toBe("include");
+  });
+
+  it("an `after` request is never shared with a plain read in flight, nor the other way round (#1666)", async () => {
+    let release: (value: Response) => void = () => {};
+    const spy = jest.fn(() => new Promise<Response>((resolve) => (release = resolve)));
+    install(spy);
+
+    const plain = fetchAccountStats();
+    const second = fetchAccountStats();
+    expect(spy).toHaveBeenCalledTimes(1);
+    release(reply(200, BASE));
+    const polled = fetchAccountStats({ after: 3 });
+    expect(spy).toHaveBeenCalledTimes(2);
+    release(reply(200, BASE));
+    await Promise.all([plain, second, polled]);
+    expect(accountStatsUrl(3)).toMatch(/\?after=3$/);
+    expect(accountStatsUrl(-1)).toMatch(/\/me\/stats$/);
+    expect(accountStatsUrl(Number.NaN)).toMatch(/\/me\/stats$/);
   });
 
   it("maps each failure to its reason without throwing", async () => {
@@ -539,5 +575,34 @@ describe("botTierLabel — never shows a raw wire id (#933)", () => {
     expect(botTierLabel(row("jevx3"))).toBe("Prodigy bots");
     expect(botTierLabel(row("jev"))).toBe("Other bots");
     expect(botTierLabel(row("jevx3"))).not.toMatch(/jev/i);
+  });
+});
+
+describe("fetchAccountStats — shared in-flight request (#1658)", () => {
+  const reply200 = () => ({ ok: true, status: 200, json: async () => ({ totalGames: 2 }) }) as Response;
+
+  it("concurrent callers share one request; a later call re-asks", async () => {
+    const fetchMock = jest.fn(async () => reply200());
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const [a, b] = await Promise.all([fetchAccountStats(), fetchAccountStats()]);
+    expect(a).toBe(b);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await fetchAccountStats();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("nobody new waits on a request that has hung", async () => {
+    jest.useFakeTimers();
+    try {
+      const fetchMock = jest.fn(() => new Promise<Response>(() => {}));
+      global.fetch = fetchMock as unknown as typeof fetch;
+      void fetchAccountStats();
+      jest.setSystemTime(Date.now() + 5_001);
+      fetchMock.mockImplementation(async () => reply200());
+      expect((await fetchAccountStats()).ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

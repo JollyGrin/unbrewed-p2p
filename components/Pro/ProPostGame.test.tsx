@@ -176,9 +176,20 @@ describe("the earned slot", () => {
     render(<ProPostGame {...props({ accountStatus: "guest", username: null })} />);
     const earned = screen.getByTestId("post-game-earned");
     expect(within(earned).getByTestId("post-game-guest")).toHaveTextContent(/isn't saved to an account/);
+    // #1656: the conversion prompt. A counted win (a human opponent), so the
+    // game's own XP sits on top of the first-game bonuses: "at least".
+    expect(within(earned).getByTestId("post-game-guest-line")).toHaveTextContent(
+      /^Sign in to keep this: you would have earned at least 160 XP and 50 The Hollow Oak points\.$/,
+    );
+    expect(within(earned).getByTestId("post-game-guest-note")).toHaveTextContent(/^Estimate for a new account's first game\./);
     const signIn = within(earned).getByRole("link", { name: /sign in with discord/i });
     expect(signIn.getAttribute("href")).toMatch(/\/auth\/discord\?return_to=%2Fpro$/);
     expect(signIn).toHaveAttribute("target", "_blank");
+  });
+
+  it("signed out after an easy-bot loss: the practice figures, as an estimate", () => {
+    render(<ProPostGame {...props({ accountStatus: "guest", username: null, view: view({ winner: "p2" }), bots: { p2: "easy" } })} />);
+    expect(screen.getByTestId("post-game-guest-line")).toHaveTextContent(/you would have earned about 125 XP and 50 The Hollow Oak points\./);
   });
 
   it("signed in: whatever part 3 drops in, nothing otherwise — and both slots stay in the grid", () => {
@@ -187,7 +198,7 @@ describe("the earned slot", () => {
     expect(screen.getByTestId("post-game-how-it-went")).toBeEmptyDOMElement();
     expect(screen.queryByTestId("post-game-guest")).toBeNull();
 
-    rerender(<ProPostGame {...props({ earned: { phase: "casual" }, stats: STATS })} />);
+    rerender(<ProPostGame {...props({ earned: { phase: "casual", practiceCap: null }, stats: STATS })} />);
     expect(screen.getByTestId("post-game-earned")).toHaveTextContent("No XP");
     expect(screen.getByTestId("post-game-how-it-went")).toHaveTextContent("How it went");
   });

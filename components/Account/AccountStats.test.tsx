@@ -16,7 +16,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { ChakraProvider } from "@chakra-ui/react";
 
 import { AccountPage } from "./AccountPage";
-import { CASUAL_SPLIT_NOTE, COLLAPSE_AFTER } from "./AccountStats";
+import { CASUAL_SPLIT_NOTE, CASUAL_SPLIT_NOTE_PUBLIC, COLLAPSE_AFTER, casualSplitNote } from "./AccountStats";
 import { __resetAccountStoreForTests } from "@/lib/account/useAccount";
 import { __resetBadgeStoreForTests } from "@/lib/account/useBadges";
 
@@ -256,6 +256,25 @@ describe("AccountStats — the full payload", () => {
     expect(
       screen.getByTestId("account-stat-casual-note").textContent,
     ).toBe("4 casual bot games (easy/medium) not counted");
+  });
+
+  it("once the api pays practice games, the owner's note says which ones (#1656)", async () => {
+    signedInWithStats(() =>
+      reply(200, {
+        ...FULL_STATS,
+        bonuses: { firstGame: { xp: 100, earned: true }, practice: { cap: 5, used: 4, xpPerGame: 10, xpPerWin: 5, xp: 45 } },
+      }),
+    );
+
+    renderPage();
+
+    const note = "XP for your first 5 practice games · not counted in your record";
+    const casual = (await screen.findAllByTestId("account-stat-split")).filter((node) => node.dataset.casual === "true");
+    expect(casual.map((node) => node.textContent)).toEqual([`vs medium bots1 game${note}`, `vs easy bots3 games${note}`]);
+    // Without the block (an older api) and on anyone else's profile: the old notes.
+    expect(casualSplitNote(5, true)).toBe(note);
+    expect(casualSplitNote(null, true)).toBe(CASUAL_SPLIT_NOTE);
+    expect(casualSplitNote(5, false)).toBe(CASUAL_SPLIT_NOTE_PUBLIC);
   });
 
   it("says nothing about casual games when the player has none", async () => {

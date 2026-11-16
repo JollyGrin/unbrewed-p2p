@@ -37,10 +37,11 @@
  * else. Nothing bought on this page touches the engine, a legal action, a bot,
  * a log line or a replay outcome.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Flex, Switch, Text, useToast } from "@chakra-ui/react";
 import { FaDiscord } from "react-icons/fa";
 import NextLink from "next/link";
+import { useRouter } from "next/router";
 
 import { AccountShell, Panel } from "@/components/Account/Shell";
 import { CardSetGrid, tierLabel } from "@/components/Collection/CardSetGrid";
@@ -56,6 +57,8 @@ import { heroPickerSections } from "@/lib/collection/picker";
 import { collectionRoster } from "@/lib/collection/roster";
 import { CardSet, useHeroDeck } from "@/lib/collection/useHeroDeck";
 import { COSMETIC_RIM_PAINTS } from "@/lib/pro/cosmetics";
+import { markUpgradeSeen, refreshAffordableUpgrades } from "@/lib/collection/upgradeSeen";
+import { affordableTier } from "@/lib/pro/nextUp";
 
 /**
  * Required disclosure (ticket #614). Points come from real games, and an
@@ -180,7 +183,23 @@ const Disclosure = () => (
   </Box>
 );
 
+/**
+ * `?hero=<heroId>` (#1657) → the row to select, or null. A `<hero>-spice`
+ * remix and its base hero answer for each other, since only one of the two is
+ * ever on the list and a link minted from a game may name either.
+ */
+export const linkedHeroId = (
+  query: string | string[] | undefined,
+  heroIds: readonly string[],
+): string | null => {
+  const raw = (Array.isArray(query) ? query[0] : query)?.trim().toLowerCase();
+  if (!raw) return null;
+  const candidates = [raw, raw.endsWith("-spice") ? raw.slice(0, -6) : `${raw}-spice`];
+  return candidates.find((id) => heroIds.includes(id)) ?? null;
+};
+
 export const CollectionPage = () => {
+  const router = useRouter();
   const { status: accountStatus } = useAccount();
   const cosmetics = useCosmetics();
   const toast = useToast();
@@ -205,11 +224,55 @@ export const CollectionPage = () => {
   // No effect syncs the default: deriving it means the player's best hero is
   // selected the moment the payload lands — the picker's own top row — without
   // a render that shows the wrong one first.
-  const hero = ordered.find((row) => row.heroId === pickedHeroId) ?? ordered[0] ?? null;
+  // `/collection?hero=<heroId>` (#1657) selects that hero until the player
+  // picks another. The site is a static export, so the query only exists once
+  // the router is ready — derived, like the default, so a cold load lands on
+  // the linked hero without an effect to race.
+  const linkedId = useMemo(
+    () => (router?.isReady ? linkedHeroId(router.query?.hero, ordered.map((row) => row.heroId)) : null),
+    [router?.isReady, router?.query?.hero, ordered],
+  );
+  const hero =
+    ordered.find((row) => row.heroId === pickedHeroId) ??
+    ordered.find((row) => row.heroId === linkedId) ??
+    ordered[0] ??
+    null;
   const { deck, isLoading: deckLoading } = useHeroDeck(hero?.deckId ?? null);
   const heroCosmetics = cosmetics.heroFor(hero?.heroId ?? "");
 
   const canSpend = cosmetics.status === "ready" && !cosmetics.busy;
+
+  // The nav dot (#1657). This page knows every hero's balance, so it corrects
+  // what the dot believes is affordable, then marks the hero on screen as seen
+  // — which is what clears the dot. Only from a READY payload: a degraded one
+  // has unknown balances, and must not wipe a dot that is still true.
+  const ready = cosmetics.status === "ready";
+  const shownHeroId = hero?.heroId ?? null;
+  useEffect(() => {
+    if (!ready) return;
+    const listed = new Set(ordered.map((row) => row.heroId));
+    const tiers: Record<string, number> = {};
+    for (const row of cosmetics.heroes) {
+      // A hero this page cannot show could never be marked seen, so it is
+      // left out and its dot (if any) is dropped.
+      if (listed.has(row.heroId)) tiers[row.heroId] = affordableTier(row, cosmetics.constants);
+    }
+    refreshAffordableUpgrades(tiers);
+    if (shownHeroId) markUpgradeSeen(shownHeroId);
+  }, [ready, ordered, cosmetics.heroes, cosmetics.constants, shownHeroId]);
+
+  // A deep link also brings an affordable card into view, once, when the linked
+  // hero's deck has drawn. Later renders (a purchase, a re-pick) never re-scroll.
+  const cardsRef = useRef<HTMLDivElement | null>(null);
+  const scrolledFor = useRef<string | null>(null);
+  const sets = deck?.sets;
+  useEffect(() => {
+    if (!ready || !linkedId || shownHeroId !== linkedId || deckLoading || !sets?.length) return;
+    if (scrolledFor.current === linkedId) return;
+    scrolledFor.current = linkedId;
+    const card = cardsRef.current?.querySelector<HTMLElement>('[data-affordable="true"]');
+    card?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [ready, linkedId, shownHeroId, deckLoading, sets]);
 
   const notify = (title: string, status: "success" | "error") =>
     toast({ title, status, duration: 4000, isClosable: true, position: "bottom" });
@@ -450,6 +513,7 @@ export const CollectionPage = () => {
             tiers below are still yours, and upgrades still work.
           </Text>
         )}
+        <Box ref={cardsRef}>
         <CardSetGrid
           sets={deck?.sets ?? []}
           hero={heroCosmetics}
@@ -458,6 +522,7 @@ export const CollectionPage = () => {
           loading={deckLoading}
           onUpgrade={onUpgrade}
         />
+        </Box>
       </Panel>
 
       <Disclosure />

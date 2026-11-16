@@ -4631,7 +4631,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, trackHeroPicked, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
+  const { cosmeticHeroes, cosmeticConstants, cosmeticsStatus, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, trackHeroPicked, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -5312,6 +5312,7 @@ const LiveGame = ({
     heroId: endedView?.self.heroId ?? null,
     stats: accountStats,
     cosmeticHeroes,
+    cosmeticsKnown: cosmeticsStatus === "ready",
     cosmeticConstants: cosmeticConstants ?? null,
     badges: badgeCase.badges,
   });
@@ -5479,6 +5480,26 @@ const LiveGame = ({
   // replays the token when one exists). Runs once when a `?room=` has a token.
   const reconnectedRef = useRef(false);
   const tournament = useTournamentGame(tournamentRoom, { socket, room, joined, setJoined, reconnectedRef, setSelectedHeroId, setSelectedMapId, setSelectedFormat, setRolledHero });
+  // "Next up" (p2p #1657): the same held data, for the strip under the earned
+  // card. Memoised so the strip only re-ranks when one of its sources moves.
+  const nextUpHeroId = endedView?.self.heroId ?? null;
+  const inTournament = !!tournament.at;
+  const nextUp = useMemo(
+    () => ({
+      heroId: nextUpHeroId,
+      cosmeticHeroes,
+      cosmeticConstants: cosmeticConstants ?? null,
+      stats: accountStats,
+      badges: badgeCase.badges,
+      // What to play next (p2p #1659): the Rematch link's own setup for the
+      // bot ladder, the roster for a hero never piloted. A tournament game
+      // never rematches, so it gets no ladder either.
+      setup: inTournament ? null : finishedSetup,
+      roster: heroes,
+      hiddenBotUnlocked: tierUnlock.unlocked,
+    }),
+    [nextUpHeroId, cosmeticHeroes, cosmeticConstants, accountStats, badgeCase.badges, inTournament, finishedSetup, heroes, tierUnlock.unlocked],
+  );
   useEffect(() => {
     if (joined || !room || tournament.ownsSeat || reconnectedRef.current || typeof window === "undefined") return;
     // Only THIS TAB's own seat auto-reconnects (refresh). A fresh tab with a
@@ -8149,6 +8170,7 @@ const LiveGame = ({
         clockMs,
         firstPlayer,
         xpMultiplier: roomInfo?.xpMultiplier ?? null,
+        nextUp,
       }}
       undoPending={undoPending}
       onUndo={requestUndo}
