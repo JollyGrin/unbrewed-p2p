@@ -7,7 +7,7 @@
  * real, a hatched placeholder while it is not; and three tiles: cosmetic
  * points on the hero you played, the streak, the badge. Casual-tier games get
  * the account page's "No XP" note instead of the bar; a forfeit keeps the
- * bar but the points tile says what conceding cost.
+ * bar but the XP reads "No XP" and the points tile says what conceding cost.
  *
  * Onboarding (#1656): an easy/medium game that pays is drawn like a counted
  * one (bar, XP, tiles) with a "Practice game 3 of 5" caption; the bonuses a
@@ -415,7 +415,7 @@ export const ProPostGameEarned = ({
                   sx={{ fontVariantNumeric: "tabular-nums" }}
                   data-testid="post-game-xp-delta"
                 >
-                  +{delta.xp.toLocaleString()} XP
+                  {view.forfeit && delta.xp === 0 ? "No XP" : `+${delta.xp.toLocaleString()} XP`}
                 </Text>
                 {counted !== null && (
                   <Text

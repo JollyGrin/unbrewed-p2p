@@ -121,12 +121,23 @@ describe("casual and forfeit", () => {
     expect(screen.queryByTestId("post-game-points")).toBeNull();
   });
 
-  it("a forfeit keeps the XP bar but the points tile carries the forfeit note, waiting or landed", () => {
+  it("a forfeit keeps the bar, reads 'No XP' once landed, and the points tile carries the forfeit note", () => {
     const { rerender } = draw(waiting({ forfeit: true }));
     expect(screen.getByTestId("post-game-level")).toBeInTheDocument();
     expect(screen.getByTestId("post-game-points")).toHaveTextContent(FORFEIT_POINTS_NOTE);
-    rerender(<ProPostGameEarned view={landed({ forfeit: true })} heroName="Hollow Oak" />);
-    expect(screen.getByTestId("post-game-xp-delta")).toHaveTextContent("+40 XP");
+    const nothing = landed({ forfeit: true });
+    rerender(
+      <ProPostGameEarned
+        view={{
+          ...nothing,
+          after: { ...nothing.after, xp: nothing.before.stats.xp },
+          delta: { ...nothing.delta, xp: 0, points: 0 },
+        }}
+        heroName="Hollow Oak"
+      />,
+    );
+    expect(screen.getByTestId("post-game-xp-delta")).toHaveTextContent("No XP");
+    expect(screen.getByTestId("post-game-xp-delta")).not.toHaveTextContent("+");
     expect(screen.getByTestId("post-game-points")).toHaveTextContent(FORFEIT_POINTS_NOTE);
     expect(screen.getByTestId("post-game-points")).not.toHaveTextContent("+40 pts");
   });

@@ -12,8 +12,8 @@
  * conditional ("if the match continues…") rather than promising a spectate view.
  *
  * A signed-in player also sees what conceding costs them (#636, telemetry #66):
- * a forfeited game pays the forfeiter NOTHING toward cosmetic points, where a
- * loss played to the end still pays for having played. That is a rule a player
+ * a forfeited game pays the forfeiter NOTHING — no XP, no cosmetic points, no
+ * daily bonus — where a loss played to the end still pays for having played. That is a rule a player
  * has to learn BEFORE the click, not from a balance that didn't move — so it
  * rides in the confirmation itself. Guests have no balance to lose and see the
  * dialog exactly as it is today.
@@ -32,7 +32,7 @@ import {
 
 /** Verbatim in the tests — this is a disclosure, not decoration. */
 export const FORFEIT_POINTS_NOTE =
-  "Forfeiting earns no cosmetic points for this game — a loss played out still does.";
+  "Forfeiting earns no XP, cosmetic points or daily bonus for this game — a loss played out still does.";
 
 export const ForfeitDialog = ({
   isOpen,
