@@ -8280,6 +8280,7 @@ const LiveGame = ({
       renderCard={(card) => (
         <CardFace card={resolveCard(card)} fallback={cardLabel(view.catalog, card)} touchPeekOnly />
       )}
+      abilityCard={resolveCard}
     />
   );
 

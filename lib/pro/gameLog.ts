@@ -1337,6 +1337,23 @@ export function enrichLines(
         break;
       }
 
+      // --- v41 (issue #1693 ↔ engine #1080) -----------------------------------
+      // A free activated hero ability RESOLVED (POMNI: Reward 2 / Reward 3). The
+      // server emits this once, after everything the ability did — on the STATE of
+      // the final prompt answer if it prompted — and never for a press the player
+      // cancelled or that could do nothing, so "used" is always true. It spends no
+      // action, so no ACTION_SPENT labels the batch; this line is what names the
+      // ability beside whatever diff lines its effects produced. `card` is a card
+      // DEFINITION id; the log's hover preview resolves it like an instance id.
+      case "ABILITY_USED": {
+        added.push({
+          text: `${ctx.seat(e.player)} used ${e.label || "an ability"}`,
+          who: whoOf(e.player),
+          ...(e.card ? { cards: [e.card] } : {}),
+        });
+        break;
+      }
+
       // Every other event type overlaps diff output (or is not yet allowlisted)
       // and must NEVER create a line. Do nothing.
       default:

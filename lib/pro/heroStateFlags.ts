@@ -684,7 +684,8 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   //
   // ADV_PENDING / ADV_ACTIVE have no row (the track row draws them); ADV_REWARDS /
   // ADV_FLIPPED are the hidden backs of the cards and render nowhere. The deck's
-  // four flags (POMNI_ADV2_ONCE, POMNI_R2_SNOOZED, POMNI_R3_SNOOZED, POMNI_R4_USED)
+  // two flags (POMNI_ADV2_ONCE, POMNI_R4_USED; the two reward-snooze flags were
+  // retired with engine #1080, when Rewards 2 / 3 became buttons)
   // are bookkeeping: this registry is opt-in, so having no HERO_STATE_FLAGS row IS
   // the suppression, and a test pins it.
   {

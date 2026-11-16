@@ -130,7 +130,7 @@ const MID_GAME: Record<string, PileEntry[]> = {
   ADV_FLIPPED: [A(1), A(2)],
   ADV_REWARDS: [R(3), R(4), R(5)],
 };
-const ALL_FLAGS = { POMNI_ADV2_ONCE: true, POMNI_R2_SNOOZED: true, POMNI_R3_SNOOZED: true, POMNI_R4_USED: true };
+const ALL_FLAGS = { POMNI_ADV2_ONCE: true, POMNI_R4_USED: true };
 const pomni = (id: PlayerId, you: boolean, piles = MID_GAME) => seat(id, you, "pomni", { piles, flags: ALL_FLAGS });
 
 describe("POMNI's Adventure track on the HUD plates", () => {
@@ -159,7 +159,7 @@ describe("POMNI's Adventure track on the HUD plates", () => {
 
   it("renders NONE of the bookkeeping flags and no raw pile key", () => {
     const { container } = renderHud(makeView([seat("p1", true, "darth-vader"), pomni("p2", false)], "p1"));
-    expect(container.textContent).not.toMatch(/POMNI_|SNOOZED|ADV_|R4 USED|ADV2/);
+    expect(container.textContent).not.toMatch(/POMNI_|ADV_|R4 USED|ADV2/);
   });
 
   it("between Adventures it says which one is next instead of going blank", () => {

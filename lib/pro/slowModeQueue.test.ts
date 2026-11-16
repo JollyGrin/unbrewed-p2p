@@ -69,6 +69,12 @@ describe("batchActor", () => {
     expect(batchActor([{ type: "ACTION_SPENT", player: "p2", action: "SCHEME" }])).toBe("p2");
   });
 
+  it("names whoever used a free ability (v41) — no ACTION_SPENT comes with it", () => {
+    expect(
+      batchActor([{ type: "ABILITY_USED", player: "p2", ability: "reward-2", label: "Reward 2", card: "pomni/reward-2" }])
+    ).toBe("p2");
+  });
+
   it("ignores events that merely NAME a player — an opponent's scheme can draw you a card", () => {
     expect(
       batchActor([
