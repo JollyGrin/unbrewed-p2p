@@ -13,7 +13,7 @@
  * puzzlePanel.test.tsx, and the two-browser run is scripts/pro/waitPuzzleCheck.mjs.
  */
 import "@testing-library/jest-dom";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ChakraProvider } from "@chakra-ui/react";
@@ -53,6 +53,18 @@ jest.mock("../../components/Pro/Puzzle/PuzzlePanel", () => {
     );
   };
   return { __esModule: true, default: Stub, PuzzlePanel: Stub };
+});
+
+/** A minimal engine-native board, for the Custom… option (as in itemsChip.test.tsx). */
+const CUSTOM_MAP_JSON = JSON.stringify({
+  schemaVersion: "1.0",
+  id: "wedding-crashers",
+  meta: { title: "Wedding Crashers", minPlayers: 2, maxPlayers: 2, specialRules: false },
+  zones: [{ id: "z", color: "#fff", label: "Z" }],
+  spaces: [
+    { id: "a", x: 0.1, y: 0.1, zones: ["z"], adjacentTo: ["b"], start: { slot: 1 } },
+    { id: "b", x: 0.2, y: 0.2, zones: ["z"], adjacentTo: ["a"], start: { slot: 2 } },
+  ],
 });
 
 const HERO = "king-kong";
@@ -348,6 +360,42 @@ describe("a created lobby", () => {
     await click(screen.getByTestId("stub-puzzle-loading"));
     expect(bar()).toBeInTheDocument();
     expect(screen.queryByText("copy link")).not.toBeInTheDocument();
+  });
+
+  it("a custom board keeps its board line and its 'submit it' link in the bar (#1687)", async () => {
+    mockPanel.readyAtMount = false;
+    await mount();
+    // The Custom… board, with a board pasted in.
+    await click(screen.getByRole("button", { name: /All \d+ boards/ }));
+    await click(within(screen.getByRole("dialog", { name: "Choose a board" })).getByLabelText(/Custom board/));
+    await act(async () => {
+      fireEvent.change(screen.getByPlaceholderText(/paste map JSON/), { target: { value: CUSTOM_MAP_JSON } });
+    });
+    await click(screen.getAllByTestId("pro-create-button")[0]);
+    await deliver({ type: "ROOM_CREATED", roomId: "MINE", token: "tok", you: "p1" });
+    await flush();
+
+    // Classic screen first, with its link. (The dialog itself is not opened
+    // here: jsdom's selector engine cannot run Chakra's focus lock.)
+    expect(bar()).not.toBeInTheDocument();
+    expect(screen.getByTestId("lobby-submit-map")).toBeInTheDocument();
+
+    await click(screen.getByTestId("stub-puzzle-ready"));
+    // The one-bar layout: the board line, and the link within reach, once.
+    expect(screen.getByTestId("wait-bar-waiting")).toHaveTextContent("playing on a custom board");
+    expect(within(bar()!).getByTestId("lobby-submit-map")).toBeInTheDocument();
+    expect(screen.getAllByTestId("lobby-submit-map")).toHaveLength(1);
+    expect(mockPanel.mounts).toBe(1);
+  });
+
+  it("the keyboard is not dropped when the classic screen gives way: focus goes to the bar's Copy link (#1687)", async () => {
+    mockPanel.readyAtMount = false;
+    await createLobby();
+    const classicCopy = screen.getByText("copy link");
+    classicCopy.focus();
+    expect(classicCopy).toHaveFocus();
+    await click(screen.getByTestId("stub-puzzle-ready"));
+    expect(screen.getByTestId("wait-copy")).toHaveFocus();
   });
 
   it("a game that starts while the panel is still loading opens the table at once: no hold for a puzzle nobody saw (#1687)", async () => {

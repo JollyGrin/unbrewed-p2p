@@ -48,6 +48,7 @@ const PUZZLE_FEATURES: Partial<GameViewFeatures> = {
   turnTimer: false,
   postGame: false,
   soundToggles: false,
+  deviceSettings: false,
 };
 
 const BOT_TIERS: BotDifficulty[] = ["easy", "medium", "hard"];

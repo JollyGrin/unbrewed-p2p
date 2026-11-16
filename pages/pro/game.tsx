@@ -3826,9 +3826,16 @@ const LiveGame = ({
   const onQuickPuzzleStatus = useCallback((status: PuzzlePanelStatus) => {
     if (status === "unavailable") setWaitPuzzleGone(true);
   }, []);
+  // The classic screen goes away under the visitor when the puzzle is up: if
+  // the keyboard was on one of its buttons, it lands on the bar's "Copy link"
+  // instead of falling off the page.
+  const lobbyFocusToBarRef = useRef(false);
   const onLobbyPuzzleStatus = useCallback((status: PuzzlePanelStatus) => {
     if (status === "unavailable") setWaitPuzzleGone(true);
-    else if (status === "ready") setLobbyPuzzleReady(true);
+    else if (status === "ready") {
+      lobbyFocusToBarRef.current = !!document.activeElement?.closest("[data-classic-waiting]");
+      setLobbyPuzzleReady(true);
+    }
   }, []);
   const waitPuzzleUp = waitPuzzlePref.known && !waitPuzzleGone;
   // "Wanted": there is room for it here and nothing is broken; only the
@@ -3890,6 +3897,11 @@ const LiveGame = ({
     if (!lobbyPuzzleShown) setLobbyPuzzleReady(false);
   }, [lobbyPuzzleShown]);
   const lobbyPuzzleUp = lobbyPuzzleShown && lobbyPuzzleReady;
+  useEffect(() => {
+    if (!lobbyPuzzleUp || !lobbyFocusToBarRef.current) return;
+    lobbyFocusToBarRef.current = false;
+    document.querySelector<HTMLElement>('[data-testid="wait-copy"]')?.focus({ preventScroll: true });
+  }, [lobbyPuzzleUp]);
   // No hold for a puzzle the visitor never saw: the table opens with the game.
   const lobbyHolding = lobbyPuzzleUp && !!snapshot;
   const lobbyHold = lobbyHoldMs(roomInfo?.turnTimerSeconds);
@@ -4355,7 +4367,7 @@ const LiveGame = ({
         <SubmitMapDialog isOpen={submitMapOpen} onClose={() => setSubmitMapOpen(false)} map={mapSubmit.map} json={mapSubmit.json} />
       ) : null;
       const classicWaiting = (
-        <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem">
+        <Flex direction="column" alignItems="center" gap="1rem" pt="4rem" px="1rem" data-classic-waiting="">
           <Text fontFamily="LeagueGothic" fontSize="2.5rem" letterSpacing="0.05em" data-testid="waiting-title">
             {pair ? `Waiting for ${pairPartnerName(pair.with)}…` : tournament.at ? "YOUR MATCH ROOM" : `ROOM ${roomId}`}
           </Text>
@@ -4530,7 +4542,6 @@ const LiveGame = ({
             {(roomInfo?.requiredPlayers ?? formatChoice(selectedFormat).requiredPlayers) > 2 ? "(testing solo? open that link in more browser tabs)" : "(testing solo? open that link in a second browser tab)"}
           </Text>
           {submitMapLink}
-          {submitMapDialog}
         </Flex>
       );
       // #1681: with a puzzle up, the screen is one bar (room, link, publish,
@@ -4590,12 +4601,20 @@ const LiveGame = ({
                 />
               )}
               <WaitPuzzle context="lobby_wait" paused={lobbyHolding} onStatus={onLobbyPuzzleStatus} />
-              {lobbyPuzzleUp && submitMapDialog}
             </Flex>
+            {submitMapDialog}
           </>
         );
       }
-      return classicWaiting;
+      // The same three places as above, so the dialog (open or not) is the
+      // same element whichever screen stands around it.
+      return (
+        <>
+          {classicWaiting}
+          {null}
+          {submitMapDialog}
+        </>
+      );
     }
     return (
       <Text pt="4rem" textAlign="center" opacity={0.7}>

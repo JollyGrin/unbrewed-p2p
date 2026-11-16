@@ -139,16 +139,19 @@ const Small = ({ children, ...rest }: { children: ReactNode } & Record<string, u
 /**
  * A state that takes the panel's whole box: the verdict, paused, a quiet
  * failure. With a `label` it is a named region (a verdict: focus moves to its
- * main button, which reads the region's name out with it); without one it is
- * a status, read out when it appears.
+ * main button, which reads the region's name out with it). With `status` the
+ * whole cover is a status, read out when it appears: only for a cover that is
+ * nothing but words. A cover with a button in it marks its own line of text
+ * as the status instead (`STATUS`), so the button is not read as part of it.
  */
-const Cover = ({ testId, dim = true, label, children }: { testId: string; dim?: boolean; label?: string; children: ReactNode }) => (
+const STATUS = { role: "status" } as const;
+const Cover = ({ testId, dim = true, label, status = false, children }: { testId: string; dim?: boolean; label?: string; status?: boolean; children: ReactNode }) => (
   <Flex
     data-testid={testId}
     position="absolute"
     inset={0}
     zIndex={5}
-    {...(label ? { role: "region", "aria-label": label } : { role: "status" })}
+    {...(label ? { role: "region", "aria-label": label } : status ? STATUS : {})}
     direction="column"
     align="center"
     justify="center"
@@ -460,14 +463,14 @@ export const PuzzlePanel = ({
     stage =
       phase === "lost" ? (
         <Cover testId="puzzle-lost" dim={false}>
-          <Small fontSize="0.9rem">Connection lost.</Small>
+          <Small fontSize="0.9rem" {...STATUS}>Connection lost.</Small>
           <Button {...BTN} onClick={restart}>
             Reload puzzle
           </Button>
         </Cover>
       ) : (
         <Cover testId="puzzle-unavailable" dim={false}>
-          <Small fontSize="0.9rem">Puzzles are unavailable right now.</Small>
+          <Small fontSize="0.9rem" {...STATUS}>Puzzles are unavailable right now.</Small>
           {fullGameButton}
         </Cover>
       );
@@ -476,7 +479,7 @@ export const PuzzlePanel = ({
     // tab left alone would hold a room for ever. The visitor asks for it.
     stage = (
       <Cover testId="puzzle-expired" dim={false}>
-        <Small fontSize="0.9rem">This puzzle timed out.</Small>
+        <Small fontSize="0.9rem" {...STATUS}>This puzzle timed out.</Small>
         <Button {...BTN_GOLD} onClick={restart} isDisabled={paused}>
           Start again
         </Button>
@@ -492,7 +495,7 @@ export const PuzzlePanel = ({
     );
   } else if (!playing) {
     stage = (
-      <Cover testId="puzzle-loading" dim={false}>
+      <Cover testId="puzzle-loading" dim={false} status>
         <Spinner color="brand.accent" />
         <Small>Loading puzzle…</Small>
       </Cover>
@@ -695,7 +698,7 @@ export const PuzzlePanel = ({
 
       {cover}
       {paused && (
-        <Cover testId="puzzle-paused">
+        <Cover testId="puzzle-paused" status>
           <Small fontSize="0.95rem" opacity={1}>
             Puzzle paused. Your progress is kept.
           </Small>

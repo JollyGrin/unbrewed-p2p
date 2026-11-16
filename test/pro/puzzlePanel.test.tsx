@@ -763,9 +763,16 @@ describe("the verdict and the keyboard (#1687)", () => {
     }
   });
 
-  it("a cover that is not a verdict is a status", async () => {
+  it("a cover of words alone is a status; one with a button marks only its words", async () => {
     await mount();
     expect(screen.getByTestId("puzzle-loading")).toHaveAttribute("role", "status");
+    await openSocket();
+    await deliver(FX.info, FX.start);
+    await deliver({ type: "PUZZLE_CLOSED", roomId: "PZ-FIXTURE", reason: "idle" });
+    const expired = screen.getByTestId("puzzle-expired");
+    expect(expired).not.toHaveAttribute("role");
+    expect(within(expired).getByRole("status")).toHaveTextContent("This puzzle timed out.");
+    expect(within(expired).getByRole("status")).not.toContainElement(within(expired).getByRole("button", { name: "Start again" }));
   });
 });
 
