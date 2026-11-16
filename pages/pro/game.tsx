@@ -160,7 +160,9 @@ import {
 } from "@/lib/pro/fighterStatuses";
 import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } from "@/lib/pro/moveChoice";
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
-import { cardFaceOptions, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
+import { cardFaceOptions, revealedHandPick, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
+import { startPickQueue, stepPickQueue, type PickQueue } from "@/lib/pro/multiPickQueue";
+import { CardMultiPick, multiPickConfirmLabel } from "@/components/Pro/CardMultiPick";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import {
   applyClick as applyStepClick,
@@ -415,6 +417,7 @@ const PromptPanel = ({
   onRespond,
   buttonOptions,
   cardOptions,
+  multiPick,
   boardHint,
   budgetLine,
   noteLine,
@@ -433,6 +436,11 @@ const PromptPanel = ({
    *  Barrage second-attack commit): each `{ id, instance }` shows the offered card;
    *  clicking answers with its option id. The sentinel stays in `buttonOptions`. */
   cardOptions: { id: string; instance: CardInstanceId; caption?: string }[];
+  /** issue #1691: a "look at their hand, return up to N" count prompt answered by
+   *  picking the cards themselves (or the "returning…" line while the picks are
+   *  being sent). When set it REPLACES the card faces and option buttons, so the
+   *  bare 0 / 1 / 2 count question is never shown. null for every other prompt. */
+  multiPick: ReactNode | null;
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
   /** issue #412: the step budget line for a CHOOSE_SPACE *move* prompt ("Move
@@ -515,7 +523,8 @@ const PromptPanel = ({
             {boardHint}
           </Text>
         )}
-        {cardOptions.length > 0 && (
+        {multiPick}
+        {!multiPick && cardOptions.length > 0 && (
           <Flex gap="0.5rem" flexWrap="wrap" mb="0.5rem">
             {cardOptions.map((c) => (
               <Flex key={c.id} as="button" direction="column" alignItems="center" gap="0.25rem"
@@ -542,22 +551,24 @@ const PromptPanel = ({
             ))}
           </Flex>
         )}
-        <Flex gap="0.5rem" flexWrap="wrap">
-          {buttonOptions.map((o) => (
-            <Button
-              key={o.id}
-              {...BTN_GOLD}
-              whiteSpace="normal"
-              height="auto"
-              minH="2rem"
-              py="0.35rem"
-              textAlign="left"
-              onClick={() => onRespond(prompt.promptId, o.id)}
-            >
-              {o.label}
-            </Button>
-          ))}
-        </Flex>
+        {!multiPick && (
+          <Flex gap="0.5rem" flexWrap="wrap">
+            {buttonOptions.map((o) => (
+              <Button
+                key={o.id}
+                {...BTN_GOLD}
+                whiteSpace="normal"
+                height="auto"
+                minH="2rem"
+                py="0.35rem"
+                textAlign="left"
+                onClick={() => onRespond(prompt.promptId, o.id)}
+              >
+                {o.label}
+              </Button>
+            ))}
+          </Flex>
+        )}
       </>
     ) : (
       <Text opacity={0.7} fontSize="0.9rem">
@@ -5268,6 +5279,36 @@ const LiveGame = ({
     });
   }, [snapshot]);
 
+  // Pick-the-returned-cards queue (issue #1691 — POMNI's *The Funny One!*): the
+  // multi-pick view answers the count prompt and leaves the chosen cards here;
+  // each following CHOOSE_TARGET is answered from it as it arrives. The ref is
+  // what the effects read (a STATE can land before the state copy re-renders);
+  // the state copy only drives the "returning…" line. See lib/pro/multiPickQueue.
+  const pickQueueRef = useRef<PickQueue | null>(null);
+  const [pickQueue, setPickQueueState] = useState<PickQueue | null>(null);
+  const setPickQueue = useCallback((q: PickQueue | null) => {
+    pickQueueRef.current = q;
+    setPickQueueState(q);
+  }, []);
+  // The reveal the picker already showed, so its fallback panel stays away.
+  const [pickedRevealKey, setPickedRevealKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pickQueueRef.current) return;
+    const p = snapshot?.prompt;
+    const step = stepPickQueue(pickQueueRef.current, p && p.player === snapshot?.view.you ? p : null);
+    // A send that did not go out leaves the prompt for the player to answer.
+    const sent = !step.answer || respondToPrompt(step.answer.promptId, step.answer.optionId);
+    setPickQueue(sent ? step.queue : null);
+  }, [snapshot, respondToPrompt, setPickQueue]);
+  // Anything that says the answers did not land as planned — a rejected action,
+  // a server error, a rate limit, an expired move timer, a resync or a dropped
+  // socket — drops the queue: whatever prompt is up is then answered by hand.
+  useEffect(() => {
+    if (illegalAction || serverError || rateLimited || ownTimerExpired || resyncing || status !== "open") {
+      setPickQueue(null);
+    }
+  }, [illegalAction, serverError, rateLimited, ownTimerExpired, resyncing, status, setPickQueue]);
+
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
   // Slow mode (#703): the batch the action spotlight is describing, tagged with
@@ -7192,6 +7233,43 @@ const LiveGame = ({
     promptReveals && promptForMe && promptReveals.promptId === promptForMe.promptId
       ? revealedPlayerPickOptions(promptForMe, promptReveals.reveals)
       : [];
+  // Look-at-their-hand count prompt (issue #1691): the batch that opened a "how
+  // many? 0/1/2" CHOOSE_OPTION also revealed one opponent's hand, so the cards are
+  // picked directly and the count is never asked. null (buttons as before) for
+  // every other count prompt and after a mid-prompt reconnect.
+  const promptHandPick =
+    promptReveals && promptForMe && promptReveals.promptId === promptForMe.promptId
+      ? revealedHandPick(promptForMe, promptReveals.reveals)
+      : null;
+  const revealKeyOf = (owner: string) => `${owner}:${view.turnNumber}`;
+  const promptMultiPick: ReactNode | null = !promptForMe ? null : pickQueue ? (
+    <Text fontSize="0.85rem" color="brand.parchment" opacity={0.85} data-testid="card-multi-pick-busy">
+      {multiPickConfirmLabel(pickQueue.total).replace(/^Return/, "Returning")}…
+    </Text>
+  ) : promptHandPick ? (
+    <CardMultiPick
+      key={promptForMe.promptId}
+      cards={promptHandPick.cards}
+      max={promptHandPick.max}
+      counts={Object.keys(promptHandPick.countOptions).map(Number)}
+      resolveCard={resolveCard}
+      labelFor={(c) => cardLabel(view.catalog, c)}
+      onConfirm={(selected) => {
+        const start = startPickQueue(promptHandPick, promptForMe.promptId, selected);
+        if (!start || !respondToPrompt(start.answer.promptId, start.answer.optionId)) return;
+        setPickQueue(start.queue);
+        setPickedRevealKey(revealKeyOf(promptHandPick.owner));
+      }}
+    />
+  ) : null;
+  // The Funny One's reveal panel is the FALLBACK view of that hand: it stays away
+  // while the picker (or its "returning…" line) is up and once the picker has
+  // answered for this reveal, and it never shows a player their own hand.
+  const hideBriefReveal =
+    !!revealedHand?.brief &&
+    (revealedHand.owner === view.you ||
+      !!promptMultiPick ||
+      pickedRevealKey === revealKeyOf(revealedHand.owner));
   const promptRevealCardOptions = promptRevealMatches.map((o) => {
     const seat = view.players.find((p) => p.id === o.player);
     const name = seat ? seatNameplate(seat, view.players.length) : o.player.toUpperCase();
@@ -8122,6 +8200,7 @@ const LiveGame = ({
             onRespond={respondToPrompt}
             buttonOptions={promptButtonOptions}
             cardOptions={[...promptCardOptions, ...promptRevealCardOptions]}
+            multiPick={promptMultiPick}
             boardHint={promptBoardHint && mobile ? touchCopy(promptBoardHint) : promptBoardHint}
             budgetLine={promptBudgetLine}
             noteLine={promptNoteLine}
@@ -8417,7 +8496,7 @@ const LiveGame = ({
         labelFor={(c) => cardLabel(view.catalog, c)}
       />
 
-      {revealedHand && (
+      {revealedHand && !hideBriefReveal && (
         <RevealedHandPanel
           // a newer reveal starts expanded, whatever the last one was collapsed to
           key={`${revealedHand.owner}:${revealedHand.turn}:${revealedHand.cards.join(",")}`}

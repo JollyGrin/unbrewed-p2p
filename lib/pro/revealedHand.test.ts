@@ -78,3 +78,47 @@ describe("advanceRevealedHand", () => {
     });
   });
 });
+
+// Issue #1691 — POMNI's *The Funny One!*: a combat card, so the reveal is
+// recognised by its own effect marker and kept only while it is being decided.
+describe("advanceRevealedHand — look-at-hand combat cards", () => {
+  const funny: GameEvent = { type: "EFFECT_RESOLVING", source: "pomni/the-funny-one#1", window: "IMMEDIATELY", player: "p1" };
+  const opened: GameEvent = { type: "PROMPT_OPENED", player: "p1", kind: "CHOOSE_OPTION", promptId: "count" };
+  const shuffled = (card: string): GameEvent => ({ type: "CARD_SHUFFLED_INTO_DECK", player: "p2", card, from: "HAND" });
+  const held = advance(EMPTY_REVEAL_STATE, [funny, rev("a/x#1"), rev("a/y#2"), opened], 3);
+
+  it("captures the hand revealed right after the effect marker", () => {
+    expect(held).toEqual({
+      panel: { revealer: "p1", owner: "p2", cards: ["a/x#1", "a/y#2"], turn: 3, brief: true },
+      armed: null,
+    });
+  });
+
+  it("ignores other effect markers", () => {
+    const other: GameEvent = { ...funny, source: "pomni/anxiety#1" } as GameEvent;
+    expect(advance(EMPTY_REVEAL_STATE, [other, rev("a/x#1")], 3)).toEqual(EMPTY_REVEAL_STATE);
+  });
+
+  it("does not stay armed when no reveal follows (3+ players, empty hand)", () => {
+    expect(advance(EMPTY_REVEAL_STATE, [funny, opened, rev("a/x#1")], 3)).toEqual(EMPTY_REVEAL_STATE);
+    const next = advance(EMPTY_REVEAL_STATE, [funny], 3);
+    expect(next.armed).toBeNull();
+    expect(advance(next, [rev("a/x#1")], 3).panel).toBeNull();
+  });
+
+  it("drops each card the effect shuffles back, and the panel with the last one", () => {
+    const one = advance(held, [shuffled("a/x#1")], 3);
+    expect(one.panel?.cards).toEqual(["a/y#2"]);
+    expect(advance(one, [shuffled("a/y#2")], 3).panel).toBeNull();
+  });
+
+  it("clears at the end of the turn", () => {
+    expect(advance(held, [{ type: "TURN_ENDED", player: "p1" }], 3).panel).toBeNull();
+    expect(advance(held, [{ type: "TURN_STARTED", player: "p2", turnNumber: 4 }], 4).panel).toBeNull();
+  });
+
+  it("leaves a Keen Hearing panel alone when cards are shuffled back", () => {
+    const keen = advance(EMPTY_REVEAL_STATE, [played, rev("a/x#1")], 3);
+    expect(advance(keen, [shuffled("a/x#1")], 3)).toEqual(keen);
+  });
+});

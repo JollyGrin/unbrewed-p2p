@@ -1,4 +1,4 @@
-import { cardFaceOptions, optionCardId } from "./cardOptions";
+import { cardFaceOptions, optionCardId, revealedHandPick } from "./cardOptions";
 import type { LegalOption, PlayerId, PromptKind, ViewPrompt } from "./protocol";
 
 const prompt = (kind: PromptKind, options: LegalOption[]): ViewPrompt => ({
@@ -175,5 +175,58 @@ describe("revealedPlayerPickOptions (issue #861 — Foreshadowing pick-a-player)
   it("a fighter-target CHOOSE_TARGET (no data.player) keeps its board flow", () => {
     const p = prompt("CHOOSE_TARGET", [{ id: "f1", label: "Cecil", data: { fighter: "f1" } }]);
     expect(revealedPlayerPickOptions(p, [rev("p1", "card_001#1")])).toEqual([]);
+  });
+});
+
+// Issue #1691 — POMNI's *The Funny One!*: reveal the opponent's hand, then
+// "how many? 0/1/2" (CHOOSE_OPTION, data.count), then one CHOOSE_TARGET per card.
+describe("revealedHandPick", () => {
+  const countOpt = (n: number): LegalOption => ({ id: String(n), label: String(n), data: { count: n } });
+  const counts = (...ns: number[]) => prompt("CHOOSE_OPTION", ns.map(countOpt));
+  const hand = (...cards: string[]) => cards.map((c) => rev("p2", c));
+
+  it("fires for a count prompt whose batch revealed one opponent's hand", () => {
+    expect(revealedHandPick(counts(0, 1, 2), hand("pl/hit#2", "pl/hit#3", "pl/plot#1"))).toEqual({
+      owner: "p2",
+      cards: ["pl/hit#2", "pl/hit#3", "pl/plot#1"],
+      max: 2,
+      countOptions: { 0: "0", 1: "1", 2: "2" },
+    });
+  });
+
+  it("caps the max at what the engine offers for a 1-card hand", () => {
+    expect(revealedHandPick(counts(0, 1), hand("pl/hit#2"))?.max).toBe(1);
+  });
+
+  it("never lets the max exceed the revealed hand", () => {
+    expect(revealedHandPick(counts(0, 1, 2), hand("pl/hit#2"))?.max).toBe(1);
+  });
+
+  it("leaves a count prompt with no reveal in its batch as buttons (discard-N, reconnect)", () => {
+    expect(revealedHandPick(counts(0, 1, 2), [])).toBeNull();
+  });
+
+  it("ignores a reveal of the chooser's own cards", () => {
+    expect(revealedHandPick(counts(0, 1, 2), [rev("p1", "pl/hit#2")])).toBeNull();
+  });
+
+  it("ignores reveals from more than one seat (Foreshadowing's shape)", () => {
+    expect(revealedHandPick(counts(0, 1), [rev("p2", "a/x#1"), rev("p3", "a/y#1")])).toBeNull();
+  });
+
+  it("needs EVERY option to be a count", () => {
+    const mixed = prompt("CHOOSE_OPTION", [countOpt(0), countOpt(1), { id: "decline", label: "Decline" }]);
+    expect(revealedHandPick(mixed, hand("pl/hit#2"))).toBeNull();
+    const branches = prompt("CHOOSE_OPTION", [{ id: "a", label: "Draw", data: { branch: 0 } }]);
+    expect(revealedHandPick(branches, hand("pl/hit#2"))).toBeNull();
+  });
+
+  it("only reads CHOOSE_OPTION prompts", () => {
+    expect(revealedHandPick(prompt("CHOOSE_TARGET", [countOpt(0), countOpt(1)]), hand("pl/hit#2"))).toBeNull();
+    expect(revealedHandPick(null, hand("pl/hit#2"))).toBeNull();
+  });
+
+  it("has nothing to offer when the only count is 0", () => {
+    expect(revealedHandPick(counts(0), hand("pl/hit#2"))).toBeNull();
   });
 });

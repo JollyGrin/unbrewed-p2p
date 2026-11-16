@@ -105,3 +105,59 @@ export const revealedPlayerPickOptions = (
   }
   return out;
 };
+
+/** A "how many?" count prompt that can be answered by picking cards instead. */
+export interface RevealedHandPick {
+  /** the seat whose hand the batch revealed */
+  owner: PlayerId;
+  /** the revealed hand, in reveal order */
+  cards: CardInstanceId[];
+  /** the most cards that can be picked (never more than the hand holds) */
+  max: number;
+  /** count → the RESPOND_PROMPT option id that answers the count prompt with it */
+  countOptions: Record<number, string>;
+}
+
+/** The whole number an option offers via `data.count`, or null. */
+export const optionCount = (o: LegalOption): number | null => {
+  const n = (o.data as { count?: unknown } | undefined)?.count;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : null;
+};
+
+/**
+ * "Look at a hand, choose up to N cards" (issue #1691 — POMNI's *The Funny
+ * One!*). The engine has no multi-select prompt: it asks "how many? 0/1/2"
+ * first (a CHOOSE_OPTION whose options carry `data.count`) and then one
+ * CHOOSE_TARGET per card. When the SAME event batch that opened the count
+ * prompt revealed one other seat's hand, the count can be answered by picking
+ * the cards themselves, so the caller shows the hand instead of bare numbers.
+ *
+ * Shape-based, not tied to one card. Returns null — and the prompt keeps its
+ * buttons — unless EVERY option is a distinct count, the batch's reveals all
+ * belong to ONE seat that is not the chooser, and at least one card can be
+ * picked. So a discard-N count prompt with no reveal in its batch, a reveal of
+ * the chooser's own cards, reveals from several seats (Foreshadowing) and a
+ * mid-prompt reconnect (no events replayed) all fall through.
+ */
+export const revealedHandPick = (
+  prompt: ViewPrompt | null,
+  reveals: readonly RevealedCard[],
+): RevealedHandPick | null => {
+  if (!prompt || prompt.kind !== "CHOOSE_OPTION" || prompt.options.length === 0) return null;
+  const countOptions: Record<number, string> = {};
+  for (const o of prompt.options) {
+    const n = optionCount(o);
+    if (n === null || n in countOptions) return null;
+    countOptions[n] = o.id;
+  }
+  const owner = reveals[0]?.player;
+  if (!owner || owner === prompt.player) return null;
+  const cards: CardInstanceId[] = [];
+  for (const r of reveals) {
+    // Same `#` guard as optionCardId: an instance id, not a bare def id.
+    if (r.player !== owner || !r.card.includes("#") || cards.includes(r.card)) return null;
+    cards.push(r.card);
+  }
+  const max = Math.min(cards.length, Math.max(...Object.keys(countOptions).map(Number)));
+  return max >= 1 ? { owner, cards, max, countOptions } : null;
+};
