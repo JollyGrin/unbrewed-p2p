@@ -12,12 +12,14 @@
  * Presentation only. The page (pages/pro/game.tsx) decides when any of this is
  * shown and what "Go" does; lib/pro/waitPuzzle.ts holds the shared decisions.
  * The panel is loaded lazily: it carries a whole in-game view of its own. A
- * chunk that fails to load counts as "no puzzle", like any other failure.
+ * chunk that fails to load, or does not arrive in time, counts as "no puzzle",
+ * like any other failure.
  */
 import { Box, Button, Flex, Text, keyframes } from "@chakra-ui/react";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
-import type { PuzzlePanelProps } from "@/components/Pro/Puzzle/PuzzlePanel";
+import type { PuzzlePanelProps, PuzzlePanelStatus } from "@/components/Pro/Puzzle/PuzzlePanel";
+import { withPuzzleTimeout } from "@/lib/pro/puzzleCatalogue";
 
 const spin = keyframes`to { transform: rotate(360deg) }`;
 
@@ -201,6 +203,10 @@ export interface LobbyWaitBarProps {
   waiting: string;
   /** "⏱ 60s" etc.; null = nothing */
   rule: string | null;
+  /** "playing on Sherwood Forest"; null = the board is not known (a resumed room) */
+  board?: string | null;
+  /** The custom board's "submit it" link, kept within reach in the one-bar layout. */
+  extra?: ReactNode;
   joinUrl: string;
   onCopy: () => void;
   copied: boolean;
@@ -217,6 +223,8 @@ export const LobbyWaitBar = ({
   title,
   waiting,
   rule,
+  board = null,
+  extra = null,
   joinUrl,
   onCopy,
   copied,
@@ -236,8 +244,10 @@ export const LobbyWaitBar = ({
           <Title data-testid="waiting-title">{title}</Title>
           <Note opacity={0.75} data-testid="wait-bar-waiting">
             {waiting}
+            {board ? ` · ${board}` : ""}
             {rule ? ` · ${rule}` : ""}
           </Note>
+          {extra}
         </Flex>
         <Note
           data-testid="wait-bar-link"
@@ -281,25 +291,30 @@ export interface WaitPuzzleProps {
   context: "quick_search" | "lobby_wait";
   /** the opponent is here: freeze the panel (its try and its socket are kept) */
   paused: boolean;
-  /** the panel has nothing to show (no server, no catalogue, a lost socket): put the old screen back */
-  onUnavailable: () => void;
+  /**
+   * The panel's own report (`PuzzlePanelProps.onStatus`): `ready` once there is
+   * a puzzle to play, `unavailable` when there is none to show (no server, no
+   * catalogue, a lost socket, code that did not load): put the old screen back.
+   */
+  onStatus: (status: PuzzlePanelStatus) => void;
 }
 
 /** The panel in a box that takes whatever height its column has left. */
-export const WaitPuzzle = ({ context, paused, onUnavailable }: WaitPuzzleProps) => {
+export const WaitPuzzle = ({ context, paused, onStatus }: WaitPuzzleProps) => {
   // Loaded by hand rather than with next/dynamic: a chunk that will not load
-  // has to end as `onUnavailable` (the old screen back), not as a thrown error.
+  // (or stalls) has to end as `unavailable` (the old screen back), not as a
+  // thrown error or an empty box for ever.
   const [Panel, setPanel] = useState<ComponentType<PuzzlePanelProps> | null>(null);
-  const onUnavailableRef = useRef(onUnavailable);
-  onUnavailableRef.current = onUnavailable;
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
   useEffect(() => {
     let live = true;
-    import("@/components/Pro/Puzzle/PuzzlePanel")
+    withPuzzleTimeout(import("@/components/Pro/Puzzle/PuzzlePanel"))
       .then((mod) => {
         if (live) setPanel(() => mod.default);
       })
       .catch(() => {
-        if (live) onUnavailableRef.current();
+        if (live) onStatusRef.current("unavailable");
       });
     return () => {
       live = false;
@@ -307,7 +322,7 @@ export const WaitPuzzle = ({ context, paused, onUnavailable }: WaitPuzzleProps) 
   }, []);
   return (
     <Box data-testid="wait-puzzle" flex="1" minH="0" minW="0">
-      {Panel && <Panel context={context} paused={paused} onUnavailable={onUnavailable} />}
+      {Panel && <Panel context={context} paused={paused} onStatus={onStatus} />}
     </Box>
   );
 };

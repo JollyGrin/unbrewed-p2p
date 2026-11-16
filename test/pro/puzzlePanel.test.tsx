@@ -22,10 +22,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { toast } from "react-hot-toast";
 import { theme } from "@/styles/style";
-import { PuzzlePanel, PuzzlePanelProps, __resetPuzzleSittingForTests } from "@/components/Pro/Puzzle/PuzzlePanel";
+import { PUZZLE_LOG_MIN_WIDTH_PX, PuzzlePanel, PuzzlePanelProps, __resetPuzzleSittingForTests, puzzleLogLines } from "@/components/Pro/Puzzle/PuzzlePanel";
 import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { PuzzleSummary } from "@/lib/pro/protocol";
-import { __resetPuzzleCatalogueForTests, puzzleSourceLine, solveRateLine } from "@/lib/pro/puzzleCatalogue";
+import { PACE_KEY } from "@/lib/pro/usePace";
+import { PUZZLE_LOAD_TIMEOUT_MS, __resetPuzzleCatalogueForTests, puzzleSourceLine, solveRateLine } from "@/lib/pro/puzzleCatalogue";
 import { PUZZLE_PROGRESS_KEY, markPuzzleSolved } from "@/lib/pro/puzzleProgress";
 import { PUZZLE_ROOM_TIMEOUT_MS } from "@/lib/pro/usePuzzleSocket";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
@@ -35,6 +36,11 @@ jest.mock("../../lib/analytics", () => ({
   ...jest.requireActual("../../lib/analytics"),
   track: (event: string, props?: Record<string, unknown>, opts?: unknown) => mockTrack(event, props, opts),
 }));
+
+// Each test mounts the whole in-game view, some of them three rooms in a row:
+// on a busy machine the longest ran past jest's 5 s and, still running, broke
+// every test after it (#1687).
+jest.setTimeout(30_000);
 
 type Msg = Record<string, unknown>;
 const FX: Record<"info" | "start" | "afterDeclare" | "solvedFinal" | "solvedResult" | "hint" | "failedFinal" | "failedResult", Msg> = JSON.parse(
@@ -251,7 +257,7 @@ describe("the verdict", () => {
 });
 
 describe("the solution", () => {
-  it("plays without a verdict, then offers a fresh room; a solve after it is not counted", async () => {
+  it("plays without a verdict, then offers a fresh room; a solve in that room is not the visitor's own (#1687)", async () => {
     const onSolved = jest.fn();
     await start({ onSolved });
     await deliver(FX.failedFinal, FX.failedResult);
@@ -265,34 +271,42 @@ describe("the solution", () => {
     const card = await screen.findByTestId("puzzle-solution-done");
     expect(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)).toBeNull();
 
-    // "Try again" now means a FRESH room: the old one would never count a solve.
+    // "Try again" is a FRESH room (the server's record of that room starts clean).
     fireEvent.click(within(card).getByRole("button", { name: "Try again" }));
     expect(sent.filter((m) => m.type === "PUZZLE_RESET")).toHaveLength(0);
     expect(FakeWebSocket.instances).toHaveLength(2);
     expect(FakeWebSocket.instances[0].readyState).toBe(FakeWebSocket.CLOSED);
 
-    // An honest solve in the fresh room counts.
+    // The fresh room says `solutionShown: false`; the page remembers otherwise.
+    mockTrack.mockClear();
     await openSocket();
     await deliver({ ...FX.info, roomId: "PZ-FRESH" }, FX.start);
-    await deliver(FX.solvedFinal, { ...FX.solvedResult, roomId: "PZ-FRESH" });
-    expect(await screen.findByTestId("puzzle-result-solved")).not.toHaveTextContent("not counted");
+    await deliver(FX.solvedFinal, { ...FX.solvedResult, roomId: "PZ-FRESH", tryNumber: 1, solutionShown: false });
+    const solved = await screen.findByTestId("puzzle-result-solved");
+    expect(solved).toHaveTextContent("Solved");
+    expect(within(solved).getByTestId("puzzle-result-stats")).toHaveTextContent("Solved after seeing the solution");
+    expect(solved).not.toHaveTextContent(/first try/i);
+    expect(solved).not.toHaveTextContent(/try 1/i);
+    // Not an honest solve: no `puzzle_solved`, no `onSolved`, and the attempt says why.
+    expect(tracked("puzzle_solved")).toEqual([]);
+    expect(onSolved).not.toHaveBeenCalled();
+    expect(tracked("puzzle_attempt_finished")).toEqual([expect.objectContaining({ result: "solved", solution_shown: true })]);
+    // …but it is remembered, so "Next puzzle" moves on.
     expect(JSON.parse(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)!)).toEqual([PUZZLE.id]);
-    expect(tracked("puzzle_solved")).toHaveLength(1);
-    expect(onSolved).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(solved).getByRole("button", { name: "Next puzzle" }));
+    await openSocket();
+    expect(created().map((m) => m.puzzleId)).toEqual([PUZZLE.id, PUZZLE.id, "second-puzzle"]);
   });
 
-  it("a solve the server marks solutionShown is shown as solved but neither counted nor remembered", async () => {
+  it("a solve the server marks solutionShown reads the same: solved, not bragged about, not counted", async () => {
     const onSolved = jest.fn();
     await start({ onSolved }, { ...FX.info, solutionShown: true });
     await deliver(FX.solvedFinal, { ...FX.solvedResult, solutionShown: true });
     const card = await screen.findByTestId("puzzle-result-solved");
-    expect(card).toHaveTextContent("not counted");
-    expect(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)).toBeNull();
+    expect(within(card).getByTestId("puzzle-result-stats")).toHaveTextContent("Solved after seeing the solution");
     expect(tracked("puzzle_solved")).toEqual([]);
     expect(onSolved).not.toHaveBeenCalled();
-    // Its "Try again" is a fresh room too.
-    fireEvent.click(within(card).getByRole("button", { name: "Try again" }));
-    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(JSON.parse(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)!)).toEqual([PUZZLE.id]);
   });
 
   it("Reset while the solution plays opens a fresh room as well", async () => {
@@ -406,11 +420,13 @@ describe("footer", () => {
   it("is muted until the visitor unmutes", async () => {
     await start();
     const mute = screen.getByTestId("puzzle-sound");
+    // One name; the state is `aria-pressed` alone (a label that swapped as well
+    // would be read as "Mute, pressed": on or off?).
     expect(mute).toHaveAttribute("aria-pressed", "false");
-    expect(mute).toHaveAccessibleName("Unmute puzzle sound");
+    expect(mute).toHaveAccessibleName("Puzzle sound");
     fireEvent.click(mute);
     expect(mute).toHaveAttribute("aria-pressed", "true");
-    expect(mute).toHaveAccessibleName("Mute puzzle sound");
+    expect(mute).toHaveAccessibleName("Puzzle sound");
   });
 
   it("routes the view's notices into the status line, not the host page's toaster", async () => {
@@ -492,20 +508,48 @@ describe("failing quietly", () => {
   });
 
   it("tells the host when it has gone quiet, so the host can put its own screen back (#1681)", async () => {
-    const onUnavailable = jest.fn();
-    await start({ context: "lobby_wait", onUnavailable });
-    expect(onUnavailable).not.toHaveBeenCalled();
+    const onStatus = jest.fn();
+    await start({ context: "lobby_wait", onStatus });
+    expect(onStatus).not.toHaveBeenCalledWith("unavailable");
     await act(async () => {
       latest().onclose?.({});
     });
-    expect(onUnavailable).toHaveBeenCalledTimes(1);
+    expect(onStatus).toHaveBeenLastCalledWith("unavailable");
 
     cleanup();
     catalogue = null;
     __resetPuzzleCatalogueForTests();
     const noCatalogue = jest.fn();
-    await mount({ context: "quick_search", onUnavailable: noCatalogue });
-    expect(noCatalogue).toHaveBeenCalledTimes(1);
+    await mount({ context: "quick_search", onStatus: noCatalogue });
+    expect(noCatalogue).toHaveBeenLastCalledWith("unavailable");
+  });
+
+  it("a catalogue request that stalls ends as unavailable, not as a loading state for ever (#1687)", async () => {
+    jest.useFakeTimers();
+    try {
+      // A server that accepts the request and never answers it.
+      global.fetch = jest.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+      const onStatus = jest.fn();
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ChakraProvider theme={theme}>
+            <PuzzlePanel context="lobby_wait" wsUrl={URL} onStatus={onStatus} />
+          </ChakraProvider>
+        </QueryClientProvider>,
+      );
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(PUZZLE_LOAD_TIMEOUT_MS - 100);
+      });
+      expect(onStatus).toHaveBeenLastCalledWith("loading");
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(200);
+      });
+      expect(onStatus).toHaveBeenLastCalledWith("unavailable");
+      expect(screen.queryByTestId("puzzle-panel")).not.toBeInTheDocument();
+      expect(FakeWebSocket.instances).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("a wait with every puzzle solved offers them again from the first, and keeps the solved record (#1681)", async () => {
@@ -624,6 +668,177 @@ describe("failing quietly", () => {
     });
     expect(screen.queryByTestId("puzzle-result-failed")).not.toBeInTheDocument();
     expect(screen.getByTestId("puzzle-loading")).toBeInTheDocument();
+  });
+});
+
+describe("a room that ends under a verdict (#1687)", () => {
+  const solveAndSeeVerdict = async () => {
+    await start();
+    await deliver(FX.solvedFinal, FX.solvedResult);
+    await screen.findByTestId("puzzle-result-solved");
+    // The verdict deadens the board under it.
+    expect(screen.getByTestId("puzzle-stage")).toHaveAttribute("inert");
+  };
+
+  it("idle-closed after a solve: 'Start again' is not under an inert stage, and works", async () => {
+    await solveAndSeeVerdict();
+    await deliver({ type: "PUZZLE_CLOSED", roomId: "PZ-FIXTURE", reason: "idle" });
+    const expired = screen.getByTestId("puzzle-expired");
+    expect(screen.queryByTestId("puzzle-result-solved")).not.toBeInTheDocument();
+    expect(screen.getByTestId("puzzle-stage")).not.toHaveAttribute("inert");
+    expect(expired.closest("[inert]")).toBeNull();
+    fireEvent.click(within(expired).getByRole("button", { name: "Start again" }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(screen.getByTestId("puzzle-loading")).toBeInTheDocument();
+    // The fresh room plays: no verdict from the dead one comes back with it.
+    await openSocket();
+    await deliver({ ...FX.info, roomId: "PZ-AGAIN" }, FX.start);
+    expect(screen.getByTestId("pro-game-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("puzzle-result-solved")).not.toBeInTheDocument();
+    expect(screen.getByTestId("puzzle-stage")).not.toHaveAttribute("inert");
+  });
+
+  it("socket closed after a solve: 'Reload puzzle' is not under an inert stage, and works", async () => {
+    await solveAndSeeVerdict();
+    await act(async () => {
+      latest().onclose?.({});
+      await tick();
+    });
+    const lost = screen.getByTestId("puzzle-lost");
+    expect(screen.getByTestId("puzzle-stage")).not.toHaveAttribute("inert");
+    expect(lost.closest("[inert]")).toBeNull();
+    fireEvent.click(within(lost).getByRole("button", { name: "Reload puzzle" }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("a STATE still queued when the room closes does not put the dead board back in play", async () => {
+    await start();
+    // Back to back, as a socket delivers them: the second STATE is still
+    // waiting for its own tick when the close arrives.
+    await deliver(FX.afterDeclare, FX.failedFinal, { type: "PUZZLE_CLOSED", roomId: "PZ-FIXTURE", reason: "idle" });
+    expect(screen.getByTestId("puzzle-expired")).toBeInTheDocument();
+    expect(screen.queryByTestId("pro-game-view")).not.toBeInTheDocument();
+    // …and the same for a socket that drops with a STATE queued.
+    fireEvent.click(screen.getByRole("button", { name: "Start again" }));
+    await openSocket();
+    await deliver({ ...FX.info, roomId: "PZ-AGAIN" }, FX.start);
+    await act(async () => {
+      for (const msg of [FX.afterDeclare, FX.failedFinal]) latest().onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, ...msg }) });
+      latest().onclose?.({});
+      for (let i = 0; i < 4; i += 1) await tick();
+    });
+    expect(screen.getByTestId("puzzle-lost")).toBeInTheDocument();
+    expect(screen.queryByTestId("pro-game-view")).not.toBeInTheDocument();
+  });
+});
+
+describe("the verdict and the keyboard (#1687)", () => {
+  it("focus moves to the verdict's main button, in a region named after the verdict", async () => {
+    await start();
+    (screen.getByTestId("pro-contained") as HTMLElement).focus();
+    await deliver(FX.failedFinal, FX.failedResult);
+    const failed = await screen.findByTestId("puzzle-result-failed");
+    expect(failed).toHaveAttribute("role", "region");
+    expect(failed).toHaveAccessibleName("The Hollow Oak survives");
+    await waitFor(() => expect(within(failed).getByRole("button", { name: "Try again" })).toHaveFocus());
+
+    await deliver({ ...FX.info, tryNumber: 2 }, FX.start);
+    await deliver(FX.solvedFinal, { ...FX.solvedResult, tryNumber: 2 });
+    const solved = await screen.findByTestId("puzzle-result-solved");
+    expect(solved).toHaveAccessibleName("Solved");
+    await waitFor(() => expect(within(solved).getByRole("button", { name: "Next puzzle" })).toHaveFocus());
+  });
+
+  it("leaves focus alone when the visitor is somewhere else on the host page", async () => {
+    await start();
+    const elsewhere = document.createElement("input");
+    document.body.appendChild(elsewhere);
+    try {
+      elsewhere.focus();
+      await deliver(FX.failedFinal, FX.failedResult);
+      await screen.findByTestId("puzzle-result-failed");
+      expect(elsewhere).toHaveFocus();
+    } finally {
+      elsewhere.remove();
+    }
+  });
+
+  it("a cover that is not a verdict is a status", async () => {
+    await mount();
+    expect(screen.getByTestId("puzzle-loading")).toHaveAttribute("role", "status");
+  });
+});
+
+describe("this device's /pro/game settings (#1687)", () => {
+  it("the panel's view offers no control that writes them", async () => {
+    window.localStorage.setItem(PACE_KEY, "normal");
+    await start();
+    // The phone arrangement keeps them in the match strip's menu (lazy: its
+    // rows exist only once it is open).
+    const menu = within(screen.getByTestId("pro-game-view")).getByLabelText("Game menu");
+    await act(async () => {
+      fireEvent.click(menu);
+      await tick();
+    });
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    const names = Array.from(screen.getByTestId("puzzle-panel").querySelectorAll("button, [role='menuitem']")).map(
+      (el) => `${el.getAttribute("aria-label") ?? ""} ${el.textContent ?? ""}`,
+    );
+    expect(names.filter((n) => /pace|slow mode|cosmetic|figure|zone disc/i.test(n))).toEqual([]);
+    expect(window.localStorage.getItem(PACE_KEY)).toBe("normal");
+  });
+});
+
+describe("this try's log beside the board (#1687)", () => {
+  const widePanel = (width: number) => {
+    const real = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth")!;
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.getAttribute("data-testid") === "puzzle-panel" ? width : 360;
+      },
+    });
+    return () => Object.defineProperty(HTMLElement.prototype, "clientWidth", real);
+  };
+
+  it("/puzzles at desktop width: the log is on show without a button, oldest line first", async () => {
+    const restore = widePanel(PUZZLE_LOG_MIN_WIDTH_PX + 100);
+    try {
+      await start({ context: "page" });
+      const log = screen.getByTestId("puzzle-log");
+      expect(log).toHaveAccessibleName("This try");
+      const lines = () => within(screen.getByTestId("puzzle-log")).getAllByTestId("puzzle-log-line").map((l) => l.textContent);
+      const opening = lines();
+      await deliver(FX.afterDeclare);
+      await deliver(FX.failedFinal);
+      // What was played is added UNDER what was there: the list reads top down.
+      expect(lines().length).toBeGreaterThan(opening.length);
+      expect(lines().slice(0, opening.length)).toEqual(opening);
+      // A reset starts the log over with the board.
+      await deliver({ ...FX.info, tryNumber: 2 }, FX.start);
+      expect(lines()).toEqual(opening);
+    } finally {
+      restore();
+    }
+  });
+
+  it("not in a narrow panel, and not outside /puzzles", async () => {
+    await start({ context: "page" });
+    expect(screen.queryByTestId("puzzle-log")).not.toBeInTheDocument();
+    cleanup();
+    const restore = widePanel(PUZZLE_LOG_MIN_WIDTH_PX + 100);
+    try {
+      await start({ context: "landing" });
+      expect(screen.queryByTestId("puzzle-log")).not.toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("puzzleLogLines: actions oldest first, each action's lines in the order they happened", () => {
+    const line = (key: string, batchId: number) => ({ key, text: key, who: "you" as const, batchId });
+    // The view keeps the newest action on top, and an action's lines in order.
+    expect(puzzleLogLines([line("c1", 3), line("c2", 3), line("b1", 2), line("a1", 1), line("a2", 1)]).map((l) => l.text)).toEqual(["a1", "a2", "b1", "c1", "c2"]);
   });
 });
 

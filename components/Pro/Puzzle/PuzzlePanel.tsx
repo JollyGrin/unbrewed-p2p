@@ -26,6 +26,7 @@ import { TbBulb, TbRefresh, TbVolume, TbVolumeOff } from "react-icons/tb";
 import { VS_BOT_HREF } from "@/components/LandingPage/content";
 import { BTN, BTN_GOLD, GameView, TABLE_BG, type GameViewFeatures } from "@/components/Pro/GameView";
 import { track } from "@/lib/analytics";
+import type { ProLogEntry } from "@/lib/pro/gameLog";
 import type { Action, PuzzleContext, PuzzleSummary, SpaceId } from "@/lib/pro/protocol";
 import { puzzleSourceLine, solveRateLine, usePuzzleCatalogue } from "@/lib/pro/puzzleCatalogue";
 import { markPuzzleSolved, nextUnsolvedPuzzle, readSolvedPuzzles, useSolvedPuzzles } from "@/lib/pro/puzzleProgress";
@@ -44,7 +45,10 @@ export interface PuzzlePanelProps {
    * open. Clearing it resumes where the visitor was.
    */
   paused?: boolean;
-  /** An honest solve (no solution shown first). `first`: this browser's first solve of that puzzle. */
+  /**
+   * An honest solve: the solution was not shown first, in this room or earlier
+   * on this page load. `first`: this browser's first solve of that puzzle.
+   */
   onSolved?: (solve: { puzzleId: string; tries: number; seconds: number; first: boolean }) => void;
   /** Open the socket and the room at mount (default). False: a "Start puzzle" button first. */
   autoStart?: boolean;
@@ -55,17 +59,14 @@ export interface PuzzlePanelProps {
   /** How long the final board stays in view before the verdict covers it (ms). */
   resultDelayMs?: number;
   /**
-   * Waiting contexts only: the panel has gone quiet (it renders nothing on a
-   * failure there), so the host can put its own screen back.
-   */
-  onUnavailable?: () => void;
-  /**
    * What the panel has to show, for a host that covers it until there is
-   * something to play (the landing still, #1680): `loading` until a
-   * position is on the table (again for each new room: "Next puzzle", a
-   * reload), `ready` while one is (and for any state that waits on the
-   * visitor: "Start puzzle", timed out, all solved), `unavailable` when the
-   * engine or the puzzle cannot be reached (or the connection is lost).
+   * something to play (the landing still, #1680; a lobby wait, #1681):
+   * `loading` until a position is on the table (again for each new room: "Next
+   * puzzle", a reload), `ready` while one is (and for any state that waits on
+   * the visitor: "Start puzzle", timed out, all solved), `unavailable` when
+   * the engine or the puzzle cannot be reached (or the connection is lost).
+   * In a waiting context the panel renders nothing once it is `unavailable`,
+   * so the host can put its own screen back.
    */
   onStatus?: (status: PuzzlePanelStatus) => void;
 }
@@ -81,6 +82,8 @@ const PUZZLE_FEATURES: Partial<GameViewFeatures> = {
   postGame: false,
   soundToggles: false,
   boardGestures: false,
+  // A puzzle is not the place to change how /pro/game plays on this device.
+  deviceSettings: false,
 };
 
 const OPPONENT_HAND_LABEL = { title: "Opponent's hand", note: "shown in puzzles" };
@@ -94,8 +97,32 @@ const NOTICE_MS = 5000;
 // `puzzle_started` fires once per puzzle per page load ("a sitting"), however
 // many panels or remounts there are.
 const startedThisSitting = new Set<string>();
+// Puzzles whose solution this page load has shown. A fresh room (`restart()`)
+// forgets that on the server; the visitor does not, so a solve after it is
+// never reported as their own (#1687).
+const solutionSeenThisSitting = new Set<string>();
 /** Test-only. */
-export const __resetPuzzleSittingForTests = () => startedThisSitting.clear();
+export const __resetPuzzleSittingForTests = () => {
+  startedThisSitting.clear();
+  solutionSeenThisSitting.clear();
+};
+
+/** The panel width from which `/puzzles` shows this try's log beside the board. */
+export const PUZZLE_LOG_MIN_WIDTH_PX = 1000;
+
+/** The view's log (newest action first, lines in order within one) as plain lines, oldest first. */
+export const puzzleLogLines = (entries: ProLogEntry[]): { key: string; text: string; who: ProLogEntry["who"] }[] => {
+  const batches: ProLogEntry[][] = [];
+  for (const entry of entries) {
+    const last = batches[batches.length - 1];
+    if (last && last[0].batchId === entry.batchId) last.push(entry);
+    else batches.push([entry]);
+  }
+  return batches
+    .reverse()
+    .flat()
+    .map(({ key, text, who }) => ({ key, text, who }));
+};
 
 const Display = ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => (
   <Text fontFamily={fonts.LeagueGothic} fontWeight={400} textTransform="uppercase" letterSpacing="0.02em" lineHeight={1.05} color="brand.parchment" {...rest}>
@@ -109,15 +136,19 @@ const Small = ({ children, ...rest }: { children: ReactNode } & Record<string, u
   </Text>
 );
 
-/** A state that takes the panel's whole box: the verdict, paused, a quiet failure. */
-const Cover = ({ testId, dim = true, children }: { testId: string; dim?: boolean; children: ReactNode }) => (
+/**
+ * A state that takes the panel's whole box: the verdict, paused, a quiet
+ * failure. With a `label` it is a named region (a verdict: focus moves to its
+ * main button, which reads the region's name out with it); without one it is
+ * a status, read out when it appears.
+ */
+const Cover = ({ testId, dim = true, label, children }: { testId: string; dim?: boolean; label?: string; children: ReactNode }) => (
   <Flex
     data-testid={testId}
     position="absolute"
     inset={0}
     zIndex={5}
-    role="group"
-    aria-live="polite"
+    {...(label ? { role: "region", "aria-label": label } : { role: "status" })}
     direction="column"
     align="center"
     justify="center"
@@ -161,7 +192,6 @@ export const PuzzlePanel = ({
   onPuzzleChange,
   wsUrl = PRO_WS_URL,
   resultDelayMs = PUZZLE_RESULT_DELAY_MS,
-  onUnavailable,
   onStatus,
 }: PuzzlePanelProps) => {
   const waiting = isWaitingContext(context);
@@ -195,7 +225,7 @@ export const PuzzlePanel = ({
   const room = usePuzzleSocket(wsUrl, { puzzleId: currentId, context, enabled: started && !allDone });
   const { socket, phase, info, result, hint, solution, epoch, solverOnRoster, reset, requestHint, requestSolution, restart } = room;
   const snapshot = socket.snapshot;
-
+  const playing = phase === "playing" && !!snapshot && !!info;
 
   const listed = useMemo(() => catalogue.puzzles?.find((p) => p.id === currentId) ?? null, [catalogue.puzzles, currentId]);
   const puzzle: PuzzleSummary | null = info?.puzzle ?? listed;
@@ -209,6 +239,15 @@ export const PuzzlePanel = ({
     track("puzzle_started", { puzzle_id: p.id, context, order: p.order });
   }, [info, context]);
 
+  // The solution of the puzzle on the table has been shown: remembered for the
+  // page load, across `restart()` and "Next puzzle" and back. (Declared before
+  // the verdict's effect below, so a result that says so itself is covered.)
+  const solutionOnShow = !!solution || !!info?.solutionShown || !!result?.solutionShown;
+  const shownFor = info?.puzzle.id ?? null;
+  useEffect(() => {
+    if (solutionOnShow && shownFor) solutionSeenThisSitting.add(shownFor);
+  }, [solutionOnShow, shownFor]);
+
   const onSolvedRef = useRef(onSolved);
   onSolvedRef.current = onSolved;
   const reportedRef = useRef<string | null>(null);
@@ -218,6 +257,7 @@ export const PuzzlePanel = ({
     if (reportedRef.current === key) return;
     reportedRef.current = key;
     const id = info.puzzle.id;
+    const solutionSeen = result.solutionShown || solutionSeenThisSitting.has(id);
     track("puzzle_attempt_finished", {
       puzzle_id: id,
       context,
@@ -225,11 +265,16 @@ export const PuzzlePanel = ({
       try_number: result.tryNumber,
       seconds: result.seconds,
       hint_used: result.hintUsed,
-      solution_shown: result.solutionShown,
+      solution_shown: solutionSeen,
     });
-    // A solve after the solution was shown in this room is not a solve of the
-    // visitor's own: it is neither counted nor remembered.
-    if (result.result !== "solved" || result.solutionShown) return;
+    if (result.result !== "solved") return;
+    // A solve after the solution was shown is not a solve of the visitor's
+    // own: no `puzzle_solved`, no `onSolved`. It is still remembered here, so
+    // "Next puzzle" moves on instead of offering this one for ever.
+    if (solutionSeen) {
+      markPuzzleSolved(id);
+      return;
+    }
     const first = markPuzzleSolved(id);
     if (first) track("puzzle_solved", { puzzle_id: id, context, tries: result.tryNumber, seconds: result.seconds });
     onSolvedRef.current?.({ puzzleId: id, tries: result.tryNumber, seconds: result.seconds, first });
@@ -278,13 +323,49 @@ export const PuzzlePanel = ({
   );
 
   // Paused or covered by a verdict: the view takes no pointer, focus or key.
-  // (Not for a verdict left over once the puzzles ran out: the "all solved"
-  // card that takes the stage then has buttons of its own.)
-  const blocked = paused || (verdict !== null && !allDone);
+  // Only while a board is up: a verdict left over from a room that has since
+  // ended (timed out, lost) or from the last puzzle ("all solved") must not
+  // deaden the card that takes the stage then, which has buttons of its own.
+  const blocked = paused || (playing && verdict !== null && !allDone);
   const stageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     stageRef.current?.toggleAttribute("inert", blocked);
   }, [blocked]);
+
+  // The verdict takes the keyboard with it: focus moves to its main button
+  // (the view under it has just gone inert). Not when the visitor's focus is
+  // somewhere else on the host page.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const verdictShown = !paused && playing && !allDone ? (verdict === "result" && result ? `result:${result.result}` : verdict === "solution" ? "solution" : null) : null;
+  useEffect(() => {
+    const root = panelRef.current;
+    if (!verdictShown || !root) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && !root.contains(active) && !active.contains(root)) return;
+    // The marked button, or (a solve with nowhere to go next) the first control the verdict has.
+    const target = root.querySelector<HTMLElement>("[data-verdict-primary]") ?? root.querySelector<HTMLElement>('[role="region"] button, [role="region"] a');
+    target?.focus({ preventScroll: true });
+  }, [verdictShown]);
+
+  // --- this try's log, beside the board where the panel is wide enough --------
+  const [log, setLog] = useState<ProLogEntry[]>([]);
+  const [panelWidth, setPanelWidth] = useState(0);
+  useEffect(() => {
+    const root = panelRef.current;
+    if (!root) return;
+    const measure = () => setPanelWidth(root.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
+    return () => ro.disconnect();
+  }, []);
+  const logLines = useMemo(() => puzzleLogLines(log), [log]);
+  const logListRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const list = logListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [logLines]);
 
   // Where "Next puzzle" would go. With none left it leads to "You solved them
   // all" — but only when that is true: while the puzzle on the table is itself
@@ -343,12 +424,7 @@ export const PuzzlePanel = ({
 
   const failed = phase === "unavailable" || phase === "lost" || (!puzzleId && !currentId && catalogue.status === "unavailable");
   const gone = failed && waiting;
-  const onUnavailableRef = useRef(onUnavailable);
-  onUnavailableRef.current = onUnavailable;
-  useEffect(() => {
-    if (gone) onUnavailableRef.current?.();
-  }, [gone]);
-  const status: PuzzlePanelStatus = failed ? "unavailable" : allDone || !started || phase === "expired" || (phase === "playing" && !!snapshot && !!info) ? "ready" : "loading";
+  const status: PuzzlePanelStatus = failed ? "unavailable" : allDone || !started || phase === "expired" || playing ? "ready" : "loading";
   const onStatusRef = useRef(onStatus);
   onStatusRef.current = onStatus;
   useEffect(() => {
@@ -357,16 +433,18 @@ export const PuzzlePanel = ({
   // In a waiting context a broken puzzle is simply not there.
   if (gone) return null;
 
-  const playing = phase === "playing" && !!snapshot && !!info;
   const controlsOff = !playing || blocked;
   const remaining = snapshot && info ? Math.max(0, Math.min(info.actionsAllowed, snapshot.view.actionsRemaining)) : 0;
   const statusLine = solution === "playing" ? "Playing the solution…" : (notice ?? hint);
   const solvedHere = !!currentId && solved.includes(currentId);
+  // The board is up (not one of the cards that take the stage instead).
+  const boardUp = playing && !allDone;
+  const logBeside = boardUp && context === "page" && panelWidth >= PUZZLE_LOG_MIN_WIDTH_PX;
 
   let stage: ReactNode;
   if (allDone) {
     stage = (
-      <Cover testId="puzzle-all-solved" dim={false}>
+      <Cover testId="puzzle-all-solved" dim={false} label="You solved them all">
         <Display fontSize="2rem">You solved them all</Display>
         <Small>More puzzles are on the way.</Small>
         {/* A wait has no way out to a full game, so it must not end here (#1681). */}
@@ -429,6 +507,7 @@ export const PuzzlePanel = ({
         opponentHandLabel={OPPONENT_HAND_LABEL}
         sound={soundOn}
         onNotice={onNotice}
+        onLog={setLog}
       />
     );
   }
@@ -441,13 +520,18 @@ export const PuzzlePanel = ({
     const enemy = info.puzzle.heroes.enemy.name;
     if (result.result === "solved") {
       const kind = info.puzzle.source.kind;
+      // No "First try" for a solve that followed the solution (in this room or,
+      // on a fresh one, earlier on this page load).
+      const afterSolution = result.solutionShown || solutionSeenThisSitting.has(info.puzzle.id);
       cover = (
-        <Cover testId="puzzle-result-solved">
+        <Cover testId="puzzle-result-solved" label="Solved">
           <Display fontSize="2.6rem" color="brand.accent">
             Solved
           </Display>
           <Small data-testid="puzzle-result-stats" fontSize="0.9rem" opacity={1}>
-            {result.tryNumber === 1 ? "First try" : `Try ${result.tryNumber}`} · {result.seconds.toFixed(1)} seconds
+            {afterSolution
+              ? "Solved after seeing the solution"
+              : `${result.tryNumber === 1 ? "First try" : `Try ${result.tryNumber}`} · ${result.seconds.toFixed(1)} seconds`}
           </Small>
           {result.sourceActual && (
             <Small data-testid="puzzle-source-actual" maxW="26rem">
@@ -455,16 +539,10 @@ export const PuzzlePanel = ({
               {result.sourceActual}
             </Small>
           )}
-          {result.solutionShown && <Small maxW="26rem">You saw the solution first, so this one is not counted. Try again to solve it yourself.</Small>}
           {rateLine && <Small data-testid="puzzle-result-rate">{rateLine}</Small>}
           <Flex gap="0.5rem" wrap="wrap" justify="center" mt="0.4rem">
-            {result.solutionShown && (
-              <Button {...BTN} onClick={tryAgain}>
-                Try again
-              </Button>
-            )}
             {canGoNext && (
-              <Button {...BTN_GOLD} data-testid="puzzle-next" onClick={nextPuzzle}>
+              <Button {...BTN_GOLD} data-testid="puzzle-next" data-verdict-primary="" onClick={nextPuzzle}>
                 Next puzzle
               </Button>
             )}
@@ -474,7 +552,7 @@ export const PuzzlePanel = ({
       );
     } else {
       cover = (
-        <Cover testId="puzzle-result-failed">
+        <Cover testId="puzzle-result-failed" label={`${enemy} survives`}>
           <Display fontSize="2.2rem">{enemy} survives</Display>
           {result.enemyHeroHp !== undefined && (
             <Small data-testid="puzzle-result-hp" fontSize="0.9rem" opacity={1}>
@@ -482,7 +560,7 @@ export const PuzzlePanel = ({
             </Small>
           )}
           <Flex gap="0.5rem" wrap="wrap" justify="center" mt="0.4rem">
-            <Button {...BTN_GOLD} data-testid="puzzle-try-again" onClick={tryAgain}>
+            <Button {...BTN_GOLD} data-testid="puzzle-try-again" data-verdict-primary="" onClick={tryAgain}>
               Try again
             </Button>
             <Button {...BTN} data-testid="puzzle-show-solution" onClick={requestSolution}>
@@ -494,11 +572,11 @@ export const PuzzlePanel = ({
     }
   } else if (playing && verdict === "solution") {
     cover = (
-      <Cover testId="puzzle-solution-done">
+      <Cover testId="puzzle-solution-done" label="That is the solution">
         <Display fontSize="2.2rem">That is the solution</Display>
         <Small>Now play it yourself.</Small>
         <Flex gap="0.5rem" wrap="wrap" justify="center" mt="0.4rem">
-          <Button {...BTN_GOLD} data-testid="puzzle-try-again" onClick={tryAgain}>
+          <Button {...BTN_GOLD} data-testid="puzzle-try-again" data-verdict-primary="" onClick={tryAgain}>
             Try again
           </Button>
           {canGoNext && (
@@ -513,9 +591,12 @@ export const PuzzlePanel = ({
 
   return (
     <Flex
+      ref={panelRef}
       data-testid="puzzle-panel"
       data-context={context}
       data-puzzle={currentId ?? ""}
+      // A board is on the table (as opposed to a card that takes the stage).
+      data-board={boardUp ? "true" : "false"}
       direction="column"
       position="relative"
       w="100%"
@@ -541,9 +622,49 @@ export const PuzzlePanel = ({
         {playing && <Pips allowed={info.actionsAllowed} remaining={remaining} />}
       </Flex>
 
-      <Box ref={stageRef} data-testid="puzzle-stage" position="relative" flex="1" minH={0} bg={TABLE_BG}>
-        {stage}
-      </Box>
+      <Flex flex="1" minH={0}>
+        <Box ref={stageRef} data-testid="puzzle-stage" position="relative" flex="1" minW={0} bg={TABLE_BG}>
+          {stage}
+        </Box>
+        {logBeside && (
+          <Flex
+            as="aside"
+            data-testid="puzzle-log"
+            aria-label="This try"
+            direction="column"
+            flex="0 0 14rem"
+            minH={0}
+            borderLeft="1px solid rgba(224, 168, 46, 0.25)"
+            bg="rgba(28, 16, 32, 0.55)"
+          >
+            <Small as="h3" px="0.7rem" pt="0.55rem" pb="0.35rem" fontSize="0.7rem" fontWeight={700} letterSpacing="0.08em" textTransform="uppercase" opacity={0.7}>
+              This try
+            </Small>
+            <Box as="ol" ref={logListRef} role="log" flex="1" minH={0} overflowY="auto" px="0.7rem" pb="0.6rem" sx={{ listStyle: "none" }}>
+              {logLines.length === 0 ? (
+                <Small as="li" data-testid="puzzle-log-empty" opacity={0.6}>
+                  Your moves are listed here as you play.
+                </Small>
+              ) : (
+                logLines.map((line) => (
+                  <Small
+                    as="li"
+                    key={line.key}
+                    data-testid="puzzle-log-line"
+                    data-who={line.who}
+                    py="0.2rem"
+                    lineHeight={1.3}
+                    opacity={1}
+                    color={line.who === "you" ? "brand.parchment" : line.who === "opp" ? "brand.accent" : "whiteAlpha.700"}
+                  >
+                    {line.text}
+                  </Small>
+                ))
+              )}
+            </Box>
+          </Flex>
+        )}
+      </Flex>
 
       <Flex as="footer" align="center" gap="0.5rem" px="0.7rem" py="0.45rem" flexShrink={0} wrap="wrap" borderTop="1px solid rgba(224, 168, 46, 0.25)">
         <Button {...BTN} leftIcon={<TbBulb />} data-testid="puzzle-hint" isDisabled={controlsOff || !!result || !!solution} onClick={() => { markStarted(); requestHint(); }}>
@@ -563,7 +684,8 @@ export const PuzzlePanel = ({
         <IconButton
           {...BTN}
           data-testid="puzzle-sound"
-          aria-label={soundOn ? "Mute puzzle sound" : "Unmute puzzle sound"}
+          // One name, one state: a label that also swapped would say "pressed" twice over.
+          aria-label="Puzzle sound"
           aria-pressed={soundOn}
           icon={soundOn ? <TbVolume /> : <TbVolumeOff />}
           isDisabled={paused}

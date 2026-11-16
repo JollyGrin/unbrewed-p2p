@@ -17,7 +17,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
-import { LandingPuzzle, PuzzleBand } from "./PuzzleBand";
+import { BOARD_WAIT_MS, LandingPuzzle, PANEL_LOAD_TIMEOUT_MS, PuzzleBand } from "./PuzzleBand";
 import { LANDING_PUZZLE, LANDING_STILL } from "./landingPuzzle";
 import { resetGrowthAnalytics } from "../../lib/growthAnalytics";
 
@@ -26,14 +26,19 @@ jest.mock("../../lib/analytics", () => ({ track: (...args: unknown[]) => track(.
 
 // The panel's module: `mockPanel.loaded` flips when something imports it, and the
 // stand-in hands its props to the test so it can report a status.
-const mockPanel = { loaded: false, fail: false, props: null as null | Record<string, unknown> };
+// `stall`: the module never finishes loading (a hung chunk request). `board`:
+// the stand-in says a board is on the table, as the real panel does while playing.
+const mockPanel = { loaded: false, fail: false, stall: false, board: false, props: null as null | Record<string, unknown> };
 jest.mock("../Pro/Puzzle/PuzzlePanel", () => {
   if (mockPanel.fail) throw new Error("chunk failed");
+  if (mockPanel.stall) return { __esModule: true, then: () => {} };
   mockPanel.loaded = true;
   return {
     PuzzlePanel: (props: Record<string, unknown>) => {
       mockPanel.props = props;
-      return <div data-testid="puzzle-panel" data-context={String(props.context)} data-puzzle={String(props.puzzleId)} />;
+      return (
+        <div data-testid="puzzle-panel" data-context={String(props.context)} data-puzzle={String(props.puzzleId)} data-board={mockPanel.board ? "true" : "false"} />
+      );
     },
   };
 });
@@ -154,6 +159,46 @@ describe("LandingPuzzle", () => {
     );
     expect(container.querySelector("#puzzle-heading")).toHaveTextContent("Your move. Find the kill.");
     expect(container.querySelector("section#puzzle")).toHaveAttribute("aria-labelledby", "puzzle-heading");
+  });
+});
+
+describe("a board that is slow to draw (#1687)", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    mockPanel.board = false;
+  });
+  it("the still waits for the board's picture, and gives way anyway after BOARD_WAIT_MS", async () => {
+    mockPanel.board = true; // a board is up, but its view (and picture) never shows
+    renderPuzzle();
+    fireEvent.click(screen.getByTestId("landing-puzzle-play"));
+    await flush();
+    jest.useFakeTimers();
+    await report("ready");
+    expect(screen.getByTestId("landing-puzzle")).toHaveAttribute("data-stage", "opening");
+    await act(async () => void jest.advanceTimersByTime(BOARD_WAIT_MS - 300));
+    expect(screen.getByTestId("landing-puzzle")).toHaveAttribute("data-stage", "opening");
+    await act(async () => void jest.advanceTimersByTime(600));
+    expect(screen.getByTestId("landing-puzzle")).toHaveAttribute("data-stage", "live");
+  });
+});
+
+describe("when the panel's code stalls (#1687)", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    mockPanel.stall = false;
+  });
+  it("keeps the still and links to /puzzles after the timeout", async () => {
+    jest.resetModules();
+    mockPanel.stall = true;
+    jest.useFakeTimers();
+    renderPuzzle();
+    fireEvent.click(screen.getByTestId("landing-puzzle-play"));
+    await act(async () => void (await jest.advanceTimersByTimeAsync(PANEL_LOAD_TIMEOUT_MS - 100)));
+    expect(screen.getByTestId("landing-puzzle")).toHaveAttribute("data-stage", "opening");
+    await act(async () => void (await jest.advanceTimersByTimeAsync(200)));
+    expect(screen.getByTestId("landing-puzzle-failed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open the puzzles page/i })).toHaveAttribute("href", "/puzzles");
+    expect(screen.getByRole("img")).toBeInTheDocument();
   });
 });
 

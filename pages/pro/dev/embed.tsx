@@ -11,8 +11,9 @@
  *   ?bot=easy|medium|hard          bot tier (default easy)
  *   ?mulligan=1                    keep the opening-hand mulligan (a modal) on
  *   ?puzzle=1                      the switches a puzzle turns off, and the
- *                                  face-up hand slot (fed YOUR hand: the server
- *                                  does not send the opponent's yet)
+ *                                  face-up hand slot (fed YOUR hand: this is a
+ *                                  normal bot room, and only a puzzle room's
+ *                                  STATE carries the opponent's, protocol v41)
  *
  * Not linked from anywhere and not in the sitemap. A production build 404s it
  * (`getStaticProps` below) unless NEXT_PUBLIC_PRO_DEV_PAGES=1.

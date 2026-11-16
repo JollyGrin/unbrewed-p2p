@@ -27,18 +27,52 @@ const isSummary = (p: unknown): p is PuzzleSummary => {
   );
 };
 
-/** The catalogue in catalogue order, or null on any failure (network, shape, empty). */
-export async function fetchPuzzleCatalogue(opts: { wsUrl?: string; signal?: AbortSignal } = {}): Promise<PuzzleSummary[] | null> {
-  try {
-    const res = await fetch(`${replayHttpBase(opts.wsUrl)}/puzzles.json`, { signal: opts.signal, cache: "no-store" });
+/**
+ * How long the catalogue (and a host's lazy import of the panel's code) may
+ * take before it counts as unavailable. A request that stalls must end in the
+ * host's fallback (the landing still and its link, the classic waiting
+ * screen), not in a spinner for ever.
+ */
+export const PUZZLE_LOAD_TIMEOUT_MS = 8_000;
+
+/** `promise`, or a rejection once `ms` have passed without it settling. */
+export const withPuzzleTimeout = <T>(promise: Promise<T>, ms: number = PUZZLE_LOAD_TIMEOUT_MS): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("puzzle load timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+
+/** The catalogue in catalogue order, or null on any failure (network, shape, empty, no answer in time). */
+export async function fetchPuzzleCatalogue(opts: { wsUrl?: string; signal?: AbortSignal; timeoutMs?: number } = {}): Promise<PuzzleSummary[] | null> {
+  // Aborted on the timeout too, so a stalled request is dropped, not left open.
+  const abort = typeof AbortController === "undefined" ? null : new AbortController();
+  const onOuterAbort = () => abort?.abort();
+  opts.signal?.addEventListener("abort", onOuterAbort);
+  const load = async (): Promise<PuzzleSummary[] | null> => {
+    const res = await fetch(`${replayHttpBase(opts.wsUrl)}/puzzles.json`, { signal: abort?.signal ?? opts.signal, cache: "no-store" });
     if (!res.ok) return null;
     const body = (await res.json()) as { ok?: boolean; puzzles?: unknown };
     if (body?.ok !== true || !Array.isArray(body.puzzles)) return null;
     const puzzles = body.puzzles.filter(isSummary);
     if (puzzles.length === 0) return null;
     return [...puzzles].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+  };
+  try {
+    return await withPuzzleTimeout(load(), opts.timeoutMs ?? PUZZLE_LOAD_TIMEOUT_MS);
   } catch {
+    abort?.abort();
     return null;
+  } finally {
+    opts.signal?.removeEventListener("abort", onOuterAbort);
   }
 }
 

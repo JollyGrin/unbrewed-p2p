@@ -322,11 +322,33 @@ const lobby = async (browser) => {
   const a = await seat(browser);
   const b = await seat(browser);
   await openPicker(a);
+  // #1687: from the click on, look at every frame: the classic waiting screen
+  // until the puzzle is up, and never the one-bar layout over an empty box.
+  await a.evaluate(() => {
+    const seen = (window.__lobby = { classic: 0, emptyBar: 0, bar: 0 });
+    const look = () => {
+      const wrap = document.querySelector('[data-testid="lobby-wait-puzzle"]');
+      const bar = document.querySelector('[data-testid="wait-bar"]');
+      const title = document.querySelector('[data-testid="waiting-title"]');
+      if (title && !bar) seen.classic += 1;
+      if (bar) {
+        seen.bar += 1;
+        const filled = wrap?.querySelector('[data-testid="puzzle-panel"]')?.querySelector('[data-testid="pro-game-view"], [role="status"], [role="region"]');
+        if (!filled) seen.emptyBar += 1;
+      }
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
   await visible(a, "pro-create-button").click();
-  await a.locator('[data-testid="lobby-wait-puzzle"]').waitFor({ timeout: 20_000 });
+  await a.locator('[data-testid="lobby-wait-puzzle"][data-ready="true"]').waitFor({ timeout: 20_000 });
   await waitPuzzlePlaying(a);
   await a.waitForTimeout(1200);
+  const frames = await a.evaluate(() => window.__lobby);
+  check(frames.classic > 0 && frames.bar > 0, `A waits: the classic waiting screen stood until the puzzle was up (${frames.classic} frames), then the bar (${frames.bar})`);
+  check(frames.emptyBar === 0, `A waits: the one-bar layout never stood over an empty box (${frames.emptyBar} such frames)`);
   const barText = (await a.locator('[data-testid="wait-bar"]').innerText()).replace(/\s+/g, " ");
+  check(/playing on \S/.test(barText), "A waits: the bar still says which board the room plays on");
   const room = new URL(a.url()).searchParams.get("room");
   check((await barGold(a)) === "false" && barText.includes(`ROOM ${room}`), `A waits: the bar names the room (${barText.slice(0, 60)}…)`);
   check(
