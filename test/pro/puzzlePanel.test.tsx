@@ -124,6 +124,7 @@ const start = async (props: Partial<PuzzlePanelProps> = {}, info: Msg = FX.info)
   return view;
 };
 
+const created = () => sent.filter((m) => m.type === "CREATE_PUZZLE_ROOM");
 const pips = () => screen.getAllByTestId("puzzle-pip").map((p) => p.getAttribute("data-filled"));
 const tracked = (event: string) => mockTrack.mock.calls.filter(([name]) => name === event).map(([, props]) => props);
 
@@ -488,6 +489,64 @@ describe("failing quietly", () => {
     await mount({ context: "quick_search" });
     expect(screen.queryByTestId("puzzle-panel")).not.toBeInTheDocument();
     expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it("tells the host when it has gone quiet, so the host can put its own screen back (#1681)", async () => {
+    const onUnavailable = jest.fn();
+    await start({ context: "lobby_wait", onUnavailable });
+    expect(onUnavailable).not.toHaveBeenCalled();
+    await act(async () => {
+      latest().onclose?.({});
+    });
+    expect(onUnavailable).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    catalogue = null;
+    __resetPuzzleCatalogueForTests();
+    const noCatalogue = jest.fn();
+    await mount({ context: "quick_search", onUnavailable: noCatalogue });
+    expect(noCatalogue).toHaveBeenCalledTimes(1);
+  });
+
+  it("a wait with every puzzle solved offers them again from the first, and keeps the solved record (#1681)", async () => {
+    const all = [PUZZLE.id, "second-puzzle", "third-puzzle"];
+    all.forEach(markPuzzleSolved);
+    await mount({ context: "quick_search" });
+    const done = screen.getByTestId("puzzle-all-solved");
+    expect(done).toHaveTextContent("You solved them all");
+    expect(FakeWebSocket.instances).toHaveLength(0);
+
+    fireEvent.click(within(done).getByRole("button", { name: "Play them again" }));
+    await openSocket();
+    expect(created().map((m) => m.puzzleId)).toEqual([PUZZLE.id]);
+    await deliver(FX.info, FX.start);
+    expect(screen.queryByTestId("puzzle-all-solved")).not.toBeInTheDocument();
+
+    // The lap runs in catalogue order, solved or not…
+    await deliver(FX.solvedFinal, FX.solvedResult);
+    fireEvent.click(await screen.findByRole("button", { name: "Next puzzle" }));
+    await openSocket();
+    expect(created().map((m) => m.puzzleId)).toEqual([PUZZLE.id, "second-puzzle"]);
+    await deliver({ ...FX.info, puzzle: second }, FX.start);
+    await deliver(FX.solvedFinal, FX.solvedResult);
+    fireEvent.click(await screen.findByRole("button", { name: "Next puzzle" }));
+    await openSocket();
+    expect(created().map((m) => m.puzzleId)).toEqual([PUZZLE.id, "second-puzzle", "third-puzzle"]);
+    await deliver({ ...FX.info, puzzle: third }, FX.start);
+    await deliver(FX.solvedFinal, FX.solvedResult);
+    // …and after the last one it ends where it began, ready for another.
+    fireEvent.click(await screen.findByRole("button", { name: "Next puzzle" }));
+    expect(within(await screen.findByTestId("puzzle-all-solved")).getByRole("button", { name: "Play them again" })).toBeInTheDocument();
+
+    expect(JSON.parse(window.localStorage.getItem(PUZZLE_PROGRESS_KEY) ?? "[]")).toEqual(all);
+    expect(tracked("puzzle_solved")).toEqual([]); // none of these was a first solve
+  });
+
+  it("a page (not a wait) with everything solved has no second lap", async () => {
+    [PUZZLE.id, "second-puzzle", "third-puzzle"].forEach(markPuzzleSolved);
+    await mount();
+    expect(screen.getByTestId("puzzle-all-solved")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Play them again" })).not.toBeInTheDocument();
   });
 
   it("a room the server dropped for idling is reopened only when the visitor asks", async () => {
