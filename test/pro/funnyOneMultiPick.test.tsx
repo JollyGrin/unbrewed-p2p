@@ -30,17 +30,22 @@ import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts
 const ROOM = "HOST";
 
 /** A real recorded seat view; the viewer is p1, the opponent p2. */
-const BASE_VIEW: PlayerView = {
-  ...JSON.parse(
-    readFileSync(
-      join(process.cwd(), "test", "replays", "smokebot", "sample", "sample-game-0001.views.jsonl"),
-      "utf8",
-    )
-      .trim()
-      .split("\n")[0],
-  ).view,
+const RECORDED: PlayerView = JSON.parse(
+  readFileSync(
+    join(process.cwd(), "test", "replays", "smokebot", "sample", "sample-game-0001.views.jsonl"),
+    "utf8",
+  )
+    .trim()
+    .split("\n")[0],
+).view;
+
+/** The recorded view with p2 holding `handCount` cards. */
+const viewWith = (handCount: number): PlayerView => ({
+  ...RECORDED,
   prompt: null,
-};
+  players: RECORDED.players.map((p) => (p.id === "p2" ? { ...p, handCount } : p)),
+  opponent: RECORDED.opponent ? { ...RECORDED.opponent, handCount } : RECORDED.opponent,
+});
 
 /** The opponent's hand, as instances of cards the recorded catalog knows. */
 const HAND = ["hero-b/volley#1", "hero-b/dodge#1", "hero-b/volley#2"];
@@ -96,7 +101,7 @@ const fakeRouter = () =>
   }) as never;
 
 /** Deliver one STATE frame, exactly as the socket would. */
-const state = async (prompt: ViewPrompt | null, events: GameEvent[] = []) => {
+const state = async (prompt: ViewPrompt | null, events: GameEvent[] = [], p2Hand = HAND.length) => {
   const ws = FakeWebSocket.latest();
   if (!ws) throw new Error("the page never opened a socket");
   await act(async () => {
@@ -104,7 +109,7 @@ const state = async (prompt: ViewPrompt | null, events: GameEvent[] = []) => {
       data: JSON.stringify({
         v: PROTOCOL_VERSION,
         type: "STATE",
-        view: { ...BASE_VIEW, prompt },
+        view: { ...viewWith(p2Hand), prompt },
         legalActions: [],
         events,
       }),
@@ -211,7 +216,7 @@ describe("The Funny One! — pick the returned cards in one step", () => {
 
   it("caps a 1-card hand at 1", async () => {
     await mount();
-    await state(countPrompt(1), revealBatch([HAND[0]]));
+    await state(countPrompt(1), revealBatch([HAND[0]]), 1);
     expect(faces()).toHaveLength(1);
     fireEvent.click(faces()[0]);
     confirm("Return 1 card");
@@ -240,6 +245,39 @@ describe("The Funny One! — pick the returned cards in one step", () => {
     // …and the picks that follow are the player's to make
     await state(targetPrompt("prompt-pick-1", HAND));
     expect(answers()).toEqual(["prompt-count:2"]);
+  });
+
+  it("keeps the count buttons when the reveal is not the opponent's whole hand", async () => {
+    await mount();
+    // one revealed card (a deck top, a random reveal) while p2 holds three
+    await state(countPrompt(2), revealBatch([HAND[0]]));
+    expect(screen.queryByTestId("card-multi-pick")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2" })).toBeInTheDocument();
+  });
+
+  it("hands the prompt back when the server stays silent after an answer", async () => {
+    await mount();
+    await state(countPrompt(2), revealBatch(HAND));
+    jest.useFakeTimers();
+    try {
+      fireEvent.click(faces()[0]);
+      confirm("Return 1 card");
+      expect(screen.getByTestId("card-multi-pick-busy")).toBeInTheDocument();
+      act(() => {
+        jest.advanceTimersByTime(5_000);
+      });
+      expect(screen.getByTestId("card-multi-pick-busy")).toBeInTheDocument();
+      act(() => {
+        jest.advanceTimersByTime(1_500);
+      });
+      expect(screen.queryByTestId("card-multi-pick-busy")).not.toBeInTheDocument();
+      expect(faces()).toHaveLength(3);
+    } finally {
+      jest.useRealTimers();
+    }
+    // a card pick arriving late is the player's to make
+    await state(targetPrompt("prompt-pick-1", HAND));
+    expect(answers()).toEqual(["prompt-count:1"]);
   });
 
   it("a rejected answer hands the prompt back to the player", async () => {

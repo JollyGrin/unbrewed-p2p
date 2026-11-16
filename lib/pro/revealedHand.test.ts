@@ -89,7 +89,7 @@ describe("advanceRevealedHand — look-at-hand combat cards", () => {
 
   it("captures the hand revealed right after the effect marker", () => {
     expect(held).toEqual({
-      panel: { revealer: "p1", owner: "p2", cards: ["a/x#1", "a/y#2"], turn: 3, brief: true },
+      panel: { revealer: "p1", owner: "p2", cards: ["a/x#1", "a/y#2"], turn: 3, brief: true, promptId: "count" },
       armed: null,
     });
   });
@@ -115,6 +115,20 @@ describe("advanceRevealedHand — look-at-hand combat cards", () => {
   it("clears at the end of the turn", () => {
     expect(advance(held, [{ type: "TURN_ENDED", player: "p1" }], 3).panel).toBeNull();
     expect(advance(held, [{ type: "TURN_STARTED", player: "p2", turnNumber: 4 }], 4).panel).toBeNull();
+  });
+
+  // Superman plays Keen Hearing, then attacks; POMNI (p2) defends with The Funny One.
+  it("never replaces a held Keen Hearing snapshot", () => {
+    const keen = advance(EMPTY_REVEAL_STATE, [played, rev("a/x#1")], 3);
+    const defended: GameEvent[] = [
+      { ...funny, player: "p2" } as GameEvent,
+      rev("b/k#1", "p1"),
+      rev("b/l#2", "p1"),
+      { ...opened, player: "p2" } as GameEvent,
+    ];
+    expect(advance(keen, defended, 3)).toEqual(keen);
+    // …and the turn boundary that would clear the brief panel leaves it too
+    expect(advance(keen, [...defended, { type: "TURN_ENDED", player: "p1" }], 3)).toEqual(keen);
   });
 
   it("leaves a Keen Hearing panel alone when cards are shuffled back", () => {

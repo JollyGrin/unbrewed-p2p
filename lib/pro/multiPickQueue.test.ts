@@ -1,6 +1,6 @@
 import { revealedHandPick } from "./cardOptions";
 import { startPickQueue, stepPickQueue } from "./multiPickQueue";
-import type { LegalOption, ViewPrompt } from "./protocol";
+import type { GameEvent, LegalOption, ViewPrompt } from "./protocol";
 
 const HAND = ["pl/hit#2", "pl/hit#3", "pl/plot#1"];
 
@@ -12,7 +12,11 @@ const countPrompt: ViewPrompt = {
 };
 const pick = revealedHandPick(
   countPrompt,
-  HAND.map((card) => ({ player: "p2" as const, card })),
+  [
+    ...HAND.map((card): GameEvent => ({ type: "CARD_REVEALED", player: "p2", card })),
+    { type: "PROMPT_OPENED", player: "p1", kind: "CHOOSE_OPTION", promptId: "count" },
+  ],
+  () => HAND.length,
 )!;
 
 const cardOpt = (card: string): LegalOption => ({ id: card, label: card, data: { card } });

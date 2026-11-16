@@ -35,6 +35,7 @@ import {
   CardInstanceId,
   CardMeta,
   FighterId,
+  GameEvent,
   HeroListing,
   LegalOption,
   PlayerId,
@@ -324,6 +325,9 @@ const QUICK_FOUND_MS = 3_000;
 
 /** same table felt the sandbox game uses (game.layout.tsx) */
 const TABLE_BG = "radial-gradient(ellipse at 50% 20%, #5A3263 0%, #48284F 50%, #2C1831 100%)";
+/** How long the pick-the-returned-cards queue (#1691) waits for the server to
+ *  move on from an answered prompt before handing the prompt back to the player. */
+const PICK_QUEUE_STALL_MS = 6_000;
 /** Breathing room between the HUD and the Keen Hearing panel hanging below it. */
 const REVEALED_PANEL_GAP_PX = 8;
 
@@ -5265,17 +5269,20 @@ const LiveGame = ({
   // CARD_REVEALEDs from the SAME STATE batch that opened the current prompt,
   // keyed by promptId so an older batch's reveal can never attach to a later
   // prompt and a mid-prompt reconnect (no events replayed) simply finds none.
-  const [promptReveals, setPromptReveals] = useState<{ promptId: string; reveals: RevealedCard[] } | null>(null);
+  // `events` is that whole batch, for the look-at-their-hand picker (#1691), which
+  // also needs to know WHERE in the batch the reveals sit.
+  const [promptReveals, setPromptReveals] = useState<{ promptId: string; reveals: RevealedCard[]; events: GameEvent[] } | null>(null);
   useEffect(() => {
     const p = snapshot?.prompt;
     const mine = p && p.player === snapshot?.view.you ? p : null;
-    const reveals: RevealedCard[] = (snapshot?.events ?? []).flatMap((e) =>
+    const events = snapshot?.events ?? [];
+    const reveals: RevealedCard[] = events.flatMap((e) =>
       e.type === "CARD_REVEALED" ? [{ player: e.player, card: e.card }] : [],
     );
     setPromptReveals((prev) => {
       if (!mine) return null;
-      if (prev?.promptId === mine.promptId) return reveals.length ? { promptId: mine.promptId, reveals } : prev;
-      return reveals.length ? { promptId: mine.promptId, reveals } : null;
+      if (prev?.promptId === mine.promptId) return reveals.length ? { promptId: mine.promptId, reveals, events } : prev;
+      return reveals.length ? { promptId: mine.promptId, reveals, events } : null;
     });
   }, [snapshot]);
 
@@ -5290,8 +5297,8 @@ const LiveGame = ({
     pickQueueRef.current = q;
     setPickQueueState(q);
   }, []);
-  // The reveal the picker already showed, so its fallback panel stays away.
-  const [pickedRevealKey, setPickedRevealKey] = useState<string | null>(null);
+  // The count prompt the picker answered, so that reveal's fallback panel stays away.
+  const [pickedPromptId, setPickedPromptId] = useState<string | null>(null);
   useEffect(() => {
     if (!pickQueueRef.current) return;
     const p = snapshot?.prompt;
@@ -5308,6 +5315,15 @@ const LiveGame = ({
       setPickQueue(null);
     }
   }, [illegalAction, serverError, rateLimited, ownTimerExpired, resyncing, status, setPickQueue]);
+  // …and so does silence: an answer that gets neither a new prompt nor an error
+  // (nothing times out in an untimed room) must not leave "Returning…" up for
+  // good. Each answer restarts the clock; a late STATE is then answered by hand.
+  const pickQueueWaitingOn = pickQueue?.answered ?? null;
+  useEffect(() => {
+    if (pickQueueWaitingOn === null) return;
+    const t = setTimeout(() => setPickQueue(null), PICK_QUEUE_STALL_MS);
+    return () => clearTimeout(t);
+  }, [pickQueueWaitingOn, setPickQueue]);
 
   // Activity feed: diff each view against the previous one (see gameLog.ts).
   const [logEntries, setLogEntries] = useState<ProLogEntry[]>([]);
@@ -7239,9 +7255,8 @@ const LiveGame = ({
   // every other count prompt and after a mid-prompt reconnect.
   const promptHandPick =
     promptReveals && promptForMe && promptReveals.promptId === promptForMe.promptId
-      ? revealedHandPick(promptForMe, promptReveals.reveals)
+      ? revealedHandPick(promptForMe, promptReveals.events, (p) => view.players.find((s) => s.id === p)?.handCount)
       : null;
-  const revealKeyOf = (owner: string) => `${owner}:${view.turnNumber}`;
   const promptMultiPick: ReactNode | null = !promptForMe ? null : pickQueue ? (
     <Text fontSize="0.85rem" color="brand.parchment" opacity={0.85} data-testid="card-multi-pick-busy">
       {multiPickConfirmLabel(pickQueue.total).replace(/^Return/, "Returning")}…
@@ -7258,7 +7273,7 @@ const LiveGame = ({
         const start = startPickQueue(promptHandPick, promptForMe.promptId, selected);
         if (!start || !respondToPrompt(start.answer.promptId, start.answer.optionId)) return;
         setPickQueue(start.queue);
-        setPickedRevealKey(revealKeyOf(promptHandPick.owner));
+        setPickedPromptId(promptForMe.promptId);
       }}
     />
   ) : null;
@@ -7269,7 +7284,7 @@ const LiveGame = ({
     !!revealedHand?.brief &&
     (revealedHand.owner === view.you ||
       !!promptMultiPick ||
-      pickedRevealKey === revealKeyOf(revealedHand.owner));
+      (!!revealedHand.promptId && pickedPromptId === revealedHand.promptId));
   const promptRevealCardOptions = promptRevealMatches.map((o) => {
     const seat = view.players.find((p) => p.id === o.player);
     const name = seat ? seatNameplate(seat, view.players.length) : o.player.toUpperCase();

@@ -19,6 +19,9 @@ export interface RevealedHand {
   /** A look taken to decide something right now (*The Funny One!*): cards the
    *  effect shuffles away leave the snapshot, and the turn's end clears it. */
   brief?: boolean;
+  /** `brief` only: the prompt the reveal led straight into, when there was one
+   *  (lets the page tell which reveal its in-prompt picker already covered). */
+  promptId?: string;
 }
 
 /** Panel plus the bookkeeping that spans batches. In a multi-opponent format
@@ -44,7 +47,9 @@ const isLookAtHand = (source: string) => LOOK_AT_HAND_DEFS.has(source.split("#")
  * Fold one STATE batch's events into the panel. A Keen Hearing reveal replaces
  * whatever was held; the revealer's next `TURN_STARTED` clears it. A look-at-hand
  * reveal (`brief`) must follow its effect marker directly, loses each card the
- * effect shuffles back, and is cleared by the next turn boundary.
+ * effect shuffles back, and is cleared by the next turn boundary. It is only the
+ * fallback view of a decision being made now, so it never replaces a held Keen
+ * Hearing snapshot.
  */
 export function advanceRevealedHand(prev: RevealState, events: GameEvent[], turnNumber: number): RevealState {
   let panel = prev.panel;
@@ -60,14 +65,14 @@ export function advanceRevealedHand(prev: RevealState, events: GameEvent[], turn
   // the first other event after it starts closes it, so a later unrelated reveal
   // (deck top, combat) in the same batch is not folded into the "hand".
   let closed = false;
-  const flush = () => {
-    if (pending && revealer) {
+  const flush = (promptId?: string) => {
+    if (pending && revealer && !(pending.brief && panel && !panel.brief)) {
       panel = {
         revealer,
         owner: pending.owner,
         cards: pending.cards,
         turn: turnNumber,
-        ...(pending.brief ? { brief: true } : {}),
+        ...(pending.brief ? { brief: true, ...(promptId ? { promptId } : {}) } : {}),
       };
     }
     pending = null;
@@ -75,7 +80,7 @@ export function advanceRevealedHand(prev: RevealState, events: GameEvent[], turn
   for (const e of events) {
     if (pending && e.type !== "CARD_REVEALED") {
       closed = true;
-      flush();
+      flush(e.type === "PROMPT_OPENED" ? e.promptId : undefined);
       revealer = null;
       look = false;
     } else if (look && e.type !== "CARD_REVEALED") {
