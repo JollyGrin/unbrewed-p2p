@@ -7,16 +7,25 @@ import type { Badge } from "@/lib/account/badges";
 import type { HeroCosmetics } from "@/lib/account/cosmetics";
 import { FALLBACK_CONSTANTS, emptyHeroCosmetics } from "@/lib/account/cosmetics";
 import {
+  LadderInput,
+  NewHeroInput,
   NextUpGoal,
   NextUpInput,
   affordableTier,
   badgeProgress,
+  botTierPlayed,
   collectionHref,
   heroAfterGame,
+  ladderStep,
+  newHeroHref,
   nextUpCopy,
   nextUpRows,
+  pickNewHero,
   rankGoals,
 } from "./nextUp";
+import type { BotDifficulty } from "./protocol";
+import type { FinishedGameSetup } from "./rematch";
+import { parseRematchQuery, rematchCreateRoomArgs } from "./rematch";
 
 const constants = FALLBACK_CONSTANTS; // cards 50/150/400/1000, rims 250/750/2000/5000
 
@@ -223,5 +232,225 @@ describe("copy", () => {
 
   it("deep-links to the hero on /collection", () => {
     expect(collectionHref("hollow-oak")).toBe("/collection?hero=hollow-oak");
+  });
+});
+
+// --- what to play next (p2p #1659) -------------------------------------------
+
+const TIERS = ["easy", "medium", "hard", "expert"];
+
+const setup = (bot: BotDifficulty | null = "easy", over: Partial<FinishedGameSetup> = {}): FinishedGameSetup => ({
+  formatId: "duel",
+  itemsWereOff: false,
+  mapId: "sarpedon",
+  turnTimerSeconds: 60,
+  mulliganWasOn: true,
+  yourHeroId: "hollow-oak",
+  otherSeats: [{ player: "p2", heroId: "thetis", bot }],
+  ...over,
+});
+
+const ladder = (over: Partial<LadderInput> = {}): LadderInput => ({
+  setup: setup(),
+  won: true,
+  offered: TIERS,
+  practiceSpent: false,
+  ...over,
+});
+
+const roster = [
+  { heroId: "appa", name: "Appa" },
+  { heroId: "batman", name: "Batman" },
+  { heroId: "thrall", name: "Thrall" },
+];
+
+const newHero = (over: Partial<NewHeroInput> = {}): NewHeroInput => ({
+  roster,
+  piloted: ["appa"],
+  points: 50,
+  ...over,
+});
+
+/** A row's link, read back the way the page reads a rematch link. */
+const created = (href: string) => {
+  const query = Object.fromEntries(new URLSearchParams(href.slice(href.indexOf("?") + 1)));
+  const parsed = parseRematchQuery(query);
+  if (!parsed) throw new Error(`not a rematch link: ${href}`);
+  return { parsed, args: rematchCreateRoomArgs(parsed) };
+};
+
+const only = <K extends string>(rows: { kind: string }[], kind: K) => rows.find((row) => row.kind === kind) as never as
+  | Extract<ReturnType<typeof nextUpRows>[number], { kind: K }>
+  | undefined;
+
+describe("bot ladder", () => {
+  it("a win vs easy / medium / hard offers the next tier up", () => {
+    expect(ladderStep("easy", TIERS, false)).toBe("medium");
+    expect(ladderStep("medium", TIERS, false)).toBe("hard");
+    expect(ladderStep("hard", TIERS, false)).toBe("expert");
+  });
+
+  it("the top rung, the hidden tier and a non-bot game lead nowhere", () => {
+    expect(ladderStep("expert", [...TIERS, "jevx3"], false)).toBeNull();
+    expect(ladderStep("jevx3", [...TIERS, "jevx3"], false)).toBeNull();
+    expect(ladderStep(null, TIERS, false)).toBeNull();
+  });
+
+  it("never offers a tier the server does not serve for these heroes", () => {
+    expect(ladderStep("hard", ["easy", "medium", "hard"], false)).toBeNull();
+  });
+
+  it("practice cap used up: easy and medium both point at hard, where XP continues", () => {
+    expect(ladderStep("easy", TIERS, true)).toBe("hard");
+    expect(ladderStep("medium", TIERS, true)).toBe("hard");
+    const row = only(nextUpRows(input({ ladder: ladder({ practiceSpent: true }) })), "ladder");
+    expect(row).toMatchObject({ from: "easy", to: "hard", practiceSpent: true });
+    expect(nextUpCopy(row!, "")).toEqual({
+      title: "Ready for the Hard bot?",
+      caption: "Practice XP is used up. Hard bots are where XP continues.",
+    });
+  });
+
+  it("the cap is about easy/medium pay: a win vs hard reads as an ordinary step", () => {
+    const row = only(nextUpRows(input({ ladder: ladder({ setup: setup("hard"), practiceSpent: true }) })), "ladder");
+    expect(row).toMatchObject({ from: "hard", to: "expert", practiceSpent: false });
+    expect(nextUpCopy(row!, "").caption).toBe("You beat the Hard bot. Same setup, one step up.");
+  });
+
+  it("the row is the rematch link with only the bot's tier moved", () => {
+    const row = only(nextUpRows(input({ ladder: ladder() })), "ladder");
+    expect(nextUpCopy(row!, "").title).toBe("Ready for the Medium bot?");
+    const { parsed, args } = created(row!.href);
+    expect(parsed).toMatchObject({ heroId: "hollow-oak", formatId: "duel", mapId: "sarpedon", turnTimerSeconds: 60, mulligan: true });
+    expect(args.bot).toEqual({ difficulty: "medium", heroId: "thetis" });
+  });
+
+  it("every bot seat of a multiplayer room moves together", () => {
+    const seats = setup("medium", {
+      formatId: "ffa-3",
+      otherSeats: [
+        { player: "p2", heroId: "thetis", bot: "medium" },
+        { player: "p3", heroId: "batman", bot: "medium" },
+      ],
+    });
+    const row = only(nextUpRows(input({ ladder: ladder({ setup: seats }) })), "ladder");
+    expect(created(row!.href).args.botSeats.map((seat) => seat.difficulty)).toEqual(["hard", "hard"]);
+  });
+
+  it("no row after a loss, vs a human, vs mixed tiers, or before the setup is known", () => {
+    expect(only(nextUpRows(input({ ladder: ladder({ won: false }) })), "ladder")).toBeUndefined();
+    expect(only(nextUpRows(input({ ladder: ladder({ setup: setup(null) }) })), "ladder")).toBeUndefined();
+    expect(only(nextUpRows(input({ ladder: ladder({ setup: null }) })), "ladder")).toBeUndefined();
+    const mixed = setup("easy", {
+      otherSeats: [
+        { player: "p2", heroId: "thetis", bot: "easy" },
+        { player: "p3", heroId: "batman", bot: null },
+      ],
+    });
+    expect(botTierPlayed(mixed)).toBeNull();
+    expect(only(nextUpRows(input({ ladder: ladder({ setup: mixed }) })), "ladder")).toBeUndefined();
+  });
+});
+
+describe("hidden bot progress", () => {
+  it("shows from the first expert win up to the unlock", () => {
+    const row = only(nextUpRows(input({ expertWins: 9 })), "hidden-bot");
+    expect(row).toEqual({ kind: "hidden-bot", wins: 9, target: 15, progress: 9 / 15 });
+    expect(nextUpCopy(row!, "").title).toBe("9/15 expert wins");
+  });
+
+  it("no expert wins, no record, or already unlocked → no row", () => {
+    for (const expertWins of [0, null, undefined, 15, 22]) {
+      expect(nextUpRows(input({ expertWins }))).toEqual([]);
+    }
+  });
+});
+
+describe("try a new hero", () => {
+  it("suggests a hero never piloted, with the api's first-game points", () => {
+    const row = only(nextUpRows(input({ newHero: newHero() })), "new-hero");
+    expect(row).toMatchObject({ heroId: "batman", heroName: "Batman", points: 50 });
+    expect(nextUpCopy(row!, "")).toEqual({ title: "Try Batman", caption: "First game as a new hero pays +50 points" });
+  });
+
+  it("prefers the least-played hero overall when that is at hand; a hero nobody has played counts as zero", () => {
+    expect(pickNewHero(newHero({ heroPlays: { batman: 900, thrall: 12 } }))?.heroId).toBe("thrall");
+    expect(pickNewHero(newHero({ heroPlays: { thrall: 12 } }))?.heroId).toBe("batman");
+    expect(pickNewHero(newHero({ heroPlays: { batman: 5, thrall: 5 } }))?.heroId).toBe("batman");
+  });
+
+  it("every hero piloted, or no roster → no row", () => {
+    expect(nextUpRows(input({ newHero: newHero({ piloted: ["appa", "batman", "thrall"] }) }))).toEqual([]);
+    expect(nextUpRows(input({ newHero: newHero({ roster: [] }) }))).toEqual([]);
+  });
+
+  it("an api that publishes no first-game points → no row (the number is never ours)", () => {
+    expect(nextUpRows(input({ newHero: newHero({ points: null }) }))).toEqual([]);
+    expect(nextUpRows(input({ newHero: newHero({ points: undefined }) }))).toEqual([]);
+  });
+
+  it("one tap is a duel as that hero vs one bot, at the tier just played when it is an everyday one", () => {
+    const at = (tier?: BotDifficulty | null) => created(only(nextUpRows(input({ newHero: newHero({ tier }) })), "new-hero")!.href);
+    expect(at().args).toMatchObject({ heroId: "batman", bot: { difficulty: "medium" }, botSeats: [] });
+    expect(at().parsed).toMatchObject({ formatId: "duel", mapId: null, turnTimerSeconds: 0, mulligan: true, joinHeroId: null });
+    expect(at("easy").args.bot).toEqual({ difficulty: "easy" });
+    expect(at("hard").args.bot).toEqual({ difficulty: "hard" });
+    expect(at("expert").args.bot).toEqual({ difficulty: "medium" });
+    expect(at("jevx3").args.bot).toEqual({ difficulty: "medium" });
+    expect(newHeroHref("batman", "easy")).toBe("/pro/game?rematch=1&hero=batman&bots=p2%3Aeasy%3A");
+  });
+});
+
+describe("where the suggestions rank", () => {
+  const all = { ladder: ladder(), expertWins: 9, newHero: newHero() };
+
+  it("an available unlock still wins", () => {
+    const rows = nextUpRows(input({ ...all, hero: hero({ earned: 50, available: 50 }) }));
+    expect(kinds(rows)).toEqual(["unlock", "ladder", "hidden-bot"]);
+  });
+
+  it("near-miss goals sit above them, far-off goals below", () => {
+    const rows = nextUpRows(
+      input({
+        ladder: ladder(),
+        // level: 60% through → near; card 10/50 = 20% → far.
+        stats: { level: 0, xp: 60, xpForNext: 100 },
+        hero: hero({ earned: 10, available: 10 }),
+      }),
+    );
+    expect(kinds(rows)).toEqual(["level", "ladder", "card"]);
+  });
+
+  it("exactly half way counts as near", () => {
+    const rows = nextUpRows(input({ ladder: ladder(), hero: hero({ earned: 25, available: 25 }) }));
+    expect(kinds(rows)).toEqual(["card", "ladder", "rim"]);
+  });
+
+  it("enough near misses fill the strip and the suggestions wait", () => {
+    const rows = nextUpRows(
+      input({
+        ...all,
+        stats: { level: 0, xp: 90, xpForNext: 100 },
+        hero: hero({ earned: 240, available: 40 }),
+        badges: [badge("regular", "Play 50 games (40/50)")],
+      }),
+    );
+    // rim 240/250 = 96%, level 90%, card 40/50 = 80%, badge 80%.
+    expect(kinds(rows)).toEqual(["rim", "level", "card"]);
+  });
+
+  it("nothing else qualifies → they are the strip, in a fixed order", () => {
+    expect(kinds(nextUpRows(input(all)))).toEqual(["ladder", "hidden-bot", "new-hero"]);
+  });
+
+  it("a brand-new account's 0% bars do not bury what to play next", () => {
+    const rows = nextUpRows(
+      input({ ladder: ladder(), newHero: newHero(), hero: hero({ earned: 0, available: 0 }), stats: { level: 0, xp: 0, xpForNext: 100 } }),
+    );
+    expect(kinds(rows)).toEqual(["ladder", "new-hero", "card"]);
+  });
+
+  it("a guest still gets the sign-in row and nothing else", () => {
+    expect(kinds(nextUpRows(input({ ...all, guest: true })))).toEqual(["sign-in"]);
   });
 });
