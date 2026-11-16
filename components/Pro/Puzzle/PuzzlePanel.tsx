@@ -56,9 +56,10 @@ export interface PuzzlePanelProps {
   resultDelayMs?: number;
   /**
    * What the panel has to show, for a host that covers it until there is
-   * something to play (the landing still, #1680): `loading` until the first
-   * position is on the table, `ready` from then on (and for any state that
-   * waits on the visitor: "Start puzzle", timed out, all solved), `unavailable` when the
+   * something to play (the landing still, #1680): `loading` until a
+   * position is on the table (again for each new room: "Next puzzle", a
+   * reload), `ready` while one is (and for any state that waits on the
+   * visitor: "Start puzzle", timed out, all solved), `unavailable` when the
    * engine or the puzzle cannot be reached (or the connection is lost).
    */
   onStatus?: (status: PuzzlePanelStatus) => void;

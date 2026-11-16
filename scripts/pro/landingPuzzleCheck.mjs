@@ -7,8 +7,8 @@
  * Needs the site (a dev server, or the built `out/` behind any static server)
  * pointed at a LOCAL engine that serves puzzle rooms
  * (NEXT_PUBLIC_PRO_WS_URL=ws://localhost:<port>) and a Playwright Chromium.
- * Playwright is NOT a dependency of this repo: pass the module by path, as
- * scripts/pro/puzzleCheck.mjs does.
+ * Playwright (1.48 or later, for routeWebSocket) is NOT a dependency of this
+ * repo: pass the module by path, as scripts/pro/puzzleCheck.mjs does.
  *
  *   BASE_URL     default http://localhost:3000
  *   PLAYWRIGHT   module specifier or path (default "playwright-core")
@@ -24,8 +24,9 @@
  * /puzzles. The network log (before / after the click) is printed.
  */
 import { createRequire } from "node:module";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT ?? "playwright-core");
@@ -34,6 +35,10 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const OUT = process.env.OUT ? resolve(process.env.OUT) : null;
 const SIZES = (process.env.SIZES ?? "1280x800,390x844").split(",").map((s) => s.split("x").map(Number));
 if (OUT) mkdirSync(OUT, { recursive: true });
+
+const STILL_JSON = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../public/puzzles/landing-still.json"), "utf8"));
+/** What only the puzzle panel's code contains: the message that opens a puzzle room. */
+const PANEL_MARK = "CREATE_PUZZLE_ROOM";
 
 const failures = [];
 const fail = (msg) => {
@@ -72,6 +77,7 @@ const spy = () => {
         if (msg.type === "PUZZLE_INFO") {
           rec.room = msg.roomId;
           rec.result = null;
+          rec.info = { id: msg.puzzle.id, version: msg.puzzle.version };
         }
         if (msg.type === "STATE") {
           rec.state = msg;
@@ -168,7 +174,7 @@ const run = async (browser, width, height) => {
     return !!img && img.complete && img.naturalWidth > 0;
   }, STILL);
   await page.waitForTimeout(800);
-  await page.screenshot({ path: OUT ? `${OUT}/${tag}-1-still.png` : undefined });
+  if (OUT) await page.screenshot({ path: `${OUT}/${tag}-1-still.png` });
 
   const goal = await page.locator('[data-testid="landing-puzzle-goal"]').textContent();
   const source = await page.locator('[data-testid="landing-puzzle-source"]').textContent();
@@ -193,6 +199,15 @@ const run = async (browser, width, height) => {
   // The landing page has a socket of its own (the roster: LIST_HEROES), with or without this block.
   check(socketsBefore.every((s) => !s.puzzle && s.sent.every((t) => t === "LIST_HEROES")), `no puzzle WebSocket before the click (${socketsBefore.length} socket: the landing roster's LIST_HEROES)`);
   check(engineBefore.length === 0, "no puzzle catalogue request before the click");
+  // Not by name: read every script the page had asked for and look for the panel's code in it.
+  const sameOrigin = (r) => r.type === "script" && new URL(r.url).origin === new URL(BASE).origin;
+  const holdsPanel = async (reqs) => {
+    const hits = [];
+    for (const r of reqs.filter(sameOrigin)) if ((await (await context.request.get(r.url)).text()).includes(PANEL_MARK)) hits.push(short(r.url));
+    return hits;
+  };
+  const panelBefore = await holdsPanel(before);
+  check(panelBefore.length === 0, `none of the ${before.filter(sameOrigin).length} scripts loaded or prefetched before the click holds the panel's code${panelBefore.length ? `: ${panelBefore.join(", ")}` : ""}`);
   check((await page.locator('[data-testid="puzzle-panel"], [data-testid="pro-game-view"]').count()) === 0, "no panel and no board in the page before the click");
 
   const g0 = await geometry(page);
@@ -206,7 +221,8 @@ const run = async (browser, width, height) => {
     }).observe({ type: "layout-shift", buffered: false });
   });
 
-  await page.locator('[data-testid="landing-puzzle-play"]').click();
+  // Not on the button: anywhere on the still plays (here, the board's picture).
+  await page.locator(`${STILL} img`).click({ position: { x: 40, y: 40 } });
   // The loading state is drawn over the still.
   const sawLoading = await page
     .locator('[data-testid="landing-puzzle-loading"]')
@@ -218,6 +234,8 @@ const run = async (browser, width, height) => {
   check(sawLoading, "a loading state is drawn over the still while the panel loads");
   await waitPlaying(page);
   check((await page.locator(STILL).count()) === 0, "the still is replaced by the live panel");
+  check(await page.evaluate(() => !!document.activeElement?.querySelector('[data-testid="puzzle-panel"]')), "focus is handed to the live panel");
+  check(await page.evaluate(() => document.querySelector('[data-testid="pro-game-view"] img')?.complete === true), "the board's picture was in when the still gave way");
   check((await page.locator('[data-testid="puzzle-panel"]').getAttribute("data-context")) === "landing", 'the panel runs with context="landing"');
   await page.waitForTimeout(1500);
   if (OUT) await page.screenshot({ path: `${OUT}/${tag}-3-live.png` });
@@ -229,7 +247,10 @@ const run = async (browser, width, height) => {
   for (const s of scriptsAfter) console.log(`     script ${s}`);
   for (const s of socketsAfter) console.log(`     websocket ${s.url} sent ${s.sent.join(",") || "nothing"}${s.open ? "" : " (closed)"}`);
   for (const r of after.filter((r) => /puzzles\.json/.test(r.url))) console.log(`     fetch ${r.url}`);
-  check(scriptsAfter.length > 0 && scriptsAfter.every((s) => !scriptsBefore.includes(s)), `the click fetched the panel's code (${scriptsAfter.length} scripts, none of them requested before)`);
+  const panelAfter = await holdsPanel(after);
+  check(panelAfter.length > 0 && scriptsAfter.every((s) => !scriptsBefore.includes(s)), `the click fetched the panel's code (${scriptsAfter.length} scripts, none of them requested before; the panel is in ${panelAfter.join(", ") || "none of them"})`);
+  const onTable = await live(page, `(rec) => rec.info`);
+  check(onTable?.id === STILL_JSON.puzzleId && onTable?.version === STILL_JSON.version, `the engine's puzzle is the one the still was taken from (${onTable?.id} v${onTable?.version}; still ${STILL_JSON.puzzleId} v${STILL_JSON.version})`);
   // (A dev server mounts twice under React strict mode: one more socket, opened and closed at once.)
   check(socketsAfter.filter((s) => s.open).length === 1 && socketsAfter.every((s) => s.puzzle || !s.open), "the click opened the puzzle's WebSocket: one open, with a puzzle room");
 

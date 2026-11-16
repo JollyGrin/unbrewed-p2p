@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { Box, Flex, Spinner, Text } from "@chakra-ui/react";
 import Link from "next/link";
@@ -25,6 +25,9 @@ const BOX_MIN_H = { base: "34rem", md: "32rem" };
 
 type Stage = "still" | "opening" | "live" | "failed";
 
+/** How long the still waits for the live board's picture before it gives way anyway. */
+const BOARD_WAIT_MS = 2500;
+
 /**
  * The landing puzzle (issue #1680): a still of the position with the goal as
  * real text, which becomes the live `PuzzlePanel` on the first click. Until
@@ -35,7 +38,18 @@ export const LandingPuzzle = () => {
   const [stage, setStage] = useState<Stage>("still");
   const [Panel, setPanel] = useState<ComponentType<PuzzlePanelProps> | null>(null);
 
+  const stageRef = useRef<Stage>(stage);
+  stageRef.current = stage;
+  const liveRef = useRef<HTMLDivElement>(null);
+  const boardWait = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopBoardWait = () => {
+    if (boardWait.current) clearInterval(boardWait.current);
+    boardWait.current = null;
+  };
+  useEffect(() => stopBoardWait, []);
+
   const open = useCallback(() => {
+    if (stageRef.current === "opening" || stageRef.current === "live") return;
     trackOnce("landing_puzzle_opened", { puzzle_id: LANDING_PUZZLE.id });
     setStage("opening");
     import("@/components/Pro/Puzzle/PuzzlePanel").then(
@@ -47,8 +61,39 @@ export const LandingPuzzle = () => {
   // The still stays up until the panel has a position to show; if it never
   // gets one, the still stays for good. Once live, the panel speaks for itself.
   const onStatus = useCallback((status: PuzzlePanelStatus) => {
-    setStage((now) => (now !== "opening" ? now : status === "ready" ? "live" : status === "unavailable" ? "failed" : now));
+    if (stageRef.current !== "opening") return;
+    if (status === "unavailable") {
+      stopBoardWait();
+      setStage("failed");
+      return;
+    }
+    if (status !== "ready" || boardWait.current) return;
+    // "Ready" is the first position arriving; the board's picture may still be
+    // on its way. Hold the still until it is in (or a moment has passed), so
+    // the swap is board for board and not board for bare table.
+    const started = Date.now();
+    const drawn = () => {
+      const view = liveRef.current?.querySelector('[data-testid="pro-game-view"]');
+      if (!view) return true; // a state without a board ("You solved them all")
+      const map = view.querySelector("img");
+      return (!!map && map.complete) || Date.now() - started >= BOARD_WAIT_MS;
+    };
+    const goLive = () => {
+      stopBoardWait();
+      setStage((now) => (now === "opening" ? "live" : now));
+    };
+    if (drawn()) goLive();
+    else
+      boardWait.current = setInterval(() => {
+        if (drawn()) goLive();
+      }, 100);
   }, []);
+
+  // The visitor's focus was on the button, which goes with the still: hand it
+  // to the panel, so the keyboard and a screen reader land on the live puzzle.
+  useEffect(() => {
+    if (stage === "live") liveRef.current?.focus({ preventScroll: true });
+  }, [stage]);
 
   const opening = stage === "opening";
   const { goal, source, heroes, image } = LANDING_STILL;
@@ -67,9 +112,18 @@ export const LandingPuzzle = () => {
       boxShadow="0 0 0 1px rgba(224, 168, 46, 0.35), 0 12px 40px rgba(0, 0, 0, 0.5)"
     >
       {Panel && (opening || stage === "live") && (
-        // Laid out under the still while it loads (so it is ready at its real
-        // size), but out of sight and out of the tab order until it is live.
-        <Box position="absolute" inset={0} visibility={stage === "live" ? "visible" : "hidden"}>
+        // Under the still while it loads, in the box it will keep, but out of
+        // sight and out of the tab order until it is live.
+        <Box
+          ref={liveRef}
+          tabIndex={-1}
+          role="group"
+          aria-label={`Puzzle: ${goal}`}
+          position="absolute"
+          inset={0}
+          visibility={stage === "live" ? "visible" : "hidden"}
+          _focus={{ outline: "none" }}
+        >
           <Panel context="landing" puzzleId={LANDING_PUZZLE.id} onStatus={onStatus} />
         </Box>
       )}
@@ -133,7 +187,8 @@ export const LandingPuzzle = () => {
               type="button"
               data-testid="landing-puzzle-play"
               onClick={open}
-              disabled={opening}
+              // Not `disabled`: a disabled button drops the keyboard focus it holds.
+              aria-disabled={opening}
               fontFamily="SpaceGrotesk"
               fontWeight={700}
               fontSize="0.9rem"
@@ -143,11 +198,17 @@ export const LandingPuzzle = () => {
               bg="brand.accent"
               color="brand.surfaceDim"
               _hover={{ bg: "brand.accentDeep" }}
-              _disabled={{ opacity: 0.7, cursor: "default" }}
+              sx={{ '&[aria-disabled="true"]': { opacity: 0.7, cursor: "default" } }}
               _focusVisible={{ outline: "3px solid", outlineColor: "brand.parchment", outlineOffset: "2px" }}
               _after={{ content: '""', position: "absolute", inset: 0 }}
             >
-              {stage === "failed" ? "Try again" : "▶ Play this puzzle"}
+              {stage === "failed" ? (
+                "Try again"
+              ) : (
+                <>
+                  <span aria-hidden="true">▶ </span>Play this puzzle
+                </>
+              )}
             </Box>
             {stage === "failed" ? (
               <Text data-testid="landing-puzzle-failed" role="status" fontFamily="SpaceGrotesk" fontSize="0.85rem">

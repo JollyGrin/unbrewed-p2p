@@ -98,7 +98,9 @@ describe("LandingPuzzle", () => {
     fireEvent.click(screen.getByTestId("landing-puzzle-play"));
     expect(track).toHaveBeenCalledWith("landing_puzzle_opened", { puzzle_id: LANDING_PUZZLE.id });
     expect(screen.getByTestId("landing-puzzle-loading")).toBeInTheDocument();
-    expect(screen.getByTestId("landing-puzzle-play")).toBeDisabled();
+    // Not `disabled` (that would drop the keyboard's focus), and a second click does nothing.
+    expect(screen.getByTestId("landing-puzzle-play")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("landing-puzzle-play"));
     await flush();
     expect(mockPanel.loaded).toBe(true);
     // Mounted for the pinned puzzle, in the landing context, but the still is still what shows.
@@ -113,6 +115,8 @@ describe("LandingPuzzle", () => {
     expect(screen.queryByTestId("landing-puzzle-still")).not.toBeInTheDocument();
     expect(screen.getByTestId("puzzle-panel").parentElement).toHaveStyle({ visibility: "visible" });
     expect(screen.getByTestId("landing-puzzle")).toHaveAttribute("data-stage", "live");
+    // The button went with the still: focus moves to the live panel.
+    expect(screen.getByTestId("puzzle-panel").parentElement).toHaveFocus();
     // Once live the panel reports its own trouble: the still does not come back.
     await report("unavailable");
     expect(screen.getByTestId("puzzle-panel")).toBeInTheDocument();

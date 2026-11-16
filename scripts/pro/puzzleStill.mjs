@@ -107,6 +107,7 @@ try {
     const view = document.querySelector('[data-testid="pro-game-view"]');
     const map = view.querySelector(sel);
     const pieces = [...view.querySelectorAll("img")].filter((img) => img !== map && img.closest("[title]"));
+    if (pieces.length === 0) throw new Error("no pieces found on the board: has the board's markup changed?");
     let board = map.parentElement;
     while (board !== view && !pieces.every((img) => board.contains(img))) board = board.parentElement;
     if (board === view) throw new Error("no element holds the map and its pieces: has the board's markup changed?");
@@ -121,11 +122,12 @@ try {
   // Largest quality that fits the budget.
   let webp = null;
   let quality = 82;
-  for (; quality >= 40; quality -= 6) {
+  const MIN_QUALITY = 40;
+  for (; quality >= MIN_QUALITY; quality -= 6) {
     webp = await sharp(png).resize({ width: MAX_WIDTH, withoutEnlargement: true }).webp({ quality, effort: 6 }).toBuffer();
     if (webp.length <= MAX_BYTES) break;
   }
-  if (!webp || webp.length > MAX_BYTES) throw new Error(`the still does not fit ${MAX_BYTES} bytes even at quality ${quality + 6}`);
+  if (!webp || webp.length > MAX_BYTES) throw new Error(`the still does not fit ${MAX_BYTES} bytes at quality ${MIN_QUALITY} or above`);
   const meta = await sharp(webp).metadata();
 
   const still = {
