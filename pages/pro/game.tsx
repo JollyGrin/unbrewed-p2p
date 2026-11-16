@@ -4631,7 +4631,7 @@ const LiveGame = ({
   // and `soundOn` (useGameFx) exist.
   const [turnReminderOn, toggleTurnReminder] = useTurnReminderSetting();
   const socket = useProSocket(WS_URL, debug, slowMode, isTournamentRoom);
-  const { cosmeticHeroes, cosmeticConstants, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, trackHeroPicked, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
+  const { cosmeticHeroes, cosmeticConstants, cosmeticsStatus, status, roomId, roomInfo, snapshot, opponentConnected, seatPresence, turnTimer, ownTimerExpired, acknowledgeOwnTimerExpired, error, heroes, lobbies, roomPublic, replayBundle, createRoom, joinRoom, sendAction, respondToPrompt, requestUndo, respondToUndo, incomingUndo, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, requestLobbies, setVisibility, trackHeroPicked, serverRestarting, gameLost, rematchNegotiable, rematchOffer, offerRematch, cancelRematch, respondToRematch, slowModeHeld, slowModePending, advanceSlowMode, skipSlowMode, revealState } = socket;
   // Read through refs inside the log effect: adding either to that effect's deps
   // would re-run it without a new snapshot and append the last batch's lines
   // twice. `slowModeHeldRef` is what pins the spotlight to the batch the player
@@ -5312,6 +5312,7 @@ const LiveGame = ({
     heroId: endedView?.self.heroId ?? null,
     stats: accountStats,
     cosmeticHeroes,
+    cosmeticsKnown: cosmeticsStatus === "ready",
     cosmeticConstants: cosmeticConstants ?? null,
     badges: badgeCase.badges,
   });
