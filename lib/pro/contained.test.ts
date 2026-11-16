@@ -51,6 +51,20 @@ describe("frame helpers on a full page (no frame)", () => {
     frame.remove();
     outside.remove();
   });
+  it("a full-page view stands down while focus is inside a panel on its page", () => {
+    const frame = document.createElement("div");
+    frame.setAttribute("data-testid", "pro-contained");
+    const inside = document.createElement("button");
+    const outside = document.createElement("button");
+    frame.appendChild(inside);
+    document.body.append(frame, outside);
+    inside.focus();
+    expect(containedOwnsKeys(null)).toBe(false);
+    outside.focus();
+    expect(containedOwnsKeys(null)).toBe(true);
+    frame.remove();
+    outside.remove();
+  });
 });
 
 describe("createMemoryRoomStore — an ephemeral socket's private store", () => {

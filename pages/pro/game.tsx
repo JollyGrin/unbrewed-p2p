@@ -4410,6 +4410,7 @@ const LiveGame = ({
         mapSubmit,
         setSubmitMapOpen,
         submitMapOpen,
+        replaysSaved: true,
         // Escape hatch when re-render keeps failing: back to a clean lobby. The
         // reconnect token stays in localStorage, so this room is still resumable.
         onLeave: () => {

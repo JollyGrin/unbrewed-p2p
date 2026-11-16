@@ -37,6 +37,9 @@ export interface ProContained {
 
 const ProContainedContext = createContext<ProContained | null>(null);
 
+/** The frame's `data-testid`, also how code outside React finds a frame. */
+export const CONTAINED_TEST_ID = "pro-contained";
+
 /** The frame this component is rendered inside, or null on a full page. */
 export const useProContained = (): ProContained | null => useContext(ProContainedContext);
 
@@ -65,27 +68,30 @@ export const containedOrigin = (el: HTMLElement | null | undefined): { left: num
 
 /**
  * Whether a window-level key press belongs to this view. On a full page
- * (`el` null) every key does. Inside a frame only while focus is in it, so
- * two panels on one page — or a panel beside the real game — never both act
- * on the same key.
+ * (`el` null) every key does, except one pressed while focus is inside a
+ * frame. Inside a frame only while focus is in it, so two panels on one page —
+ * or a panel beside the real game — never both act on the same key.
  */
 export const containedOwnsKeys = (el: HTMLElement | null | undefined): boolean => {
-  if (!el) return true;
-  if (typeof document === "undefined") return false;
+  if (typeof document === "undefined") return !el;
   const active = document.activeElement;
+  // A full-page view shares its page with a panel (the lobby's puzzle beside
+  // the real game): a key pressed inside the panel is the panel's alone.
+  if (!el) return !active?.closest?.(`[data-testid="${CONTAINED_TEST_ID}"]`);
   return !!active && el.contains(active);
 };
 
 /**
  * Extra props for a Chakra Modal / AlertDialog opened by the view. Inside a
  * frame the dialog is the PANEL's, not the page's: it must not lock the host
- * page's scroll, nor mark the rest of the host page inert (`aria-hidden`).
- * Focus is still trapped in the dialog, which is inside the frame. `{}` on a
- * full page, so /pro/game's dialogs keep every default.
+ * page's scroll, mark the rest of the host page inert (`aria-hidden`), pull
+ * focus (and the page's scroll position) to itself when it opens on its own,
+ * or keep the host page's inputs from holding focus while it is up. `{}` on
+ * a full page, so /pro/game's dialogs keep every default.
  */
-export const useContainedModalProps = (): { blockScrollOnMount?: false; useInert?: false } =>
+export const useContainedModalProps = (): { blockScrollOnMount?: false; useInert?: false; trapFocus?: false; autoFocus?: false } =>
   useProContained() ? CONTAINED_MODAL_PROPS : NO_MODAL_PROPS;
-const CONTAINED_MODAL_PROPS = { blockScrollOnMount: false, useInert: false } as const;
+const CONTAINED_MODAL_PROPS = { blockScrollOnMount: false, useInert: false, trapFocus: false, autoFocus: false } as const;
 const NO_MODAL_PROPS = {};
 
 /** The root to look for an open modal under: the frame, or the whole page. */
@@ -169,7 +175,7 @@ export const ProContainedFrame = ({ children, ...rest }: { children: ReactNode }
   return (
     <Box
       ref={ref}
-      data-testid="pro-contained"
+      data-testid={CONTAINED_TEST_ID}
       // Focusable, so a click anywhere in the panel gives it the keyboard.
       tabIndex={0}
       position="relative"

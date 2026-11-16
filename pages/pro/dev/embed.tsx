@@ -3,7 +3,7 @@
  *
  * Mounts `<GameView contained>` at a few panel sizes, each against its own
  * normal bot room on its own EPHEMERAL socket, so the extraction can be
- * checked by eye and by script (scripts/pro/embed-check.mjs):
+ * checked by eye and by script (scripts/pro/embedCheck.mjs):
  *
  *   /pro/dev/embed                 all three panels (desktop, tablet, phone)
  *   ?panel=phone                   one panel (desktop | tablet | phone | wide)

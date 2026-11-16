@@ -12,7 +12,7 @@
  *  - `GameView` is the embeddable component: the same hook and body inside a
  *    sized panel, driven by a socket the caller hands it.
  */
-import { ComponentProps, CSSProperties, Fragment, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ComponentProps, CSSProperties, Fragment, ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { containedOrigin, containedOwnsKeys, containedScope, ProContainedFrame, proVh, useProContained } from "@/lib/pro/contained";
 import { Box, Button, Flex, Link, Tag, Text } from "@chakra-ui/react";
@@ -1873,6 +1873,12 @@ export interface GameViewHost {
   mapSubmit?: { map: ProMapDef; json: string } | null;
   setSubmitMapOpen?: (open: boolean) => void;
   submitMapOpen?: boolean;
+  /**
+   * The host saves the game's replay bundle to this browser's Replays store
+   * (as /pro/game does), so the end screen may link to it. Omitted: no
+   * "View your replay" link — it would point at a replay nobody saved.
+   */
+  replaysSaved?: boolean;
   /** The error boundary's "leave" escape hatch. Omitted: no such button. */
   onLeave?: () => void;
 }
@@ -1888,7 +1894,7 @@ export interface GameViewFeatures {
   forfeit: boolean;
   /** "Undo last action" and the accept/reject dialog. Off: an incoming request is declined. */
   undo: boolean;
-  /** the Rematch button / offer on the end screen (it navigates the page) */
+  /** the end screen's ways off this page: Rematch (button / offer) and "Back to lobby" */
   rematch: boolean;
   /** the report-bug chip, menu item and dialog */
   reportBug: boolean;
@@ -1950,6 +1956,12 @@ export const useGameViewState = ({
   const frameEl = useProContained()?.el ?? null;
   const frameElRef = useRef(frameEl);
   frameElRef.current = frameEl;
+  // The socket notices below are toasts with fixed ids, so a burst coalesces
+  // and a persistent one can be dismissed. Two views on one page would share
+  // those ids — one view's unmount would clear the other's "reconnecting…" —
+  // so a framed view suffixes them with its own id. /pro/game keeps the bare ids.
+  const viewId = useId();
+  const toastId = useCallback((id: string) => (frameEl ? `${id}:${viewId}` : id), [frameEl, viewId]);
   const { incomingUndo, respondToUndo, slowModeHeld, snapshot, sendAction, roomId, revealState, serverRestarting, undoPending, undoRejected, acknowledgeUndoRejected, undoUnavailable, acknowledgeUndoUnavailable, serverError, acknowledgeServerError, rateLimited, acknowledgeRateLimited, illegalAction, acknowledgeIllegalAction, resyncing, ownTimerExpired, acknowledgeOwnTimerExpired } = socket;
   // Combat pace (player feedback: combat reads too fast to follow) — a per-device
   // multiplier applied to the VISUAL combat sequence (reveal, damage arc, damage
@@ -2514,25 +2526,25 @@ export const useGameViewState = ({
   // the RESUME_ROOM path in useProSocket). If there's no valid resume token the
   // reconnect just lands on the normal error screen instead — graceful either way.
   useEffect(() => {
-    const id = "pro-server-restarting";
+    const id = toastId("pro-server-restarting");
     if (serverRestarting) {
       toast.loading("Server updating — reconnecting…", { id });
     } else {
       toast.dismiss(id);
     }
     return () => toast.dismiss(id);
-  }, [serverRestarting]);
+  }, [serverRestarting, toastId]);
 
   // Undo (issue #154). While our own request awaits the opponent's verdict, hold
   // a persistent "waiting" toast; it clears when the request resolves (accept
   // rewinds the board — undoPending flips false on the next STATE; reject latches
   // undoRejected below). Mirrors the reconnecting-toast pattern above.
   useEffect(() => {
-    const id = "pro-undo-pending";
+    const id = toastId("pro-undo-pending");
     if (undoPending) toast.loading("Undo requested — waiting for opponent…", { id });
     else toast.dismiss(id);
     return () => toast.dismiss(id);
-  }, [undoPending]);
+  }, [undoPending, toastId]);
 
   // No undo UI in this view (#1678): an opponent's request must not hang on a
   // dialog that is never shown, so it is declined at once.
@@ -2565,10 +2577,10 @@ export const useGameViewState = ({
     if (!serverError) return;
     // Stable id so retrying a broken action coalesces instead of stacking toasts.
     toast.error("The server couldn't process that action — try again or take a different action.", {
-      id: "pro-server-error",
+      id: toastId("pro-server-error"),
     });
     acknowledgeServerError();
-  }, [serverError, acknowledgeServerError]);
+  }, [serverError, acknowledgeServerError, toastId]);
 
   // Rate limited (issue #209 / engine PR #103): we're sending too fast. Gentle
   // one-shot toast, then acknowledge — the socket stays open and the board stays
@@ -2577,9 +2589,9 @@ export const useGameViewState = ({
   // reconnect/backoff in useProSocket handles resumption; this is NOT a loss.
   useEffect(() => {
     if (!rateLimited) return;
-    toast(proErrorMessage("RATE_LIMITED"), { id: "pro-rate-limited", icon: "🐢" });
+    toast(proErrorMessage("RATE_LIMITED"), { id: toastId("pro-rate-limited"), icon: "🐢" });
     acknowledgeRateLimited();
-  }, [rateLimited, acknowledgeRateLimited]);
+  }, [rateLimited, acknowledgeRateLimited, toastId]);
 
   // Illegal action (p2p #840): the reducer rejected our last action — a stale
   // view, or a double-tap's second send. The socket is open and the board is
@@ -2587,9 +2599,9 @@ export const useGameViewState = ({
   // the "We lost your game" screen. Stable id: a tap burst makes one toast.
   useEffect(() => {
     if (!illegalAction) return;
-    toast.error(proErrorMessage("ILLEGAL_ACTION"), { id: "pro-illegal-action" });
+    toast.error(proErrorMessage("ILLEGAL_ACTION"), { id: toastId("pro-illegal-action") });
     acknowledgeIllegalAction();
-  }, [illegalAction, acknowledgeIllegalAction]);
+  }, [illegalAction, acknowledgeIllegalAction, toastId]);
 
   // Stale-view resync (p2p #848): repeated rejections with no STATE in between
   // made useProSocket ask the server for a fresh view (a RECONNECT on the live
@@ -2598,9 +2610,9 @@ export const useGameViewState = ({
   // Mirrors the reconnecting-toast pattern above; never the loss screen.
   const wasResyncingRef = useRef(false);
   useEffect(() => {
-    const id = "pro-resync";
+    const id = toastId("pro-resync");
     if (resyncing) {
-      toast.dismiss("pro-illegal-action"); // superseded — the resync IS the answer
+      toast.dismiss(toastId("pro-illegal-action")); // superseded — the resync IS the answer
       toast.loading("Board out of date — refreshing from the server…", { id });
       wasResyncingRef.current = true;
     } else if (wasResyncingRef.current) {
@@ -2608,7 +2620,7 @@ export const useGameViewState = ({
       toast.success("Board refreshed.", { id });
     }
     return () => toast.dismiss(id);
-  }, [resyncing]);
+  }, [resyncing, toastId]);
 
   // Move timer (issue #223): the viewer's OWN clock ran out and the server played
   // a move for them. The move itself renders through the ordinary STATE flow (the
@@ -2617,9 +2629,9 @@ export const useGameViewState = ({
   // move just advances the board like any other.
   useEffect(() => {
     if (!ownTimerExpired) return;
-    toast("Time's up — a move was made for you.", { id: "pro-own-timer", icon: "⏱️" });
+    toast("Time's up — a move was made for you.", { id: toastId("pro-own-timer"), icon: "⏱️" });
     acknowledgeOwnTimerExpired();
-  }, [ownTimerExpired, acknowledgeOwnTimerExpired]);
+  }, [ownTimerExpired, acknowledgeOwnTimerExpired, toastId]);
 
   return { lingeringCombat, lingerHold, chain, soleActionRef, hotkeyActionsRef, relocateArmed, defenderSwap, attackerSwap, combatTargeting, ownerTokenState, ownerHeroIds, resolveFighterToken, cosmetics, mulliganAnswer, promptReveals, poseAnchor, promptStep, selectedFighter, hoveredFighter, step, setPromptStep, setStep, poseChoice, moveChoice, hoveredSpace, setPoseChoice, setPendingMove, setSelectedFighter, setRelocateArmed, setPoseAnchor, setMoveChoice, setHandOpen, mobile, hud, rail, resolveCard, resolveHero, resolveRuleCards, soundOn, visualOn, toggleSound, toggleVisual, hideCosmetics, toggleHideCosmetics, pace, cyclePace, boardView, toggleBoardView, mode, figureStyles, figureStyle, chooseFigureStyle, zoneDiscs, toggleZoneDiscs, heroPiece, turnReminderOn, toggleTurnReminder, setReportBugOpen, strike, mobileSheetShown, handOpen, boardFighters, boardFx, pendingMove, incomingMove, positionSwaps, clearIncoming, setHoveredSpace, setHoveredFighter, zoomMapOn, boardFitInset, tokenLifeOn, tokenGestures, fighterElsRef, reducedMotion, combatValueFx, clashRef, paceScale, iForfeited, gameEndReason, setForfeitOpen, mobileSheetRef, setMobileSheetShown, TableBoard, tableStrike, hurtKey, arcs, combatCallouts, turnReminderPulse, mobileChipsRef, setHudOverlayEl, spotlight, forfeitOpen, setIForfeited, setMulliganAnswer, discardsOpen, setDiscardsOpen, revealedHand, hudBottom, logEntries, logOpen, setLogOpen, reportBugOpen, mobileControlsRef };
 };
@@ -2665,6 +2677,7 @@ export const GameViewBody = ({
     mapSubmit = null,
     setSubmitMapOpen,
     submitMapOpen = false,
+    replaysSaved = false,
     onLeave,
   } = host;
   // Null on /pro/game. Inside a frame the view fills the frame, not the screen.
@@ -3998,7 +4011,7 @@ export const GameViewBody = ({
       rematchNegotiation={tournament?.at || !features.rematch ? null : rematchNegotiation}
       endAction={tournament?.endAction}
       endNote={tournament?.endNote(view, multiplayerView)}
-      replayHref={replayBundle ? `/pro/replays?open=${replayId(replayBundle)}` : null}
+      replayHref={replayBundle && replaysSaved ? `/pro/replays?open=${replayId(replayBundle)}` : null}
       onCopyShareLink={
         replayBundle && accountStatus === "signed-in" && copyReplayShareLink ? () => void copyReplayShareLink() : undefined
       }
@@ -4009,6 +4022,7 @@ export const GameViewBody = ({
         bots: roomInfo?.bots ?? null,
         accountStatus,
         username: accountState?.account?.username ?? null,
+        hideLobbyLink: !features.rematch,
         earned,
         stats: gameStats,
         clockMs,
@@ -4538,7 +4552,11 @@ export interface GameViewProps {
   opponentHand?: CardInstanceId[] | null;
   /** The `slowMode` the socket was opened with, so the hold spotlight matches it. */
   slowMode?: boolean;
-  /** Rendered until the socket's first STATE arrives. Default: nothing. */
+  /**
+   * Rendered until the socket's first STATE arrives. Default: nothing.
+   * After that the view keeps drawing the last STATE: a dead room
+   * (`socket.gameLost`, `socket.error`) is the caller's to notice and replace.
+   */
   fallback?: ReactNode;
 }
 

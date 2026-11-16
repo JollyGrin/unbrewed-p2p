@@ -258,12 +258,14 @@ describe("feature switches", () => {
     expect(screen.queryByTestId("post-game-result")).toBeNull();
   });
 
-  it("(control) postGame on: the end screen, without a Rematch (it would navigate the page)", async () => {
+  it("(control) postGame on: the end screen, with no link that leaves the page or opens an unsaved replay", async () => {
     mount(<Panel url="ws://puzzle" />);
     await open("ws://puzzle", "PZ1");
     await state("ws://puzzle", [], { ...VIEW, phase: "GAME_OVER", winner: "p1" });
     expect(screen.getAllByTestId("post-game-result").length).toBeGreaterThan(0);
     expect(screen.queryByText(/rematch/i)).toBeNull();
+    expect(screen.queryByText(/back to lobby/i)).toBeNull();
+    expect(screen.queryByText(/view your replay/i)).toBeNull();
   });
 });
 
@@ -323,6 +325,7 @@ describe("keyboard shortcuts with two panels on one page", () => {
     expect(actionsSent("ws://b")).toEqual([expect.objectContaining({ roomId: "RB", action: SOLE })]);
     expect(actionsSent("ws://a")).toHaveLength(0);
 
+    // …and a full-page view on the same page would stand down too (see contained.test.ts)
     // …and A, when A has it
     act(() => frameA.focus());
     fireEvent.keyDown(frameA, { key: " ", code: "Space" });

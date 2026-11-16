@@ -65,6 +65,8 @@ export interface ProPostGameContext {
   accountStatus: AccountState["status"];
   /** The signed-in username, for "You · name"; null as a guest. */
   username: string | null;
+  /** Drop "Back to lobby" (a full navigation to /pro/game): an embedded view (#1678). */
+  hideLobbyLink?: boolean;
   /**
    * Part 3 (p2p #1399): what this game earned, as `useGameEarned` tracks it —
    * null until the page has a game end to snapshot (or for a guest, whose
@@ -395,6 +397,7 @@ export const ProPostGame = ({
   bots,
   accountStatus,
   username,
+  hideLobbyLink = false,
   endNote,
   endAction,
   rematchHref,
@@ -591,7 +594,7 @@ export const ProPostGame = ({
       {rematch}
       {replay}
       {share}
-      <Box ml="auto">{lobby}</Box>
+      {!hideLobbyLink && <Box ml="auto">{lobby}</Box>}
     </Flex>
   ) : (
     <Flex direction="column" gap="0.5rem" pt="0.2rem">
@@ -602,7 +605,7 @@ export const ProPostGame = ({
           {share}
         </Box>
       )}
-      <Flex justify="center">{lobby}</Flex>
+      {!hideLobbyLink && <Flex justify="center">{lobby}</Flex>}
     </Flex>
   );
 

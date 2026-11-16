@@ -11,6 +11,7 @@
  * positioner, which the MenuList reads as its `maxH`.
  */
 import type { UsePopperProps } from "@chakra-ui/react";
+import { CONTAINED_TEST_ID } from "./contained";
 
 /** CSS custom property the modifier writes and the MenuList reads. */
 export const MENU_MAX_H_VAR = "--pro-menu-max-h";
@@ -93,7 +94,7 @@ export const fitMenuToViewport: PopperModifier = {
     const trigger = reference.getBoundingClientRect();
     // Inside a contained frame (#1678) the room is the FRAME's, measured from
     // its top edge; the device's safe areas are not the panel's concern.
-    const frame = reference.closest?.('[data-testid="pro-contained"]')?.getBoundingClientRect() ?? null;
+    const frame = reference.closest?.(`[data-testid="${CONTAINED_TEST_ID}"]`)?.getBoundingClientRect() ?? null;
     const safe = frame ? { top: 0, bottom: 0 } : readSafeArea();
     const px = menuMaxHeight({
       side: state.placement.split("-")[0] as MenuSide,
