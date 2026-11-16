@@ -280,6 +280,11 @@ describe("the solution", () => {
     // The fresh room says `solutionShown: false`; the page remembers otherwise.
     mockTrack.mockClear();
     await openSocket();
+    // …and tells the server so (engine #1078): the first room was created without
+    // the flag, the fresh one for the same puzzle carries `solutionSeen: true`.
+    expect(created()).toHaveLength(2);
+    expect(created()[0]).not.toHaveProperty("solutionSeen");
+    expect(created()[1]).toMatchObject({ type: "CREATE_PUZZLE_ROOM", puzzleId: PUZZLE.id, solutionSeen: true });
     await deliver({ ...FX.info, roomId: "PZ-FRESH" }, FX.start);
     await deliver(FX.solvedFinal, { ...FX.solvedResult, roomId: "PZ-FRESH", tryNumber: 1, solutionShown: false });
     const solved = await screen.findByTestId("puzzle-result-solved");
@@ -296,6 +301,8 @@ describe("the solution", () => {
     fireEvent.click(within(solved).getByRole("button", { name: "Next puzzle" }));
     await openSocket();
     expect(created().map((m) => m.puzzleId)).toEqual([PUZZLE.id, PUZZLE.id, "second-puzzle"]);
+    // Per puzzle id: a puzzle whose solution has not been shown is created without the flag.
+    expect(created()[2]).not.toHaveProperty("solutionSeen");
   });
 
   it("a solve the server marks solutionShown reads the same: solved, not bragged about, not counted", async () => {

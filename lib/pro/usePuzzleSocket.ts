@@ -96,7 +96,10 @@ export interface UsePuzzleSocketReturn {
   reset: () => void;
   requestHint: () => void;
   requestSolution: () => void;
-  /** A FRESH room for the same puzzle (a new socket): `solutionShown` starts false again. */
+  /**
+   * A FRESH room for the same puzzle (a new socket). The server forgets the old
+   * room; the `solutionSeen` option tells the new one what the visitor has seen.
+   */
   restart: () => void;
 }
 
@@ -119,8 +122,26 @@ interface Applied {
 
 export function usePuzzleSocket(
   wsUrl: string | undefined,
-  { puzzleId, context, enabled = true }: { puzzleId: string | null; context: PuzzleContext; enabled?: boolean }
+  {
+    puzzleId,
+    context,
+    enabled = true,
+    solutionSeen,
+  }: {
+    puzzleId: string | null;
+    context: PuzzleContext;
+    enabled?: boolean;
+    /**
+     * Has the visitor already watched this puzzle's solution (in an earlier
+     * room)? Asked when a room is created; `true` goes out as `solutionSeen` on
+     * CREATE_PUZZLE_ROOM, so the server starts the room with `solutionShown`
+     * set and never records a solve in it as an honest one (engine #1078).
+     */
+    solutionSeen?: (puzzleId: string) => boolean;
+  }
 ): UsePuzzleSocketReturn {
+  const solutionSeenRef = useRef(solutionSeen);
+  solutionSeenRef.current = solutionSeen;
   const account = useAccount();
   const accountRef = useRef(account);
   accountRef.current = account;
@@ -270,6 +291,7 @@ export function usePuzzleSocket(
           type: "CREATE_PUZZLE_ROOM",
           puzzleId,
           context: contextRef.current,
+          ...(solutionSeenRef.current?.(puzzleId) ? { solutionSeen: true } : {}),
           ...(analyticsId ? { analyticsId } : {}),
           ...(playerId ? { playerId } : {}),
           ...(displayName ? { displayName } : {}),

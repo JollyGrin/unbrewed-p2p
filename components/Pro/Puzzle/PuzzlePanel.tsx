@@ -99,8 +99,11 @@ const NOTICE_MS = 5000;
 const startedThisSitting = new Set<string>();
 // Puzzles whose solution this page load has shown. A fresh room (`restart()`)
 // forgets that on the server; the visitor does not, so a solve after it is
-// never reported as their own (#1687).
+// never reported as their own (#1687) — and every later room for that puzzle
+// is created with `solutionSeen`, so the server does not record one either
+// (engine #1078).
 const solutionSeenThisSitting = new Set<string>();
+const solutionSeenBefore = (puzzleId: string) => solutionSeenThisSitting.has(puzzleId);
 /** Test-only. */
 export const __resetPuzzleSittingForTests = () => {
   startedThisSitting.clear();
@@ -225,7 +228,7 @@ export const PuzzlePanel = ({
     if (autoStart) setStarted(true);
   }, [autoStart]);
 
-  const room = usePuzzleSocket(wsUrl, { puzzleId: currentId, context, enabled: started && !allDone });
+  const room = usePuzzleSocket(wsUrl, { puzzleId: currentId, context, enabled: started && !allDone, solutionSeen: solutionSeenBefore });
   const { socket, phase, info, result, hint, solution, epoch, solverOnRoster, reset, requestHint, requestSolution, restart } = room;
   const snapshot = socket.snapshot;
   const playing = phase === "playing" && !!snapshot && !!info;

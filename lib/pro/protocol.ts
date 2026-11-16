@@ -938,13 +938,6 @@
  * `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
  */
 /**
- * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
- * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1074, {40, 41}), so every bind is at
- * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
- * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
- */
-/**
  * v37 (engine #755 — tournaments: tagged rooms). ADDITIVE: one optional request field and
  * six new `ErrorCode`s. Nothing that already exists moves, and a client that never sends a
  * ticket never sees one of the new codes.
@@ -1118,10 +1111,20 @@
  * puzzle room (ERROR{PUZZLE_UNSUPPORTED}) — open a second socket.
  *
  * Client -> server
- * - `CREATE_PUZZLE_ROOM { puzzleId, context, analyticsId?, playerId?, displayName?, badge?,
- *   badges?, cosmetics? }` — `context` says where the puzzle is embedded. The identity
- *   fields mean what they mean on CREATE_ROOM and are all optional (guests send none).
- *   Answers PUZZLE_INFO then STATE, or ERROR{UNKNOWN_PUZZLE | BAD_MESSAGE | ROOM_LIMIT}.
+ * - `CREATE_PUZZLE_ROOM { puzzleId, context, solutionSeen?, analyticsId?, playerId?,
+ *   displayName?, badge?, badges?, cosmetics? }` — `context` says where the puzzle is
+ *   embedded. The identity fields mean what they mean on CREATE_ROOM and are all optional
+ *   (guests send none). Answers PUZZLE_INFO then STATE, or
+ *   ERROR{UNKNOWN_PUZZLE | BAD_MESSAGE | ROOM_LIMIT}.
+ *   `solutionSeen` (engine #1078 — optional and additive, so PROTOCOL_VERSION stays 41 and
+ *   a client that never sends it is unchanged): send `true` when the visitor has ALREADY
+ *   watched this puzzle's solution in an earlier room (a client that opens a fresh room for
+ *   "Try again" after a shown solution). The room then starts exactly as if the solution had
+ *   been shown in it: PUZZLE_INFO and every PUZZLE_RESULT carry `solutionShown: true`, and no
+ *   try in it is recorded as an honest solve. Anything but a boolean answers
+ *   ERROR{BAD_MESSAGE}.
+ *   ROOM_LIMIT (#1078) is also the answer when one client address already holds its share
+ *   of puzzle rooms (8 by default) — close one and retry.
  * - `ACTION { roomId, action }` — unchanged. Send only actions from `legalActions`
  *   (MOVE_FIGHTER / RESPOND_PROMPT paths as in a normal room). FORFEIT is never offered and
  *   is refused. An action after the try has ended answers ERROR{ILLEGAL_ACTION}.
@@ -1163,11 +1166,12 @@
  *   server-side delay apart, `legalActions: []`), then `status: "done"`. No PUZZLE_RESULT is
  *   sent for a played solution. Afterwards the room waits for PUZZLE_RESET.
  * - `PUZZLE_CLOSED { roomId, reason }` — the server closed the room (`"idle"`: no message
- *   for the idle window). The socket stays open; create a new room to continue.
+ *   addressed to the room for the idle window — 3 minutes while the visitor has not acted
+ *   in it, 30 minutes once they have (#1078); LIST_HEROES / LIST_LOBBIES do not keep a room
+ *   alive). The socket stays open; create a new room to continue.
  * - `ERROR{UNKNOWN_PUZZLE}` — no such puzzle id. `ERROR{PUZZLE_UNSUPPORTED}` — see above.
  */
 export const PROTOCOL_VERSION = 41;
-export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
@@ -2423,7 +2427,7 @@ export type ClientMsg =
   | { v: number; type: "REMATCH_RESPOND"; roomId: string; accept: boolean }
   | { v: number; type: "REMATCH_CANCEL"; roomId: string }
   // v41 (engine #1074): puzzle rooms. See the v41 header note.
-  | { v: number; type: "CREATE_PUZZLE_ROOM"; puzzleId: string; context: PuzzleContext; analyticsId?: string; playerId?: string; displayName?: string; badge?: string; badges?: string[]; cosmetics?: string }
+  | { v: number; type: "CREATE_PUZZLE_ROOM"; puzzleId: string; context: PuzzleContext; solutionSeen?: boolean; analyticsId?: string; playerId?: string; displayName?: string; badge?: string; badges?: string[]; cosmetics?: string }
   | { v: number; type: "PUZZLE_RESET"; roomId: string }
   | { v: number; type: "PUZZLE_HINT_REQUEST"; roomId: string }
   | { v: number; type: "PUZZLE_SOLUTION_REQUEST"; roomId: string };
