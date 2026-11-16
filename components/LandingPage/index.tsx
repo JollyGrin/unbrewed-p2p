@@ -2,6 +2,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { Hero } from "./Hero";
 import { SiteNav } from "@/components/SiteNav";
+import { PuzzleBand } from "./PuzzleBand";
 import { FourTables } from "./FourTables";
 import { IntentHelper } from "./IntentHelper";
 import { ProBand } from "./ProBand";
@@ -105,6 +106,7 @@ export const LandingPage = ({ catalog }: { catalog: LandingCatalog }) => {
       <Box as="main">
         <Hero roster={roster} sandboxMapCount={catalog.sandboxMapCount} />
         <Disclaimer />
+        <PuzzleBand />
         <FourTables />
         <IntentHelper />
         <ProBand roster={roster} proBoards={catalog.proBoards} />

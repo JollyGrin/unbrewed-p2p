@@ -59,7 +59,18 @@ export interface PuzzlePanelProps {
    * failure there), so the host can put its own screen back.
    */
   onUnavailable?: () => void;
+  /**
+   * What the panel has to show, for a host that covers it until there is
+   * something to play (the landing still, #1680): `loading` until a
+   * position is on the table (again for each new room: "Next puzzle", a
+   * reload), `ready` while one is (and for any state that waits on the
+   * visitor: "Start puzzle", timed out, all solved), `unavailable` when the
+   * engine or the puzzle cannot be reached (or the connection is lost).
+   */
+  onStatus?: (status: PuzzlePanelStatus) => void;
 }
+
+export type PuzzlePanelStatus = "loading" | "ready" | "unavailable";
 
 /** What a puzzle has no use for, and what must not reach the host page. */
 const PUZZLE_FEATURES: Partial<GameViewFeatures> = {
@@ -151,6 +162,7 @@ export const PuzzlePanel = ({
   wsUrl = PRO_WS_URL,
   resultDelayMs = PUZZLE_RESULT_DELAY_MS,
   onUnavailable,
+  onStatus,
 }: PuzzlePanelProps) => {
   const waiting = isWaitingContext(context);
   const catalogue = usePuzzleCatalogue(wsUrl);
@@ -336,6 +348,12 @@ export const PuzzlePanel = ({
   useEffect(() => {
     if (gone) onUnavailableRef.current?.();
   }, [gone]);
+  const status: PuzzlePanelStatus = failed ? "unavailable" : allDone || !started || phase === "expired" || (phase === "playing" && !!snapshot && !!info) ? "ready" : "loading";
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
+  useEffect(() => {
+    onStatusRef.current?.(status);
+  }, [status]);
   // In a waiting context a broken puzzle is simply not there.
   if (gone) return null;
 

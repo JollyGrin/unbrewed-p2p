@@ -627,6 +627,34 @@ describe("failing quietly", () => {
   });
 });
 
+describe("onStatus (the landing still covers the panel until it is ready, #1680)", () => {
+  it("loading until the room's first STATE, then ready", async () => {
+    const onStatus = jest.fn();
+    await mount({ onStatus });
+    await openSocket();
+    expect(onStatus.mock.calls.map(([s]) => s)).toEqual(["loading"]);
+    await deliver(FX.info, FX.start);
+    expect(onStatus.mock.calls.map(([s]) => s)).toEqual(["loading", "ready"]);
+  });
+
+  it("unavailable when the socket never opens", async () => {
+    const onStatus = jest.fn();
+    await mount({ onStatus });
+    await act(async () => {
+      latest().onclose?.({ code: 1006 });
+      await tick();
+    });
+    expect(onStatus).toHaveBeenLastCalledWith("unavailable");
+    expect(onStatus).not.toHaveBeenCalledWith("ready");
+  });
+
+  it("ready while it waits on the visitor's 'Start puzzle'", async () => {
+    const onStatus = jest.fn();
+    await mount({ onStatus, autoStart: false });
+    expect(onStatus).toHaveBeenLastCalledWith("ready");
+  });
+});
+
 describe("the host page", () => {
   it("is left alone: title, URL, storage keys other than the progress list; unmount closes the socket", async () => {
     const href = window.location.href;

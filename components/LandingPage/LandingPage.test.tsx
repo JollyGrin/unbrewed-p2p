@@ -41,7 +41,7 @@ const readJsonLd = (container: HTMLElement) => {
 };
 
 describe("LandingPage", () => {
-  it("has one h1 and the ten sections in the brief's order", () => {
+  it("has one h1 and the sections in the brief's order, the puzzle (#1680) right under the hero", () => {
     const { container } = renderPage();
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
@@ -50,7 +50,7 @@ describe("LandingPage", () => {
     const ids = [...container.querySelectorAll("header, section[id], footer[id]")].map(
       (el) => el.id || el.tagName.toLowerCase(),
     );
-    expect(ids).toEqual(["header", "top", "ways", "helper", "pro", "compete", "decks", "community", "faq", "footer"]);
+    expect(ids).toEqual(["header", "top", "puzzle", "ways", "helper", "pro", "compete", "decks", "community", "faq", "footer"]);
     // every section is labelled by a real h2
     for (const id of ids.slice(2)) {
       expect(container.querySelector(`#${id}-heading`)?.tagName).toBe("H2");
