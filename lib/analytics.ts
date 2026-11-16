@@ -64,7 +64,9 @@ export type AnalyticsEvent =
   | "puzzle_attempt_finished"
   | "puzzle_solved"
   | "puzzle_next_clicked"
-  | "puzzle_full_game_clicked";
+  | "puzzle_full_game_clicked"
+  // The landing still's click that loads the live panel (#1680).
+  | "landing_puzzle_opened";
 
 export type AnalyticsProps = Record<string, string | number | boolean | null | undefined>;
 
