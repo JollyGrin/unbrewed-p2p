@@ -496,7 +496,8 @@ export const landedLevelBar = (before: EarnedStats, after: EarnedStats): LevelBa
  *   record (#592). Whether it PAYS is a second question, `casualGamePays`
  *   (#1656): the first few do, and then the card says so instead of counting.
  * - `counted`: everything else. `forfeit` is set when YOU gave the game up:
- *   XP still lands, cosmetic points don't (#636), and the points tile says so.
+ *   nothing lands — no XP, no cosmetic points, no daily bonus (#636; the api
+ *   stopped paying XP for a concession too) — and the card says so.
  */
 export type EarnedKind = { kind: "casual" } | { kind: "counted"; forfeit: boolean };
 
