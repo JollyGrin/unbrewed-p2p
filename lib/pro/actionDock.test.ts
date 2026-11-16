@@ -1,4 +1,12 @@
-import { cardAffordances, describeAction, dockGroup, dockRows, NON_DOCK_ACTION_TYPES, soleAction } from "./actionDock";
+import {
+  cardAffordances,
+  describeAction,
+  dockGroup,
+  dockRows,
+  NON_DOCK_ACTION_TYPES,
+  soleAction,
+  unknownActionLabel,
+} from "./actionDock";
 import { Action, CardMeta } from "./protocol";
 
 // A minimal catalog so cardLabel prints a real "title (value/boost)" string.
@@ -352,5 +360,69 @@ describe("actionDock — Malfurion shapeshift", () => {
     expect(nightElfShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Human", via: "MANEUVER" });
     expect(maneuverShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Bear", via: "MANEUVER" });
     expect(omenShift).toEqual({ type: "SHAPESHIFT", player: "p1", form: "Moonkin", via: "OMEN" });
+  });
+});
+
+// Protocol v41 (engine #1080, p2p #1693): a free activated hero ability —
+// POMNI's Reward 2 / Reward 3, offered beside Maneuver / Scheme / Attack.
+describe("actionDock — USE_ABILITY (free activated hero ability)", () => {
+  const maneuver: Action = { type: "MANEUVER", player: "p1" };
+  const scheme: Action = { type: "SCHEME", player: "p1", card: "king-taranis/war-drums#1" };
+  const attack: Action = { type: "DECLARE_ATTACK", player: "p1", attacker: "p1/hero", target: "p2/hero" };
+  const reward2: Action = { type: "USE_ABILITY", player: "p1", ability: "reward-2", label: "Reward 2", card: "pomni/reward-2" };
+  const reward3: Action = { type: "USE_ABILITY", player: "p1", ability: "reward-3", label: "Reward 3", card: "pomni/reward-3" };
+  const forfeit: Action = { type: "FORFEIT", player: "p1" };
+
+  it("is labelled with the server's own label", () => {
+    expect(describeAction(catalog, reward2)).toBe("Reward 2");
+    expect(describeAction(catalog, reward3, { nameOf })).toBe("Reward 3");
+  });
+
+  it("a blank label still reads as something", () => {
+    expect(describeAction(catalog, { ...reward2, label: "" } as Action)).toBe("Use ability");
+  });
+
+  it("is a dock row (not a board affordance, not filtered)", () => {
+    expect(NON_DOCK_ACTION_TYPES).not.toContain("USE_ABILITY");
+  });
+
+  it("bands on its own, right after the three actions", () => {
+    expect(dockGroup(reward2)).toBe("ability");
+    // The server's order: actions, then abilities, then FORFEIT (filtered by the page).
+    const rows = dockRows([maneuver, scheme, attack, reward2, reward3]);
+    expect(rows.map((r) => r.action)).toEqual([maneuver, attack, scheme, reward2, reward3]);
+    expect(rows.map((r) => r.dividerBefore)).toEqual([false, true, true, true, false]);
+    expect(rows.map((r) => r.hotkey)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("hands the row the very object the server offered", () => {
+    const rows = dockRows([maneuver, reward2]);
+    expect(rows[1].action).toBe(reward2);
+  });
+
+  it("never becomes the spacebar's lone action while a real action is on offer", () => {
+    expect(soleAction([maneuver, reward2, forfeit], null)).toBeNull();
+  });
+});
+
+// The v40 client crashed its HUD on an action type it did not know: describeAction
+// fell off the end of its switch and returned undefined (engine #1085, "Surprises").
+describe("actionDock — an unknown action type is still a label (#1693)", () => {
+  const future = { type: "CHANNEL_THE_VOID", player: "p1" } as unknown as Action;
+
+  it("describeAction returns a readable string, never undefined", () => {
+    expect(describeAction(catalog, future)).toBe("Channel the void");
+    expect(describeAction(catalog, future, { nameOf })).toBe("Channel the void");
+  });
+
+  it("survives a malformed action too", () => {
+    expect(describeAction(catalog, {} as unknown as Action)).toBe("Action");
+    expect(describeAction(catalog, { type: "" } as unknown as Action)).toBe("Action");
+    expect(unknownActionLabel({ type: 7 })).toBe("Action");
+  });
+
+  it("an unknown type lands in the 'other' band and still gets a row", () => {
+    expect(dockGroup(future)).toBe("other");
+    expect(dockRows([future]).map((r) => r.action)).toEqual([future]);
   });
 });

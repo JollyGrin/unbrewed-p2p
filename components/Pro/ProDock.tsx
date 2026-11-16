@@ -23,10 +23,12 @@ import {
   TbSwords,
   TbWalk,
 } from "react-icons/tb";
-import { ActionTile, TileKind, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
+import { ActionTile, TileKind, abilityActionsOf, actionTilesFor, tileKindOf } from "@/lib/pro/actionTiles";
 import { cardChoiceGroups, isCardChoice } from "@/lib/pro/cardChoices";
 import { touchCopy } from "@/lib/pro/touchCopy";
-import { Action, CardInstanceId, FighterId, GameEvent, PlayerView } from "@/lib/pro/protocol";
+import { Action, CardDefId, CardInstanceId, FighterId, GameEvent, PlayerView } from "@/lib/pro/protocol";
+import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import { AbilityButton } from "@/components/Pro/AbilityButton";
 import { seatOwesDecision, showLiveTurnChrome } from "@/lib/pro/turnChrome";
 import { isGameOver } from "@/lib/pro/postGame";
 import { LARGE_FIGHTER_BLURB, LARGE_REACH_CHIP } from "@/lib/pro/largeReach";
@@ -315,6 +317,10 @@ export interface ProDockProps {
   /** mobile only: draws a card face, so card choices (boost, commit, discard)
    *  render as cards to pick instead of text rows. Omit to keep the rows. */
   renderCard?: (card: CardInstanceId) => ReactNode;
+  /** The face of the card a free ability is printed on (`USE_ABILITY.card`, a
+   *  key of `view.catalog`), so its button can show it. Null when the art is
+   *  not known; omit the prop (tests, replays) and the button shows a glyph. */
+  abilityCard?: (card: CardDefId) => DeckImportCardType | null;
   /** portrait only: the page hid the hand fan peek (a combat holds the sheet),
    *  so the sheet needs less reserved room at the bottom and may grow taller. */
   mobileHandPeekHidden?: boolean;
@@ -373,6 +379,7 @@ export const ProDock = ({
   onMobileSheetShown,
   boardPickHint = null,
   renderCard,
+  abilityCard,
   mobileHandPeekHidden = false,
   combatSummary = null,
 }: ProDockProps) => {
@@ -809,6 +816,26 @@ export const ProDock = ({
     attack: { label: "Attack", icon: <TbSwords size="1.5rem" /> },
   };
   const railTiles = narrow;
+  // A free hero ability (v41, p2p #1693) is a button of its own, never a row
+  // in the plain list and never an action tile: it costs no action. `press`
+  // differs by shell only in the phone's double-tap latch.
+  const abilityButton = (
+    a: Extract<Action, { type: "USE_ABILITY" }>,
+    opts: { hotkey?: number | null; stretch?: boolean; press: (action: Action) => void }
+  ) => (
+    <AbilityButton
+      key={a.ability}
+      label={describe(a)}
+      ability={a.ability}
+      card={a.card && abilityCard ? abilityCard(a.card) : null}
+      hotkey={opts.hotkey}
+      stretch={opts.stretch}
+      minH={mobile ? TAP_TARGET : "2rem"}
+      onPress={() => opts.press(a)}
+    />
+  );
+  // On the phone they stand directly under the three tiles, in one strip.
+  const tileAbilities = tiles.length > 0 ? abilityActionsOf(rows.map((r) => r.action)) : [];
   const tilesEl =
     tiles.length > 0 &&
     (tileFilter ? (
@@ -826,6 +853,7 @@ export const ProDock = ({
     ) : (
       // Three across in both layouts; the short landscape rail drops the
       // subline so the tiles stay one compact row above the fold.
+      <>
       <Flex data-testid="pro-action-tiles" gap={railTiles ? "0.3rem" : "0.5rem"}>
         {tiles.map((tile) => {
           const available = tile.actions.length > 0;
@@ -874,6 +902,12 @@ export const ProDock = ({
           );
         })}
       </Flex>
+      {tileAbilities.length > 0 && (
+        <Flex data-testid="pro-ability-tiles" gap={railTiles ? "0.3rem" : "0.5rem"} flexWrap="wrap">
+          {tileAbilities.map((a) => abilityButton(a, { stretch: true, press: tapOnce }))}
+        </Flex>
+      )}
+      </>
     ));
   // The HUD's side sheet counts too: the page makes room for it (fit, fan).
   const portraitSheetShown =
@@ -1058,7 +1092,9 @@ export const ProDock = ({
           // opened, everything but that tile's rows) — the relocate band keeps
           // its slot either way.
           const kind = tileKindOf(a);
-          const hiddenByTiles = tiles.length > 0 && (tileFilter ? kind !== tileFilter : kind !== null);
+          // …and so do the free abilities, which stand under the tiles there.
+          const hiddenByTiles =
+            tiles.length > 0 && (tileFilter ? kind !== tileFilter : kind !== null || a.type === "USE_ABILITY");
           const hiddenByCards = cardGroups.length > 0 && (isCardChoice(a) || a === declineDefense);
           if (hiddenByTiles || hiddenByCards)
             return <Fragment key={i}>{relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}</Fragment>;
@@ -1068,6 +1104,9 @@ export const ProDock = ({
                   combat, schemes — so the eye lands on the right family of rows
                   instead of scanning one undifferentiated stack. */}
               {dividerBefore && <Box h="1px" bg="rgba(231, 204, 152, 0.16)" mx="0.15rem" my="0.1rem" />}
+              {a.type === "USE_ABILITY" ? (
+                abilityButton(a, { hotkey, press: onAction })
+              ) : (
               <Button
                 {...BTN}
                 bg="rgba(20, 8, 24, 0.65)"
@@ -1169,6 +1208,7 @@ export const ProDock = ({
                   )}
                 </Flex>
               </Button>
+              )}
               {/* The relocate-arm rows close the maneuver band (see the consts
                   above) — after the band's last row, before the first divider. */}
               {relocateArmBand && i === firstManeuverBandEnd && relocateArmBand}

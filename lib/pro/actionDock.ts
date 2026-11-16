@@ -134,7 +134,23 @@ export const describeAction = (
       return "Answer prompt"; // rendered by PromptPanel instead — filtered out of the list
     case "FORFEIT":
       return "Forfeit"; // engine #32 enumerates it, but we filter it out of the list and offer it via the dock button
+    case "USE_ABILITY":
+      // A free activated hero ability (v41, engine #1080): the server names the
+      // button ("Reward 2"). A blank label falls through to the generic wording.
+      return a.label || unknownActionLabel(a);
+    default:
+      // An action type this build does not know (a newer engine). Every caller
+      // reads the result as a string — `hexLabelFor` takes its `.length` — so
+      // an unknown type must still be a label, never `undefined` (#1693).
+      return unknownActionLabel(a);
   }
+};
+
+/** "USE_ABILITY" → "Use ability": a readable stand-in for an action type with
+ *  no wording of its own. Never empty, whatever the server sent. */
+export const unknownActionLabel = (a: { type?: unknown }): string => {
+  const words = typeof a?.type === "string" ? a.type.replace(/_/g, " ").trim().toLowerCase() : "";
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Action";
 };
 
 /** Action types the sidebar never lists as a plain button: prompts render in the
@@ -179,13 +195,15 @@ export const soleAction = (legalActions: Action[], prompt: unknown): Action | nu
 // ---------------------------------------------------------------------------
 
 /** The bands the dock groups its rows into, in RENDERED order. */
-export type DockGroup = "maneuver" | "attack" | "scheme" | "boost" | "other";
+export type DockGroup = "maneuver" | "attack" | "scheme" | "ability" | "boost" | "other";
 
 /** Rendered top-to-bottom. Maneuver leads (it's the state you're in, or the
  *  cheapest way out of it), then combat — the usual path, and the one players
- *  hunt for — then schemes, then the maneuver-only boost rows, then anything
- *  else the server offers (commits, defenses, discards, shapeshifts). */
-const GROUP_ORDER: readonly DockGroup[] = ["maneuver", "attack", "scheme", "boost", "other"];
+ *  hunt for — then schemes, then the free hero abilities (v41: they sit with
+ *  the three actions but cost none, so they close that block in a band of
+ *  their own), then the maneuver-only boost rows, then anything else the
+ *  server offers (commits, defenses, discards, shapeshifts). */
+const GROUP_ORDER: readonly DockGroup[] = ["maneuver", "attack", "scheme", "ability", "boost", "other"];
 
 /** Which band a server action renders in. Type-driven only — no seat, no rules. */
 export const dockGroup = (a: Action): DockGroup => {
@@ -199,6 +217,8 @@ export const dockGroup = (a: Action): DockGroup => {
     case "SCHEME":
     case "USE_SCHEME_ITEM":
       return "scheme";
+    case "USE_ABILITY":
+      return "ability";
     case "BOOST_MOVE":
       return "boost";
     default:

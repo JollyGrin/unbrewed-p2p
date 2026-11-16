@@ -940,7 +940,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1080, {40, 41}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -1096,8 +1096,41 @@
  * boost → hand when `to` is present. For `ViewFighter.move`: mirror the optional field and
  * render the move chip from it (fall back to the printed move when absent); on a `MOVE_SET`
  * status, mark the chip as modified and show its expiry.
+ *
+ * ## v41 (2026-11-16): free activated hero abilities — `USE_ABILITY` (engine #1080)
+ * DSL 0.95.0 adds `HeroDef.activatedAbilities`: an "on your turn, you may …" ability the
+ * player presses like Maneuver / Scheme / Attack, but which is NOT an action. First consumer
+ * POMNI's Reward 2 and Reward 3, which stop being yes/no prompts after every action.
+ *
+ * - NEW ACTION `{ type: "USE_ABILITY"; player; ability; label; card? }` in
+ *   `STATE.legalActions`, for the ACTIVE player, only while they are choosing an action
+ *   (`view.turnPhase === "ACTION_SELECT"`, no prompt open), one per ability usable right
+ *   now, after the Maneuver / Scheme / Attack rows. `ability` is the id; `label` is the
+ *   button text ("Reward 2"); `card`, when present, is the CARD DEFINITION id the ability
+ *   is printed on (a key of `view.catalog`). Fully enumerated: send back EXACTLY the object
+ *   that was offered. It costs no action: `actionsRemaining` does not move and no
+ *   `ACTION_SPENT` follows.
+ * - Pressing it either resolves at once or opens ordinary prompts (existing `PromptKind`s
+ *   and `LegalOption`s, nothing new); when they finish the next STATE is action selection
+ *   again with the same `actionsRemaining`. A sub-menu's "Cancel" is an ordinary option.
+ * - NEW EVENT `{ type: "ABILITY_USED"; player; ability; label; card? }` — emitted once when
+ *   the button is pressed, before anything the ability does. Public and unredacted.
+ * - An ability the player has just used may still be offered (a repeatable one, or one
+ *   they cancelled out of): the list is always the server's.
+ * - SKEW: this is a new ACTION variant, so a v40 client is NEVER sent one — the server
+ *   strips `USE_ABILITY` from the `legalActions` of a socket speaking v40 (its dock has no
+ *   label for it). A v40 POMNI player therefore gets Reward 2 / 3 only at the one remaining
+ *   prompt, after their final action of the turn. `ABILITY_USED` and a `USE_ABILITY` entry
+ *   in a replay bundle's `actionLog` / an `UndoActionSummary` DO reach a v40 client, which
+ *   already has a fallback for an unknown event / action type in each of those places.
+ *
+ * CLIENT SURFACE (unbrewed-p2p #1693): sync this file; give `USE_ABILITY` a dock row
+ * labelled `action.label` (showing `view.catalog[action.card]` when `card` is present) that
+ * sends the offered action unchanged; do not draw it as an action tile or count it against
+ * the action pips; feed line for `ABILITY_USED` ("<player> used <label>"); replay-log and
+ * undo-dialog labels for the new action type.
  */
-export const PROTOCOL_VERSION = 40;
+export const PROTOCOL_VERSION = 41;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1220,6 +1253,13 @@ export type Action =
   // occupy `space` and it must hold a scheme item token. Costs an action but is NOT
   // "playing a scheme card". The client sends the space the server offered.
   | { type: "USE_SCHEME_ITEM"; player: PlayerId; space: SpaceId }
+  // A FREE ACTIVATED hero ability (v41, engine #1080 — `HeroDef.activatedAbilities`; first
+  // consumer POMNI's Reward 2 / Reward 3). Offered to the active player while choosing an
+  // action, one per ability usable right now; it is NOT an action (no action is spent, no
+  // `ACTION_SPENT`). `ability` is the id, `label` the button text, `card` (when present) the
+  // CARD DEFINITION id it is printed on — a key of `view.catalog`. Fully enumerated: the
+  // client sends back exactly what it was offered. Never sent to a v40 socket.
+  | { type: "USE_ABILITY"; player: PlayerId; ability: string; label: string; card?: CardDefId }
   | { type: "DECLARE_ATTACK"; player: PlayerId; attacker: FighterId; target: FighterId }
   // attachItem (v17): the attacker may attach the COMBAT item on its space to this
   // card — decided BEFORE the defender's defend decision, and public. The server
@@ -1422,6 +1462,10 @@ export type GameEvent =
   // (token consumed). COMBAT_ITEM_ATTACHED = a combat item was attached to a combat
   // card at commit (token consumed); the +value bump lands in the DURING window.
   | { type: "ITEM_USED"; player: PlayerId; space: SpaceId; item: string }
+  // v41 (engine #1080): a free activated hero ability was used (`USE_ABILITY`). Emitted once,
+  // before anything the ability does; `ability` / `label` / `card` as on the action. Public.
+  // No `ACTION_SPENT` accompanies it — the ability is not an action.
+  | { type: "ABILITY_USED"; player: PlayerId; ability: string; label: string; card?: CardDefId }
   | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number }
   // v24 (#281): effect-resolution marker. Emitted immediately BEFORE the ops of one
   // effect block / trigger / scheme run, and again right after PROMPT_RESOLVED when the

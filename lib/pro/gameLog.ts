@@ -1337,6 +1337,21 @@ export function enrichLines(
         break;
       }
 
+      // --- v41 (issue #1693 ↔ engine #1080) -----------------------------------
+      // A free activated hero ability was pressed (POMNI: Reward 2 / Reward 3).
+      // It spends no action, so no ACTION_SPENT labels the batch and — when the
+      // ability opens a prompt or is cancelled — no diff line may follow either.
+      // This line is the only trace that the button was pressed. `card` is a card
+      // DEFINITION id; the log's hover preview resolves it like an instance id.
+      case "ABILITY_USED": {
+        added.push({
+          text: `${ctx.seat(e.player)} used ${e.label || "an ability"}`,
+          who: whoOf(e.player),
+          ...(e.card ? { cards: [e.card] } : {}),
+        });
+        break;
+      }
+
       // Every other event type overlaps diff output (or is not yet allowlisted)
       // and must NEVER create a line. Do nothing.
       default:
