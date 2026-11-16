@@ -309,6 +309,101 @@ export const bonusRowText = (bonus: EarnedBonus, heroName: string): { label: str
   }
 };
 
+// --- bonus help (#1670) -------------------------------------------------------
+
+/** The "?" beside a row: the button's accessible name and the sentences it opens. */
+export interface EarnedHelp {
+  /** "What is a practice game?" */
+  ask: string;
+  text: string;
+}
+
+/**
+ * What the help copy may quote. All of it is the api's own: the practice block
+ * and the daily block of the landed `/me/stats`. A null block (or a zero
+ * inside one) drops the sentence that needed it; nothing is filled in.
+ */
+export interface EarnedHelpContext {
+  practice?: Pick<NonNullable<StatsBonuses["practice"]>, "cap" | "xpPerGame" | "xpPerWin"> | null;
+  daily?: Pick<DailyStats, "playXpTomorrow" | "firstWinXp" | "resetsAt"> | null;
+}
+
+/** "00:00 UTC" off `daily.resetsAt`; null when the api sent no usable time. */
+export const dailyResetClock = (resetsAt: string | null | undefined): string | null => {
+  const at = resetsAt ? Date.parse(resetsAt) : NaN;
+  if (!Number.isFinite(at)) return null;
+  const date = new Date(at);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${two(date.getUTCHours())}:${two(date.getUTCMinutes())} UTC`;
+};
+
+export const PRACTICE_HELP_ASK = "What is a practice game?";
+
+/**
+ * What a practice game is, for the practice row, the practice caption and the
+ * no-XP note. `cap` alone is enough for the middle sentence; the amount joins
+ * it only when the api sent one.
+ */
+export const practiceHelp = (
+  practice: { cap: number; xpPerGame?: number; xpPerWin?: number } | null | undefined,
+): EarnedHelp => {
+  const sentences = ["Easy and medium bots are practice games."];
+  if (practice && practice.cap > 0) {
+    const perGame = practice.xpPerGame ?? 0;
+    const perWin = practice.xpPerWin ?? 0;
+    const pay =
+      perGame <= 0
+        ? "pay XP"
+        : perWin > 0
+          ? `pay ${perGame.toLocaleString()} XP each, plus ${perWin.toLocaleString()} for a win`
+          : `pay ${perGame.toLocaleString()} XP each, win or lose`;
+    sentences.push(`Your first ${practice.cap.toLocaleString()} ${pay}; after that they pay no XP.`);
+  }
+  sentences.push("Hard and expert bots and games against people always pay.");
+  return { ask: PRACTICE_HELP_ASK, text: sentences.join(" ") };
+};
+
+/** The explanation behind a bonus row's "?" — one or two plain sentences per kind. */
+export const bonusRowHelp = (bonus: EarnedBonus, heroName: string, ctx: EarnedHelpContext = {}): EarnedHelp => {
+  switch (bonus.kind) {
+    case "first-game":
+      return { ask: "What is the first game bonus?", text: "A one-off bonus for finishing your first game." };
+    case "practice":
+      return practiceHelp(ctx.practice ?? { cap: bonus.cap });
+    case "quest":
+      return {
+        ask: "What is a quest?",
+        text: "This game completed one of your starter quests. Your quests are listed on your account page.",
+      };
+    case "hero-first":
+      return {
+        ask: `What is the first game as ${heroName} bonus?`,
+        text:
+          bonus.points > 0
+            ? `A one-off for each hero: your first game as ${heroName} pays ${bonus.points.toLocaleString()} points, enough for that hero's first card upgrade.`
+            : `A one-off for each hero: your first game as ${heroName} pays enough points for that hero's first card upgrade.`,
+      };
+    case "daily": {
+      const sentences = ["Your first game of each day pays a bonus that grows with every day in a row you play."];
+      const tomorrow = ctx.daily?.playXpTomorrow ?? 0;
+      if (tomorrow > 0) sentences.push(`Tomorrow pays +${tomorrow.toLocaleString()} XP.`);
+      const clock = dailyResetClock(ctx.daily?.resetsAt);
+      if (clock) sentences.push(`Days roll over at ${clock}.`);
+      return { ask: "What is the daily bonus?", text: sentences.join(" ") };
+    }
+    case "first-win": {
+      const xp = ctx.daily?.firstWinXp ?? 0;
+      return {
+        ask: "What is the first win bonus?",
+        text:
+          xp > 0
+            ? `Your first win of each day pays +${xp.toLocaleString()} XP, once a day, on top of the daily bonus.`
+            : "Your first win of each day pays a bonus, once a day, on top of the daily bonus.",
+      };
+    }
+  }
+};
+
 export const earnedDelta = (before: EarnedSnapshot, after: EarnedAfterSide): EarnedDelta => {
   const wasUnlocked = new Set(before.unlocked);
   return {
