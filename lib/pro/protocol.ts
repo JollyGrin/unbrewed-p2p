@@ -1113,10 +1113,16 @@
  * - Pressing it either resolves at once or opens ordinary prompts (existing `PromptKind`s
  *   and `LegalOption`s, nothing new); when they finish the next STATE is action selection
  *   again with the same `actionsRemaining`. A sub-menu's "Cancel" is an ordinary option.
- * - NEW EVENT `{ type: "ABILITY_USED"; player; ability; label; card? }` — emitted once when
- *   the button is pressed, before anything the ability does. Public and unredacted.
+ * - NEW EVENT `{ type: "ABILITY_USED"; player; ability; label; card? }` — emitted once, when
+ *   the ability has RESOLVED (after everything it did, on the STATE of the final prompt
+ *   answer if it prompted). NOT emitted when the player cancelled out of its menu or it
+ *   could do nothing, so "<player> used <label>" is always true. Public and unredacted.
  * - An ability the player has just used may still be offered (a repeatable one, or one
- *   they cancelled out of): the list is always the server's.
+ *   they cancelled out of): the list is always the server's. After 3 presses of the same
+ *   ability in one turn (cancelled presses count) the server stops offering it until the
+ *   player's next turn.
+ * - Timed rooms: pressing the button and answering its prompts do NOT restart the move
+ *   clock — the `TURN_TIMER` deadline already running is re-sent unchanged.
  * - SKEW: this is a new ACTION variant, so a v40 client is NEVER sent one — the server
  *   strips `USE_ABILITY` from the `legalActions` of a socket speaking v40 (its dock has no
  *   label for it). A v40 POMNI player therefore gets Reward 2 / 3 only at the one remaining
@@ -1463,7 +1469,8 @@ export type GameEvent =
   // card at commit (token consumed); the +value bump lands in the DURING window.
   | { type: "ITEM_USED"; player: PlayerId; space: SpaceId; item: string }
   // v41 (engine #1080): a free activated hero ability was used (`USE_ABILITY`). Emitted once,
-  // before anything the ability does; `ability` / `label` / `card` as on the action. Public.
+  // when it has resolved — never for a press that was cancelled or did nothing; `ability` /
+  // `label` / `card` as on the action. Public.
   // No `ACTION_SPENT` accompanies it — the ability is not an action.
   | { type: "ABILITY_USED"; player: PlayerId; ability: string; label: string; card?: CardDefId }
   | { type: "COMBAT_ITEM_ATTACHED"; player: PlayerId; role: "ATTACK" | "DEFENSE"; space: SpaceId; item: string; value: number }

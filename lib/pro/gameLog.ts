@@ -1338,10 +1338,12 @@ export function enrichLines(
       }
 
       // --- v41 (issue #1693 ↔ engine #1080) -----------------------------------
-      // A free activated hero ability was pressed (POMNI: Reward 2 / Reward 3).
-      // It spends no action, so no ACTION_SPENT labels the batch and — when the
-      // ability opens a prompt or is cancelled — no diff line may follow either.
-      // This line is the only trace that the button was pressed. `card` is a card
+      // A free activated hero ability RESOLVED (POMNI: Reward 2 / Reward 3). The
+      // server emits this once, after everything the ability did — on the STATE of
+      // the final prompt answer if it prompted — and never for a press the player
+      // cancelled or that could do nothing, so "used" is always true. It spends no
+      // action, so no ACTION_SPENT labels the batch; this line is what names the
+      // ability beside whatever diff lines its effects produced. `card` is a card
       // DEFINITION id; the log's hover preview resolves it like an instance id.
       case "ABILITY_USED": {
         added.push({

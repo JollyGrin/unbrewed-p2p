@@ -2472,6 +2472,13 @@ describe("ABILITY_USED (issue #1693 ↔ protocol v41)", () => {
     expect(enrichLines([], [e], ctx())).toEqual([{ text: "Opponent used Howl", who: "opp" }]);
   });
 
+  // The server emits ABILITY_USED only once the ability has resolved; a press the
+  // player cancelled out of (or that could do nothing) carries no such event.
+  it("a cancelled press says nothing: no event, no 'used' line", () => {
+    const cancelled: GameEvent[] = [{ type: "PROMPT_RESOLVED", player: "p1", promptId: "pr1", optionId: "cancel" } as GameEvent];
+    expect(enrichLines([], cancelled, ctx()).filter((l) => /used/.test(l.text))).toEqual([]);
+  });
+
   it("is not an action: the batch gets no action label and no fallback line", () => {
     expect(batchPhase([used("p1", 2)])).toBeUndefined();
     expect(actionFallbackLine([used("p1", 2)], "p1", (p) => p)).toBeUndefined();
