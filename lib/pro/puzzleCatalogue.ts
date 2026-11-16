@@ -16,7 +16,15 @@ export type PuzzleCatalogueState =
 
 const isSummary = (p: unknown): p is PuzzleSummary => {
   const s = p as Partial<PuzzleSummary> | null;
-  return !!s && typeof s.id === "string" && typeof s.goal?.text === "string" && typeof s.heroes?.solver?.name === "string" && typeof s.heroes?.enemy?.name === "string";
+  return (
+    !!s &&
+    typeof s.id === "string" &&
+    typeof s.order === "number" &&
+    typeof s.goal?.text === "string" &&
+    typeof s.heroes?.solver?.name === "string" &&
+    typeof s.heroes?.enemy?.name === "string" &&
+    typeof s.source?.kind === "string"
+  );
 };
 
 /** The catalogue in catalogue order, or null on any failure (network, shape, empty). */

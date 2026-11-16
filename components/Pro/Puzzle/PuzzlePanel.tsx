@@ -100,6 +100,8 @@ const Cover = ({ testId, dim = true, children }: { testId: string; dim?: boolean
     position="absolute"
     inset={0}
     zIndex={5}
+    role="group"
+    aria-live="polite"
     direction="column"
     align="center"
     justify="center"
@@ -173,11 +175,6 @@ export const PuzzlePanel = ({
   const { socket, phase, info, result, hint, solution, epoch, solverOnRoster, reset, requestHint, requestSolution, restart } = room;
   const snapshot = socket.snapshot;
 
-  // The server dropped an idle room (a long pause): open a fresh one once the
-  // visitor is back.
-  useEffect(() => {
-    if (phase === "expired" && !paused) restart();
-  }, [phase, paused, restart]);
 
   const listed = useMemo(() => catalogue.puzzles?.find((p) => p.id === currentId) ?? null, [catalogue.puzzles, currentId]);
   const puzzle: PuzzleSummary | null = info?.puzzle ?? listed;
@@ -266,9 +263,16 @@ export const PuzzlePanel = ({
     stageRef.current?.toggleAttribute("inert", blocked);
   }, [blocked]);
 
+  // Where "Next puzzle" would go. With none left it leads to "You solved them
+  // all" — but only when that is true: while the puzzle on the table is itself
+  // unsolved (a watched solution) there is no next, and no such button.
+  const nextUp = catalogue.puzzles ? nextUnsolvedPuzzle(catalogue.puzzles, solved, currentId) : null;
+  const canGoNext = !!catalogue.puzzles && (!!nextUp || (!!currentId && solved.includes(currentId)));
   const nextPuzzle = useCallback(() => {
     if (!catalogue.puzzles) return;
-    const next = nextUnsolvedPuzzle(catalogue.puzzles, readSolvedPuzzles(), currentId);
+    const done = readSolvedPuzzles();
+    const next = nextUnsolvedPuzzle(catalogue.puzzles, done, currentId);
+    if (!next && !(currentId && done.includes(currentId))) return;
     track("puzzle_next_clicked", { puzzle_id: currentId ?? undefined, context, next_puzzle_id: next?.id });
     if (!next) {
       setAllDone(true);
@@ -335,6 +339,17 @@ export const PuzzlePanel = ({
           {fullGameButton}
         </Cover>
       );
+  } else if (phase === "expired") {
+    // The server dropped the room after its idle window. No silent re-open: a
+    // tab left alone would hold a room for ever. The visitor asks for it.
+    stage = (
+      <Cover testId="puzzle-expired" dim={false}>
+        <Small fontSize="0.9rem">This puzzle timed out.</Small>
+        <Button {...BTN_GOLD} onClick={restart} isDisabled={paused}>
+          Start again
+        </Button>
+      </Cover>
+    );
   } else if (!started) {
     stage = (
       <Cover testId="puzzle-start" dim={false}>
@@ -365,7 +380,10 @@ export const PuzzlePanel = ({
   }
 
   let cover: ReactNode = null;
-  if (playing && verdict === "result" && result && info) {
+  // (Not while paused: a paused panel offers nothing to press. The verdict is
+  // kept and comes back when the pause clears.)
+  if (paused) cover = null;
+  else if (playing && verdict === "result" && result && info) {
     const enemy = info.puzzle.heroes.enemy.name;
     if (result.result === "solved") {
       const kind = info.puzzle.source.kind;
@@ -391,7 +409,7 @@ export const PuzzlePanel = ({
                 Try again
               </Button>
             )}
-            {catalogue.puzzles && (
+            {canGoNext && (
               <Button {...BTN_GOLD} data-testid="puzzle-next" onClick={nextPuzzle}>
                 Next puzzle
               </Button>
@@ -429,7 +447,7 @@ export const PuzzlePanel = ({
           <Button {...BTN_GOLD} data-testid="puzzle-try-again" onClick={tryAgain}>
             Try again
           </Button>
-          {catalogue.puzzles && (
+          {canGoNext && (
             <Button {...BTN} data-testid="puzzle-next" onClick={nextPuzzle}>
               Next puzzle
             </Button>
@@ -477,7 +495,7 @@ export const PuzzlePanel = ({
         <Button {...BTN} leftIcon={<TbBulb />} data-testid="puzzle-hint" isDisabled={controlsOff || !!result || !!solution} onClick={() => { markStarted(); requestHint(); }}>
           Hint
         </Button>
-        <Button {...BTN} leftIcon={<TbRefresh />} data-testid="puzzle-reset" isDisabled={controlsOff} onClick={() => { markStarted(); reset(); }}>
+        <Button {...BTN} leftIcon={<TbRefresh />} data-testid="puzzle-reset" isDisabled={controlsOff} onClick={() => { markStarted(); tryAgain(); }}>
           Reset
         </Button>
         <Small data-testid="puzzle-status" role="status" aria-live="polite" flex="1 1 12rem" minW="12rem" opacity={1} noOfLines={3}>

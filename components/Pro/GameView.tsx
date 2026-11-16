@@ -1950,6 +1950,9 @@ export const CONTAINED_GAME_FEATURES: GameViewFeatures = {
 
 const NO_HOST: GameViewHost = {};
 
+// The static prerender of /pro/game runs these hooks too.
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export const useGameViewState = ({
   socket,
   slowMode,
@@ -2377,7 +2380,7 @@ export const useGameViewState = ({
   // stage's px, so the board is fitted beside / below it (insetForOpenHand).
   const [openHandEl, setOpenHandEl] = useState<HTMLDivElement | null>(null);
   const [openHandBox, setOpenHandBox] = useState<{ right: number; bottom: number; stageW: number; stageH: number } | null>(null);
-  useLayoutEffect(() => {
+  useIsoLayoutEffect(() => {
     const stage = openHandEl?.closest<HTMLElement>('[data-testid="pro-game-view"]');
     if (!openHandEl || !stage) {
       setOpenHandBox(null);

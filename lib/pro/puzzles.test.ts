@@ -2,7 +2,7 @@
 import { toast } from "react-hot-toast";
 import { insetForOpenHand, OPEN_HAND_GAP } from "./mobileLayout";
 import { fetchPuzzleCatalogue } from "./puzzleCatalogue";
-import { markPuzzleSolved, nextUnsolvedPuzzle, PUZZLE_PROGRESS_KEY, readSolvedPuzzles } from "./puzzleProgress";
+import { __resetPuzzleProgressForTests, markPuzzleSolved, nextUnsolvedPuzzle, PUZZLE_PROGRESS_KEY, readSolvedPuzzles } from "./puzzleProgress";
 import { makeViewToast } from "./viewNotices";
 
 const cat = ["a", "b", "c", "d"].map((id) => ({ id }));
@@ -16,6 +16,17 @@ describe("puzzle progress", () => {
     expect(markPuzzleSolved("a")).toBe(false);
     expect(markPuzzleSolved("b")).toBe(true);
     expect(JSON.parse(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)!)).toEqual(["a", "b"]);
+  });
+
+  it("still counts a solve once when storage is blocked", () => {
+    const setItem = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(markPuzzleSolved("z")).toBe(true);
+    expect(markPuzzleSolved("z")).toBe(false);
+    expect(readSolvedPuzzles()).toEqual(["z"]);
+    setItem.mockRestore();
+    __resetPuzzleProgressForTests();
   });
 
   it("reads garbage as nothing solved", () => {

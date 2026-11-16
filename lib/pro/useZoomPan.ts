@@ -441,6 +441,10 @@ export function useZoomPan(
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDist = useRef<number | null>(null);
   const panning = useRef(false);
+  // "touch" gestures only: this press turned out to be a vertical drag, which
+  // is the page's scroll. It never pans, even for the few moves that arrive
+  // before the browser cancels the pointer.
+  const yielded = useRef(false);
   const didPan = useRef(false);
   const start = useRef({ x: 0, y: 0 });
 
@@ -460,6 +464,7 @@ export function useZoomPan(
       if (pointers.current.size === 1) {
         start.current = { x: e.clientX, y: e.clientY };
         panning.current = false;
+        yielded.current = false;
       }
     },
     [enabled, gestures]
@@ -494,7 +499,12 @@ export function useZoomPan(
 
       const dx = e.clientX - prev.x;
       const dy = e.clientY - prev.y;
+      if (yielded.current) return;
       if (!panning.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > PAN_THRESHOLD) {
+        if (gestures === "touch" && Math.abs(e.clientY - start.current.y) >= Math.abs(e.clientX - start.current.x)) {
+          yielded.current = true;
+          return;
+        }
         panning.current = true;
       }
       if (panning.current) {
@@ -535,7 +545,7 @@ export function useZoomPan(
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [enabled, zoomAt, frameRef, rotated]);
+  }, [enabled, gestures, zoomAt, frameRef, rotated]);
 
   // Capture-phase: if the gesture just panned, eat the click before it reaches
   // a hit-circle/fighter so panning never triggers an action.

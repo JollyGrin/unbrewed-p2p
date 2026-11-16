@@ -27,6 +27,7 @@ import { PROTOCOL_VERSION } from "@/lib/pro/protocol";
 import type { PuzzleSummary } from "@/lib/pro/protocol";
 import { __resetPuzzleCatalogueForTests, puzzleSourceLine, solveRateLine } from "@/lib/pro/puzzleCatalogue";
 import { PUZZLE_PROGRESS_KEY, markPuzzleSolved } from "@/lib/pro/puzzleProgress";
+import { PUZZLE_ROOM_TIMEOUT_MS } from "@/lib/pro/usePuzzleSocket";
 import { FakeWebSocket, installFakeWebSocket, installPolyfills } from "@/scripts/renderFuzz/domEnv";
 
 const mockTrack = jest.fn((_event: string, _props?: Record<string, unknown>, _opts?: unknown) => true);
@@ -79,11 +80,15 @@ afterEach(() => {
 
 const latest = () => FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
 const tick = () => new Promise((r) => setTimeout(r, 5));
-/** Deliver frames in order, with the gap the panel's one-snapshot-per-tick queue needs. */
+/**
+ * Deliver frames back to back, as a socket does (the reply to an action lands
+ * in the same tick as the action's own STATE), then let the panel's
+ * one-snapshot-per-tick queue run dry.
+ */
 const deliver = async (...msgs: Msg[]) => {
   await act(async () => {
     for (const msg of msgs) latest().onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, ...msg }) });
-    await tick();
+    for (let i = 0; i <= msgs.length; i += 1) await tick();
   });
 };
 const openSocket = async () => {
@@ -265,15 +270,48 @@ describe("the solution", () => {
     expect(FakeWebSocket.instances).toHaveLength(2);
     expect(FakeWebSocket.instances[0].readyState).toBe(FakeWebSocket.CLOSED);
 
-    // Had the visitor reset in the old room instead, the server would answer
-    // "solved" with solutionShown: shown as solved, never counted.
+    // An honest solve in the fresh room counts.
     await openSocket();
-    await deliver({ ...FX.info, solutionShown: true }, FX.start);
+    await deliver({ ...FX.info, roomId: "PZ-FRESH" }, FX.start);
+    await deliver(FX.solvedFinal, { ...FX.solvedResult, roomId: "PZ-FRESH" });
+    expect(await screen.findByTestId("puzzle-result-solved")).not.toHaveTextContent("not counted");
+    expect(JSON.parse(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)!)).toEqual([PUZZLE.id]);
+    expect(tracked("puzzle_solved")).toHaveLength(1);
+    expect(onSolved).toHaveBeenCalledTimes(1);
+  });
+
+  it("a solve the server marks solutionShown is shown as solved but neither counted nor remembered", async () => {
+    const onSolved = jest.fn();
+    await start({ onSolved }, { ...FX.info, solutionShown: true });
     await deliver(FX.solvedFinal, { ...FX.solvedResult, solutionShown: true });
-    expect(await screen.findByTestId("puzzle-result-solved")).toHaveTextContent("not counted");
+    const card = await screen.findByTestId("puzzle-result-solved");
+    expect(card).toHaveTextContent("not counted");
     expect(window.localStorage.getItem(PUZZLE_PROGRESS_KEY)).toBeNull();
     expect(tracked("puzzle_solved")).toEqual([]);
     expect(onSolved).not.toHaveBeenCalled();
+    // Its "Try again" is a fresh room too.
+    fireEvent.click(within(card).getByRole("button", { name: "Try again" }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("Reset while the solution plays opens a fresh room as well", async () => {
+    await start();
+    await deliver({ type: "PUZZLE_SOLUTION", roomId: "PZ-FIXTURE", status: "playing", steps: 3 }, { ...FX.start, legalActions: [] });
+    fireEvent.click(screen.getByTestId("puzzle-reset"));
+    expect(sent.filter((m) => m.type === "PUZZLE_RESET")).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("offers no 'Next puzzle' when the only unsolved puzzle is the one on the table", async () => {
+    markPuzzleSolved("second-puzzle");
+    markPuzzleSolved("third-puzzle");
+    await start();
+    await deliver({ type: "PUZZLE_SOLUTION", roomId: "PZ-FIXTURE", status: "playing", steps: 3 }, { ...FX.start, legalActions: [] });
+    await deliver({ type: "PUZZLE_SOLUTION", roomId: "PZ-FIXTURE", status: "done", steps: 3 });
+    const card = await screen.findByTestId("puzzle-solution-done");
+    expect(within(card).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Next puzzle" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("puzzle-all-solved")).not.toBeInTheDocument();
   });
 });
 
@@ -301,6 +339,31 @@ describe("paused", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(latest().readyState).toBe(FakeWebSocket.OPEN);
 
+    // A verdict that lands during the pause offers nothing to press until it clears.
+    await deliver(FX.failedFinal, FX.failedResult);
+    await act(async () => {
+      await tick();
+    });
+    expect(screen.queryByTestId("puzzle-result-failed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    view.rerender(wrap(false));
+    expect(screen.getByTestId("puzzle-result-failed")).toBeInTheDocument();
+    cleanup();
+  });
+
+  it("resumes a try in progress exactly where it was", async () => {
+    const view = await start();
+    await deliver(FX.afterDeclare);
+    const wrap = (paused: boolean) => (
+      <QueryClientProvider client={new QueryClient()}>
+        <ChakraProvider theme={theme}>
+          <div style={{ width: 360, height: 720 }}>
+            <PuzzlePanel context="page" wsUrl={URL} resultDelayMs={0} paused={paused} />
+          </div>
+        </ChakraProvider>
+      </QueryClientProvider>
+    );
+    view.rerender(wrap(true));
     view.rerender(wrap(false));
     expect(screen.queryByTestId("puzzle-paused")).not.toBeInTheDocument();
     expect(screen.getByTestId("puzzle-stage")).not.toHaveAttribute("inert");
@@ -427,10 +490,57 @@ describe("failing quietly", () => {
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
-  it("reopens a room the server dropped for idling, once the panel is not paused", async () => {
-    await start();
+  it("a room the server dropped for idling is reopened only when the visitor asks", async () => {
+    await start({ context: "lobby_wait" });
     await deliver({ type: "PUZZLE_CLOSED", roomId: "PZ-FIXTURE", reason: "idle" });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(latest().readyState).toBe(FakeWebSocket.CLOSED);
+    fireEvent.click(within(screen.getByTestId("puzzle-expired")).getByRole("button", { name: "Start again" }));
     expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(screen.getByTestId("puzzle-loading")).toBeInTheDocument();
+  });
+
+  it("any error before the room's first STATE is 'unavailable', not an endless loading", async () => {
+    await mount();
+    await openSocket();
+    await deliver({ type: "ERROR", code: "RATE_LIMITED", message: "slow down" });
+    expect(screen.getByTestId("puzzle-unavailable")).toBeInTheDocument();
+  });
+
+  it("gives up on a server that opens and never answers", async () => {
+    jest.useFakeTimers();
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ChakraProvider theme={theme}>
+            <PuzzlePanel context="page" wsUrl={URL} puzzleId={PUZZLE.id} />
+          </ChakraProvider>
+        </QueryClientProvider>,
+      );
+      await act(async () => {
+        latest().readyState = FakeWebSocket.OPEN;
+        latest().onopen?.({});
+        jest.advanceTimersByTime(PUZZLE_ROOM_TIMEOUT_MS + 10);
+      });
+      expect(screen.getByTestId("puzzle-unavailable")).toBeInTheDocument();
+      expect(latest().readyState).toBe(FakeWebSocket.CLOSED);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("ignores a late frame from the previous puzzle's socket", async () => {
+    await start();
+    const old = latest();
+    const onmessage = old.onmessage;
+    await deliver(FX.solvedFinal, FX.solvedResult);
+    fireEvent.click(await screen.findByRole("button", { name: "Next puzzle" }));
+    expect(old.onmessage).toBeNull();
+    await act(async () => {
+      onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, ...FX.failedResult }) });
+      await tick();
+    });
+    expect(screen.queryByTestId("puzzle-result-failed")).not.toBeInTheDocument();
     expect(screen.getByTestId("puzzle-loading")).toBeInTheDocument();
   });
 });

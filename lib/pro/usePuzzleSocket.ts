@@ -100,6 +100,9 @@ export interface UsePuzzleSocketReturn {
 /** Errors that mean "no room for you", as opposed to a rejected action. */
 const FATAL_CODES = new Set(["UNKNOWN_PUZZLE", "ROOM_LIMIT", "BAD_MESSAGE", "PUZZLE_UNSUPPORTED", "VERSION", "ROOM_NOT_FOUND"]);
 
+/** How long a room may take to answer its create before the panel gives up. */
+export const PUZZLE_ROOM_TIMEOUT_MS = 15_000;
+
 const NOOP = () => {};
 const EMPTY_PRESENCE = {};
 
@@ -153,6 +156,10 @@ export function usePuzzleSocket(
     drainTimerRef.current = null;
     const next = queueRef.current.shift();
     if (!next) return;
+    // Hold the slot until the next macrotask even when nothing is queued yet:
+    // each socket frame is pushed on its own, and the reply to an action can
+    // be handled before React has rendered the action's own STATE.
+    drainTimerRef.current = setTimeout(drainOne, 0);
     if (next.fresh) {
       revealRef.current = EMPTY_REVEAL_STATE;
       setEpoch((n) => n + 1);
@@ -162,7 +169,6 @@ export function usePuzzleSocket(
     if (next.info) setInfo(next.info);
     setSnapshot(next.snapshot);
     setPhase("playing");
-    if (queueRef.current.length > 0) drainTimerRef.current = setTimeout(drainOne, 0);
   }, []);
   const push = useCallback(
     (item: Applied) => {
@@ -219,6 +225,19 @@ export function usePuzzleSocket(
     // the header and the board change in one render.
     let pendingInfo: PuzzleRoomInfo | null = null;
     let freshNext = true;
+    // A server that never opens, or opens and never answers the create, is as
+    // unavailable as one that refuses: no endless "loading".
+    const giveUp = setTimeout(() => {
+      if (!alive || hadStateRef.current) return;
+      alive = false;
+      setOpen(false);
+      setPhase("unavailable");
+      try {
+        ws.close();
+      } catch {
+        /* never opened */
+      }
+    }, PUZZLE_ROOM_TIMEOUT_MS);
 
     ws.onopen = () => {
       if (!alive) return;
@@ -316,9 +335,11 @@ export function usePuzzleSocket(
           break;
         case "ERROR":
           actionsInFlightRef.current.clear();
-          if (msg.code === "ILLEGAL_ACTION" || msg.code === "NOT_YOUR_SEAT") setIllegalAction(true);
-          else if (msg.code === "RATE_LIMITED") setRateLimited(true);
-          else if (msg.code === "SERVER_ERROR") setServerError(true);
+          // Before the room's first STATE every error is an answer to the create:
+          // there is no room, whatever the code says.
+          if (hadStateRef.current && (msg.code === "ILLEGAL_ACTION" || msg.code === "NOT_YOUR_SEAT")) setIllegalAction(true);
+          else if (hadStateRef.current && msg.code === "RATE_LIMITED") setRateLimited(true);
+          else if (hadStateRef.current && msg.code === "SERVER_ERROR") setServerError(true);
           else if (FATAL_CODES.has(msg.code) || !hadStateRef.current) {
             setError({ code: msg.code, message: msg.message });
             setPhase(hadStateRef.current ? "lost" : "unavailable");
@@ -342,6 +363,7 @@ export function usePuzzleSocket(
 
     return () => {
       alive = false;
+      clearTimeout(giveUp);
       clearQueue();
       ws.onopen = null;
       ws.onmessage = null;
