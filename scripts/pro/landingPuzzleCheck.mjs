@@ -222,7 +222,8 @@ const run = async (browser, width, height) => {
   });
 
   // Not on the button: anywhere on the still plays (here, the board's picture).
-  await page.locator(`${STILL} img`).click({ position: { x: 40, y: 40 } });
+  const picture = await page.locator(`${STILL} img`).boundingBox();
+  await page.mouse.click(picture.x + picture.width / 2, picture.y + picture.height / 3);
   // The loading state is drawn over the still.
   const sawLoading = await page
     .locator('[data-testid="landing-puzzle-loading"]')
