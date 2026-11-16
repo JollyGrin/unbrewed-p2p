@@ -336,6 +336,9 @@ export const InGameAccountChip = ({
 } = {}) => {
   const { status, account } = useAccount();
   const onSignInClick = useSignInReturn();
+  // #1666: the post-game strip announces an upgrade on THIS page, so the dot
+  // has to be drawn here too, or the player following "Upgrade" never sees it.
+  const unseenUpgrade = useUnseenUpgrade();
 
   if (status === "loading" || status === "offline") return null;
 
@@ -386,12 +389,14 @@ export const InGameAccountChip = ({
       >
         {account.username}
       </Text>
+      {unseenUpgrade && <UpgradeDot position="absolute" top="-0.1rem" right="-0.1rem" />}
     </>
   );
+  const label = `Signed in as ${account.username}${unseenUpgrade ? ", upgrade available" : ""}`;
 
   if (!withMenu) {
     return (
-      <Flex {...hudChipStyles} aria-label={`Signed in as ${account.username}`}>
+      <Flex {...hudChipStyles} position="relative" aria-label={label}>
         {identity}
       </Flex>
     );
@@ -405,7 +410,8 @@ export const InGameAccountChip = ({
         as={Flex}
         {...hudChipStyles}
         display="inline-flex"
-        aria-label={`Signed in as ${account.username}`}
+        position="relative"
+        aria-label={label}
         cursor="pointer"
         _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
       >

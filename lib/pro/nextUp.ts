@@ -18,7 +18,9 @@
  * bot ladder (beat a tier, get a one-tap rematch one tier up), progress toward
  * the hidden bot, and a hero never piloted. A goal that is at least half way
  * (`NEAR_MISS`) outranks them; one further off does not, so a new account's
- * three 0% bars do not bury the one row that says what to play next.
+ * three 0% bars do not bury the one row that says what to play next. The one
+ * exception (#1666): when practice pay is used up, the row that says so sits
+ * right under an available upgrade, above every goal, win or lose.
  *
  * "How close" is one scale for every goal: the fraction of the CURRENT step
  * already covered (points toward this card's price, earned points between two
@@ -65,6 +67,12 @@ export type NextUpSuggestion =
    * first tier that still pays XP.
    */
   | { kind: "ladder"; from: BotDifficulty; to: BotDifficulty; practiceSpent: boolean; href: string }
+  /**
+   * The same "practice XP is used up" message after a game that was NOT won
+   * (#1666): there is no rung to climb, so it carries no link. `to` is the
+   * first tier that still pays.
+   */
+  | { kind: "practice-spent"; to: BotDifficulty }
   /** Wins vs Expert toward the hidden tier (`TIER_UNLOCK`). `progress` draws the bar. */
   | { kind: "hidden-bot"; wins: number; target: number; progress: number }
   /** A hero never piloted; `points` is what its first game pays, `href` a bot game as it. */
@@ -164,9 +172,11 @@ const levelGoal = (
 /**
  * `"Play 25 games (12/25)"` → `{ current: 12, target: 25 }`.
  *
- * The api sends a badge's requirement and progress as one human string; the
- * trailing `(n/m)` is the only machine-readable part of it. A badge without
- * one (a one-off feat) has no "how close", so it is never a row.
+ * An older api sends a badge's requirement and progress as one human string;
+ * the trailing `(n/m)` is the only machine-readable part of it. This parse is
+ * the FALLBACK since #1666: `badgeProgressOf` prefers the structured
+ * `progress` field. A badge with neither (a one-off feat on an older api) has
+ * no "how close", so it is never a row.
  */
 export const badgeProgress = (unlockedWhy: string): { current: number; target: number } | null => {
   const match = /\(\s*([\d,]+)\s*\/\s*([\d,]+)\s*\)\s*$/.exec(unlockedWhy);
@@ -177,12 +187,23 @@ export const badgeProgress = (unlockedWhy: string): { current: number; target: n
   return { current, target };
 };
 
+/** A badge's progress: the api's structured field when present, else the text parse. */
+export const badgeProgressOf = (
+  badge: Pick<Badge, "unlockedWhy" | "progress">,
+): { current: number; target: number } | null => {
+  const sent = badge.progress;
+  if (sent && Number.isFinite(sent.current) && Number.isFinite(sent.target) && sent.target > 0 && sent.current >= 0) {
+    return { current: sent.current, target: sent.target };
+  }
+  return badgeProgress(badge.unlockedWhy);
+};
+
 /** The locked badge closest to unlocking; the catalog's order breaks a tie. */
 const badgeGoal = (badges: readonly Badge[]): NextUpGoal | null => {
   let best: NextUpGoal | null = null;
   for (const badge of badges) {
     if (badge.unlocked) continue;
-    const progress = badgeProgress(badge.unlockedWhy);
+    const progress = badgeProgressOf(badge);
     if (!progress || progress.current >= progress.target) continue;
     const fraction = progress.current / progress.target;
     if (best && fraction <= best.progress) continue;
@@ -243,7 +264,7 @@ export const ladderStep = (
 export interface LadderInput {
   /** The finished game's setup; null until the replay bundle lands (then: no row). */
   setup: FinishedGameSetup | null;
-  /** You won it outright. */
+  /** You won it outright. Without a win there is no rung up, only the practice-spent note. */
   won: boolean;
   /** Tiers the server accepts for this room's heroes. */
   offered: readonly string[];
@@ -252,9 +273,14 @@ export interface LadderInput {
 }
 
 const ladderRow = (input: LadderInput | null | undefined): NextUpSuggestion | null => {
-  if (!input || !input.won || !input.setup) return null;
+  if (!input || !input.setup) return null;
   const from = botTierPlayed(input.setup);
   const spent = input.practiceSpent && (from === "easy" || from === "medium");
+  if (!input.won) {
+    // No win, no rematch a tier up. But a player whose practice pay is gone
+    // still needs to hear where XP continues, if that tier is on offer.
+    return spent && input.offered.includes(PAID_TIER) ? { kind: "practice-spent", to: PAID_TIER } : null;
+  }
   const to = ladderStep(from, input.offered, spent);
   if (!from || !to) return null;
   const setup = { ...input.setup, otherSeats: input.setup.otherSeats.map((seat) => ({ ...seat, bot: to })) };
@@ -348,6 +374,10 @@ export const NEAR_MISS = 0.5;
 /** Fixed order for equally-close goals, so the strip never reshuffles between renders. */
 const TIE_ORDER: Record<NextUpGoal["kind"], number> = { card: 0, rim: 1, level: 2, badge: 3 };
 
+/** The "practice XP is used up" row, with or without its ladder link. */
+const saysPracticeSpent = (row: NextUpSuggestion): boolean =>
+  row.kind === "practice-spent" || (row.kind === "ladder" && row.practiceSpent);
+
 /** Closest first; a tie falls to the fixed kind order. */
 export const rankGoals = (goals: readonly NextUpGoal[]): NextUpGoal[] =>
   [...goals].sort((a, b) => b.progress - a.progress || TIE_ORDER[a.kind] - TIE_ORDER[b.kind]);
@@ -380,7 +410,11 @@ export const nextUpRows = (input: NextUpInput): NextUpRow[] => {
   const ranked = rankGoals(goals);
   const near = ranked.filter((goal) => goal.progress >= NEAR_MISS);
   const far = ranked.filter((goal) => goal.progress < NEAR_MISS);
-  return [...rows, ...near, ...suggestions, ...far].slice(0, NEXT_UP_LIMIT);
+  // Practice pay running out is news the player needs now (#1666): it goes
+  // above the near-miss goals, and only an upgrade already in hand tops it.
+  const urgent = suggestions.filter(saysPracticeSpent);
+  const rest = suggestions.filter((row) => !saysPracticeSpent(row));
+  return [...rows, ...urgent, ...near, ...rest, ...far].slice(0, NEXT_UP_LIMIT);
 };
 
 // --- the played hero, after the game -----------------------------------------
@@ -470,6 +504,11 @@ export const nextUpCopy = (row: NextUpRow, heroName: string): NextUpCopy => {
         caption: row.practiceSpent
           ? `Practice XP is used up. ${botLabel(row.to)}s are where XP continues.`
           : `You beat the ${botLabel(row.from)}. Same setup, one step up.`,
+      };
+    case "practice-spent":
+      return {
+        title: "Practice XP is used up",
+        caption: `${botLabel(row.to)}s are where XP continues.`,
       };
     case "hidden-bot":
       return {

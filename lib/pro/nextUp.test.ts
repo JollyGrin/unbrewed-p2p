@@ -13,6 +13,7 @@ import {
   NextUpInput,
   affordableTier,
   badgeProgress,
+  badgeProgressOf,
   botTierPlayed,
   collectionHref,
   heroAfterGame,
@@ -181,6 +182,31 @@ describe("badgeProgress", () => {
     expect(badgeProgress("Win without taking damage")).toBeNull();
     expect(badgeProgress("(3/0)")).toBeNull();
     expect(badgeProgress("")).toBeNull();
+  });
+});
+
+describe("badgeProgressOf (#1666): the structured field first, the text parse as fallback", () => {
+  it("uses `progress` when the api sends it, whatever the text says", () => {
+    expect(badgeProgressOf({ unlockedWhy: "Play 50 games", progress: { current: 40, target: 50 } })).toEqual({ current: 40, target: 50 });
+    expect(badgeProgressOf({ unlockedWhy: "Play 50 games (1/50)", progress: { current: 40, target: 50 } })).toEqual({ current: 40, target: 50 });
+  });
+
+  it("falls back to the trailing (n/m) on an older api, and on a field it cannot use", () => {
+    expect(badgeProgressOf({ unlockedWhy: "Play 50 games (40/50)" })).toEqual({ current: 40, target: 50 });
+    expect(badgeProgressOf({ unlockedWhy: "Play 50 games (40/50)", progress: null })).toEqual({ current: 40, target: 50 });
+    expect(badgeProgressOf({ unlockedWhy: "Play 50 games (40/50)", progress: { current: 4, target: 0 } })).toEqual({ current: 40, target: 50 });
+    expect(badgeProgressOf({ unlockedWhy: "Win without taking damage" })).toBeNull();
+  });
+
+  it("a badge whose text carries no counter becomes a goal once the field says how close it is", () => {
+    const structured = { ...badge("regular", "Play 50 games"), progress: { current: 40, target: 50 } };
+    expect(nextUpRows(input({ badges: [structured] }))).toEqual([
+      { kind: "badge", id: "regular", name: "regular", current: 40, target: 50, toGo: 10, progress: 0.8 },
+    ]);
+    // The same badge from an older api: no counter anywhere, no row.
+    expect(nextUpRows(input({ badges: [badge("regular", "Play 50 games")] }))).toEqual([]);
+    // A one-step feat (0/1) that is locked is a far goal, and a full one is not a goal at all.
+    expect(nextUpRows(input({ badges: [{ ...badge("flawless", "Win without taking damage"), progress: { current: 1, target: 1 } }] }))).toEqual([]);
   });
 });
 
@@ -452,5 +478,44 @@ describe("where the suggestions rank", () => {
 
   it("a guest still gets the sign-in row and nothing else", () => {
     expect(kinds(nextUpRows(input({ ...all, guest: true })))).toEqual(["sign-in"]);
+  });
+});
+
+describe("practice pay just ran out (#1666)", () => {
+  const spent = { ladder: ladder({ practiceSpent: true }) };
+  // level 65% and badge 60% are near misses; the card (35/50) is too, when there is no unlock.
+  const near = { stats: { level: 0, xp: 65, xpForNext: 100 }, badges: [badge("hot-streak", "Win 5 in a row (3/5)")] };
+
+  it("the 'XP continues at hard' row outranks the near-miss goals", () => {
+    const rows = nextUpRows(input({ ...spent, ...near, hero: hero({ earned: 35, available: 35 }) }));
+    expect(kinds(rows)).toEqual(["ladder", "card", "level"]);
+    expect(rows[0]).toMatchObject({ kind: "ladder", to: "hard", practiceSpent: true });
+  });
+
+  it("the strip that used to crowd it out (unlock + two near goals) now shows it second", () => {
+    const rows = nextUpRows(input({ ...spent, ...near, hero: hero({ earned: 50, available: 50 }) }));
+    expect(kinds(rows)).toEqual(["unlock", "ladder", "level"]);
+  });
+
+  it("an ordinary ladder step keeps its old place, below the near misses", () => {
+    const rows = nextUpRows(input({ ladder: ladder(), ...near, hero: hero({ earned: 50, available: 50 }) }));
+    expect(kinds(rows)).toEqual(["unlock", "level", "badge"]);
+  });
+
+  it("after a loss: the same message, in the same place, with no ladder link", () => {
+    const rows = nextUpRows(input({ ladder: ladder({ practiceSpent: true, won: false }), ...near, hero: hero({ earned: 50, available: 50 }) }));
+    expect(kinds(rows)).toEqual(["unlock", "practice-spent", "level"]);
+    expect(rows[1]).toEqual({ kind: "practice-spent", to: "hard" });
+    expect(nextUpCopy(rows[1], "")).toEqual({ title: "Practice XP is used up", caption: "Hard bots are where XP continues." });
+  });
+
+  it("a loss says nothing while practice still pays, vs a hard bot, vs a human, or when hard is not served", () => {
+    const lost = (over: Partial<LadderInput>) => kinds(nextUpRows(input({ ladder: ladder({ won: false, practiceSpent: true, ...over }) })));
+    expect(lost({ practiceSpent: false })).toEqual([]);
+    expect(lost({ setup: setup("hard") })).toEqual([]);
+    expect(lost({ setup: setup(null) })).toEqual([]);
+    expect(lost({ offered: ["easy", "medium"] })).toEqual([]);
+    expect(lost({ setup: null })).toEqual([]);
+    expect(lost({})).toEqual(["practice-spent"]);
   });
 });

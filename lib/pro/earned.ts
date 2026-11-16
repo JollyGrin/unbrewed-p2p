@@ -5,7 +5,8 @@
  * end. XP, cosmetic points and badges are pure functions of telemetry history,
  * computed by the accounts api (`/me/stats`, `/me/cosmetics`, `/me/badges`).
  * The engine submits telemetry when the game ends and the api reads it live,
- * behind a ~60 s cache on `/me/stats`. So everything on the card is a
+ * behind a ~60 s cache on `/me/stats` (which the post-game poll steps past
+ * with `?after=`, #1666). So everything on the card is a
  * CLIENT-SIDE DELTA: a snapshot of what the page already held before the game
  * ended, against a refetch that has visibly caught up (the game has "landed"
  * when `totalGames` ticks past the snapshot's). No number on the card is ever
@@ -21,6 +22,7 @@ import type { AccountStats } from "@/lib/account/stats";
 import { CASUAL_TIERS, levelProgress } from "@/lib/account/stats";
 import type { Badge } from "@/lib/account/badges";
 import type { HeroCosmetics } from "@/lib/account/cosmetics";
+import type { Quest } from "@/lib/account/quests";
 import { rimProgress } from "@/lib/account/cosmetics";
 
 import type { GameEndReason, GameResult } from "./postGame";
@@ -56,6 +58,11 @@ export interface EarnedSnapshot {
   heroPoints: number | null;
   /** Ids of the badges already unlocked. */
   unlocked: string[];
+  /**
+   * Ids of the starter quests already done before the game (#1666), for the
+   * "Quest complete" rows. Null/absent = the page never held `/me/quests`.
+   */
+  questsDone?: string[] | null;
 }
 
 export const earnedStatsOf = (stats: AccountStats): EarnedStats => ({
@@ -85,6 +92,7 @@ export const takeEarnedSnapshot = (
   heroId: string | null,
   hero: HeroCosmetics | null,
   badges: readonly Badge[],
+  questsDone: readonly string[] | null = null,
 ): EarnedSnapshot | null => {
   if (!stats || !heroId) return null;
   return {
@@ -92,8 +100,13 @@ export const takeEarnedSnapshot = (
     heroId,
     heroPoints: hero?.earned ?? null,
     unlocked: unlockedBadgeIds(badges),
+    questsDone: questsDone ? [...questsDone] : null,
   };
 };
+
+/** The ids of the quests the api says are done. */
+export const doneQuestIds = (quests: readonly Quest[]): string[] =>
+  quests.filter((quest) => quest.done).map((quest) => quest.id);
 
 // --- landing -----------------------------------------------------------------
 
@@ -133,12 +146,29 @@ const diffOrNull = (after: number | null, before: number | null): number | null 
 /**
  * One line under the XP figure: a bonus this game triggered. Every amount is
  * the api's own number read off the landed payload (`bonuses.firstGame.xp`,
- * `daily.playXpToday`, `daily.firstWinXp`, the cosmetics constants), and every
- * row exists only because a flag flipped between the two snapshots. Nothing
- * here multiplies a weight.
+ * `daily.playXpToday`, `daily.firstWinXp`, the cosmetics constants, a quest's
+ * own `reward.xp`) or the difference between two of its lifetime totals
+ * (`bonuses.practice.xp`, `bonuses.quests.xp`), and every row exists only
+ * because something moved between the two snapshots. Nothing here multiplies
+ * a weight.
+ *
+ * Together the XP rows are everything the headline holds beyond the game's
+ * own XP (#1666): a practice game has none of its own, so there they add up
+ * to the headline exactly.
  */
 export type EarnedBonus =
   | { kind: "first-game"; xp: number }
+  /**
+   * Practice pay for this game: the `bonuses.practice.xp` delta. `game` is its
+   * number out of `cap`; null when the count did not move (pay with no new
+   * practice game is not "game N of 5").
+   */
+  | { kind: "practice"; game: number | null; cap: number; xp: number }
+  /**
+   * A starter quest this game completed. `id`/`title` are null when the XP is
+   * known (the `bonuses.quests.xp` delta) but which quest it was is not.
+   */
+  | { kind: "quest"; id: string | null; title: string | null; xp: number }
   | { kind: "hero-first"; points: number }
   | { kind: "daily"; day: number; xp: number }
   | { kind: "first-win"; xp: number };
@@ -150,6 +180,12 @@ export interface EarnedAfterSide {
   unlocked: readonly string[];
   /** `constants.heroFirstGamePoints` from `/me/cosmetics`; null/absent on an older api. */
   heroFirstGamePoints?: number | null;
+  /**
+   * The STARTER quests of `/me/quests` as read after landing (#1666). Not the
+   * dailies: those restate the daily bonus, which has rows of its own.
+   * Null/absent = not fetched, or the api has no such route.
+   */
+  quests?: readonly Quest[] | null;
 }
 
 /**
@@ -159,6 +195,37 @@ export interface EarnedAfterSide {
  */
 const sameDailyDay = (before: DailyStats, after: DailyStats): boolean => before.resetsAt === after.resetsAt;
 
+/**
+ * The starter quests this game completed (#1666), from two sources that are
+ * checked against each other:
+ *
+ * - the rows of `/me/quests` that flipped to done and pay XP, which carry the
+ *   titles, and
+ * - the `bonuses.quests.xp` delta, which is what the headline actually holds.
+ *
+ * When the api sends the total, the named rows are shown only if they add up
+ * to it; otherwise (no pre-game board, a board served from a cache) the XP is
+ * still shown, as one untitled row. On an api without the total the flipped
+ * rows stand alone, and with neither source there is no row.
+ */
+const questBonuses = (before: EarnedSnapshot, after: EarnedAfterSide): EarnedBonus[] => {
+  const paidBefore = before.stats.bonuses?.quests ?? null;
+  const paidAfter = after.stats.bonuses?.quests ?? null;
+  const total = paidBefore && paidAfter ? Math.max(0, paidAfter.xp - paidBefore.xp) : null;
+  if (total === 0) return [];
+  const wasDone = before.questsDone ? new Set(before.questsDone) : null;
+  const named: EarnedBonus[] =
+    wasDone && after.quests
+      ? after.quests.flatMap((quest): EarnedBonus[] => {
+          const xp = quest.reward?.xp ?? 0;
+          return quest.done && !wasDone.has(quest.id) && xp > 0 ? [{ kind: "quest", id: quest.id, title: quest.title, xp }] : [];
+        })
+      : [];
+  if (total === null) return named;
+  const sum = named.reduce((acc, row) => acc + (row.kind === "quest" ? row.xp : 0), 0);
+  return sum === total ? named : [{ kind: "quest", id: null, title: null, xp: total }];
+};
+
 export const earnedBonuses = (before: EarnedSnapshot, after: EarnedAfterSide): EarnedBonus[] => {
   const rows: EarnedBonus[] = [];
 
@@ -167,6 +234,18 @@ export const earnedBonuses = (before: EarnedSnapshot, after: EarnedAfterSide): E
   const firstAfter = after.stats.bonuses?.firstGame;
   if (firstBefore && firstAfter && !firstBefore.earned && firstAfter.earned) {
     rows.push({ kind: "first-game", xp: firstAfter.xp });
+  }
+
+  // Practice pay: the lifetime practice XP moved (#1666).
+  const practiceBefore = before.stats.bonuses?.practice;
+  const practiceAfter = after.stats.bonuses?.practice;
+  if (practiceBefore && practiceAfter && practiceAfter.xp > practiceBefore.xp) {
+    rows.push({
+      kind: "practice",
+      game: practiceAfter.used > practiceBefore.used ? Math.min(practiceAfter.used, practiceAfter.cap) : null,
+      cap: practiceAfter.cap,
+      xp: practiceAfter.xp - practiceBefore.xp,
+    });
   }
 
   // The hero's first finished game: it entered `byHero`, the api published
@@ -191,14 +270,36 @@ export const earnedBonuses = (before: EarnedSnapshot, after: EarnedAfterSide): E
       rows.push({ kind: "first-win", xp: dayAfter.firstWinXp });
     }
   }
+  rows.push(...questBonuses(before, after));
   return rows;
 };
+
+/** A stable key per row: quests can be several, every other kind is one. */
+export const bonusRowKey = (bonus: EarnedBonus): string =>
+  bonus.kind === "quest" ? `quest:${bonus.id ?? ""}` : bonus.kind;
+
+/**
+ * The XP the bonus rows account for. On a practice game this is the whole
+ * headline; on a counted game the remainder is the game's own XP.
+ */
+export const bonusXpTotal = (bonuses: readonly EarnedBonus[]): number =>
+  bonuses.reduce((sum, bonus) => sum + (bonus.kind === "hero-first" ? 0 : bonus.xp), 0);
 
 /** "First game" / "+100" — a bonus row's two cells. */
 export const bonusRowText = (bonus: EarnedBonus, heroName: string): { label: string; amount: string } => {
   switch (bonus.kind) {
     case "first-game":
       return { label: "First game", amount: `+${bonus.xp.toLocaleString()}` };
+    case "practice":
+      return {
+        label: bonus.game !== null ? `Practice game ${bonus.game} of ${bonus.cap}` : "Practice game",
+        amount: `+${bonus.xp.toLocaleString()}`,
+      };
+    case "quest":
+      return {
+        label: bonus.title ? `Quest complete: ${bonus.title}` : "Quest complete",
+        amount: `+${bonus.xp.toLocaleString()}`,
+      };
     case "hero-first":
       return { label: `First game as ${heroName}`, amount: `+${bonus.points.toLocaleString()} points` };
     case "daily":
@@ -373,6 +474,8 @@ export const casualGamePays = (
  * only for a player the api knows nothing about: there is no payload to read
  * for a guest. It is shown as an estimate and never used for a signed-in
  * figure. Keep in step with unbrewed-api's economy constants.
+ *
+ * A new account's first easy-bot win: 100 + 15 + 10 + 20 + 30 = 175 (#1666).
  */
 export const GUEST_ESTIMATE = {
   /** FIRST_GAME_XP */
@@ -383,9 +486,10 @@ export const GUEST_ESTIMATE = {
   dailyDayOneXp: 10,
   /** First win of a UTC day. */
   firstWinXp: 20,
-  /** A paid practice (easy/medium) game: played, and the win on top. */
-  practiceGameXp: 10,
-  practiceWinXp: 5,
+  /** A paid practice (easy/medium) game: one flat figure, win or lose. */
+  practiceGameXp: 15,
+  /** The "Win a game" starter quest, which a first game that is a win completes. */
+  winQuestXp: 30,
 } as const;
 
 export interface GuestEstimate {
@@ -403,13 +507,13 @@ export const guestEstimate = (casual: boolean, won: boolean): GuestEstimate => (
   xp:
     GUEST_ESTIMATE.firstGameXp +
     GUEST_ESTIMATE.dailyDayOneXp +
-    (won ? GUEST_ESTIMATE.firstWinXp : 0) +
-    (casual ? GUEST_ESTIMATE.practiceGameXp + (won ? GUEST_ESTIMATE.practiceWinXp : 0) : 0),
+    (won ? GUEST_ESTIMATE.firstWinXp + GUEST_ESTIMATE.winQuestXp : 0) +
+    (casual ? GUEST_ESTIMATE.practiceGameXp : 0),
   heroPoints: GUEST_ESTIMATE.heroFirstGamePoints,
   exact: casual,
 });
 
-/** "Sign in to keep this: you would have earned about 145 XP and 50 Hollow Oak points." */
+/** "Sign in to keep this: you would have earned about 175 XP and 50 Hollow Oak points." */
 export const guestConversionLine = (estimate: GuestEstimate, heroName: string): string =>
   `Sign in to keep this: you would have earned ${estimate.exact ? "about" : "at least"} ${estimate.xp.toLocaleString()} XP and ${estimate.heroPoints.toLocaleString()} ${heroName} points.`;
 
@@ -426,6 +530,27 @@ export const practicePaidBody = (cap: number): string =>
 /** "Practice game 3 of 5 · XP only, not in your record" */
 export const practiceGameCaption = (used: number, cap: number): string =>
   `Practice game ${Math.min(used, cap)} of ${cap} · XP only, not in your record`;
+/**
+ * A practice game past the cap that still landed XP (#1666): practice pay is
+ * gone, and what paid is the day's bonus (or nothing but hero points).
+ */
+export const PRACTICE_SPENT_DAILY_CAPTION = "Practice pay is used up · today's bonus is what paid, not in your record";
+export const PRACTICE_SPENT_CAPTION = "Practice pay is used up · not in your record";
+
+/**
+ * The line under a landed practice game's rows. "Practice game N of 5" only
+ * for a game that was one of the paid ones, which is read off the rows: a
+ * practice row that counted a game. Past the cap it says what did pay.
+ */
+export const practiceCaptionFor = (
+  practice: { used: number; cap: number },
+  bonuses: readonly EarnedBonus[],
+): string => {
+  const paid = bonuses.some((bonus) => bonus.kind === "practice" && bonus.game !== null);
+  if (paid || practice.used < practice.cap) return practiceGameCaption(practice.used, practice.cap);
+  const today = bonuses.some((bonus) => bonus.kind === "daily" || bonus.kind === "first-win");
+  return today ? PRACTICE_SPENT_DAILY_CAPTION : PRACTICE_SPENT_CAPTION;
+};
 export const PRACTICE_POINTS_NOTE = "practice games pay XP only";
 
 /** "Day 3 streak" / "Tomorrow: +25 XP" — the daily tile once the game landed. */

@@ -9,6 +9,7 @@ import type { AccountStats, StatsResult } from "@/lib/account/stats";
 import type { Badge } from "@/lib/account/badges";
 import type { CosmeticsResult } from "@/lib/account/cosmetics";
 import { FALLBACK_CONSTANTS, emptyHeroCosmetics } from "@/lib/account/cosmetics";
+import type { Quest, QuestsResult } from "@/lib/account/quests";
 import type { EarnedSnapshot } from "./earned";
 import { EarnedPollDeps, GameEarnedInput, PollToken, pollUntilLanded, readAfterLanding, useGameEarned } from "./useGameEarned";
 
@@ -43,7 +44,7 @@ const badge = (id: string, unlocked: boolean): Badge => ({ id, name: id, blurb: 
 /** A scripted `/me/stats`: each call pops the next reply, the last one repeats. */
 const scripted = (replies: StatsResult[]) => {
   const calls: number[] = [];
-  const fetchStats = jest.fn(async () => {
+  const fetchStats = jest.fn(async (_after?: number) => {
     calls.push(Date.now());
     return replies.length > 1 ? (replies.shift() as StatsResult) : replies[0];
   });
@@ -84,6 +85,15 @@ describe("pollUntilLanded", () => {
     expect(fetchStats).toHaveBeenCalledTimes(3);
     await expect(landed).resolves.toMatchObject({ totalGames: 41, xp: 3544 });
     expect(calls.map((at) => at - calls[0])).toEqual([0, 5_000, 10_000]);
+  });
+
+  it("every refetch carries the pre-game totalGames as `after`, so the api can answer past its cache (#1666)", async () => {
+    const { fetchStats } = scripted([ok(stats()), ok(stats({ totalGames: 41 }))]);
+    const landed = pollUntilLanded({ totalGames: 40 }, { ...deps, fetchStats }, { cancelled: false });
+    await flush();
+    await jest.advanceTimersByTimeAsync(5_000);
+    await landed;
+    expect(fetchStats.mock.calls).toEqual([[40], [40]]);
   });
 
   it("gives up after maxAttempts with null, and no further fetch is scheduled", async () => {
@@ -137,6 +147,7 @@ describe("readAfterLanding", () => {
       unlocked: ["first-win", "streak-5"],
       thresholds: [300, 900],
       heroFirstGamePoints: null,
+      quests: null,
     });
     expect(fetchCosmetics).toHaveBeenCalledTimes(1);
     expect(reprobeBadges).toHaveBeenCalledTimes(1);
@@ -304,5 +315,104 @@ describe("useGameEarned", () => {
     });
     await flush();
     expect(result.current).toMatchObject({ phase: "landed", delta: { xp: 56 } });
+  });
+
+  describe("quest rows (#1666)", () => {
+    const quest = (id: string, done: boolean, title = id): Quest => ({
+      id,
+      title,
+      description: "",
+      reward: { xp: 30, heroPoints: null, note: null },
+      progress: { current: done ? 1 : 0, target: 1 },
+      done,
+    });
+    const board = (starter: Quest[]): QuestsResult => ({ ok: true, value: { starter, daily: [quest("win-today", true)], resetsAt: null } });
+    const withQuests = (xp: number | null) => ({ firstGame: { xp: 100, earned: true }, practice: null, daily: null, ...(xp === null ? {} : { quests: { xp } }) });
+
+    it("reads the board when the room opens and again after landing; the starter quest that flipped is the row", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3574, bonuses: withQuests(30) }))]);
+      const boards = [board([quest("first-win", false, "Win a game")]), board([quest("first-win", true, "Win a game")])];
+      const fetchQuests = jest.fn(async () => boards.shift() as QuestsResult);
+      const base = { stats: stats({ bonuses: withQuests(0) }) };
+      const { result, rerender } = renderHook((props: GameEarnedInput) => useGameEarned(props, deps(fetchStats, { fetchQuests })), {
+        initialProps: input({ ...base, gameOver: false }),
+      });
+      await flush();
+      expect(fetchQuests).toHaveBeenCalledTimes(1);
+      expect(fetchStats).not.toHaveBeenCalled();
+
+      rerender(input(base));
+      await flush();
+      await flush();
+      expect(fetchQuests).toHaveBeenCalledTimes(2);
+      expect(result.current).toMatchObject({
+        phase: "landed",
+        before: { questsDone: [] },
+        // The daily quest restates the daily bonus and is never a quest row.
+        delta: { xp: 70, bonuses: [{ kind: "quest", id: "first-win", title: "Win a game", xp: 30 }] },
+      });
+    });
+
+    it("a page that loads onto a finished game reads no baseline; the api's total still shows, untitled", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3574, bonuses: withQuests(30) }))]);
+      const fetchQuests = jest.fn(async () => board([quest("first-win", true)]));
+      const { result } = renderHook(() => useGameEarned(input({ stats: stats({ bonuses: withQuests(0) }) }), deps(fetchStats, { fetchQuests })));
+      await flush();
+      await flush();
+      expect(fetchQuests).toHaveBeenCalledTimes(1);
+      expect(result.current).toMatchObject({ phase: "landed", before: { questsDone: null }, delta: { bonuses: [{ kind: "quest", id: null, title: null, xp: 30 }] } });
+    });
+
+    it("an older api: no /me/quests (404) and no quests total → no quest row, everything else as before", async () => {
+      const { fetchStats } = scripted([ok(stats({ totalGames: 41, xp: 3544, streaks: { current: 4, best: 6 } }))]);
+      const fetchQuests = jest.fn(async (): Promise<QuestsResult> => ({ ok: false, reason: "unavailable" }));
+      const { result, rerender } = renderHook((props: GameEarnedInput) => useGameEarned(props, deps(fetchStats, { fetchQuests })), {
+        initialProps: input({ gameOver: false }),
+      });
+      await flush();
+      rerender(input());
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", before: { questsDone: null }, delta: { xp: 40, points: 40, newBadges: ["streak-5"], bonuses: [] } });
+    });
+
+    it("a rematch whose opening board is a cached pre-game one does not re-announce the quest", async () => {
+      const { fetchStats } = scripted([
+        ok(stats({ totalGames: 41, xp: 3574 })),
+        ok(stats({ totalGames: 41, xp: 3574 })),
+        ok(stats({ totalGames: 42, xp: 3614 })),
+      ]);
+      const open = board([quest("first-win", false)]);
+      const done = board([quest("first-win", true)]);
+      // room 1 opens, room 1 lands, room 2 opens (stale), room 2 lands.
+      const boards = [open, done, open, done];
+      const fetchQuests = jest.fn(async () => boards.shift() as QuestsResult);
+      const { result, rerender } = renderHook((props: GameEarnedInput) => useGameEarned(props, deps(fetchStats, { fetchQuests })), {
+        initialProps: input({ gameOver: false }),
+      });
+      await flush();
+      rerender(input());
+      await flush();
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", delta: { bonuses: [{ kind: "quest", id: "first-win" }] } });
+
+      rerender(input({ roomId: "ROOM2", gameOver: false }));
+      await flush();
+      rerender(input({ roomId: "ROOM2", gameOver: true }));
+      await flush();
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5_000);
+      });
+      await flush();
+      expect(result.current).toMatchObject({ phase: "landed", before: { questsDone: ["first-win"] }, delta: { xp: 40, bonuses: [] } });
+    });
+
+    it("a guest's room never asks for quests", async () => {
+      const { fetchStats } = scripted([ok(stats())]);
+      const fetchQuests = jest.fn(async () => board([]));
+      renderHook(() => useGameEarned(input({ signedIn: false, gameOver: false }), deps(fetchStats, { fetchQuests })));
+      await flush();
+      expect(fetchQuests).not.toHaveBeenCalled();
+    });
   });
 });

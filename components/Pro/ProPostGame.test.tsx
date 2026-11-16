@@ -179,7 +179,7 @@ describe("the earned slot", () => {
     // #1656: the conversion prompt. A counted win (a human opponent), so the
     // game's own XP sits on top of the first-game bonuses: "at least".
     expect(within(earned).getByTestId("post-game-guest-line")).toHaveTextContent(
-      /^Sign in to keep this: you would have earned at least 130 XP and 50 The Hollow Oak points\.$/,
+      /^Sign in to keep this: you would have earned at least 160 XP and 50 The Hollow Oak points\.$/,
     );
     expect(within(earned).getByTestId("post-game-guest-note")).toHaveTextContent(/^Estimate for a new account's first game\./);
     const signIn = within(earned).getByRole("link", { name: /sign in with discord/i });
@@ -189,7 +189,7 @@ describe("the earned slot", () => {
 
   it("signed out after an easy-bot loss: the practice figures, as an estimate", () => {
     render(<ProPostGame {...props({ accountStatus: "guest", username: null, view: view({ winner: "p2" }), bots: { p2: "easy" } })} />);
-    expect(screen.getByTestId("post-game-guest-line")).toHaveTextContent(/you would have earned about 120 XP and 50 The Hollow Oak points\./);
+    expect(screen.getByTestId("post-game-guest-line")).toHaveTextContent(/you would have earned about 125 XP and 50 The Hollow Oak points\./);
   });
 
   it("signed in: whatever part 3 drops in, nothing otherwise — and both slots stay in the grid", () => {

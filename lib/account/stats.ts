@@ -250,9 +250,15 @@ export const normalizeStats = (body: unknown): AccountStats => {
   };
 };
 
-const requestAccountStats = async (): Promise<StatsResult> => {
+/** `/me/stats`, or `/me/stats?after=<n>` for a caller that knows a newer game exists. */
+export const accountStatsUrl = (after?: number | null): string =>
+  typeof after === "number" && Number.isFinite(after) && after >= 0
+    ? `${API_URL}/me/stats?after=${Math.floor(after)}`
+    : `${API_URL}/me/stats`;
+
+const requestAccountStats = async (after?: number | null): Promise<StatsResult> => {
   try {
-    const res = await fetch(`${API_URL}/me/stats`, {
+    const res = await fetch(accountStatsUrl(after), {
       credentials: "include",
       headers: { Accept: "application/json" },
     });
@@ -284,8 +290,15 @@ let inFlight: { request: Promise<StatsResult>; at: number } | null = null;
  * same commit. Nothing is cached past the response — a later call re-asks —
  * and a request that has been pending longer than {@link SHARE_MS} is not
  * waited on by anyone new, so one hung fetch can't stall every later reader.
+ *
+ * `after` (#1666) is the post-game poll's: "I hold `totalGames = after`, and a
+ * newer game exists". The api then skips its 60 s cache while its own copy is
+ * no newer than that. Such a request is never shared and never becomes the
+ * shared one: it asks a different question from a plain read.
  */
-export const fetchAccountStats = (): Promise<StatsResult> => {
+export const fetchAccountStats = (options?: { after?: number | null }): Promise<StatsResult> => {
+  const after = typeof options?.after === "number" ? options.after : null;
+  if (after !== null) return requestAccountStats(after);
   if (inFlight && Date.now() - inFlight.at < SHARE_MS) return inFlight.request;
   const request = requestAccountStats().finally(() => {
     if (inFlight?.request === request) inFlight = null;

@@ -261,3 +261,32 @@ it("a guest still sees only the sign-in row", () => {
   draw({ status: "guest", held: quiet({ setup: botGame("easy"), roster: ROSTER }) });
   expect(rowKinds()).toEqual(["sign-in"]);
 });
+
+// --- onboarding polish (#1666) -------------------------------------------------
+
+describe("practice pay used up (#1666)", () => {
+  const spent = { firstGame: null, daily: null, practice: { cap: 5, used: 5, xpPerGame: 15, xpPerWin: 0, xp: 75 } };
+  // level 3,400 / 3,600 is a near miss that used to sit above every suggestion.
+  const nearLevel = stats({ xp: 3400, bonuses: spent });
+
+  it("after a win the row leads the near-miss goals and keeps its one-tap rematch", () => {
+    draw({ held: quiet({ setup: botGame("easy"), roster: ROSTER, stats: nearLevel }) });
+    expect(rowKinds().slice(0, 2)).toEqual(["ladder", "level"]);
+    expect(within(row("ladder")!).getByTestId("next-up-ladder")).toHaveAttribute("href", expect.stringContaining("p2%3Ahard%3Athetis"));
+  });
+
+  it("after a loss the same message shows, with no ladder button", () => {
+    draw({ held: quiet({ setup: botGame("easy"), roster: ROSTER, stats: nearLevel }), victory: false });
+    expect(rowKinds().slice(0, 2)).toEqual(["practice-spent", "level"]);
+    expect(row("practice-spent")).toHaveTextContent("Practice XP is used up");
+    expect(row("practice-spent")).toHaveTextContent("Hard bots are where XP continues.");
+    expect(screen.queryByTestId("next-up-ladder")).toBeNull();
+    expect(within(row("practice-spent")!).queryByRole("link")).toBeNull();
+  });
+
+  it("a loss with practice pay left says nothing about it", () => {
+    const left = { ...spent, practice: { ...spent.practice, used: 3 } };
+    draw({ held: quiet({ setup: botGame("easy"), roster: ROSTER, stats: stats({ xp: 3400, bonuses: left }) }), victory: false });
+    expect(rowKinds()).not.toContain("practice-spent");
+  });
+});
