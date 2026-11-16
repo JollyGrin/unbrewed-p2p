@@ -89,11 +89,12 @@ const makeView = (players: ViewPlayer[], you: PlayerId): PlayerView => {
   };
 };
 
-// The faces as the snapshot carries them (titles byte-exact, reward text with its
-// own "Reward:" label).
+// The faces as the snapshot carries them (titles byte-exact from 1y_5, except the
+// capitalisation of the two names the deck author (Calton White) asked to have
+// corrected on 2026-11-16; reward text with its own "Reward:" label).
 const FACES: Record<string, { title: string; basicText: string }> = {
   "pomni/adventure-2": { title: "Adventure 2:President Pomni 2: Last stand", basicText: "Win a combat on defense." },
-  "pomni/adventure-3": { title: "Adventure 3:night of the living Jax", basicText: "Attack twice in a single turn." },
+  "pomni/adventure-3": { title: "Adventure 3:Night of the living Jax", basicText: "Attack twice in a single turn." },
   "pomni/adventure-5": {
     title: "Adventure 5: \nOvertime at Spudsy's Delivery Service",
     basicText: "At the end of your turn, discard a card.",
@@ -140,7 +141,7 @@ describe("POMNI's Adventure track on the HUD plates", () => {
     renderHud(makeView(you ? [pomni("p1", true), seat("p2", false, "darth-vader")] : [seat("p1", true, "darth-vader"), pomni("p2", false)], "p1"));
     const row = screen.getByTestId("pile-track-row");
     expect(within(row).getByTestId("pile-track-headline")).toHaveTextContent("Adventure 3");
-    expect(within(row).getByText("night of the living Jax")).toBeInTheDocument();
+    expect(within(row).getByText("Night of the living Jax")).toBeInTheDocument();
     expect(within(row).getByTestId("pile-track-goal")).toHaveTextContent("Attack twice in a single turn.");
     expect([1, 2, 3, 4, 5].map((n) => within(row).getByTestId(`pile-track-pip-${n}`).getAttribute("data-state"))).toEqual([
       "held",
@@ -234,6 +235,27 @@ describe("POMNI's Adventure track on the HUD plates", () => {
     expect(screen.queryByText(/BY POMNI/)).not.toBeInTheDocument();
     // her track is still drawn: it is keyed on her hero and her card ids
     expect(screen.getByTestId("pile-track-row")).toBeInTheDocument();
+  });
+
+  // #1692: a used Adventure 3 (Reward 3 removed from the game) must read differently from a
+  // used Reward 2, which just goes back to the bottom of the deck.
+  it("a used Adventure 3 shows a RED pip; a used Reward 2 is back to a hollow one", () => {
+    const piles = {
+      ADV_PENDING: [A(2), A(4), A(5)], // a used Reward 2 returns to the deck as Adventure 2
+      ADV_DONE: [R(1)],
+      ADV_FLIPPED: [A(1)],
+      ADV_REWARDS: [R(4), R(5)],
+      EXILE: [R(3)],
+    };
+    renderHud(makeView([seat("p1", true, "darth-vader"), pomni("p2", false, piles)], "p1"));
+    const row = screen.getByTestId("pile-track-row");
+    const pip = (n: number) => within(row).getByTestId(`pile-track-pip-${n}`);
+    expect(pip(3)).toHaveAttribute("data-state", "spent");
+    expect(pip(3)).toHaveStyle({ backgroundColor: "rgba(192,57,43,0.85)" });
+    expect(pip(2)).toHaveAttribute("data-state", "upcoming");
+    expect(pip(2)).not.toHaveStyle({ backgroundColor: "rgba(192,57,43,0.85)" });
+    expect(pip(1)).toHaveAttribute("data-state", "held");
+    expect(pip(1)).not.toHaveStyle({ backgroundColor: "rgba(192,57,43,0.85)" });
   });
 
   it("her own removed cards (a used Reward 3, ricochet super move) read as a plain removed pile", () => {
