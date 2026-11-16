@@ -22,6 +22,7 @@ const NAV_LINKS = [
   { label: "Decks", href: "/bag" },
   { label: "Tournaments", href: "/tournaments" },
   { label: "Leaderboard", href: "/leaderboard" },
+  { label: "Puzzles", href: "/puzzles" },
 ];
 
 const linkStyle = {

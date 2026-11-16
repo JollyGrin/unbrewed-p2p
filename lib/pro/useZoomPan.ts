@@ -176,13 +176,23 @@ export interface ZoomPan {
  *                 frame's unscaled units (see lib/pro/fitContent). The initial
  *                 fit places that box instead of the layout box. Keep it a
  *                 stable callback — the fit recomputes when its identity changes.
+ * @param gestures which gestures move the view (issue #1679). `true` (default):
+ *                 wheel, drag and pinch, as on /pro/game. `"touch"`: for a
+ *                 board embedded in a page that scrolls — the wheel and a
+ *                 mouse drag are left to the page, and the caller sets
+ *                 `touch-action: pan-y` so a vertical finger drag scrolls the
+ *                 page too; a pinch and a sideways finger drag still zoom and
+ *                 pan (a phone auto-focuses small picks, so the visitor needs
+ *                 a way to look around). `false`: none. The board is fitted to
+ *                 its box in every case.
  */
 export function useZoomPan(
   enabled: boolean,
   frameRef: RefObject<HTMLElement>,
   inset: ZoomPanInset = {},
   rotated = false,
-  measureContent?: () => ContentBox | null
+  measureContent?: () => ContentBox | null,
+  gestures: boolean | "touch" = true
 ): ZoomPan {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomPanState>(IDENTITY);
@@ -286,7 +296,7 @@ export function useZoomPan(
   // Native, non-passive wheel listener so preventDefault actually sticks
   // (React's synthetic onWheel is passive and can't cancel page scroll).
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || gestures !== true) return;
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
@@ -301,7 +311,7 @@ export function useZoomPan(
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [enabled, zoomAt]);
+  }, [enabled, gestures, zoomAt]);
 
   // Turning the phone changes which way the map stands, so the player's old
   // pan/zoom no longer means anything — drop back to the fresh fit rather than
@@ -431,12 +441,18 @@ export function useZoomPan(
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDist = useRef<number | null>(null);
   const panning = useRef(false);
+  // "touch" gestures only: this press turned out to be a vertical drag, which
+  // is the page's scroll. It never pans, even for the few moves that arrive
+  // before the browser cancels the pointer.
+  const yielded = useRef(false);
   const didPan = useRef(false);
   const start = useRef({ x: 0, y: 0 });
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent) => {
-      if (!enabled) return;
+      if (!enabled || !gestures) return;
+      // Touch-only: a mouse (or pen) press is not a board gesture.
+      if (gestures === "touch" && e.pointerType !== "touch") return;
       // A press that begins inside an inset panel (header drag, collapse caret)
       // is the panel's own gesture — never start a board pan from it (issue
       // #216). The panel header also stopPropagation()s, so this is a backstop.
@@ -448,9 +464,10 @@ export function useZoomPan(
       if (pointers.current.size === 1) {
         start.current = { x: e.clientX, y: e.clientY };
         panning.current = false;
+        yielded.current = false;
       }
     },
-    [enabled]
+    [enabled, gestures]
   );
 
   // Track moves at the window level while any pointer is down, so a fast drag
@@ -482,7 +499,12 @@ export function useZoomPan(
 
       const dx = e.clientX - prev.x;
       const dy = e.clientY - prev.y;
+      if (yielded.current) return;
       if (!panning.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > PAN_THRESHOLD) {
+        if (gestures === "touch" && Math.abs(e.clientY - start.current.y) >= Math.abs(e.clientX - start.current.x)) {
+          yielded.current = true;
+          return;
+        }
         panning.current = true;
       }
       if (panning.current) {
@@ -523,7 +545,7 @@ export function useZoomPan(
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [enabled, zoomAt, frameRef, rotated]);
+  }, [enabled, gestures, zoomAt, frameRef, rotated]);
 
   // Capture-phase: if the gesture just panned, eat the click before it reaches
   // a hit-circle/fighter so panning never triggers an action.

@@ -110,9 +110,16 @@ export function useGameFx(
   /** Combat pace (see lib/pro/pace.ts) as a plain multiplier — 1 = today's
    *  pace. Stretches the arc's launch/flight and how long a board overlay
    *  stays legible, proportionally with the rest of the sequence. */
-  paceFactor = 1
+  paceFactor = 1,
+  /**
+   * Sound for this view regardless of the stored setting (an embedded puzzle
+   * panel is muted until its own control says otherwise, #1679). Omitted: the
+   * stored setting. While it is `false` the audio engine is not even started.
+   */
+  soundOverride?: boolean
 ) {
-  const [soundOn, toggleSoundStored] = useStoredToggle("pro-sound-fx");
+  const [storedSoundOn, toggleSoundStored] = useStoredToggle("pro-sound-fx");
+  const soundOn = soundOverride ?? storedSoundOn;
   const [visualOn, toggleVisual] = useStoredToggle("pro-visual-fx");
   const [boardFx, setBoardFx] = useState<BoardFxItem[]>([]);
   // in-flight damage projectiles (issue #382) — panel clash point → defender token
@@ -136,7 +143,9 @@ export function useGameFx(
   paceRef.current = paceFactor;
 
   useEffect(() => {
-    sfx.init();
+    if (soundOverride !== false) sfx.init();
+  }, [soundOverride]);
+  useEffect(() => {
     const timers = timersRef.current;
     return () => timers.forEach(clearTimeout);
   }, []);

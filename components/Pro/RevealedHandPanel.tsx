@@ -21,6 +21,8 @@ export const RevealedHandPanel = ({
   top,
   title,
   note,
+  compact = false,
+  panelRef,
 }: {
   revealed: RevealedHand;
   heroName: string;
@@ -35,11 +37,21 @@ export const RevealedHandPanel = ({
   title?: string;
   /** Right-hand note override; `null` drops the "as of turn N" stamp. */
   note?: string | null;
+  /**
+   * One low row — heading on the left, small cards beside it — for a phone-sized
+   * puzzle panel (#1679), where the board is fitted BELOW this box and every
+   * row of height is board lost.
+   */
+  compact?: boolean;
+  /** The panel's element, for a caller that fits the board around it. */
+  panelRef?: (el: HTMLDivElement | null) => void;
 }) => {
   const [open, setOpen] = useState(true);
   return (
     <Box
+      ref={panelRef}
       data-testid="revealed-hand-panel"
+      {...(compact ? { display: "flex", alignItems: "center", gap: "0.5rem" } : {})}
       position="fixed"
       top={top !== undefined ? `${top}px` : { base: "5.75rem", md: "9.5rem" }}
       left="0.75rem"
@@ -58,25 +70,28 @@ export const RevealedHandPanel = ({
         type="button"
         align="center"
         gap="0.3rem"
-        w="100%"
+        w={compact ? "auto" : "100%"}
+        flexShrink={0}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         textAlign="left"
       >
         {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-        <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.75rem" fontWeight={700}>
-          {title ?? <>Revealed: {heroName}&apos;s hand</>}
-        </Text>
-        {note !== null && (
-          <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.65rem" opacity={0.7} ml="auto">
-            {note ?? <>as of turn {revealed.turn}</>}
+        <Box {...(compact ? {} : { display: "contents" })}>
+          <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.75rem" fontWeight={700}>
+            {title ?? <>Revealed: {heroName}&apos;s hand</>}
           </Text>
-        )}
+          {note !== null && (
+            <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.65rem" opacity={0.7} ml={compact ? undefined : "auto"}>
+              {note ?? <>as of turn {revealed.turn}</>}
+            </Text>
+          )}
+        </Box>
       </Flex>
       {open && (
-        <Flex gap="0.35rem" wrap="wrap" mt="0.4rem">
+        <Flex gap="0.35rem" wrap={compact ? "nowrap" : "wrap"} mt={compact ? 0 : "0.4rem"} {...(compact ? { overflowX: "auto" as const, minW: 0 } : {})}>
           {revealed.cards.map((c, i) => (
-            <Box key={`${c}-${i}`} w="4.5rem" sx={{ aspectRatio: "63 / 88" }}>
+            <Box key={`${c}-${i}`} w={compact ? "3rem" : "4.5rem"} flexShrink={0} sx={{ aspectRatio: "63 / 88" }}>
               <CardFace card={resolveCard(c)} fallback={labelFor(c)} />
             </Box>
           ))}

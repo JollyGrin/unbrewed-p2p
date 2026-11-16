@@ -5,6 +5,7 @@
  * Zero rules logic: unplayable cards are simply inert.
  */
 import { ReactNode } from "react";
+import { useProContained } from "@/lib/pro/contained";
 import { Box, Flex, Menu, MenuButton, MenuItem, MenuList, Tag, Text } from "@chakra-ui/react";
 import { Card } from "@/components/CardFactory/Card";
 import { useCardPreview } from "@/components/Pro/CardPreview";
@@ -102,6 +103,9 @@ export const ProHand = ({
   columns = 3,
 }: ProHandProps) => {
   const strip = variant === "strip";
+  // Inside an embedded panel (#1679) the page behind may scroll: a vertical drag
+  // that starts on the strip must stay the page's.
+  const contained = !!useProContained();
   const wrap = variant === "wrap";
   // A wrapped row divides the drawer's width evenly (capped below, so a
   // two-card hand does not become two posters); the other layouts take a fixed
@@ -223,7 +227,7 @@ export const ProHand = ({
             overflowX: "auto" as const,
             overflowY: "hidden" as const,
             sx: {
-              touchAction: "pan-x",
+              touchAction: contained ? "pan-x pan-y" : "pan-x",
               WebkitOverflowScrolling: "touch",
               scrollSnapType: "x proximity",
               "::-webkit-scrollbar": { display: "none" },

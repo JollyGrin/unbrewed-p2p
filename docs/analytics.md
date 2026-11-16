@@ -206,6 +206,24 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
    - Engine: `server_error`, `rate_limited`.
    - Dismissed: `toast_error_shown` (toasts are free text with no key and can carry user text).
 5. **Funnels/paths:** built from the above (visitor → first game, deck-add per source, lobby funnel, retention).
+   - Puzzles (#1679), from the puzzle panel (`components/Pro/Puzzle/PuzzlePanel.tsx`). Every event carries
+     `puzzle_id` and `context` (`landing` | `page` | `quick_search` | `lobby_wait`: where the panel is embedded).
+     Per try and per click, never per move. The engine records every attempt on its own (telemetry
+     `/v1/puzzle-attempts`), so these are for funnels, not for the attempt data.
+     - `puzzle_started` {puzzle_id, context, order}: the first interaction with a puzzle (an action, Hint or
+       Reset) in a page load. `order` is the puzzle's catalogue order.
+     - `puzzle_attempt_finished` {puzzle_id, context, result: `solved` | `failed`, try_number, seconds, hint_used,
+       solution_shown}: the server's verdict on one try. A try left behind (reset, page closed) sends nothing.
+     - `puzzle_solved` {puzzle_id, context, tries, seconds}: this browser's FIRST solve of that puzzle (localStorage
+       `unbrewed-pro-puzzles-solved`). A solve after the solution was shown in that room is not one.
+     - `puzzle_next_clicked` {puzzle_id, context, next_puzzle_id}: "Next puzzle"; `next_puzzle_id` is absent when
+       none was left unsolved.
+     - `puzzle_full_game_clicked` {puzzle_id, context, hero_preselected}: "Play a full game vs a bot" (a beacon:
+       the page navigates). `hero_preselected`: the link names the hero the visitor just played.
+     - Consent: `/` and `/puzzles` are normal routes, so the notice shows and capturing starts one frame after it
+       paints, long before a first interaction; a first-time visitor's puzzle events are kept. The `quick_search`
+       and `lobby_wait` panels sit on `/pro/game`, an in-game route: a visitor whose FIRST page is `/pro/game`
+       has not been started, so their puzzle events are dropped like every other event there (by design).
 6. **Feature usage:** `cosmetics_equipped`, `collection_opened`, `stats_viewed`, `leaderboard_viewed`, `replay_opened`, settings toggles.
 
 Never per-move or per-WebSocket-message.

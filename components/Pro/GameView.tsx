@@ -12,8 +12,8 @@
  *  - `GameView` is the embeddable component: the same hook and body inside a
  *    sized panel, driven by a socket the caller hands it.
  */
-import { ComponentProps, CSSProperties, Fragment, ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { toast } from "react-hot-toast";
+import { ComponentProps, CSSProperties, Fragment, ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { makeViewToast, OnViewNotice } from "@/lib/pro/viewNotices";
 import { containedOrigin, containedOwnsKeys, containedScope, ProContainedFrame, proVh, useProContained } from "@/lib/pro/contained";
 import { Box, Button, Flex, Link, Tag, Text } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
@@ -80,7 +80,7 @@ import { MulliganDialog } from "@/components/Pro/MulliganDialog";
 import { RevealedHandPanel } from "@/components/Pro/RevealedHandPanel";
 import { actionFallbackLine, batchPhase, batchTurnTag, combatCardsOf, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
-import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
+import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor, insetForOpenHand } from "@/lib/pro/mobileLayout";
 import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } from "@/lib/pro/figures";
 import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
 import { useFigureManifests } from "@/lib/pro/useFigureManifest";
@@ -1910,6 +1910,13 @@ export interface GameViewFeatures {
   turnReminder: boolean;
   /** the tabletop (3D) board view and its toggle. Off: always the flat board. */
   tableBoard: boolean;
+  /**
+   * the board's full zoom and pan gestures. Off, for a panel in a page that
+   * scrolls (#1679): the wheel, a mouse drag and a vertical finger drag stay
+   * the host page's, so the panel never swallows a scroll; a pinch and a
+   * sideways finger drag still move the board. The board is fitted either way.
+   */
+  boardGestures: boolean;
 }
 
 /** /pro/game: everything on. */
@@ -1924,6 +1931,7 @@ export const FULL_GAME_FEATURES: GameViewFeatures = {
   roomLink: true,
   turnReminder: true,
   tableBoard: true,
+  boardGestures: true,
 };
 
 /**
@@ -1942,15 +1950,30 @@ export const CONTAINED_GAME_FEATURES: GameViewFeatures = {
 
 const NO_HOST: GameViewHost = {};
 
+// The static prerender of /pro/game runs these hooks too.
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export const useGameViewState = ({
   socket,
   slowMode,
   features = FULL_GAME_FEATURES,
+  sound,
+  onNotice,
 }: {
   socket: UseProSocketReturn;
   slowMode: boolean;
   features?: GameViewFeatures;
+  /** See `GameViewProps.sound`. */
+  sound?: boolean;
+  /** See `GameViewProps.onNotice`. */
+  onNotice?: OnViewNotice;
 }) => {
+  // Notices are toasts on /pro/game; a host that passes `onNotice` gets them as
+  // text instead and nothing reaches the page's toaster (#1679). Fixed for the
+  // life of the view, like the socket's `ephemeral`.
+  const onNoticeRef = useRef(onNotice);
+  onNoticeRef.current = onNotice;
+  const [toast] = useState(() => makeViewToast(onNotice ? () => onNoticeRef.current : undefined));
   // The contained frame this view is mounted in (#1678), or null on /pro/game.
   // Read through a ref by the window-level key listeners below.
   const frameEl = useProContained()?.el ?? null;
@@ -2188,7 +2211,8 @@ export const useGameViewState = ({
   const { boardFx, arcs, hurtKey, soundOn, visualOn, toggleSound, toggleVisual } = useGameFx(
     snapshot,
     { fighterEls: fighterElsRef, clashRef },
-    paceScale
+    paceScale,
+    sound
   );
 
   // Turn reminder (player request: "I play matches alongside other things and
@@ -2352,17 +2376,45 @@ export const useGameViewState = ({
   // px of the stage hidden behind that chrome, so the initial fit centers the
   // board in the part of the screen nothing is standing on. Mirrors the padding
   // the non-zoom fallback below still uses.
+  // A puzzle's face-up opponent hand (#1679): the box's far corner in the
+  // stage's px, so the board is fitted beside / below it (insetForOpenHand).
+  const [openHandEl, setOpenHandEl] = useState<HTMLDivElement | null>(null);
+  const [openHandBox, setOpenHandBox] = useState<{ right: number; bottom: number; stageW: number; stageH: number } | null>(null);
+  useIsoLayoutEffect(() => {
+    const stage = openHandEl?.closest<HTMLElement>('[data-testid="pro-game-view"]');
+    if (!openHandEl || !stage) {
+      setOpenHandBox(null);
+      return;
+    }
+    const measure = () => {
+      const p = openHandEl.getBoundingClientRect();
+      const s = stage.getBoundingClientRect();
+      const next = { right: Math.round(p.right - s.left), bottom: Math.round(p.bottom - s.top), stageW: Math.round(s.width), stageH: Math.round(s.height) };
+      setOpenHandBox((prev) => (prev && prev.right === next.right && prev.bottom === next.bottom && prev.stageW === next.stageW && prev.stageH === next.stageH ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(openHandEl);
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [openHandEl]);
   const boardFitInset = useMemo(
     () =>
       hud
         ? tableHudFitInset({ sheetShown: mobileSheetShown, safe: safeArea })
-        : boardFitInsetFor({
+        : insetForOpenHand(
+            boardFitInsetFor({
+              mode,
+              chipsH: mobileChipsH,
+              controlsH: mobileControlsH,
+              sheetH: mobileSheetH,
+            }),
             mode,
-            chipsH: mobileChipsH,
-            controlsH: mobileControlsH,
-            sheetH: mobileSheetH,
-          }),
-    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea]
+            { width: openHandBox?.stageW ?? 0, height: openHandBox?.stageH ?? 0 },
+            openHandBox
+          ),
+    [hud, mode, mobileChipsH, mobileControlsH, mobileSheetH, mobileSheetShown, safeArea, openHandBox]
   );
   // The activity log floats permanently on desktop; on mobile it is a sheet the
   // Log button opens. The hand is a drawer on mobile portrait (direction B) —
@@ -2533,7 +2585,7 @@ export const useGameViewState = ({
       toast.dismiss(id);
     }
     return () => toast.dismiss(id);
-  }, [serverRestarting, toastId]);
+  }, [serverRestarting, toastId, toast]);
 
   // Undo (issue #154). While our own request awaits the opponent's verdict, hold
   // a persistent "waiting" toast; it clears when the request resolves (accept
@@ -2544,7 +2596,7 @@ export const useGameViewState = ({
     if (undoPending) toast.loading("Undo requested — waiting for opponent…", { id });
     else toast.dismiss(id);
     return () => toast.dismiss(id);
-  }, [undoPending, toastId]);
+  }, [undoPending, toastId, toast]);
 
   // No undo UI in this view (#1678): an opponent's request must not hang on a
   // dialog that is never shown, so it is declined at once.
@@ -2559,7 +2611,7 @@ export const useGameViewState = ({
     if (!undoRejected) return;
     toast.error("Your opponent declined the undo.");
     acknowledgeUndoRejected();
-  }, [undoRejected, acknowledgeUndoRejected]);
+  }, [undoRejected, acknowledgeUndoRejected, toast]);
 
   // The server couldn't honor the undo (nothing to undo, or one already pending)
   // — a benign race despite canUndo-gating. Light one-shot notice, not an error.
@@ -2567,7 +2619,7 @@ export const useGameViewState = ({
     if (!undoUnavailable) return;
     toast("Nothing to undo.", { icon: "↩️" });
     acknowledgeUndoUnavailable();
-  }, [undoUnavailable, acknowledgeUndoUnavailable]);
+  }, [undoUnavailable, acknowledgeUndoUnavailable, toast]);
 
   // Non-fatal engine error (issue #178): the server couldn't process our action
   // but the game is intact and the socket is still open. One-shot notice, then
@@ -2580,7 +2632,7 @@ export const useGameViewState = ({
       id: toastId("pro-server-error"),
     });
     acknowledgeServerError();
-  }, [serverError, acknowledgeServerError, toastId]);
+  }, [serverError, acknowledgeServerError, toastId, toast]);
 
   // Rate limited (issue #209 / engine PR #103): we're sending too fast. Gentle
   // one-shot toast, then acknowledge — the socket stays open and the board stays
@@ -2591,7 +2643,7 @@ export const useGameViewState = ({
     if (!rateLimited) return;
     toast(proErrorMessage("RATE_LIMITED"), { id: toastId("pro-rate-limited"), icon: "🐢" });
     acknowledgeRateLimited();
-  }, [rateLimited, acknowledgeRateLimited, toastId]);
+  }, [rateLimited, acknowledgeRateLimited, toastId, toast]);
 
   // Illegal action (p2p #840): the reducer rejected our last action — a stale
   // view, or a double-tap's second send. The socket is open and the board is
@@ -2601,7 +2653,7 @@ export const useGameViewState = ({
     if (!illegalAction) return;
     toast.error(proErrorMessage("ILLEGAL_ACTION"), { id: toastId("pro-illegal-action") });
     acknowledgeIllegalAction();
-  }, [illegalAction, acknowledgeIllegalAction, toastId]);
+  }, [illegalAction, acknowledgeIllegalAction, toastId, toast]);
 
   // Stale-view resync (p2p #848): repeated rejections with no STATE in between
   // made useProSocket ask the server for a fresh view (a RECONNECT on the live
@@ -2620,7 +2672,7 @@ export const useGameViewState = ({
       toast.success("Board refreshed.", { id });
     }
     return () => toast.dismiss(id);
-  }, [resyncing, toastId]);
+  }, [resyncing, toastId, toast]);
 
   // Move timer (issue #223): the viewer's OWN clock ran out and the server played
   // a move for them. The move itself renders through the ordinary STATE flow (the
@@ -2631,9 +2683,9 @@ export const useGameViewState = ({
     if (!ownTimerExpired) return;
     toast("Time's up — a move was made for you.", { id: toastId("pro-own-timer"), icon: "⏱️" });
     acknowledgeOwnTimerExpired();
-  }, [ownTimerExpired, acknowledgeOwnTimerExpired, toastId]);
+  }, [ownTimerExpired, acknowledgeOwnTimerExpired, toastId, toast]);
 
-  return { lingeringCombat, lingerHold, chain, soleActionRef, hotkeyActionsRef, relocateArmed, defenderSwap, attackerSwap, combatTargeting, ownerTokenState, ownerHeroIds, resolveFighterToken, cosmetics, mulliganAnswer, promptReveals, poseAnchor, promptStep, selectedFighter, hoveredFighter, step, setPromptStep, setStep, poseChoice, moveChoice, hoveredSpace, setPoseChoice, setPendingMove, setSelectedFighter, setRelocateArmed, setPoseAnchor, setMoveChoice, setHandOpen, mobile, hud, rail, resolveCard, resolveHero, resolveRuleCards, soundOn, visualOn, toggleSound, toggleVisual, hideCosmetics, toggleHideCosmetics, pace, cyclePace, boardView, toggleBoardView, mode, figureStyles, figureStyle, chooseFigureStyle, zoneDiscs, toggleZoneDiscs, heroPiece, turnReminderOn, toggleTurnReminder, setReportBugOpen, strike, mobileSheetShown, handOpen, boardFighters, boardFx, pendingMove, incomingMove, positionSwaps, clearIncoming, setHoveredSpace, setHoveredFighter, zoomMapOn, boardFitInset, tokenLifeOn, tokenGestures, fighterElsRef, reducedMotion, combatValueFx, clashRef, paceScale, iForfeited, gameEndReason, setForfeitOpen, mobileSheetRef, setMobileSheetShown, TableBoard, tableStrike, hurtKey, arcs, combatCallouts, turnReminderPulse, mobileChipsRef, setHudOverlayEl, spotlight, forfeitOpen, setIForfeited, setMulliganAnswer, discardsOpen, setDiscardsOpen, revealedHand, hudBottom, logEntries, logOpen, setLogOpen, reportBugOpen, mobileControlsRef };
+  return { lingeringCombat, lingerHold, chain, soleActionRef, hotkeyActionsRef, relocateArmed, defenderSwap, attackerSwap, combatTargeting, ownerTokenState, ownerHeroIds, resolveFighterToken, cosmetics, mulliganAnswer, promptReveals, poseAnchor, promptStep, selectedFighter, hoveredFighter, step, setPromptStep, setStep, poseChoice, moveChoice, hoveredSpace, setPoseChoice, setPendingMove, setSelectedFighter, setRelocateArmed, setPoseAnchor, setMoveChoice, setHandOpen, mobile, hud, rail, resolveCard, resolveHero, resolveRuleCards, soundOn, visualOn, toggleSound, toggleVisual, hideCosmetics, toggleHideCosmetics, pace, cyclePace, boardView, toggleBoardView, mode, figureStyles, figureStyle, chooseFigureStyle, zoneDiscs, toggleZoneDiscs, heroPiece, turnReminderOn, toggleTurnReminder, setReportBugOpen, strike, mobileSheetShown, handOpen, boardFighters, boardFx, pendingMove, incomingMove, positionSwaps, clearIncoming, setHoveredSpace, setHoveredFighter, zoomMapOn, boardFitInset, tokenLifeOn, tokenGestures, fighterElsRef, reducedMotion, combatValueFx, clashRef, paceScale, iForfeited, gameEndReason, setForfeitOpen, mobileSheetRef, setMobileSheetShown, TableBoard, tableStrike, hurtKey, arcs, combatCallouts, turnReminderPulse, mobileChipsRef, setHudOverlayEl, spotlight, forfeitOpen, setIForfeited, setMulliganAnswer, discardsOpen, setDiscardsOpen, revealedHand, hudBottom, logEntries, logOpen, setLogOpen, reportBugOpen, mobileControlsRef, toast, setOpenHandEl };
 };
 
 export type GameViewState = ReturnType<typeof useGameViewState>;
@@ -2644,6 +2696,7 @@ export const GameViewBody = ({
   host = NO_HOST,
   features = FULL_GAME_FEATURES,
   opponentHand,
+  opponentHandLabel,
 }: {
   socket: UseProSocketReturn;
   state: GameViewState;
@@ -2651,14 +2704,15 @@ export const GameViewBody = ({
   features?: GameViewFeatures;
   /**
    * The opponent's hand, shown face up beside the board (a puzzle, #1678).
-   * Until the server carries it on the view (an optional `hand` on
-   * `view.opponent` in puzzle rooms) the caller passes it here; once it does,
-   * the view's own copy is used when this is omitted.
+   * Omitted: the view's own `opponent.openHand`, which only a puzzle room's
+   * STATE carries (protocol v41).
    */
   opponentHand?: CardInstanceId[] | null;
+  /** Heading of that box. Default: "<hero>'s hand" · "face up". */
+  opponentHandLabel?: { title: string; note?: string | null };
 }) => {
   const { snapshot, seatPresence, opponentConnected, heroes, respondToPrompt, sendAction, status, roomId, turnTimer, roomInfo, slowModeHeld, replayBundle, undoPending, requestUndo, slowModePending, advanceSlowMode, skipSlowMode, incomingUndo, respondToUndo } = socket;
-  const { lingeringCombat, lingerHold, chain, soleActionRef, hotkeyActionsRef, relocateArmed, defenderSwap, attackerSwap, combatTargeting, ownerTokenState, ownerHeroIds, resolveFighterToken, cosmetics, mulliganAnswer, promptReveals, poseAnchor, promptStep, selectedFighter, hoveredFighter, step, setPromptStep, setStep, poseChoice, moveChoice, hoveredSpace, setPoseChoice, setPendingMove, setSelectedFighter, setRelocateArmed, setPoseAnchor, setMoveChoice, setHandOpen, mobile, hud, rail, resolveCard, resolveHero, resolveRuleCards, soundOn, visualOn, toggleSound, toggleVisual, hideCosmetics, toggleHideCosmetics, pace, cyclePace, boardView, toggleBoardView, mode, figureStyles, figureStyle, chooseFigureStyle, zoneDiscs, toggleZoneDiscs, heroPiece, turnReminderOn, toggleTurnReminder, setReportBugOpen, strike, mobileSheetShown, handOpen, boardFighters, boardFx, pendingMove, incomingMove, positionSwaps, clearIncoming, setHoveredSpace, setHoveredFighter, zoomMapOn, boardFitInset, tokenLifeOn, tokenGestures, fighterElsRef, reducedMotion, combatValueFx, clashRef, paceScale, iForfeited, gameEndReason, setForfeitOpen, mobileSheetRef, setMobileSheetShown, TableBoard, tableStrike, hurtKey, arcs, combatCallouts, turnReminderPulse, mobileChipsRef, setHudOverlayEl, spotlight, forfeitOpen, setIForfeited, setMulliganAnswer, discardsOpen, setDiscardsOpen, revealedHand, hudBottom, logEntries, logOpen, setLogOpen, reportBugOpen, mobileControlsRef } = state;
+  const { lingeringCombat, lingerHold, chain, soleActionRef, hotkeyActionsRef, relocateArmed, defenderSwap, attackerSwap, combatTargeting, ownerTokenState, ownerHeroIds, resolveFighterToken, cosmetics, mulliganAnswer, promptReveals, poseAnchor, promptStep, selectedFighter, hoveredFighter, step, setPromptStep, setStep, poseChoice, moveChoice, hoveredSpace, setPoseChoice, setPendingMove, setSelectedFighter, setRelocateArmed, setPoseAnchor, setMoveChoice, setHandOpen, mobile, hud, rail, resolveCard, resolveHero, resolveRuleCards, soundOn, visualOn, toggleSound, toggleVisual, hideCosmetics, toggleHideCosmetics, pace, cyclePace, boardView, toggleBoardView, mode, figureStyles, figureStyle, chooseFigureStyle, zoneDiscs, toggleZoneDiscs, heroPiece, turnReminderOn, toggleTurnReminder, setReportBugOpen, strike, mobileSheetShown, handOpen, boardFighters, boardFx, pendingMove, incomingMove, positionSwaps, clearIncoming, setHoveredSpace, setHoveredFighter, zoomMapOn, boardFitInset, tokenLifeOn, tokenGestures, fighterElsRef, reducedMotion, combatValueFx, clashRef, paceScale, iForfeited, gameEndReason, setForfeitOpen, mobileSheetRef, setMobileSheetShown, TableBoard, tableStrike, hurtKey, arcs, combatCallouts, turnReminderPulse, mobileChipsRef, setHudOverlayEl, spotlight, forfeitOpen, setIForfeited, setMulliganAnswer, discardsOpen, setDiscardsOpen, revealedHand, hudBottom, logEntries, logOpen, setLogOpen, reportBugOpen, mobileControlsRef, toast, setOpenHandEl } = state;
   const {
     tournament,
     slowMode = false,
@@ -3868,6 +3922,7 @@ export const GameViewBody = ({
     moveHint,
     imgMaxH: zoomMapOn ? undefined : `calc(${proVh(100)} - 16rem)`,
     zoomable: zoomMapOn,
+    zoomGestures: features.boardGestures ? true : "touch",
     // Portrait phones only (issue #708): stand the landscape map on end so it
     // uses the screen's long axis. Landscape is already the map's own
     // orientation, and desktop never rotates.
@@ -4050,7 +4105,7 @@ export const GameViewBody = ({
   // The dock's only content once the game is decided is the end screen.
   const dockShown = features.postGame || !isGameOver(view);
   // A puzzle's face-up opponent hand (#1678): the prop, else the view's own.
-  const openHand = opponentHand ?? (view.opponent as (typeof view.opponent & { hand?: CardInstanceId[] }) | null)?.hand ?? null;
+  const openHand = opponentHand ?? view.opponent?.openHand ?? null;
   const openHandOwner = view.opponent?.id ?? view.players.find((p) => p.id !== view.you)?.id ?? null;
 
   return (
@@ -4297,8 +4352,10 @@ export const GameViewBody = ({
           revealed={{ revealer: view.you, owner: openHandOwner, turn: view.turnNumber, cards: openHand }}
           top={!mobile && hudBottom > 0 ? hudBottom + REVEALED_PANEL_GAP_PX : undefined}
           heroName={view.fighters.find((f) => f.owner === openHandOwner && f.kind === "HERO")?.name ?? seatLabel(view, openHandOwner)}
-          title={`${view.fighters.find((f) => f.owner === openHandOwner && f.kind === "HERO")?.name ?? seatLabel(view, openHandOwner)}'s hand`}
-          note="face up"
+          title={opponentHandLabel?.title ?? `${view.fighters.find((f) => f.owner === openHandOwner && f.kind === "HERO")?.name ?? seatLabel(view, openHandOwner)}'s hand`}
+          note={opponentHandLabel ? (opponentHandLabel.note ?? null) : "face up"}
+          compact={mode === "portrait"}
+          panelRef={setOpenHandEl}
           resolveCard={resolveCard}
           labelFor={(c) => cardLabel(view.catalog, c)}
         />
@@ -4550,6 +4607,18 @@ export interface GameViewProps {
   features?: Partial<GameViewFeatures>;
   /** See `GameViewBody`. */
   opponentHand?: CardInstanceId[] | null;
+  /** See `GameViewBody`. */
+  opponentHandLabel?: { title: string; note?: string | null };
+  /**
+   * Sound on or off for THIS view, whatever the stored setting says. Omitted:
+   * the stored setting, as on /pro/game. With `false` no audio is even loaded.
+   */
+  sound?: boolean;
+  /**
+   * Receives the view's light notices ("that move isn't allowed", …) as text.
+   * When given, the view raises NO toast on the host page. Read at mount.
+   */
+  onNotice?: OnViewNotice;
   /** The `slowMode` the socket was opened with, so the hold spotlight matches it. */
   slowMode?: boolean;
   /**
@@ -4564,12 +4633,15 @@ const GameViewInner = ({
   socket,
   features,
   opponentHand,
+  opponentHandLabel,
+  sound,
+  onNotice,
   slowMode = false,
   fallback = null,
 }: Omit<GameViewProps, "contained" | "features"> & { features: GameViewFeatures }) => {
-  const state = useGameViewState({ socket, slowMode, features });
+  const state = useGameViewState({ socket, slowMode, features, sound, onNotice });
   if (!socket.snapshot) return <>{fallback}</>;
-  return <GameViewBody socket={socket} state={state} host={{ slowMode }} features={features} opponentHand={opponentHand} />;
+  return <GameViewBody socket={socket} state={state} host={{ slowMode }} features={features} opponentHand={opponentHand} opponentHandLabel={opponentHandLabel} />;
 };
 
 /**
