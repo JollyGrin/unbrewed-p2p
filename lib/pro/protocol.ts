@@ -938,6 +938,13 @@
  * `COMBAT_VALUE_BREAKDOWN` / `COMBAT_DAMAGE` for that combat.
  */
 /**
+ * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
+ * lowest version the rematch negotiation (v35, above) needs — the client's gate for
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1074, {40, 41}), so every bind is at
+ * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
+ * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
+ */
+/**
  * v37 (engine #755 — tournaments: tagged rooms). ADDITIVE: one optional request field and
  * six new `ErrorCode`s. Nothing that already exists moves, and a client that never sends a
  * ticket never sees one of the new codes.
@@ -1172,6 +1179,10 @@
  * - `ERROR{UNKNOWN_PUZZLE}` — no such puzzle id. `ERROR{PUZZLE_UNSUPPORTED}` — see above.
  */
 export const PROTOCOL_VERSION = 41;
+// CLIENT-ONLY: the one documented difference from the engine's protocol/protocol.ts.
+// A verbatim mirror of that file drops this line; put it back (and its comment block
+// above). lib/pro/protocolClientOnly.test.ts fails while it is missing.
+export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
  * Scripted-AI strength preset (server-side budgets; client treats as opaque).
