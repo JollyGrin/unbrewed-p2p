@@ -37,6 +37,7 @@ import {
   trackGoalSubtitle,
   trackRewardText,
 } from "@/lib/pro/pileTracks";
+import { useContainedModalProps } from "@/lib/pro/contained";
 
 type Resolve = (instance: CardInstanceId) => DeckImportCardType | null;
 type LabelFor = (instance: CardInstanceId) => string;
@@ -405,7 +406,7 @@ export const PileTrackModal = ({
   isOpen: boolean;
   onClose: () => void;
 }) => (
-  <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered scrollBehavior="inside">
+  <Modal isOpen={isOpen} {...useContainedModalProps()} onClose={onClose} size="3xl" isCentered scrollBehavior="inside">
     <ModalOverlay bg="rgba(20, 8, 24, 0.7)" />
     <ModalContent bg="brand.surface" color="brand.parchment" mx="0.5rem" data-testid="pile-track-modal">
       <ModalHeader fontFamily="BebasNeueRegular" letterSpacing="0.04em" pr="3rem">

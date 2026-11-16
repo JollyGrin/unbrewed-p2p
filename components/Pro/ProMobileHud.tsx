@@ -71,6 +71,7 @@ import { pileTrackSpoken, pileTrackTagText } from "@/components/Pro/PileTrack";
 import { pileTrackFor } from "@/lib/pro/pileTracks";
 import { SEAT_COLOR } from "@/lib/pro/seatColors";
 import { trackInviteCopied } from "@/lib/growthAnalytics";
+import { proVh } from "@/lib/pro/contained";
 
 export const MOBILE_CHIPS_TEST_ID = "pro-mobile-chips";
 
@@ -351,7 +352,7 @@ export const ProMobileMenu = ({
           color="brand.parchment"
           zIndex={210}
           minW="15rem"
-          maxH={`var(${MENU_MAX_H_VAR}, calc(100dvh - 1rem))`}
+          maxH={`var(${MENU_MAX_H_VAR}, calc(${proVh(100, "dvh")} - 1rem))`}
           overflowY="auto"
           sx={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
         >
@@ -749,7 +750,7 @@ export const ProMobileHud = ({
             right={0}
             bottom={0}
             zIndex={166}
-            maxH="80svh"
+            maxH={proVh(80)}
             overflowY="auto"
             borderTopRadius="1.1rem"
             borderTop="2px solid"

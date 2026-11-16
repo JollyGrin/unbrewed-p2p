@@ -31,6 +31,7 @@ import { MoveTimerBar } from "@/components/Pro/ProHud";
 import type { CardInstanceId, LegalOption } from "@/lib/pro/protocol";
 import type { ResolveCard } from "@/lib/pro/useProCardArt";
 import { MulliganChoice, decidedLabel, mulliganChoiceOf } from "@/lib/pro/mulligan";
+import { proVw, useContainedModalProps } from "@/lib/pro/contained";
 
 /** Five cards abreast at 6.5rem needs ~34rem; a 390px phone has ~23rem inside
  *  the dialog, so the hand steps down under Chakra's `sm` (issue #708). Pure
@@ -80,6 +81,7 @@ export const MulliganDialog = ({
 
   return (
     <AlertDialog
+      {...useContainedModalProps()}
       isOpen={isOpen}
       leastDestructiveRef={focusRef}
       // No way out but a choice: the engine holds the game on this window.
@@ -90,7 +92,7 @@ export const MulliganDialog = ({
       size="xl"
     >
       <AlertDialogOverlay>
-        <AlertDialogContent bg="brand.surfaceDim" color="brand.parchment" maxW="min(46rem, 94vw)">
+        <AlertDialogContent bg="brand.surfaceDim" color="brand.parchment" maxW={`min(46rem, ${proVw(94)})`}>
           <AlertDialogHeader fontFamily="LeagueGothic" letterSpacing="0.04em" fontSize="1.5rem">
             Your opening hand
           </AlertDialogHeader>

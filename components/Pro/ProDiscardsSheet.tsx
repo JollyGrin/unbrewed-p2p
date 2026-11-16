@@ -19,6 +19,7 @@ import { CardInstanceId } from "@/lib/pro/protocol";
 import { CardFace } from "@/components/Pro/ProHand";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import { TAP_TARGET } from "@/lib/pro/mobileLayout";
+import { proVh } from "@/lib/pro/contained";
 
 export interface DiscardSeat {
   id: string;
@@ -64,7 +65,7 @@ export const ProDiscardsSheet = ({
         bottom={0}
         zIndex={171}
         direction="column"
-        maxH="82svh"
+        maxH={proVh(82)}
         borderTopRadius="1.1rem"
         borderTop="2px solid"
         borderColor="brand.accent"

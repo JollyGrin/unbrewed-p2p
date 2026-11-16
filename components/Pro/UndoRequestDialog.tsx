@@ -24,6 +24,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import type { Action, PlayerId, UndoActionSummary } from "@/lib/pro/protocol";
+import { useContainedModalProps } from "@/lib/pro/contained";
 
 // Action TYPE → display label. Deliberately generic (no card identity): the
 // consent prompt says WHAT KIND of action rewinds, not which card it touched.
@@ -69,7 +70,7 @@ export const UndoRequestDialog = ({
   return (
     // onClose maps to Reject: dismissing the prompt (Esc / overlay) must not
     // silently grant the undo — the least-destructive default is to decline.
-    <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onReject} isCentered>
+    <AlertDialog isOpen={isOpen} {...useContainedModalProps()} leastDestructiveRef={cancelRef} onClose={onReject} isCentered>
       <AlertDialogOverlay>
         <AlertDialogContent bg="brand.surfaceDim" color="brand.parchment">
           <AlertDialogHeader fontFamily="LeagueGothic" letterSpacing="0.04em" fontSize="1.5rem">

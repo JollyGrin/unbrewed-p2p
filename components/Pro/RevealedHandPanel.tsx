@@ -11,6 +11,7 @@ import { colors, fonts } from "@/styles/style";
 import { ResolveCard } from "@/lib/pro/useProCardArt";
 import { RevealedHand } from "@/lib/pro/revealedHand";
 import { CardFace } from "./ProHand";
+import { proVh, proVw } from "@/lib/pro/contained";
 
 export const RevealedHandPanel = ({
   revealed,
@@ -18,6 +19,8 @@ export const RevealedHandPanel = ({
   resolveCard,
   labelFor,
   top,
+  title,
+  note,
 }: {
   revealed: RevealedHand;
   heroName: string;
@@ -27,6 +30,11 @@ export const RevealedHandPanel = ({
    *  desktop HUD (+ a gap), which grows a row per sidekick. Omitted: the fixed
    *  offsets below (phone, or before the HUD has been measured). */
   top?: number;
+  /** Heading override. An open hand (a puzzle shows the opponent's hand face
+   *  up, #1678) is live state, not a reveal: it says so instead of "Revealed". */
+  title?: string;
+  /** Right-hand note override; `null` drops the "as of turn N" stamp. */
+  note?: string | null;
 }) => {
   const [open, setOpen] = useState(true);
   return (
@@ -36,10 +44,10 @@ export const RevealedHandPanel = ({
       top={top !== undefined ? `${top}px` : { base: "5.75rem", md: "9.5rem" }}
       left="0.75rem"
       zIndex={20}
-      maxW="min(22rem, calc(100vw - 1.5rem))"
+      maxW={`min(22rem, calc(${proVw(100)} - 1.5rem))`}
       // Below a measured HUD, stop short of the bottom-left activity log and the
       // hand: a big revealed hand scrolls inside the panel instead of running over them.
-      {...(top !== undefined ? { maxH: `max(6rem, calc(100dvh - ${top}px - 17rem))`, overflowY: "auto" as const } : {})}
+      {...(top !== undefined ? { maxH: `max(6rem, calc(${proVh(100, "dvh")} - ${top}px - 17rem))`, overflowY: "auto" as const } : {})}
       bg="brand.surfaceDim"
       border={`1px solid ${colors.brand.primary}`}
       borderRadius="0.5rem"
@@ -57,11 +65,13 @@ export const RevealedHandPanel = ({
       >
         {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
         <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.75rem" fontWeight={700}>
-          Revealed: {heroName}&apos;s hand
+          {title ?? <>Revealed: {heroName}&apos;s hand</>}
         </Text>
-        <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.65rem" opacity={0.7} ml="auto">
-          as of turn {revealed.turn}
-        </Text>
+        {note !== null && (
+          <Text fontFamily={fonts.SpaceGrotesk} fontSize="0.65rem" opacity={0.7} ml="auto">
+            {note ?? <>as of turn {revealed.turn}</>}
+          </Text>
+        )}
       </Flex>
       {open && (
         <Flex gap="0.35rem" wrap="wrap" mt="0.4rem">

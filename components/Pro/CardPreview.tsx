@@ -37,6 +37,7 @@ import {
 import { Card } from "@/components/CardFactory/Card";
 import { useCoarsePointer } from "@/lib/pro/useCoarsePointer";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import { proVh, proVw } from "@/lib/pro/contained";
 
 /** ~150ms kills flicker when the cursor merely passes over a card. */
 const HOVER_ENTER_MS = 150;
@@ -87,8 +88,8 @@ const PreviewOverlay = ({ card, source }: PreviewState) => {
         <Box
           // Whichever of "80% of the height" and "90% of the width" is the
           // binding constraint wins, so the whole card is always on screen.
-          h="min(80svh, calc(90svw * 88 / 63))"
-          maxW="90svw"
+          h={`min(${proVh(80)}, calc(${proVw(90, "svw")} * 88 / 63))`}
+          maxW={proVw(90, "svw")}
           sx={{ aspectRatio: "63 / 88" }}
           borderRadius="0.75rem"
           overflow="hidden"
@@ -111,7 +112,7 @@ const PreviewOverlay = ({ card, source }: PreviewState) => {
       animation={`${fadeIn} 0.16s ease-out both`}
     >
       <Box
-        h="min(60vh, 560px)"
+        h={`min(${proVh(60, "vh")}, 560px)`}
         sx={{ aspectRatio: "63 / 88" }}
         borderRadius="0.75rem"
         overflow="hidden"

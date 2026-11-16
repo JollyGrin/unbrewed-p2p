@@ -12,19 +12,8 @@
 import { getAnalyticsId, track } from "@/lib/analytics";
 import { trackOncePerPageLoad } from "@/lib/analyticsErrors";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  forgetRoom,
-  getResumeToken,
-  getRoomBots,
-  getTabToken,
-  getToken,
-  rememberRoom,
-  retireFinishedRoom,
-  setResumeToken,
-  setRoomBots,
-  setToken,
-  sweepStaleRoomKeysOnce,
-} from "./recentRooms";
+import { sweepStaleRoomKeysOnce } from "./recentRooms";
+import { browserRoomStore, createMemoryRoomStore, RoomStore } from "./roomStore";
 import { botsFromCreateRoom, RoomBots } from "./rematch";
 import { advanceRevealedHand, EMPTY_REVEAL_STATE, RevealState } from "./revealedHand";
 import {
@@ -509,6 +498,27 @@ export const reportSocketClose = (
 
 const notATournamentRoom = () => false;
 
+export interface UseProSocketOptions {
+  /**
+   * A second, short-lived socket that shares a page with the real game socket
+   * (issue #1678: an embedded puzzle panel). An ephemeral socket leaves no
+   * trace outside itself:
+   *  - reconnect token, resume blob and bot seats live in memory
+   *    (lib/pro/roomStore.ts), so nothing is written under
+   *    `unbrewed-pro-token-*` / `unbrewed-pro-resume-*` / `unbrewed-pro-bots-*`
+   *    and the room never joins `unbrewed-pro-recent-rooms`;
+   *  - it reads none of those keys either, so it can never RECONNECT into the
+   *    real game's seat;
+   *  - no `hero_picked` event, and its connection drops are not reported as
+   *    the page's `ws_connect_failed` / `ws_closed_unexpected`;
+   *  - the once-per-page stale-key sweep is left to the real socket.
+   * It never touched the URL to begin with — that is the page's business
+   * (`LiveGame` in pages/pro/game.tsx), not this hook's.
+   * Default false: every existing caller behaves exactly as before.
+   */
+  ephemeral?: boolean;
+}
+
 export function useProSocket(
   wsUrl: string | undefined,
   debug = false,
@@ -525,9 +535,15 @@ export function useProSocket(
    * seat-replaced close: a casual room keeps both behaviours it always had.
    * Read through a ref, like `debug`. Default: no room is.
    */
-  isTournamentRoom: (roomId: string) => boolean = notATournamentRoom
+  isTournamentRoom: (roomId: string) => boolean = notATournamentRoom,
+  /** See `UseProSocketOptions`. Read once, at mount. */
+  options: UseProSocketOptions = {}
 ): UseProSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
+  // Fixed for the life of the hook: a socket never changes its mind about
+  // whether it is ephemeral, so flipping the prop mid-flight is ignored.
+  const ephemeralRef = useRef(options.ephemeral === true);
+  const storeRef = useRef<RoomStore>(ephemeralRef.current ? createMemoryRoomStore() : browserRoomStore);
   const isTournamentRoomRef = useRef(isTournamentRoom);
   isTournamentRoomRef.current = isTournamentRoom;
   // Read via ref so toggling debug never re-creates `connect` (which would drop
@@ -695,7 +711,10 @@ export function useProSocket(
   }, [slowMode, runSlowStep]);
 
   // Stale Pro room keys (finished / expired games) — swept once per page load (#1550).
-  useEffect(() => sweepStaleRoomKeysOnce(), []);
+  // An ephemeral socket (#1678) leaves the browser's room keys alone.
+  useEffect(() => {
+    if (!ephemeralRef.current) sweepStaleRoomKeysOnce();
+  }, []);
 
   // Socket teardown / unmount: drop the queue and any scheduled drain.
   useEffect(
@@ -731,6 +750,7 @@ export function useProSocket(
   // walks several lobbies, so the page reports it once instead.
   const trackHeroPicked = useCallback(
     (heroId: string, mode: HeroPickMode) => {
+      if (ephemeralRef.current) return; // not a hero pick: a puzzle seats you (#1678)
       const tier = heroesRef.current?.find((h) => h.heroId === heroId)?.tier;
       track("hero_picked", { hero_id: heroId, tier, mode });
     },
@@ -918,7 +938,7 @@ export function useProSocket(
         ...(debugRef.current ? { debug: true } : {}),
       });
       const room = roomRef.current;
-      const token = room ? getToken(room) : null;
+      const token = room ? storeRef.current.getToken(room) : null;
       if (room && token) {
         sendBind({ v: PROTOCOL_VERSION, type: "RECONNECT", roomId: room, token });
       } else if (pendingHelloRef.current) {
@@ -959,7 +979,7 @@ export function useProSocket(
           const { formatId, requiredPlayers, seats, turnTimerSeconds, matchedVia, xpMultiplier } = msg;
           const bots: RoomBots = {};
           for (const seat of seats) if (seat.bot) bots[seat.player] = seat.bot;
-          setRoomBots(msg.roomId, bots);
+          storeRef.current.setRoomBots(msg.roomId, bots);
           setRoomInfo((prev) => ({
             formatId,
             seats: seats.map((s) => s.player),
@@ -981,14 +1001,14 @@ export function useProSocket(
           // The bot seats our own CREATE_ROOM asked for — recorded against the
           // room it made, so a reload mid-game still knows who the AI is.
           if (msg.type === "ROOM_CREATED" && pendingCreateBotsRef.current) {
-            setRoomBots(
+            storeRef.current.setRoomBots(
               msg.roomId,
               botsFromCreateRoom(pendingCreateBotsRef.current.bot, pendingCreateBotsRef.current.botSeats, msg.you),
             );
             pendingCreateBotsRef.current = null;
           }
           {
-            const bots = getRoomBots(msg.roomId) ?? undefined;
+            const bots = storeRef.current.getRoomBots(msg.roomId) ?? undefined;
             // Destructure first: msg is not narrowed inside the setState callback.
             const { formatId, seats, requiredPlayers, you, turnTimerSeconds, matchedVia, xpMultiplier } = msg;
             setRoomInfo((prev) => ({
@@ -1008,8 +1028,8 @@ export function useProSocket(
             }));
           }
           setRoomPublic(false); // fresh rooms are private until acked otherwise
-          setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)
-          rememberRoom(msg.roomId);
+          storeRef.current.setToken(msg.roomId, msg.token); // fresh reconnect token (revive rotates it)
+          storeRef.current.rememberRoom(msg.roomId);
           ticketFallbackRef.current = null; // seated: the ticket isn't needed
           resumingRef.current = false; // a revive that reached ROOM_JOINED succeeded
           setServerRestarting(false);
@@ -1028,7 +1048,7 @@ export function useProSocket(
           // browser-wide resume blob / token / bots. This tab keeps its seat and
           // bots in sessionStorage — the result screen, a reload and the Rematch
           // re-bind below all read them from there.
-          if (view.winner && roomRef.current) retireFinishedRoom(roomRef.current);
+          if (view.winner && roomRef.current) storeRef.current.retireFinishedRoom(roomRef.current);
           // Rematch (p2p #880): a seat bound at v34 (a first visit, before this
           // tab had seen the engine's version) can neither offer nor be offered.
           // At game over, re-bind it at PROTOCOL_VERSION on this same socket — the same
@@ -1042,7 +1062,7 @@ export function useProSocket(
             if (!view.winner || !wsUrl || !engineSpeaksRematch(wsUrl)) return;
             if (boundVersionRef.current >= REMATCH_PROTOCOL_VERSION) return;
             const room = roomRef.current;
-            const token = room ? getToken(room) : null;
+            const token = room ? storeRef.current.getToken(room) : null;
             if (!room || !token) return;
             resumeExpectedRef.current = true;
             resyncReplyRef.current = true;
@@ -1129,7 +1149,7 @@ export function useProSocket(
           // crash can revive this exact game via RESUME_ROOM. Never inspected.
           // A blob trailing the winner STATE would undo retireFinishedRoom (#1550).
           if (gameOverRef.current && msg.roomId.toUpperCase() === roomRef.current?.toUpperCase()) break;
-          setResumeToken(msg.roomId, msg.token);
+          storeRef.current.setResumeToken(msg.roomId, msg.token);
           break;
         case "SERVER_RESTARTING":
           // The old instance is shutting down (redeploy). Flag it for the toast;
@@ -1205,9 +1225,9 @@ export function useProSocket(
           if (!alreadyHere) {
             // Seat ourselves in the new room before the page moves there: its
             // RECONNECT reads this token, and the next Rematch reads the bots.
-            setToken(msg.roomId, msg.token);
-            const bots = from ? getRoomBots(from) : null;
-            if (bots) setRoomBots(msg.roomId, bots);
+            storeRef.current.setToken(msg.roomId, msg.token);
+            const bots = from ? storeRef.current.getRoomBots(from) : null;
+            if (bots) storeRef.current.setRoomBots(msg.roomId, bots);
           }
           stepRematch({ type: "READY", roomId: msg.roomId, currentRoom: from });
           break;
@@ -1319,7 +1339,7 @@ export function useProSocket(
             // degrades to the plain toast instead of a RECONNECT loop.
             illegalStreakRef.current += 1;
             const room = roomRef.current;
-            const token = room ? getToken(room) : null;
+            const token = room ? storeRef.current.getToken(room) : null;
             const now = Date.now();
             const due = illegalStreakRef.current >= ILLEGAL_ACTION_RESYNC_AFTER;
             const cooled = now - lastResyncAtRef.current >= RESYNC_COOLDOWN_MS;
@@ -1346,8 +1366,8 @@ export function useProSocket(
           const room = roomRef.current;
           const fallback = ticketFallbackRef.current;
           ticketFallbackRef.current = null;
-          if (msg.code === "BAD_TOKEN" && fallback && fallback.room === room && !getResumeToken(fallback.room)) {
-            forgetRoom(fallback.room);
+          if (msg.code === "BAD_TOKEN" && fallback && fallback.room === room && !storeRef.current.getResumeToken(fallback.room)) {
+            storeRef.current.forgetRoom(fallback.room);
             if (fallback.heroId) {
               sendBind(joinRoomMsg(fallback.room, fallback.heroId, fallback.ticket));
               break;
@@ -1370,10 +1390,10 @@ export function useProSocket(
           // not a lost game: never revive it, never cover the result screen.
           if (recoverable && gameOverRef.current) {
             resumingRef.current = false;
-            if (room) forgetRoom(room);
+            if (room) storeRef.current.forgetRoom(room);
             break;
           }
-          const blob = room ? getResumeToken(room) : null;
+          const blob = room ? storeRef.current.getResumeToken(room) : null;
           if (recoverable && blob && !resumingRef.current) {
             resumingRef.current = true;
             sendBind({ v: PROTOCOL_VERSION, type: "RESUME_ROOM", token: blob });
@@ -1386,8 +1406,8 @@ export function useProSocket(
           // A tournament room's dead seat token stays dead: forget it, or every
           // later visit RECONNECTs with it again instead of taking a fresh ticket.
           // A casual room's BAD_TOKEN keeps the token, as it always has.
-          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED") && room) forgetRoom(room);
-          else if (msg.code === "BAD_TOKEN" && room && isTournamentRoomRef.current(room)) forgetRoom(room);
+          if ((msg.code === "ROOM_NOT_FOUND" || msg.code === "RESUME_FAILED") && room) storeRef.current.forgetRoom(room);
+          else if (msg.code === "BAD_TOKEN" && room && isTournamentRoomRef.current(room)) storeRef.current.forgetRoom(room);
           setError({ code: msg.code, message: msg.message });
           // If this terminal failure struck a game we were actually playing, it's
           // a genuine loss (resume rejected / room gone / seat token dead) — show
@@ -1416,7 +1436,7 @@ export function useProSocket(
         return;
       }
       if (staleRef.current) return; // a stale client never reconnects (p2p #1549)
-      reportSocketClose(opened, e, restartWindowRef.current);
+      if (!ephemeralRef.current) reportSocketClose(opened, e, restartWindowRef.current);
       // Exponential backoff with FULL JITTER (issue #209). A server that closed us
       // for RATE_LIMITED (or a redeploy that drops every socket at once) would be
       // hammered by a fleet of clients all reconnecting on the same doubling
@@ -1503,7 +1523,7 @@ export function useProSocket(
         // each other. Silent (no `resyncing` toast): the board is only out of
         // date if the answer says so, and then it simply updates.
         const room = roomRef.current;
-        const token = room ? getToken(room) : null;
+        const token = room ? storeRef.current.getToken(room) : null;
         if (
           longAbsence &&
           room &&
@@ -1645,7 +1665,7 @@ export function useProSocket(
       // second tab of a two-tab solo test would steal the host's seat. A
       // tournament ticket's room is the exception: both its seats are never this
       // browser's, so any token held for it is the player's own seat.
-      const token = heroId === "" || ticket ? getToken(room) : getTabToken(room);
+      const token = heroId === "" || ticket ? storeRef.current.getToken(room) : storeRef.current.getTabToken(room);
       // RECONNECT carries no identity: the server kept the SEAT (and with it the
       // name and badge it claimed on join), so re-sending would only be a chance
       // to disagree with it. That is also what makes a mid-game refresh keep the

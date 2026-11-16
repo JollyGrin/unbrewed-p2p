@@ -28,6 +28,7 @@ import {
 } from "@chakra-ui/react";
 import type { ProMapItem } from "@/lib/pro/protocol";
 import { itemBadgeTitle, itemEffectText, itemKindLabel } from "@/lib/pro/itemInfo";
+import { proVw } from "@/lib/pro/contained";
 
 export type ItemBadgeKind = "combat" | "scheme";
 
@@ -115,7 +116,7 @@ export const ItemInspectBadge = ({ item }: { item: ProMapItem }) => (
     <Portal>
       <PopoverContent
         w="auto"
-        maxW="min(78vw, 18rem)"
+        maxW={`min(${proVw(78)}, 18rem)`}
         bg="brand.surfaceDim"
         color="brand.parchment"
         borderColor="rgba(231, 204, 152, 0.25)"

@@ -36,6 +36,7 @@ import {
   turnsInLog,
 } from "@/lib/pro/bugReport";
 import { APP_COMMIT, APP_VERSION } from "@/lib/pro/appVersion";
+import { useContainedModalProps } from "@/lib/pro/contained";
 
 export const ReportBugDialog = ({
   isOpen,
@@ -81,7 +82,7 @@ export const ReportBugDialog = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} isCentered size="lg">
+    <Modal isOpen={isOpen} {...useContainedModalProps()} onClose={onClose} isCentered size="lg">
       <ModalOverlay />
       <ModalContent bg="brand.surface" color="brand.parchment" border="1px solid" borderColor="whiteAlpha.300">
         <ModalHeader fontFamily="LeagueGothic" letterSpacing="0.04em">

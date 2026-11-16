@@ -29,6 +29,7 @@ import {
   Button,
   Text,
 } from "@chakra-ui/react";
+import { useContainedModalProps } from "@/lib/pro/contained";
 
 /** Verbatim in the tests — this is a disclosure, not decoration. */
 export const FORFEIT_POINTS_NOTE =
@@ -51,7 +52,7 @@ export const ForfeitDialog = ({
 }) => {
   const cancelRef = useRef<HTMLButtonElement>(null);
   return (
-    <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose} isCentered>
+    <AlertDialog isOpen={isOpen} {...useContainedModalProps()} leastDestructiveRef={cancelRef} onClose={onClose} isCentered>
       <AlertDialogOverlay>
         <AlertDialogContent bg="brand.surfaceDim" color="brand.parchment">
           <AlertDialogHeader fontFamily="LeagueGothic" letterSpacing="0.04em" fontSize="1.5rem">

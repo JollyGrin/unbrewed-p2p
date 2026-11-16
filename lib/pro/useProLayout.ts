@@ -21,6 +21,7 @@
  *     and hydration stays quiet.
  */
 import { RefObject, useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { containedLayoutMode, containedOrigin, useProContained } from "./contained";
 
 /**
  * Everything BELOW Chakra's `lg` (62em), where the dock stops reserving its
@@ -61,8 +62,14 @@ const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : us
 
 export const useProLayout = (): ProLayout => {
   const [mode, setMode] = useState<ProLayoutMode>("desktop");
+  // Inside a contained frame (issue #1678) the arrangement follows the FRAME:
+  // a 720px panel on a desktop gets the layout that fits 720px. The policy is
+  // `containedLayoutMode`; the media queries below are not consulted at all.
+  const contained = useProContained();
+  const isContained = contained !== null;
 
   useIsomorphicLayoutEffect(() => {
+    if (isContained) return;
     // The render-fuzz jsdom (scripts/renderFuzz/domEnv.ts) stubs matchMedia,
     // but a bare jsdom has none at all — stay on the desktop arrangement there
     // rather than throwing during a headless render.
@@ -77,8 +84,9 @@ export const useProLayout = (): ProLayout => {
       narrow.removeEventListener?.("change", sync);
       rail.removeEventListener?.("change", sync);
     };
-  }, []);
+  }, [isContained]);
 
+  if (contained) return layoutOf(containedLayoutMode(contained.width, contained.height));
   return layoutOf(mode);
 };
 
@@ -125,13 +133,16 @@ export const useElementHeight = (ref: RefObject<HTMLElement>, enabled: boolean):
  */
 export const useElementBottom = (el: HTMLElement | null): number => {
   const [bottom, setBottom] = useState(0);
+  // In a contained frame (#1678) the answer feeds a `position: fixed` top, which
+  // is measured from the frame's corner: report the bottom relative to it.
+  const frameEl = useProContained()?.el ?? null;
 
   useEffect(() => {
     if (!el) {
       setBottom(0);
       return;
     }
-    const measure = () => setBottom(Math.ceil(el.getBoundingClientRect().bottom));
+    const measure = () => setBottom(Math.ceil(el.getBoundingClientRect().bottom - containedOrigin(frameEl).top));
     measure();
     window.addEventListener("resize", measure);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
@@ -140,7 +151,7 @@ export const useElementBottom = (el: HTMLElement | null): number => {
       window.removeEventListener("resize", measure);
       ro?.disconnect();
     };
-  }, [el]);
+  }, [el, frameEl]);
 
   return bottom;
 };

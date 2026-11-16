@@ -113,6 +113,7 @@ import { ZONE_DISCS_LABEL, zoneDiscsStateLabel } from "@/lib/pro/zoneDiscs";
 import { FigureCredits } from "./FigureCredits";
 import { FLAGS, useFlags } from "@/lib/flags";
 import { trackInviteCopied } from "@/lib/growthAnalytics";
+import { useContainedModalProps } from "@/lib/pro/contained";
 
 // Team-affiliation accent (issue #195). A teal that reads clearly as "friendly"
 // and stays distinct from the gold TURN chip and from every per-seat identity
@@ -234,7 +235,7 @@ const CardListModal = ({
   isOpen: boolean;
   onClose: () => void;
 }) => (
-  <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered>
+  <Modal isOpen={isOpen} {...useContainedModalProps()} onClose={onClose} size="3xl" isCentered>
     <ModalOverlay bg="rgba(20, 8, 24, 0.7)" />
     <ModalContent bg="brand.surface" color="brand.parchment">
       <ModalHeader fontFamily="BebasNeueRegular" letterSpacing="0.04em" pr="3rem">
@@ -1480,7 +1481,7 @@ const BetaFeaturesChip = () => {
           <TbFlask size="0.85rem" />
         </Flex>
       </Tooltip>
-      <Modal isOpen={open} onClose={() => setOpen(false)} size="md" isCentered>
+      <Modal isOpen={open} {...useContainedModalProps()} onClose={() => setOpen(false)} size="md" isCentered>
         <ModalOverlay bg="rgba(20, 8, 24, 0.7)" />
         <ModalContent bg="brand.surface" color="brand.parchment">
           <ModalHeader
