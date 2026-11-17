@@ -163,7 +163,7 @@ import { buildPoseIndex, parsePoseOptions, poseHighlights, resolvePoseClick } fr
 import { moveBudgetLine, steppingBudgetLine, unofferableMoveFeedback } from "@/lib/pro/moveFeedback";
 import { cardFaceOptions, revealedHandPick, revealedPlayerPickOptions, type RevealedCard } from "@/lib/pro/cardOptions";
 import { startPickQueue, stepPickQueue, type PickQueue } from "@/lib/pro/multiPickQueue";
-import { CardMultiPick, multiPickConfirmLabel } from "@/components/Pro/CardMultiPick";
+import { CardMultiPick, multiPickConfirmLabel, multiPickInstruction } from "@/components/Pro/CardMultiPick";
 import { seatNameplate } from "@/lib/pro/playerIdentity";
 import {
   applyClick as applyStepClick,
@@ -422,6 +422,7 @@ const PromptPanel = ({
   buttonOptions,
   cardOptions,
   multiPick,
+  multiPickHeading,
   boardHint,
   budgetLine,
   noteLine,
@@ -445,6 +446,13 @@ const PromptPanel = ({
    *  being sent). When set it REPLACES the card faces and option buttons, so the
    *  bare 0 / 1 / 2 count question is never shown. null for every other prompt. */
   multiPick: ReactNode | null;
+  /** issue #1703: the primary line while `multiPick` is up, in place of the engine's
+   *  count question (the picker's own instruction; "" = no primary line, for the
+   *  "returning…" moment). Ignored — and the engine's line shown as always — when
+   *  `multiPick` is null. While the picker is up the source / preview card faces
+   *  are also left out: the hand to pick from needs the room, and the attribution
+   *  line still names the card. */
+  multiPickHeading: string;
   /** set when some options are answered by clicking the board */
   boardHint: string | null;
   /** issue #412: the step budget line for a CHOOSE_SPACE *move* prompt ("Move
@@ -475,7 +483,10 @@ const PromptPanel = ({
   sourceLabel: string | null;
   resolveCard: ResolveCard;
   catalog: Record<string, CardMeta>;
-}) => (
+}) => {
+  const picking = !!multiPick && prompt.player === you;
+  const primaryLine = picking ? multiPickHeading : (budgetLine ?? secretMarkPromptDescription(prompt.description));
+  return (
   <Box bg="brand.surface" border="2px solid" borderColor="brand.accent" borderRadius="0.5rem" p="1rem">
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
       {prompt.kind.replace(/_/g, " ")}
@@ -487,10 +498,10 @@ const PromptPanel = ({
         Both shown to chooser and spectator alike. Issue #412: for a CHOOSE_SPACE
         move prompt `budgetLine` (the "Move up to N spaces" budget, or a move-shaped
         fallback) takes the primary line so the step budget is always stated. */}
-    {(budgetLine ?? secretMarkPromptDescription(prompt.description)) ? (
+    {primaryLine ? (
       <>
-        <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
-          {budgetLine ?? secretMarkPromptDescription(prompt.description)}
+        <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment" data-testid="pro-prompt-heading">
+          {primaryLine}
         </Text>
         {sourceLabel && (
           <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
@@ -510,14 +521,14 @@ const PromptPanel = ({
         {noteLine}
       </Text>
     )}
-    {sourceInstance && (
+    {sourceInstance && !picking && (
       <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
         <CardFace card={resolveCard(sourceInstance)} fallback={cardLabel(catalog, sourceInstance)} />
       </Box>
     )}
     {prompt.player === you ? (
       <>
-        {previewInstance && (
+        {previewInstance && !picking && (
           <Box w="6.5rem" sx={{ aspectRatio: "63 / 88" }} mb="0.5rem">
             <CardFace card={resolveCard(previewInstance)} fallback={cardLabel(catalog, previewInstance)} />
           </Box>
@@ -580,7 +591,8 @@ const PromptPanel = ({
       </Text>
     )}
   </Box>
-);
+  );
+};
 
 /** red edge-vignette when YOUR hero takes damage (keyed remount replays it) */
 const hurtVignette = keyframes`
@@ -1643,6 +1655,7 @@ const CombatPanel = ({
   defenderCallout,
   attackerCallout,
   compact = false,
+  collapsed = false,
   fighterName,
   factor = 1,
 }: {
@@ -1683,6 +1696,9 @@ const CombatPanel = ({
   /** phone sheet (mobile step 3): smaller slots until the reveal, so the card
    *  picker under the panel still fits, plus a "who attacks whom" line. */
   compact?: boolean;
+  /** issue #1703: hidden (not unmounted, so no beat replays) while the look-at-their-
+   *  hand picker is up — the hand needs the dock's height more than the summary does. */
+  collapsed?: boolean;
   fighterName?: (id: FighterId) => string;
   /** Combat pace (lib/pro/pace.ts) as a plain multiplier — 1 = today's pace. The
    *  ONE place the panel derives its CSS clock (combatAnimTiming.ts) from the
@@ -1722,6 +1738,8 @@ const CombatPanel = ({
       borderRadius="0.5rem"
       p="0.75rem"
       position="relative"
+      display={collapsed ? "none" : undefined}
+      data-testid="pro-combat-panel"
       animation={
         strike ? `${strikeShake} ${anim.strikeShakeDur}s ease-in-out ${anim.strikeContactDelay}s both` : undefined
       }
@@ -7277,6 +7295,15 @@ const LiveGame = ({
       }}
     />
   ) : null;
+  // The picker's instruction stands where the engine's "how many?" would (issue
+  // #1703). While the picks are being sent there is no question left to state.
+  const promptMultiPickHeading = (() => {
+    if (!promptHandPick || pickQueue) return "";
+    const owner = view.players.find((p) => p.id === promptHandPick.owner);
+    const whose = !owner || view.players.length === 2 ? "the opponent's" : `${seatNameplate(owner, view.players.length)}'s`;
+    const line = multiPickInstruction(promptHandPick.max, whose);
+    return mobile ? touchCopy(line) : line;
+  })();
   // The Funny One's reveal panel is the FALLBACK view of that hand: it stays away
   // while the picker (or its "returning…" line) is up and once the picker has
   // answered for this reveal, and it never shows a player their own hand.
@@ -8202,6 +8229,7 @@ const LiveGame = ({
             defenderCallout={combatDefenderTag}
             attackerCallout={attackerSwapCopy}
             compact={mobile && !rail}
+            collapsed={!!promptMultiPick}
             fighterName={nameOf}
             factor={paceScale}
           />
@@ -8216,6 +8244,7 @@ const LiveGame = ({
             buttonOptions={promptButtonOptions}
             cardOptions={[...promptCardOptions, ...promptRevealCardOptions]}
             multiPick={promptMultiPick}
+            multiPickHeading={promptMultiPickHeading}
             boardHint={promptBoardHint && mobile ? touchCopy(promptBoardHint) : promptBoardHint}
             budgetLine={promptBudgetLine}
             noteLine={promptNoteLine}

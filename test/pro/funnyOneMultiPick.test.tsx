@@ -50,10 +50,15 @@ const viewWith = (handCount: number): PlayerView => ({
 /** The opponent's hand, as instances of cards the recorded catalog knows. */
 const HAND = ["hero-b/volley#1", "hero-b/dodge#1", "hero-b/volley#2"];
 
+/** The engine's wording of the count question (pomni.rules, engine feature/pomni-qol). */
+const ENGINE_QUESTION = "Choose how many cards to shuffle into the opponent's deck";
+
 const countPrompt = (max: number): ViewPrompt => ({
   promptId: "prompt-count",
   player: "p1",
   kind: "CHOOSE_OPTION",
+  description: ENGINE_QUESTION,
+  source: { card: "hero-a/strike#1" },
   options: Array.from({ length: max + 1 }, (_, n) => ({ id: String(n), label: String(n), data: { count: n } })),
 });
 
@@ -100,8 +105,27 @@ const fakeRouter = () =>
     beforePopState() {},
   }) as never;
 
+/** p1 attacking p2 with a card on the table, as recorded: the combat the card resolves in. */
+const COMBAT: NonNullable<PlayerView["combat"]> = {
+  attackerPlayer: "p1",
+  defenderPlayer: "p2",
+  attacker: "p1/hero",
+  target: "p2/hero",
+  stage: "COMMIT_DEFENSE",
+  attackerCard: { instance: "hero-a/strike#1", role: "ATTACK", boosts: [], effectiveValue: 3 },
+  defenderCard: null,
+  additionalDefenseCard: null,
+  outcome: null,
+  attackDamageDealt: null,
+} as NonNullable<PlayerView["combat"]>;
+
 /** Deliver one STATE frame, exactly as the socket would. */
-const state = async (prompt: ViewPrompt | null, events: GameEvent[] = [], p2Hand = HAND.length) => {
+const state = async (
+  prompt: ViewPrompt | null,
+  events: GameEvent[] = [],
+  p2Hand = HAND.length,
+  combat: PlayerView["combat"] = null,
+) => {
   const ws = FakeWebSocket.latest();
   if (!ws) throw new Error("the page never opened a socket");
   await act(async () => {
@@ -109,7 +133,7 @@ const state = async (prompt: ViewPrompt | null, events: GameEvent[] = [], p2Hand
       data: JSON.stringify({
         v: PROTOCOL_VERSION,
         type: "STATE",
-        view: { ...viewWith(p2Hand), prompt },
+        view: { ...viewWith(p2Hand), prompt, combat },
         legalActions: [],
         events,
       }),
@@ -296,5 +320,90 @@ describe("The Funny One! — pick the returned cards in one step", () => {
     // a later card pick is no longer answered for them
     await state(targetPrompt("prompt-pick-1", HAND));
     expect(answers()).toEqual(["prompt-count:1"]);
+  });
+
+  // Issue #1703: the picker used to open below the fold, under the combat summary,
+  // the engine's count question and the played card.
+  describe("the picker gets the panel to itself (issue #1703)", () => {
+    const INSTRUCTION = "Click up to 2 cards from the opponent's hand to return to their deck";
+    const heading = () => screen.queryByTestId("pro-prompt-heading");
+    /** The played card's face in the prompt panel: a 6.5rem box above the options. */
+    const sourceFaces = () =>
+      [...document.querySelectorAll<HTMLElement>("div")].filter(
+        (d) => window.getComputedStyle(d).width === "6.5rem" && !d.closest('[data-testid="card-multi-pick"]'),
+      );
+
+    it("states the picker's instruction where the engine's count question stood", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      expect(heading()).toHaveTextContent(INSTRUCTION);
+      expect(screen.queryByText(ENGINE_QUESTION)).not.toBeInTheDocument();
+      expect(screen.getByTestId("card-multi-pick-count")).toHaveTextContent("0 / 2 selected");
+    });
+
+    it("says 'card' for a one-card hand", async () => {
+      await mount();
+      await state(countPrompt(1), revealBatch([HAND[0]]), 1);
+      expect(heading()).toHaveTextContent("Click up to 1 card from the opponent's hand to return to their deck");
+    });
+
+    it("leaves the played card's face out while the hand is shown", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      expect(sourceFaces()).toHaveLength(0);
+    });
+
+    it("drops the question while the picks are being sent, and never flashes the engine's", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      fireEvent.click(faces()[0]);
+      confirm("Return 1 card");
+      expect(heading()).not.toBeInTheDocument();
+      await state({ ...targetPrompt("prompt-pick-1", HAND), description: "Choose a card to shuffle" });
+      expect(screen.getByTestId("card-multi-pick-busy")).toBeInTheDocument();
+      expect(screen.queryByText("Choose a card to shuffle")).not.toBeInTheDocument();
+    });
+
+    it("folds the combat summary away while the hand is shown, and brings it back after", async () => {
+      await mount();
+      await state(null, [], HAND.length, COMBAT);
+      const panel = () => screen.getByTestId("pro-combat-panel");
+      expect(panel()).toBeVisible();
+      const mounted = panel();
+      await state(countPrompt(2), revealBatch(HAND), HAND.length, COMBAT);
+      expect(panel()).not.toBeVisible();
+      // …through the "returning…" moment too, so the panel does not jump
+      fireEvent.click(faces()[0]);
+      confirm("Return 1 card");
+      expect(panel()).not.toBeVisible();
+      await state(null, [], HAND.length, COMBAT);
+      expect(panel()).toBeVisible();
+      // hidden, never unmounted: no combat beat replays when it returns
+      expect(panel()).toBe(mounted);
+    });
+
+    it("leaves the combat summary alone for the same count prompt without the picker", async () => {
+      await mount();
+      await state(countPrompt(2), [], HAND.length, COMBAT);
+      expect(screen.getByTestId("pro-combat-panel")).toBeVisible();
+    });
+
+    // The change is the picker's alone: the same count prompt without the picker,
+    // and any other prompt, read exactly as before.
+    it("keeps the engine's question and the played card when the picker is not up", async () => {
+      await mount();
+      await state(countPrompt(2));
+      expect(heading()).toHaveTextContent(ENGINE_QUESTION);
+      expect(sourceFaces()).toHaveLength(1);
+    });
+
+    it("gives the next prompt its own heading and card back", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      confirm("Return none");
+      await state({ ...targetPrompt("prompt-other", HAND), description: "Choose a card to discard", source: { card: "hero-a/strike#1" } });
+      expect(heading()).toHaveTextContent("Choose a card to discard");
+      expect(sourceFaces()).toHaveLength(1);
+    });
   });
 });

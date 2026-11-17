@@ -38,7 +38,10 @@ export const AbilityButton = ({
   /** the digit that fires this row on desktop */
   hotkey?: number | null;
   minH: string;
-  /** share the row's width evenly (the phone sheet's bonus strip) */
+  /** share the row's width (the phone sheet's bonus strip). A strip button never
+   *  shrinks below its one-line width (issue #1703: two of them at 390px read
+   *  "Reward / 2"), so it is packed a little tighter, and a label too long to share
+   *  a row takes the next row instead of wrapping inside half of one. */
   stretch?: boolean;
   onPress: () => void;
 }) => {
@@ -49,16 +52,19 @@ export const AbilityButton = ({
     <Button
       data-testid="pro-ability-button"
       data-ability={ability}
+      data-strip={stretch ? "true" : undefined}
       aria-label={`${label}. ${FREE_ABILITY_BLURB}`}
       size="sm"
       flex={stretch ? "1 1 0" : undefined}
-      minW={0}
+      minW={stretch ? "fit-content" : 0}
+      maxW={stretch ? "100%" : undefined}
       height="auto"
       minH={minH}
       py="0.35rem"
+      px={stretch ? "0.5rem" : undefined}
       display="flex"
       justifyContent="flex-start"
-      gap="0.45rem"
+      gap={stretch ? "0.35rem" : "0.45rem"}
       whiteSpace="normal"
       textAlign="left"
       bg="rgba(224, 168, 46, 0.08)"

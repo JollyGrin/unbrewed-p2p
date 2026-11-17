@@ -2479,6 +2479,75 @@ describe("ABILITY_USED (issue #1693 ↔ protocol v41)", () => {
     expect(enrichLines([], cancelled, ctx()).filter((l) => /used/.test(l.text))).toEqual([]);
   });
 
+  // Issue #1703: the reward card leaving play already says "used Reward n — …" in
+  // the same batch (trackTuckLine), so the generic line would say it twice.
+  describe("one line per use (issue #1703)", () => {
+    const pomni = (): EnrichContext => ({ ...ctx(), heroOf: (p) => (p === "p1" ? "pomni" : "darth-vader") });
+    const usedLines = (events: GameEvent[], c = pomni()) =>
+      enrichLines([], events, c)
+        .map((l) => l.text)
+        .filter((t) => / used /.test(t));
+
+    it("Reward 2: only the line that says where the card went", () => {
+      const batch: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "hero:p1", window: "IMMEDIATELY", player: "p1" } as GameEvent,
+        { type: "CARD_TUCKED", player: "p2", card: "darth-vader/dash#1", pile: "EXILE" },
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-2#1", pile: "ADV_REWARDS" },
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/adventure-2#1", pile: "ADV_PENDING" },
+        used("p1", 2),
+      ];
+      expect(usedLines(batch)).toEqual([
+        "You used Reward 2 — Adventure 2 goes back to the bottom of the Adventure deck",
+      ]);
+    });
+
+    it("Reward 3: only the line that says it is removed from the game", () => {
+      const batch: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p1", 3),
+      ];
+      expect(usedLines(batch)).toEqual(["You used Reward 3 — it is removed from the game"]);
+    });
+
+    it("reads the same from the other seat", () => {
+      const c: EnrichContext = { ...ctx(), heroOf: (p) => (p === "p2" ? "pomni" : "darth-vader") };
+      const batch: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p2", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p2", 3),
+      ];
+      expect(usedLines(batch, c)).toEqual(["Opponent used Reward 3 — it is removed from the game"]);
+    });
+
+    it("keeps the generic line when the batch's other lines do not announce the use", () => {
+      // Reward 2 used, but the batch only shows another reward's card moving
+      const other: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p1", 2),
+      ];
+      expect(usedLines(other)).toEqual(["You used Reward 3 — it is removed from the game", "You used Reward 2"]);
+      // …or a line by the OTHER seat that happens to read alike
+      const theirs: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p2", 3),
+      ];
+      expect(usedLines(theirs)).toEqual([
+        "You used Reward 3 — it is removed from the game",
+        "Opponent used Reward 3",
+      ]);
+    });
+
+    it("a label that merely starts the same is a different ability", () => {
+      const batch: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-2#1", pile: "ADV_REWARDS" },
+        { type: "ABILITY_USED", player: "p1", ability: "reward", label: "Reward" },
+      ];
+      expect(usedLines(batch)).toEqual([
+        "You used Reward 2 — Adventure 2 goes back to the bottom of the Adventure deck",
+        "You used Reward",
+      ]);
+    });
+  });
+
   it("is not an action: the batch gets no action label and no fallback line", () => {
     expect(batchPhase([used("p1", 2)])).toBeUndefined();
     expect(actionFallbackLine([used("p1", 2)], "p1", (p) => p)).toBeUndefined();
