@@ -136,6 +136,14 @@ describe("desktop dock", () => {
     expect(within(abilityButtons()[0]).getByText("3")).toBeInTheDocument();
   });
 
+  it("is a list row, not a strip button: free to shrink with the dock", () => {
+    render(<ProDock {...props([MANEUVER, REWARD_2])} />);
+
+    const b = abilityButtons()[0];
+    expect(b.dataset.strip).toBeUndefined();
+    expect(window.getComputedStyle(b).minWidth).toBe("0px");
+  });
+
   it("draws no ability button when the server offers none", () => {
     render(<ProDock {...props([MANEUVER, SCHEME])} />);
 
@@ -174,6 +182,23 @@ describe.each(["portrait", "rail"] as const)("phone action sheet (%s)", (mobile)
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction.mock.calls[0][0]).toBe(REWARD_2);
+  });
+
+  // Issue #1703: at 390px two strip buttons broke their labels in two ("Reward /
+  // 2"). A strip button now refuses to shrink below its one-line width and wraps to
+  // the next row instead; the desktop list row is untouched.
+  it("keeps each strip button at least as wide as its label on one line", () => {
+    render(<ProDock {...props([MANEUVER, SCHEME, REWARD_2, REWARD_3], { mobile })} />);
+    open();
+
+    const strip = screen.getByTestId("pro-ability-tiles");
+    expect(window.getComputedStyle(strip).flexWrap).toBe("wrap");
+    for (const b of abilityButtons()) {
+      expect(b.dataset.strip).toBe("true");
+      const css = window.getComputedStyle(b);
+      expect(css.minWidth).toBe("fit-content");
+      expect(css.maxWidth).toBe("100%");
+    }
   });
 
   it("has no strip when no ability is offered", () => {

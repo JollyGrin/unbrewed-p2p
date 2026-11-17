@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { CardMultiPick } from "./CardMultiPick";
+import { CardMultiPick, multiPickInstruction } from "./CardMultiPick";
 
 const HAND = ["a/x#1", "a/y#2", "a/z#3"];
 
@@ -66,9 +66,42 @@ describe("CardMultiPick", () => {
 
   it("caps a one-card hand at 1", () => {
     mount({ cards: ["a/x#1"], max: 1, counts: [0, 1] });
-    expect(screen.getByText(/Tap up to 1 card to return/)).toBeTruthy();
+    expect(screen.getByTestId("card-multi-pick-count").textContent).toBe("0 / 1 selected");
     fireEvent.click(card("a/x#1"));
     expect(screen.getByRole("button", { name: "Return 1 card" })).toBeTruthy();
+  });
+
+  // Issue #1703: the instruction is the prompt's heading (the page puts it where the
+  // engine's "how many?" stood), so the picker itself carries only the running count.
+  it("states no instruction of its own, only the count beside the button", () => {
+    mount();
+    expect(screen.queryByText(/up to 2 cards/i)).toBeNull();
+    expect(screen.getByTestId("card-multi-pick-count").textContent).toBe("0 / 2 selected");
+  });
+
+  it("words the heading for the page: how many, whose hand, singular for one", () => {
+    expect(multiPickInstruction(2, "the opponent's")).toBe(
+      "Click up to 2 cards from the opponent's hand to return to their deck"
+    );
+    expect(multiPickInstruction(1, "P3's")).toBe("Click up to 1 card from P3's hand to return to their deck");
+  });
+
+  // Issue #1703: the dock / sheet may be scrolled when the prompt arrives.
+  it("scrolls itself into view when it opens, and only then", () => {
+    const scrollIntoView = jest.fn();
+    const proto = window.HTMLElement.prototype as { scrollIntoView?: unknown };
+    const before = proto.scrollIntoView;
+    proto.scrollIntoView = scrollIntoView;
+    try {
+      mount();
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.instances[0]).toBe(screen.getByTestId("card-multi-pick"));
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+      fireEvent.click(card("a/y#2"));
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      proto.scrollIntoView = before;
+    }
   });
 
   it("disables confirm on a count the prompt does not offer", () => {

@@ -8,15 +8,29 @@
  *
  * Selection lives here; the page keys the component by promptId, so a new prompt
  * always starts empty. Sending the answers is the caller's job (`onConfirm`).
+ *
+ * The instruction ("Click up to 2 cards…") is the PROMPT's heading, not a line in
+ * here (issue #1703): the page puts `multiPickInstruction` where the engine's
+ * "how many?" question would stand, and this component keeps only the running
+ * count beside its button. On mount it scrolls itself into view, so the cards and
+ * the button are on screen even when the dock or sheet was scrolled elsewhere.
  */
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CardInstanceId } from "@/lib/pro/protocol";
 import type { ResolveCard } from "@/lib/pro/useProCardArt";
 import { CardFace } from "./ProHand";
 
 export const multiPickConfirmLabel = (n: number) =>
   n === 0 ? "Return none" : `Return ${n} card${n === 1 ? "" : "s"}`;
+
+/**
+ * The prompt heading while the picker is up. `whose` is the possessive of the hand's
+ * owner ("the opponent's", "P3's"). Written for a mouse; the page runs it through
+ * `touchCopy` on a phone.
+ */
+export const multiPickInstruction = (max: number, whose: string) =>
+  `Click up to ${max} card${max === 1 ? "" : "s"} from ${whose} hand to return to their deck`;
 
 export const CardMultiPick = ({
   cards,
@@ -43,12 +57,17 @@ export const CardMultiPick = ({
       if (prev.includes(card)) return prev.filter((c) => c !== card);
       return prev.length >= max ? prev : [...prev, card];
     });
+  // Bring the whole picker into view once, when it opens. "nearest" is a no-op when
+  // it already is, and shows the first row when the picker is taller than its panel.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    root.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, []);
   return (
-    <Box data-testid="card-multi-pick">
-      <Text fontSize="0.85rem" mb="0.5rem" color="brand.parchment">
-        Tap up to {max} card{max === 1 ? "" : "s"} to return. {selected.length} / {max} selected.
-      </Text>
-      <Flex gap="0.5rem" flexWrap="wrap" mb="0.6rem">
+    <Box data-testid="card-multi-pick" ref={root}>
+      {/* As many columns as fit, each at least a phone-sized card: three across in
+          the desktop dock, four in the phone sheet, so a 7-card hand is 3 / 2 rows. */}
+      <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(4.25rem, 1fr))" gap="0.5rem" mb="0.6rem">
         {cards.map((card) => {
           const on = selected.includes(card);
           const blocked = full && !on;
@@ -58,8 +77,9 @@ export const CardMultiPick = ({
               as="button"
               type="button"
               position="relative"
-              w="5rem"
-              sx={{ aspectRatio: "63 / 88", "@media (max-width: 420px)": { w: "4.25rem" } }}
+              w="100%"
+              maxW="6.5rem"
+              sx={{ aspectRatio: "63 / 88" }}
               borderRadius="0.35rem"
               transition="transform 0.1s, box-shadow 0.1s, opacity 0.1s"
               transform={on ? "translateY(-4px)" : undefined}
@@ -95,18 +115,23 @@ export const CardMultiPick = ({
             </Box>
           );
         })}
+      </Box>
+      <Flex alignItems="center" gap="0.6rem" flexWrap="wrap">
+        <Button
+          bg="brand.accent"
+          color="brand.surfaceDim"
+          _hover={{ bg: "brand.accentDeep" }}
+          _active={{ bg: "brand.accentDeep" }}
+          size="sm"
+          isDisabled={!counts.includes(selected.length)}
+          onClick={() => onConfirm(selected)}
+        >
+          {multiPickConfirmLabel(selected.length)}
+        </Button>
+        <Text fontSize="0.8rem" color="brand.parchment" opacity={0.85} data-testid="card-multi-pick-count">
+          {selected.length} / {max} selected
+        </Text>
       </Flex>
-      <Button
-        bg="brand.accent"
-        color="brand.surfaceDim"
-        _hover={{ bg: "brand.accentDeep" }}
-        _active={{ bg: "brand.accentDeep" }}
-        size="sm"
-        isDisabled={!counts.includes(selected.length)}
-        onClick={() => onConfirm(selected)}
-      >
-        {multiPickConfirmLabel(selected.length)}
-      </Button>
     </Box>
   );
 };
