@@ -14,6 +14,8 @@ import {
   spreadFor,
   stepSpring,
   swayFor,
+  TILT_REST_MS,
+  tiltActive,
   toSlotFrame,
 } from "./fanMotion";
 
@@ -192,5 +194,24 @@ describe("handCarryOver", () => {
   it("copes with no hand before or after", () => {
     expect(handCarryOver(undefined, [c("A")])).toEqual([-1]);
     expect(handCarryOver([c("A")], undefined)).toEqual([]);
+  });
+});
+
+describe("tiltActive", () => {
+  // A tilted card is a warped bitmap with soft text (#1710): it tilts while
+  // the cursor moves and lies flat, sharp, once the cursor rests on it.
+  it("holds the tilt while the cursor is moving", () => {
+    expect(tiltActive(1000, 1000)).toBe(true);
+    expect(tiltActive(1000 + TILT_REST_MS - 1, 1000)).toBe(true);
+  });
+
+  it("lets go once the cursor has rested", () => {
+    expect(tiltActive(1000 + TILT_REST_MS, 1000)).toBe(false);
+    expect(tiltActive(5000, 0)).toBe(false);
+  });
+
+  it("rests soon enough to read, but not mid-sweep", () => {
+    expect(TILT_REST_MS).toBeGreaterThanOrEqual(100);
+    expect(TILT_REST_MS).toBeLessThanOrEqual(400);
   });
 });

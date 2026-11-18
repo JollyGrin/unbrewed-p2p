@@ -69,6 +69,16 @@ export const FOCUS_LIFT_RATIO = 0.55; // of card height
 export const FOCUS_SCALE = 1.85;
 /** Max cursor tilt on the focused card, degrees. */
 export const MAX_TILT = 7;
+/**
+ * How long after the cursor last moved the focused card keeps its tilt, ms.
+ * Then it eases flat: a tilted card is a warped bitmap, so its text is soft
+ * for as long as the tilt is held (issue #1710). Tilt is for motion; a card
+ * being read lies flat and is drawn sharp.
+ */
+export const TILT_REST_MS = 220;
+/** Whether the cursor moved recently enough for the focused card to tilt. */
+export const tiltActive = (now: number, movedAt: number) =>
+  now - movedAt < TILT_REST_MS;
 /** Proximity rise of cards near the cursor, px. */
 export const NEIGHBOUR_RISE = 14;
 /** Drag ghost sway: degrees per px/s of horizontal velocity, and its cap. */

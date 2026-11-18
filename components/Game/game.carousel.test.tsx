@@ -148,3 +148,56 @@ describe("resolveHandIndex", () => {
     expect(resolveHandIndex(undefined, ACE, 0)).toBe(-1);
   });
 });
+
+/**
+ * A card on a compositor layer (will-change, or a 3D transform) is a bitmap
+ * the browser resamples: its text is soft while the layer is held (#1710).
+ * So a card that has stopped moving carries neither, and the focused card's
+ * tilt lets go once the cursor rests.
+ */
+describe("HandFan keeps resting cards off compositor layers", () => {
+  const rect = Element.prototype.getBoundingClientRect;
+  beforeEach(() => {
+    jest.useFakeTimers(); // drives requestAnimationFrame and performance.now
+    Element.prototype.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 150, height: 200, right: 150, bottom: 200 }) as DOMRect;
+  });
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = rect;
+    jest.useRealTimers();
+  });
+
+  const layers = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>(".lift")).map((lift) => ({
+      hint: lift.style.willChange,
+      tilt: lift.querySelector<HTMLElement>(".tilt")!.style.transform,
+    }));
+  const frames = (ms: number) => act(() => void jest.advanceTimersByTime(ms));
+
+  it("a hand at rest has no layer hint and no 3D transform", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    expect(layers(container)).toEqual(Array(3).fill({ hint: "", tilt: "" }));
+    // the card turns to its slot's angle itself; the slot is not rotated
+    const lift = container.querySelector<HTMLElement>(".lift")!;
+    expect(lift.style.transform).toMatch(/^rotate\(-4deg\) /);
+  });
+
+  it("the focused card tilts while the cursor moves and lies flat once it rests", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slot = container.querySelector<HTMLElement>("[data-fan-slot]")!;
+    act(() => {
+      slot.dispatchEvent(new FakePointerEvent("pointermove", { clientX: 100, clientY: 50, bubbles: true }));
+    });
+    frames(100);
+    expect(slot.dataset.focused).toBe("true");
+    expect(layers(container)[0].hint).toBe("transform");
+    expect(layers(container)[0].tilt).toMatch(/^perspective\(900px\) rotateX\(/);
+
+    frames(3000);
+    expect(slot.dataset.focused).toBe("true"); // still up, still enlarged
+    expect(slot.querySelector<HTMLElement>(".lift")!.style.transform).toMatch(/scale\(1\.85\)$/);
+    expect(layers(container)).toEqual(Array(3).fill({ hint: "", tilt: "" }));
+  });
+});
