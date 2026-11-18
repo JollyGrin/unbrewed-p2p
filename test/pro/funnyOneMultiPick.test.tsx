@@ -406,4 +406,99 @@ describe("The Funny One! — pick the returned cards in one step", () => {
       expect(sourceFaces()).toHaveLength(1);
     });
   });
+
+  // Issue #1706: the reveal callouts for the batch that opens the picker floated over
+  // the phone sheet / desktop dock for 2-3 s. Only the picker's own batch loses them.
+  describe("reveal callouts and the picker (issue #1706)", () => {
+    const callouts = () => screen.queryAllByTestId("combat-callout");
+
+    it("shows a reveal's callout when no picker is involved (control)", async () => {
+      await mount();
+      await state(null, [{ type: "CARD_REVEALED", player: "p2", card: HAND[0] }]);
+      expect(callouts()).toHaveLength(1);
+    });
+
+    it("keeps the callouts for a count prompt that has no picker", async () => {
+      await mount();
+      // one revealed card while p2 holds three: not the whole hand, so no picker
+      await state(countPrompt(2), revealBatch([HAND[0]]));
+      expect(screen.queryByTestId("card-multi-pick")).not.toBeInTheDocument();
+      expect(callouts()).toHaveLength(1);
+    });
+
+    it("shows none for the batch that opens the picker, nor while it returns the cards", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      expect(faces()).toHaveLength(3);
+      expect(callouts()).toHaveLength(0);
+      fireEvent.click(faces()[0]);
+      confirm("Return 1 card");
+      expect(screen.getByTestId("card-multi-pick-busy")).toBeInTheDocument();
+      expect(callouts()).toHaveLength(0);
+    });
+
+    // The picker batch's callouts would be dealt out on a 650 ms stagger by timers; an
+    // early answer must not let any of those fire later, over the dock or the next prompt.
+    // Fake clock so the timers really get the chance to fire.
+    const withClock = async (run: () => Promise<void>) => {
+      jest.useFakeTimers();
+      try {
+        await run();
+      } finally {
+        jest.useRealTimers();
+      }
+    };
+    const advance = async (ms: number) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+      });
+    };
+
+    it("never queues the picker batch's callouts: answering early shows none afterwards", async () => {
+      await mount();
+      await withClock(async () => {
+        await state(countPrompt(2), revealBatch(HAND));
+        await advance(300);
+        confirm("Return none");
+        await state(null);
+        for (let t = 0; t < 6; t++) {
+          await advance(500);
+          expect(callouts()).toHaveLength(0);
+        }
+      });
+    });
+
+    it("…and none between queued answers, when no prompt is up", async () => {
+      await mount();
+      await withClock(async () => {
+        await state(countPrompt(2), revealBatch(HAND));
+        fireEvent.click(faces()[0]);
+        confirm("Return 1 card");
+        await state(targetPrompt("prompt-pick-1", HAND));
+        await state(null);
+        for (let t = 0; t < 6; t++) {
+          await advance(500);
+          expect(callouts()).toHaveLength(0);
+        }
+      });
+    });
+
+    it("plays the NEXT batch's reveal at once, and only that one", async () => {
+      await mount();
+      await withClock(async () => {
+        await state(countPrompt(2), revealBatch(HAND));
+        confirm("Return none");
+        await state(null);
+        // the picker batch left nothing in the reveal queue, so no stagger delay
+        await state(null, [{ type: "CARD_REVEALED", player: "p2", card: "hero-b/dodge#1" }]);
+        await advance(100);
+        expect(callouts()).toHaveLength(1);
+        expect(callouts()[0]).toHaveTextContent(/dodge/i);
+        // 2 s later (< the callout's 2.3 s life) the picker batch's volleys still never came
+        await advance(2000);
+        expect(callouts()).toHaveLength(1);
+        expect(callouts()[0]).not.toHaveTextContent(/volley/i);
+      });
+    });
+  });
 });

@@ -787,6 +787,7 @@ const CardCallout = ({
   children: ReactNode;
 }) => (
   <Flex
+    data-testid="combat-callout"
     position="fixed"
     top={`calc(46% + ${slot * 1.4}rem)`}
     left={`calc(50% + ${slot * 1.6}rem)`}
@@ -5027,7 +5028,17 @@ const LiveGame = ({
   // Decorative-only; a separate hook so the board-FX loop above stays
   // byte-identical. `paceScale` stretches the reveal stagger + each callout's
   // on-screen life.
-  const combatCallouts = useCombatCallouts(snapshot, paceScale);
+  const combatCallouts = useCombatCallouts(snapshot, paceScale, (s) => {
+    // The batch that opens The Funny One!'s hand picker (issue #1706): the picker
+    // IS the revealed hand, so its card callouts are never queued. Same test the
+    // prompt panel uses to decide whether to show the picker.
+    const p = s.prompt;
+    return (
+      !!p &&
+      p.player === s.view.you &&
+      !!revealedHandPick(p, s.events, (id) => s.view.players.find((x) => x.id === id)?.handCount)
+    );
+  });
 
   // The strike beat (issue #381): after the flip settles, the attack card slams
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
