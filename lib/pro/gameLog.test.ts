@@ -200,6 +200,7 @@ const ALLOWLIST = new Set([
   "HAND_KEPT",
   "REACH_CHANGED",
   "BOOST_RETRIEVED",
+  "ABILITY_USED",
   "FIGHTER_MARKED",
   "FIGHTER_MARKS_CLEARED",
   "POSITIONS_SWAPPED",
@@ -767,7 +768,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED", "SECRET_MARK_ASSIGNED", "SECRET_MARK_REVEALED", "REACH_CHANGED", "BOOST_RETRIEVED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED", "SECRET_MARK_ASSIGNED", "SECRET_MARK_REVEALED", "REACH_CHANGED", "BOOST_RETRIEVED", "ABILITY_USED"]).toContain(t);
     });
   });
 
@@ -2444,5 +2445,111 @@ describe("enrichLines — POMNI's Adventure track, reach change and deck-bottom 
     expect(text([{ type: "CARD_TUCKED", player: "p1", card: "a/feint#1", pile: "TRAINING" }])).toEqual([
       "You tucked feint under your hero card (TRAINING)",
     ]);
+  });
+});
+
+// Protocol v41 (engine #1080, p2p #1693): a free activated hero ability.
+describe("ABILITY_USED (issue #1693 ↔ protocol v41)", () => {
+  const used = (player: PlayerId, n: 2 | 3): GameEvent => ({
+    type: "ABILITY_USED",
+    player,
+    ability: `reward-${n}`,
+    label: `Reward ${n}`,
+    card: `pomni/reward-${n}`,
+  });
+
+  it("says who used what, with the card for the hover preview", () => {
+    expect(enrichLines([], [used("p1", 2)], ctx())).toEqual([
+      { text: "You used Reward 2", who: "you", cards: ["pomni/reward-2"] },
+    ]);
+    expect(enrichLines([], [used("p2", 3)], ctx())).toEqual([
+      { text: "Opponent used Reward 3", who: "opp", cards: ["pomni/reward-3"] },
+    ]);
+  });
+
+  it("an ability with no card gets a plain line", () => {
+    const e: GameEvent = { type: "ABILITY_USED", player: "p2", ability: "howl", label: "Howl" };
+    expect(enrichLines([], [e], ctx())).toEqual([{ text: "Opponent used Howl", who: "opp" }]);
+  });
+
+  // The server emits ABILITY_USED only once the ability has resolved; a press the
+  // player cancelled out of (or that could do nothing) carries no such event.
+  it("a cancelled press says nothing: no event, no 'used' line", () => {
+    const cancelled: GameEvent[] = [{ type: "PROMPT_RESOLVED", player: "p1", promptId: "pr1", optionId: "cancel" } as GameEvent];
+    expect(enrichLines([], cancelled, ctx()).filter((l) => /used/.test(l.text))).toEqual([]);
+  });
+
+  // Issue #1703: the reward card leaving play already says "used Reward n — …" in
+  // the same batch (trackTuckLine), so the generic line would say it twice.
+  describe("one line per use (issue #1703)", () => {
+    const pomni = (): EnrichContext => ({ ...ctx(), heroOf: (p) => (p === "p1" ? "pomni" : "darth-vader") });
+    const usedLines = (events: GameEvent[], c = pomni()) =>
+      enrichLines([], events, c)
+        .map((l) => l.text)
+        .filter((t) => / used /.test(t));
+
+    it("Reward 2: only the line that says where the card went", () => {
+      const batch: GameEvent[] = [
+        { type: "EFFECT_RESOLVING", source: "hero:p1", window: "IMMEDIATELY", player: "p1" } as GameEvent,
+        { type: "CARD_TUCKED", player: "p2", card: "darth-vader/dash#1", pile: "EXILE" },
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-2#1", pile: "ADV_REWARDS" },
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/adventure-2#1", pile: "ADV_PENDING" },
+        used("p1", 2),
+      ];
+      expect(usedLines(batch)).toEqual([
+        "You used Reward 2 — Adventure 2 goes back to the bottom of the Adventure deck",
+      ]);
+    });
+
+    it("Reward 3: only the line that says it is removed from the game", () => {
+      const batch: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p1", 3),
+      ];
+      expect(usedLines(batch)).toEqual(["You used Reward 3 — it is removed from the game"]);
+    });
+
+    it("reads the same from the other seat", () => {
+      const c: EnrichContext = { ...ctx(), heroOf: (p) => (p === "p2" ? "pomni" : "darth-vader") };
+      const batch: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p2", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p2", 3),
+      ];
+      expect(usedLines(batch, c)).toEqual(["Opponent used Reward 3 — it is removed from the game"]);
+    });
+
+    it("keeps the generic line when the batch's other lines do not announce the use", () => {
+      // Reward 2 used, but the batch only shows another reward's card moving
+      const other: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p1", 2),
+      ];
+      expect(usedLines(other)).toEqual(["You used Reward 3 — it is removed from the game", "You used Reward 2"]);
+      // …or a line by the OTHER seat that happens to read alike
+      const theirs: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-3#1", pile: "EXILE" },
+        used("p2", 3),
+      ];
+      expect(usedLines(theirs)).toEqual([
+        "You used Reward 3 — it is removed from the game",
+        "Opponent used Reward 3",
+      ]);
+    });
+
+    it("a label that merely starts the same is a different ability", () => {
+      const batch: GameEvent[] = [
+        { type: "CARD_TUCKED", player: "p1", card: "pomni/reward-2#1", pile: "ADV_REWARDS" },
+        { type: "ABILITY_USED", player: "p1", ability: "reward", label: "Reward" },
+      ];
+      expect(usedLines(batch)).toEqual([
+        "You used Reward 2 — Adventure 2 goes back to the bottom of the Adventure deck",
+        "You used Reward",
+      ]);
+    });
+  });
+
+  it("is not an action: the batch gets no action label and no fallback line", () => {
+    expect(batchPhase([used("p1", 2)])).toBeUndefined();
+    expect(actionFallbackLine([used("p1", 2)], "p1", (p) => p)).toBeUndefined();
   });
 });

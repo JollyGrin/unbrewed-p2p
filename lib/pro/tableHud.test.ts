@@ -14,6 +14,7 @@ import {
   tableHudControls,
   tableHudFitInset,
 } from "./tableHud";
+import { describeAction as realDescribeAction } from "./actionDock";
 
 const maneuver = { type: "MANEUVER", player: "p1" } as unknown as Action;
 const endManeuver = { type: "END_MANEUVER", player: "p1" } as unknown as Action;
@@ -81,6 +82,36 @@ describe("hexLabelFor", () => {
 
   test("shortens any other action to what fits a hexagon", () => {
     expect(hexLabelFor(other, describeAction)).toBe("Use the golden…");
+  });
+});
+
+// #1693: the v40 HUD read `.length` of an undefined label when its primary was an
+// action type it did not know. Both halves are pinned: the real describeAction
+// always answers, and the hexagon survives a describe that does not.
+describe("hexLabelFor — unknown and v41 action types never crash the HUD", () => {
+  const reward = { type: "USE_ABILITY", player: "p1", ability: "reward-2", label: "Reward 2", card: "pomni/reward-2" } as Action;
+  const future = { type: "CHANNEL_THE_VOID", player: "p1" } as unknown as Action;
+  const real = (a: Action) => realDescribeAction({}, a);
+  const broken = (() => undefined) as unknown as (a: Action) => string;
+
+  test("a free ability goes by the server's label", () => {
+    expect(hexLabelFor(reward, real)).toBe("Reward 2");
+  });
+
+  test("an unknown type gets a readable label from the real describeAction", () => {
+    expect(hexLabelFor(future, real)).toBe("Channel the…");
+  });
+
+  test("a describe that returns nothing does not throw", () => {
+    expect(() => hexLabelFor(future, broken)).not.toThrow();
+    expect(hexLabelFor(future, broken)).toBe("Channel the…");
+    expect(hexLabelFor(reward, broken)).toBe("Use ability");
+    expect(hexLabelFor({} as unknown as Action, broken)).toBe("Action");
+  });
+
+  test("the whole corner still builds with an unknown primary", () => {
+    const c = tableHudControls({ ...base, primary: future, extra: 1 }, broken);
+    expect(c.main).toEqual({ id: "primary", label: "Channel the…", emphasis: "gold", disabled: false });
   });
 });
 

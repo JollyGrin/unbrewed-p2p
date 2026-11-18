@@ -1567,9 +1567,9 @@ describe("POMNI (pomni → 1y_5) deck data", () => {
   // Adventure 4 / 5 titles carry a newline, a U+2019 and a U+00A0 that an editor would
   // silently normalise, and art resolves on the title.
   const FACES: [string, string, string][] = [
-    ["pomni/adventure-1", "Adventure1: YOur new Home", "adventure-1"],
+    ["pomni/adventure-1", "Adventure1: Your new Home", "adventure-1"],
     ["pomni/adventure-2", "Adventure 2:President Pomni 2: Last stand", "adventure-2"],
-    ["pomni/adventure-3", "Adventure 3:night of the living Jax", "adventure-3"],
+    ["pomni/adventure-3", "Adventure 3:Night of the living Jax", "adventure-3"],
     ["pomni/adventure-4", "Adventure 4:\nPomni’s Perilous Pilgrimage", "adventure-4"],
     ["pomni/adventure-5", "Adventure 5: \nOvertime at Spudsy's Delivery Service", "adventure-5"],
     ["pomni/reward-1", "Reward 1", "reward-1"],
@@ -1601,6 +1601,8 @@ describe("POMNI (pomni → 1y_5) deck data", () => {
     });
   });
 
+  // Byte-exact from 1y_5 except the capitalisation of "Your new Home" and "Night of the
+  // living Jax", which the author (Calton White) asked to have corrected on 2026-11-16.
   it("keeps the ten Adventure / Reward faces OUT of the deck, byte-exact, each with its own art", () => {
     expect(faces).toHaveLength(FACES.length);
     faces.forEach((face, i) => {

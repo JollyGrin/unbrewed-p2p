@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { actionTilesFor, tileKindOf } from "./actionTiles";
+import { abilityActionsOf, actionTilesFor, tileKindOf } from "./actionTiles";
 import type { Action } from "./protocol";
 
 const a = (type: string, extra: object = {}) => ({ type, player: "p1", ...extra }) as unknown as Action;
@@ -33,5 +33,39 @@ describe("actionTilesFor", () => {
     const schemes = [a("SCHEME", { card: "c1" }), a("SCHEME", { card: "c2" })];
 
     expect(actionTilesFor([a("MANEUVER"), ...schemes])[1].actions).toEqual(schemes);
+  });
+});
+
+// Protocol v41 (engine #1080, p2p #1693): a free activated hero ability.
+describe("USE_ABILITY — a bonus button, never an action tile", () => {
+  const reward2 = a("USE_ABILITY", { ability: "reward-2", label: "Reward 2", card: "pomni/reward-2" });
+  const reward3 = a("USE_ABILITY", { ability: "reward-3", label: "Reward 3", card: "pomni/reward-3" });
+
+  test("is not one of the three tiles", () => {
+    expect(tileKindOf(reward2)).toBeNull();
+  });
+
+  test("leaves the three tiles exactly as they were", () => {
+    const tiles = actionTilesFor([a("MANEUVER"), a("SCHEME", { card: "c1" }), reward2, reward3]);
+
+    expect(tiles.map((t) => [t.kind, t.actions.length])).toEqual([
+      ["maneuver", 1],
+      ["scheme", 1],
+      ["attack", 0],
+    ]);
+    expect(tiles.flatMap((t) => t.actions)).not.toContain(reward2);
+  });
+
+  test("does not conjure tiles on its own", () => {
+    expect(actionTilesFor([reward2])).toEqual([]);
+  });
+
+  test("abilityActionsOf picks the offered abilities, same objects, server order", () => {
+    const picked = abilityActionsOf([a("MANEUVER"), reward3, a("SCHEME", { card: "c1" }), reward2]);
+
+    expect(picked).toHaveLength(2);
+    expect(picked[0]).toBe(reward3);
+    expect(picked[1]).toBe(reward2);
+    expect(abilityActionsOf([a("MANEUVER")])).toEqual([]);
   });
 });
