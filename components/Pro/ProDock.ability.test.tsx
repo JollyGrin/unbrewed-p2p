@@ -209,3 +209,99 @@ describe.each(["portrait", "rail"] as const)("phone action sheet (%s)", (mobile)
     expect(screen.queryByTestId("pro-ability-tiles")).toBeNull();
   });
 });
+
+// Issue #1707: at rest the phone shows only the primary pill + "N more…", which hid
+// POMNI's free Reward buttons behind a tap. They now share the collapsed row.
+describe("phone collapsed pill row (portrait)", () => {
+  const pills = () => screen.getByTestId("pro-mobile-pills");
+  const more = () => screen.getByTestId("pro-mobile-more");
+
+  it("stands each offered ability on the pill row, above the primary action", () => {
+    render(<ProDock {...props([MANEUVER, SCHEME, REWARD_2, REWARD_3], { mobile: "portrait" })} />);
+
+    const strip = within(pills()).getByTestId("pro-pill-abilities");
+    expect(within(strip).getAllByTestId("pro-ability-button").map((b) => b.dataset.ability)).toEqual([
+      "reward-2",
+      "reward-3",
+    ]);
+    // the strip sits before the row that holds the primary action and "more"
+    expect(strip.nextElementSibling).toContainElement(screen.getByTestId("pro-mobile-primary"));
+    expect(strip.nextElementSibling).toContainElement(more());
+    // one of each on screen: nothing is drawn twice
+    expect(abilityButtons()).toHaveLength(2);
+    expect(screen.getByTestId("pro-mobile-primary")).toHaveTextContent(/maneuver/i);
+  });
+
+  it("does not count the abilities it shows in \"N more…\"", () => {
+    const { unmount } = render(<ProDock {...props([MANEUVER, SCHEME, REWARD_2, REWARD_3], { mobile: "portrait" })} />);
+    // 4 rows: Maneuver is the pill, the two rewards are on the row, only Scheme is left
+    expect(more()).toHaveTextContent("1 more…");
+    unmount();
+
+    render(<ProDock {...props([MANEUVER, REWARD_2], { mobile: "portrait" })} />);
+    // nothing hidden at all: the label says so rather than "0 more…"
+    expect(more()).toHaveTextContent("Details");
+  });
+
+  it("keeps the full sheet whole: every ability is in it, the pill row is gone", () => {
+    render(<ProDock {...props([MANEUVER, SCHEME, REWARD_2, REWARD_3], { mobile: "portrait" })} />);
+    fireEvent.click(more());
+
+    expect(screen.queryByTestId("pro-pill-abilities")).toBeNull();
+    expect(within(screen.getByTestId("pro-ability-tiles")).getAllByTestId("pro-ability-button")).toHaveLength(2);
+    expect(within(screen.getByTestId("pro-action-tiles")).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("sends back exactly the offered object, once per tap", () => {
+    const onAction = jest.fn();
+    render(<ProDock {...props([MANEUVER, REWARD_2, REWARD_3], { mobile: "portrait", onAction })} />);
+
+    fireEvent.click(abilityButtons()[1]);
+    fireEvent.click(abilityButtons()[1]); // a double tap is latched out, as in the sheet
+
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction.mock.calls[0][0]).toBe(REWARD_3);
+  });
+
+  it("is a floating plate, one line wide, with room to tap", () => {
+    render(<ProDock {...props([MANEUVER, REWARD_2, REWARD_3], { mobile: "portrait" })} />);
+
+    expect(window.getComputedStyle(screen.getByTestId("pro-pill-abilities")).flexWrap).toBe("wrap");
+    for (const b of abilityButtons()) {
+      expect(b.dataset.floating).toBe("true");
+      const css = window.getComputedStyle(b);
+      expect(css.minWidth).toBe("fit-content");
+      expect(css.pointerEvents).toBe("auto");
+      expect(css.minHeight).toBe("2.75rem");
+    }
+  });
+
+  it("is a lone ability's own primary when nothing else is legal, and counted out once", () => {
+    render(<ProDock {...props([REWARD_2], { mobile: "portrait" })} />);
+
+    // it is the pill; no second copy on the strip, and nothing "more"
+    expect(screen.queryByTestId("pro-pill-abilities")).toBeNull();
+    expect(screen.getByTestId("pro-mobile-primary")).toHaveTextContent("Reward 2");
+    expect(more()).toHaveTextContent("Details");
+  });
+
+  it("renders exactly as before when no ability is offered", () => {
+    render(<ProDock {...props([MANEUVER, SCHEME], { mobile: "portrait" })} />);
+
+    expect(screen.queryByTestId("pro-pill-abilities")).toBeNull();
+    expect(abilityButtons()).toEqual([]);
+    // the pills container holds just the one row: the primary pill + "1 more…"
+    expect(pills().children).toHaveLength(1);
+    expect(more()).toHaveTextContent("1 more…");
+  });
+});
+
+describe("landscape rail", () => {
+  it("is unchanged: no pill strip, abilities only in the always-open sheet strip", () => {
+    render(<ProDock {...props([MANEUVER, SCHEME, REWARD_2], { mobile: "rail" })} />);
+
+    expect(screen.queryByTestId("pro-pill-abilities")).toBeNull();
+    expect(abilityButtons()).toHaveLength(1);
+    expect(abilityButtons()[0].dataset.floating).toBeUndefined();
+  });
+});

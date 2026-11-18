@@ -27,6 +27,7 @@ export const AbilityButton = ({
   hotkey = null,
   minH,
   stretch = false,
+  floating = false,
   onPress,
 }: {
   /** the button text — the server's `label` */
@@ -43,6 +44,10 @@ export const AbilityButton = ({
    *  "Reward / 2"), so it is packed a little tighter, and a label too long to share
    *  a row takes the next row instead of wrapping inside half of one. */
   stretch?: boolean;
+  /** stand on the board itself (the phone's collapsed pill row, issue #1707): a
+   *  solid plate and a drop shadow in place of the sheet's see-through wash, and
+   *  the pill row's rounded ends, so it reads against the table. */
+  floating?: boolean;
   onPress: () => void;
 }) => {
   // Hover / focus / press-and-hold shows the card large. On touch, a hold that
@@ -53,6 +58,7 @@ export const AbilityButton = ({
       data-testid="pro-ability-button"
       data-ability={ability}
       data-strip={stretch ? "true" : undefined}
+      data-floating={floating ? "true" : undefined}
       aria-label={`${label}. ${FREE_ABILITY_BLURB}`}
       size="sm"
       flex={stretch ? "1 1 0" : undefined}
@@ -67,12 +73,16 @@ export const AbilityButton = ({
       gap={stretch ? "0.35rem" : "0.45rem"}
       whiteSpace="normal"
       textAlign="left"
-      bg="rgba(224, 168, 46, 0.08)"
+      bg={floating ? "rgba(44, 24, 49, 0.94)" : "rgba(224, 168, 46, 0.08)"}
+      borderRadius={floating ? "999px" : undefined}
+      boxShadow={floating ? "0 6px 20px rgba(12,4,16,0.5)" : undefined}
+      // the pill row's wrapper lets taps through to the board; its buttons do not
+      pointerEvents={floating ? "auto" : undefined}
       color="brand.parchment"
       border="1px dashed"
       borderColor="rgba(224, 168, 46, 0.75)"
-      _hover={{ bg: "rgba(224, 168, 46, 0.2)" }}
-      _active={{ bg: "rgba(224, 168, 46, 0.28)" }}
+      _hover={{ bg: floating ? "rgba(64, 38, 52, 0.96)" : "rgba(224, 168, 46, 0.2)" }}
+      _active={{ bg: floating ? "rgba(80, 48, 40, 0.98)" : "rgba(224, 168, 46, 0.28)" }}
       onClick={onPress}
       {...preview}
     >

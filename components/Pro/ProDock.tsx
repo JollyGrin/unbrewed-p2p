@@ -821,7 +821,12 @@ export const ProDock = ({
   // differs by shell only in the phone's double-tap latch.
   const abilityButton = (
     a: Extract<Action, { type: "USE_ABILITY" }>,
-    opts: { hotkey?: number | null; stretch?: boolean; press: (action: Action) => void }
+    opts: {
+      hotkey?: number | null;
+      stretch?: boolean;
+      floating?: boolean;
+      press: (action: Action) => void;
+    }
   ) => (
     <AbilityButton
       key={a.ability}
@@ -830,6 +835,7 @@ export const ProDock = ({
       card={a.card && abilityCard ? abilityCard(a.card) : null}
       hotkey={opts.hotkey}
       stretch={opts.stretch}
+      floating={opts.floating}
       minH={mobile ? TAP_TARGET : "2rem"}
       onPress={() => opts.press(a)}
     />
@@ -1278,7 +1284,19 @@ export const ProDock = ({
   // the first row in the dock's own order (maneuver leads that order, which is
   // what a player reaches for).
   const primary = soleAction ?? rows[0]?.action ?? null;
+  // Free abilities (v41) ride the collapsed phone pill row beside the primary
+  // action (issue #1707): the author should not have to open the sheet to find
+  // POMNI's Reward buttons. Each one shown there is no longer "more", so the
+  // count drops by exactly those (the primary, if it is itself an ability, is
+  // already counted out once). Only the portrait pill row does this: the rail is
+  // always open and the HUD keeps its own hexagons.
+  const primaryKey = primary ? JSON.stringify(primary) : null;
+  const pillAbilities =
+    mobile === "portrait"
+      ? abilityActionsOf(rows.map((r) => r.action)).filter((a) => JSON.stringify(a) !== primaryKey)
+      : [];
   const extra = Math.max(rows.length - (primary ? 1 : 0), 0);
+  const extraOnPill = Math.max(extra - pillAbilities.length, 0);
 
   // ----- hud (tabletop, landscape): banner + hexagons, sheet only on demand ---
   if (mobile === "hud") {
@@ -1440,6 +1458,19 @@ export const ProDock = ({
               {combatSummary}
             </Text>
           )}
+          {pillAbilities.length > 0 && (
+            <Flex
+              data-testid="pro-pill-abilities"
+              alignItems="center"
+              justifyContent="center"
+              flexWrap="wrap"
+              gap="0.5rem"
+              maxW="100%"
+              px="0.5rem"
+            >
+              {pillAbilities.map((a) => abilityButton(a, { stretch: true, floating: true, press: tapOnce }))}
+            </Flex>
+          )}
           <Flex alignItems="center" justifyContent="center" gap="0.5rem" maxW="100%" px="0.5rem">
             {primary ? (
               <Button
@@ -1502,7 +1533,7 @@ export const ProDock = ({
               pointerEvents="auto"
               onClick={() => setSheetOpen(true)}
             >
-              {extra > 0 ? `${extra} more…` : "Details"}
+              {extraOnPill > 0 ? `${extraOnPill} more…` : "Details"}
             </Button>
           </Flex>
         </Flex>
