@@ -15,7 +15,7 @@
  * reconnect token, STATE frames over a real recorded view).
  */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
@@ -404,6 +404,56 @@ describe("The Funny One! — pick the returned cards in one step", () => {
       await state({ ...targetPrompt("prompt-other", HAND), description: "Choose a card to discard", source: { card: "hero-a/strike#1" } });
       expect(heading()).toHaveTextContent("Choose a card to discard");
       expect(sourceFaces()).toHaveLength(1);
+    });
+  });
+
+  // Issue #1706: the reveal callouts for the batch that opens the picker floated over
+  // the phone sheet / desktop dock for 2-3 s. Only the picker's own batch loses them.
+  describe("reveal callouts and the picker (issue #1706)", () => {
+    const callouts = () => screen.queryAllByTestId("combat-callout");
+
+    it("shows a reveal's callout when no picker is involved (control)", async () => {
+      await mount();
+      await state(null, [{ type: "CARD_REVEALED", player: "p2", card: HAND[0] }]);
+      expect(callouts()).toHaveLength(1);
+    });
+
+    it("keeps the callouts for a count prompt that has no picker", async () => {
+      await mount();
+      // one revealed card while p2 holds three: not the whole hand, so no picker
+      await state(countPrompt(2), revealBatch([HAND[0]]));
+      expect(screen.queryByTestId("card-multi-pick")).not.toBeInTheDocument();
+      expect(callouts()).toHaveLength(1);
+    });
+
+    it("shows none for the batch that opens the picker, nor while it returns the cards", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      expect(faces()).toHaveLength(3);
+      expect(callouts()).toHaveLength(0);
+      fireEvent.click(faces()[0]);
+      confirm("Return 1 card");
+      expect(screen.getByTestId("card-multi-pick-busy")).toBeInTheDocument();
+      expect(callouts()).toHaveLength(0);
+    });
+
+    it("does not pop a held-back callout in late once the picker has answered", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      confirm("Return none");
+      await state(null);
+      expect(screen.queryByTestId("card-multi-pick-busy")).not.toBeInTheDocument();
+      expect(callouts()).toHaveLength(0);
+    });
+
+    it("plays the next reveal normally after the picker is gone", async () => {
+      await mount();
+      await state(countPrompt(2), revealBatch(HAND));
+      confirm("Return none");
+      await state(null, [{ type: "CARD_REVEALED", player: "p2", card: HAND[1] }]);
+      // the held-back callouts still occupied the reveal stagger queue (3 x 650 ms),
+      // so this one is dealt in as soon as the queue frees up
+      await waitFor(() => expect(callouts()).toHaveLength(1), { timeout: 4000 });
     });
   });
 });

@@ -185,7 +185,7 @@ import {
   type StepState,
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
-import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
+import { useCombatCallouts, useCalloutSuppression, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { attackerSwapText, defenderChangeKind, defenderRedirect, defenderSwapText } from "@/lib/pro/combatDefender";
 import { useAttackerSwap, useCombatTargeting, useDefenderSwap } from "@/lib/pro/useDefenderSwap";
 import {
@@ -787,6 +787,7 @@ const CardCallout = ({
   children: ReactNode;
 }) => (
   <Flex
+    data-testid="combat-callout"
     position="fixed"
     top={`calc(46% + ${slot * 1.4}rem)`}
     left={`calc(50% + ${slot * 1.6}rem)`}
@@ -5028,6 +5029,7 @@ const LiveGame = ({
   // byte-identical. `paceScale` stretches the reveal stagger + each callout's
   // on-screen life.
   const combatCallouts = useCombatCallouts(snapshot, paceScale);
+  const suppressCallouts = useCalloutSuppression();
 
   // The strike beat (issue #381): after the flip settles, the attack card slams
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
@@ -7295,6 +7297,9 @@ const LiveGame = ({
       }}
     />
   ) : null;
+  // While the picker (or its "returning…" line) is up the reveal callouts for that
+  // batch would only float over it (issue #1706): the picker IS the revealed hand.
+  const shownCallouts = suppressCallouts(combatCallouts, !!promptMultiPick);
   // The picker's instruction stands where the engine's "how many?" would (issue
   // #1703). While the picks are being sent there is no question left to state.
   const promptMultiPickHeading = (() => {
@@ -8416,7 +8421,7 @@ const LiveGame = ({
           the hook still advances its prevViewRef while off, so flipping the
           toggle mid-combat diffs cleanly with no backlog burst. */}
       {visualOn &&
-        combatCallouts.map((item) => (
+        shownCallouts.map((item) => (
           <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
         ))}
 

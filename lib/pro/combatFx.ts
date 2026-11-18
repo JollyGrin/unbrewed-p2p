@@ -264,3 +264,32 @@ export function useCombatCallouts(
 
   return items;
 }
+
+/**
+ * Hide the card callouts (`reveal` + `effect`, the floating cards and their name
+ * band) while `suppress` is true, and keep them hidden for good: a callout that
+ * was held back is never shown late, so a quick answer cannot pop a half-played
+ * flourish in over the next prompt. Turn / defend / cancel banners are untouched.
+ *
+ * Used by The Funny One!'s hand picker (issue #1706): the picker's own cards ARE
+ * the revealed hand, and the callouts for that same batch used to float over the
+ * bottom sheet / dock for 2-3 s while it was already usable. The callouts are
+ * already pointer-transparent; they covered it, they did not block it.
+ *
+ * The hook only owns the memory (call it with the other hooks); the returned
+ * function is plain and is called where `suppress` is known, which on the game
+ * page is below the early returns.
+ */
+export function useCalloutSuppression(): (items: CombatCalloutItem[], suppress: boolean) => CombatCalloutItem[] {
+  const hiddenRef = useRef<Set<string>>(new Set());
+  return (items, suppress) => {
+    const hidden = hiddenRef.current;
+    // Forget keys whose callout has expired so the set cannot grow over a long game.
+    const live = new Set(items.map((i) => i.key));
+    hidden.forEach((k) => {
+      if (!live.has(k)) hidden.delete(k);
+    });
+    if (suppress) for (const i of items) if (i.kind === "reveal" || i.kind === "effect") hidden.add(i.key);
+    return hidden.size === 0 ? items : items.filter((i) => !hidden.has(i.key));
+  };
+}
