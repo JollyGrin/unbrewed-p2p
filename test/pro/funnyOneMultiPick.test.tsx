@@ -15,7 +15,7 @@
  * reconnect token, STATE frames over a real recorded view).
  */
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterContext } from "next/dist/shared/lib/router-context";
@@ -437,23 +437,68 @@ describe("The Funny One! — pick the returned cards in one step", () => {
       expect(callouts()).toHaveLength(0);
     });
 
-    it("does not pop a held-back callout in late once the picker has answered", async () => {
+    // The picker batch's callouts would be dealt out on a 650 ms stagger by timers; an
+    // early answer must not let any of those fire later, over the dock or the next prompt.
+    // Fake clock so the timers really get the chance to fire.
+    const withClock = async (run: () => Promise<void>) => {
+      jest.useFakeTimers();
+      try {
+        await run();
+      } finally {
+        jest.useRealTimers();
+      }
+    };
+    const advance = async (ms: number) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+      });
+    };
+
+    it("never queues the picker batch's callouts: answering early shows none afterwards", async () => {
       await mount();
-      await state(countPrompt(2), revealBatch(HAND));
-      confirm("Return none");
-      await state(null);
-      expect(screen.queryByTestId("card-multi-pick-busy")).not.toBeInTheDocument();
-      expect(callouts()).toHaveLength(0);
+      await withClock(async () => {
+        await state(countPrompt(2), revealBatch(HAND));
+        await advance(300);
+        confirm("Return none");
+        await state(null);
+        for (let t = 0; t < 6; t++) {
+          await advance(500);
+          expect(callouts()).toHaveLength(0);
+        }
+      });
     });
 
-    it("plays the next reveal normally after the picker is gone", async () => {
+    it("…and none between queued answers, when no prompt is up", async () => {
       await mount();
-      await state(countPrompt(2), revealBatch(HAND));
-      confirm("Return none");
-      await state(null, [{ type: "CARD_REVEALED", player: "p2", card: HAND[1] }]);
-      // the held-back callouts still occupied the reveal stagger queue (3 x 650 ms),
-      // so this one is dealt in as soon as the queue frees up
-      await waitFor(() => expect(callouts()).toHaveLength(1), { timeout: 4000 });
+      await withClock(async () => {
+        await state(countPrompt(2), revealBatch(HAND));
+        fireEvent.click(faces()[0]);
+        confirm("Return 1 card");
+        await state(targetPrompt("prompt-pick-1", HAND));
+        await state(null);
+        for (let t = 0; t < 6; t++) {
+          await advance(500);
+          expect(callouts()).toHaveLength(0);
+        }
+      });
+    });
+
+    it("plays the NEXT batch's reveal at once, and only that one", async () => {
+      await mount();
+      await withClock(async () => {
+        await state(countPrompt(2), revealBatch(HAND));
+        confirm("Return none");
+        await state(null);
+        // the picker batch left nothing in the reveal queue, so no stagger delay
+        await state(null, [{ type: "CARD_REVEALED", player: "p2", card: "hero-b/dodge#1" }]);
+        await advance(100);
+        expect(callouts()).toHaveLength(1);
+        expect(callouts()[0]).toHaveTextContent(/dodge/i);
+        // 2 s later (< the callout's 2.3 s life) the picker batch's volleys still never came
+        await advance(2000);
+        expect(callouts()).toHaveLength(1);
+        expect(callouts()[0]).not.toHaveTextContent(/volley/i);
+      });
     });
   });
 });

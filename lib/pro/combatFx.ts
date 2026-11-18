@@ -198,9 +198,10 @@ export function diffCombatCallouts(
  * and combatStrike.ts. A mid-sequence pace change is read fresh each batch
  * (via `paceRef`), so it takes effect on the NEXT callout, not mid-flight.
  */
-export function useCombatCallouts(
-  snapshot: { view: PlayerView; events: GameEvent[] } | null,
-  paceFactor = 1
+export function useCombatCallouts<S extends { view: PlayerView; events: GameEvent[] }>(
+  snapshot: S | null,
+  paceFactor = 1,
+  skipCardCallouts?: (snapshot: S) => boolean
 ): CombatCalloutItem[] {
   const [items, setItems] = useState<CombatCalloutItem[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
@@ -212,6 +213,8 @@ export function useCombatCallouts(
   const revealCycleRef = useRef(0);
   const paceRef = useRef(paceFactor);
   paceRef.current = paceFactor;
+  const skipRef = useRef(skipCardCallouts);
+  skipRef.current = skipCardCallouts;
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -222,7 +225,13 @@ export function useCombatCallouts(
     if (!snapshot) return;
     const prev = prevViewRef.current;
     prevViewRef.current = snapshot.view;
-    const callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
+    let callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
+    // A batch whose own UI already shows the revealed cards (The Funny One!'s hand
+    // picker, issue #1706) loses its card callouts AT THE SOURCE: dropped before
+    // they are queued, so none can be scheduled and appear late once the player has
+    // answered, and they do not occupy the reveal stagger queue either. Turn /
+    // defend / cancel banners in the same batch are kept.
+    if (skipRef.current?.(snapshot)) callouts = callouts.filter((c) => c.kind !== "reveal" && c.kind !== "effect");
     if (callouts.length === 0) return;
 
     const factor = paceRef.current;
@@ -263,33 +272,4 @@ export function useCombatCallouts(
   }, [snapshot]);
 
   return items;
-}
-
-/**
- * Hide the card callouts (`reveal` + `effect`, the floating cards and their name
- * band) while `suppress` is true, and keep them hidden for good: a callout that
- * was held back is never shown late, so a quick answer cannot pop a half-played
- * flourish in over the next prompt. Turn / defend / cancel banners are untouched.
- *
- * Used by The Funny One!'s hand picker (issue #1706): the picker's own cards ARE
- * the revealed hand, and the callouts for that same batch used to float over the
- * bottom sheet / dock for 2-3 s while it was already usable. The callouts are
- * already pointer-transparent; they covered it, they did not block it.
- *
- * The hook only owns the memory (call it with the other hooks); the returned
- * function is plain and is called where `suppress` is known, which on the game
- * page is below the early returns.
- */
-export function useCalloutSuppression(): (items: CombatCalloutItem[], suppress: boolean) => CombatCalloutItem[] {
-  const hiddenRef = useRef<Set<string>>(new Set());
-  return (items, suppress) => {
-    const hidden = hiddenRef.current;
-    // Forget keys whose callout has expired so the set cannot grow over a long game.
-    const live = new Set(items.map((i) => i.key));
-    hidden.forEach((k) => {
-      if (!live.has(k)) hidden.delete(k);
-    });
-    if (suppress) for (const i of items) if (i.kind === "reveal" || i.kind === "effect") hidden.add(i.key);
-    return hidden.size === 0 ? items : items.filter((i) => !hidden.has(i.key));
-  };
 }

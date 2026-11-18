@@ -185,7 +185,7 @@ import {
   type StepState,
 } from "@/lib/pro/moveSteps";
 import { useGameFx, DamageArc } from "@/lib/pro/useGameFx";
-import { useCombatCallouts, useCalloutSuppression, CombatCalloutItem } from "@/lib/pro/combatFx";
+import { useCombatCallouts, CombatCalloutItem } from "@/lib/pro/combatFx";
 import { attackerSwapText, defenderChangeKind, defenderRedirect, defenderSwapText } from "@/lib/pro/combatDefender";
 import { useAttackerSwap, useCombatTargeting, useDefenderSwap } from "@/lib/pro/useDefenderSwap";
 import {
@@ -5028,8 +5028,17 @@ const LiveGame = ({
   // Decorative-only; a separate hook so the board-FX loop above stays
   // byte-identical. `paceScale` stretches the reveal stagger + each callout's
   // on-screen life.
-  const combatCallouts = useCombatCallouts(snapshot, paceScale);
-  const suppressCallouts = useCalloutSuppression();
+  const combatCallouts = useCombatCallouts(snapshot, paceScale, (s) => {
+    // The batch that opens The Funny One!'s hand picker (issue #1706): the picker
+    // IS the revealed hand, so its card callouts are never queued. Same test the
+    // prompt panel uses to decide whether to show the picker.
+    const p = s.prompt;
+    return (
+      !!p &&
+      p.player === s.view.you &&
+      !!revealedHandPick(p, s.events, (id) => s.view.players.find((x) => x.id === id)?.handCount)
+    );
+  });
 
   // The strike beat (issue #381): after the flip settles, the attack card slams
   // the defense card and it reacts by outcome. `lingeringCombat` freezes a combat
@@ -7297,9 +7306,6 @@ const LiveGame = ({
       }}
     />
   ) : null;
-  // While the picker (or its "returning…" line) is up the reveal callouts for that
-  // batch would only float over it (issue #1706): the picker IS the revealed hand.
-  const shownCallouts = suppressCallouts(combatCallouts, !!promptMultiPick);
   // The picker's instruction stands where the engine's "how many?" would (issue
   // #1703). While the picks are being sent there is no question left to state.
   const promptMultiPickHeading = (() => {
@@ -8421,7 +8427,7 @@ const LiveGame = ({
           the hook still advances its prevViewRef while off, so flipping the
           toggle mid-combat diffs cleanly with no backlog burst. */}
       {visualOn &&
-        shownCallouts.map((item) => (
+        combatCallouts.map((item) => (
           <CombatCalloutOverlay key={item.key} item={item} view={view} resolveCard={resolveCard} />
         ))}
 

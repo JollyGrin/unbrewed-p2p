@@ -353,3 +353,41 @@ describe("useCombatCallouts at a slower pace", () => {
     expect(result.current).toHaveLength(0);
   });
 });
+
+/** The skip predicate (issue #1706): a batch can drop its card callouts at the
+ *  source, keeping the banners and leaving the reveal stagger queue untouched. */
+describe("useCombatCallouts skipCardCallouts", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  type S = { view: PlayerView; events: GameEvent[]; skip?: boolean };
+  const events: GameEvent[] = [
+    { type: "SCHEME_PLAYED", player: "p1", card: "king-kong/plan#1" },
+    { type: "CARD_REVEALED", player: "p2", card: "baba-yaga/feint#1" },
+  ];
+
+  it("drops reveal/effect callouts of a skipped batch for good, keeps banners, and leaves the queue free", () => {
+    const { result, rerender } = renderHook(
+      (p: { s: S }) => useCombatCallouts(p.s, 1, (s) => !!s.skip),
+      { initialProps: { s: { view: view({ activePlayer: "p2" }), events: [] } as S } }
+    );
+    act(() => rerender({ s: { view: view({ activePlayer: "p1" }), events, skip: true } }));
+    expect(result.current).toEqual([{ kind: "turn", mine: true, key: expect.any(String) }]);
+    // nothing was scheduled: the two reveals never arrive later
+    act(() => jest.advanceTimersByTime(5000));
+    expect(result.current).toHaveLength(0);
+    // and the next batch is not queued behind them (its first card shows at once)
+    act(() => rerender({ s: { view: view({ activePlayer: "p1" }), events } }));
+    act(() => jest.advanceTimersByTime(1));
+    expect(result.current.map((i) => i.kind)).toEqual(["reveal"]);
+  });
+
+  it("without the predicate nothing changes (default)", () => {
+    const { result, rerender } = renderHook((p: { s: S }) => useCombatCallouts(p.s), {
+      initialProps: { s: { view: view({ activePlayer: "p1" }), events: [] } as S },
+    });
+    act(() => rerender({ s: { view: view({ activePlayer: "p1" }), events } }));
+    act(() => jest.advanceTimersByTime(1));
+    expect(result.current.map((i) => i.kind)).toEqual(["reveal"]);
+  });
+});
