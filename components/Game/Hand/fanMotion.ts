@@ -79,6 +79,28 @@ export const TILT_REST_MS = 220;
 /** Whether the cursor moved recently enough for the focused card to tilt. */
 export const tiltActive = (now: number, movedAt: number) =>
   now - movedAt < TILT_REST_MS;
+/** Travel from where the cursor came to rest that tilts the card again, px. */
+export const TILT_ARM_PX = 6;
+/** The cursor's last move that counts for the tilt: when, and where. */
+export type TiltTrack = { movedAt: number; x: number; y: number } | null;
+/**
+ * Take a cursor move into the tilt's track. While the tilt is live every move
+ * keeps it live. Once the cursor has rested, a move re-arms the tilt only
+ * after TILT_ARM_PX of travel from the rest point: a hand lying on the mouse
+ * twitches by a pixel now and then, and that must not rock (and blur) the
+ * card being read.
+ */
+export const trackTilt = (
+  track: TiltTrack,
+  now: number,
+  x: number,
+  y: number,
+): TiltTrack =>
+  track &&
+  !tiltActive(now, track.movedAt) &&
+  Math.hypot(x - track.x, y - track.y) < TILT_ARM_PX
+    ? track
+    : { movedAt: now, x, y };
 /** Proximity rise of cards near the cursor, px. */
 export const NEIGHBOUR_RISE = 14;
 /** Drag ghost sway: degrees per px/s of horizontal velocity, and its cap. */

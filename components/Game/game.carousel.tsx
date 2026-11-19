@@ -42,6 +42,8 @@ import {
   swayFor,
   takeHandArrival,
   tiltActive,
+  trackTilt,
+  type TiltTrack,
 } from "./Hand/fanMotion";
 
 const CARD_WIDTH = 150;
@@ -213,14 +215,15 @@ export const HandFan: React.FC<CardWrapperProps> = ({
   const tiltEls = useRef<(HTMLDivElement | null)[]>([]);
   const sims = useRef<CardSim[]>([]);
   /** cursor over the hand: focused card, x within the fan, tilt coords -1..1,
-   * and when it last moved (the tilt eases flat once it rests) */
+   * and its last move that counts for the tilt (which eases flat once the
+   * cursor rests, and stays flat while it only twitches) */
   const hover = useRef<{
     focus: number | null;
     x: number | null;
     u: number;
     v: number;
-    movedAt: number;
-  }>({ focus: null, x: null, u: 0, v: 0, movedAt: 0 });
+    tilt: TiltTrack;
+  }>({ focus: null, x: null, u: 0, v: 0, tilt: null });
   /** a drag (or its fly-back) is in progress: the fan goes quiet */
   const dragging = useRef(false);
   const ghost = useRef<GhostSim | null>(null);
@@ -256,7 +259,8 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const tilting =
       !reduced.current &&
       focus != null &&
-      tiltActive(performance.now(), h.movedAt);
+      h.tilt != null &&
+      tiltActive(performance.now(), h.tilt.movedAt);
     // keep the loop alive until the rest timer runs out and the tilt lets go
     if (tilting && (h.u !== 0 || h.v !== 0)) busy = true;
     sims.current.length = count;
@@ -466,7 +470,14 @@ export const HandFan: React.FC<CardWrapperProps> = ({
   useLayoutEffect(() => {
     const was = prevHand.current;
     prevHand.current = { cards: cards?.slice(), deckCount };
-    if (!cards || !motionAllowed()) return;
+    if (!cards) return;
+    if (!motionAllowed()) {
+      // Each card's angle is in its inline transform, which only stepFan
+      // writes: redo it before paint, so a hand that changed size is never
+      // drawn a frame at its old angles.
+      stepFan(0);
+      return;
+    }
     // Springs belong to cards, not to slots: when the hand changed, each
     // card takes its own along to its new place (a card discarded from the
     // left must not pass a neighbour's arrival flight one card over).
@@ -475,10 +486,11 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       if (from.some((j, i) => j !== i)) {
         const old = sims.current;
         sims.current = from.map((j) => (j >= 0 && old[j]) || restSim());
-        // before paint, so no card is drawn a frame in its neighbour's pose
-        stepFan(0);
       }
     }
+    // Before paint, so no card is drawn a frame in its neighbour's pose, or
+    // (the hand changed size) at the angle of the slot it had before.
+    stepFan(0);
     const arrivals = handArrivals(was.cards, cards);
     if (!arrivals.length) return;
     const noted = arrivals.length === 1 ? takeHandArrival() : null;
@@ -559,7 +571,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const clear = () => {
       const h = hover.current;
       if (h.focus == null && h.x == null) return;
-      Object.assign(h, { focus: null, x: null, u: 0, v: 0 });
+      Object.assign(h, { focus: null, x: null, u: 0, v: 0, tilt: null });
       kickRef.current();
     };
     const onMove = (ev: PointerEvent) => {
@@ -589,7 +601,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         h.focus = pickFocus(x, count, spacing, CARD_WIDTH, h.focus);
       }
       h.x = x;
-      h.movedAt = performance.now();
+      h.tilt = trackTilt(h.tilt, performance.now(), ev.clientX, ev.clientY);
       const lift = h.focus != null ? liftEls.current[h.focus] : undefined;
       if (lift) {
         const r = lift.getBoundingClientRect();
@@ -669,7 +681,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         x: null,
         u: 0,
         v: 0,
-        movedAt: 0,
+        tilt: null,
       });
       setDrag({ card, index });
       kickRef.current();
@@ -703,9 +715,13 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const flyBack = () => {
       const g = ghost.current;
       const at = resolveHandIndex(cardsRef.current, card, index);
-      // the lift is where the card is drawn; the slot itself is not rotated
+      // Home is the card's rest pose, which is the .hit box (the slot itself
+      // is not rotated). Not the lift: that is where the card is drawn right
+      // now, and after a quick cancel it is still sinking from its focus.
       const slot =
-        at >= 0 ? liftEls.current[at] ?? slotEls.current[at] : null;
+        at >= 0
+          ? slotEls.current[at]?.querySelector(".hit") ?? slotEls.current[at]
+          : null;
       if (!g || !slot || reduced.current) return finishGhost();
       const r = slot.getBoundingClientRect();
       g.mode = "return";
