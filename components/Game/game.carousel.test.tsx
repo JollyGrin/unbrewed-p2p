@@ -6,6 +6,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { HandFan, resolveHandIndex } from "./game.carousel";
 import { DeckImportCardType } from "../DeckPool/deck-import.type";
+import { resetSharpHandUrlForTests, writeSharpHand } from "../../lib/hand/sharpHand";
 
 const board = document.createElement("div");
 
@@ -251,5 +252,149 @@ describe("HandFan keeps resting cards off compositor layers", () => {
     move(120, 60); // a real move tilts it again
     frames(100);
     expect(layers(container)[0].tilt).toMatch(/^perspective\(900px\) rotateX\(/);
+  });
+});
+
+/**
+ * "Sharp hand cards" (#1712): opt-in. The card being read is never tilted and
+ * never given a layer hint, also while the cursor moves over it and while its
+ * springs move. Off (the default) is covered by every test above.
+ */
+describe("HandFan with Sharp hand cards on", () => {
+  const rect = Element.prototype.getBoundingClientRect;
+  beforeEach(() => {
+    jest.useFakeTimers(); // drives requestAnimationFrame and performance.now
+    Element.prototype.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 150, height: 200, right: 150, bottom: 200 }) as DOMRect;
+    localStorage.clear();
+    window.history.replaceState({}, "", "/offline");
+    resetSharpHandUrlForTests();
+  });
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = rect;
+    jest.useRealTimers();
+    localStorage.clear();
+  });
+
+  const state = (slot: HTMLElement) => {
+    const lift = slot.querySelector<HTMLElement>(".lift")!;
+    return {
+      hint: lift.style.willChange,
+      tilt: lift.querySelector<HTMLElement>(".tilt")!.style.transform,
+    };
+  };
+  const frames = (ms: number) => act(() => void jest.advanceTimersByTime(ms));
+  const moveOn = (slot: HTMLElement, x: number, y: number) =>
+    act(() => {
+      slot.dispatchEvent(
+        new FakePointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true }),
+      );
+    });
+  const flat = { hint: "", tilt: "" };
+  /** The cursor sweeps sideways and up and down over the card, a frame at a
+   * time; returns what the card carried on every frame. */
+  const sweep = (slot: HTMLElement, steps = 60) => {
+    const seen = [];
+    for (let k = 0; k < steps; k++) {
+      moveOn(slot, 20 + 110 * Math.abs(Math.sin(k / 6)), 20 + 150 * Math.abs(Math.cos(k / 4)));
+      frames(16);
+      seen.push(state(slot));
+    }
+    return seen;
+  };
+
+  it("the focused card has no tilt and no layer hint on any frame while the cursor moves", () => {
+    writeSharpHand(true);
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slot = container.querySelector<HTMLElement>("[data-fan-slot]")!;
+    expect(slot.dataset.sharp).toBe("true");
+
+    // from the very first frame: the focus spring (lift, enlarge) is moving
+    const seen = sweep(slot);
+    expect(slot.dataset.focused).toBe("true");
+    expect(seen).toEqual(Array(seen.length).fill(flat));
+    // and it did lift and enlarge
+    frames(1000);
+    expect(slot.querySelector<HTMLElement>(".lift")!.style.transform).toMatch(/scale\(1\.85\)$/);
+    expect(state(slot)).toEqual(flat);
+  });
+
+  it("the rest of the fan keeps moving as before: neighbours spread, with their hint", () => {
+    writeSharpHand(true);
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slots = Array.from(container.querySelectorAll<HTMLElement>("[data-fan-slot]"));
+    moveOn(slots[0], 100, 50);
+    frames(32);
+    expect(state(slots[1]).hint).toBe("transform"); // sliding aside
+    expect(state(slots[0])).toEqual(flat);
+    frames(1000);
+    expect(slots[1].querySelector<HTMLElement>(".lift")!.style.transform).toMatch(
+      /translateX\((?!0px)[\d.]+px\)/,
+    );
+    expect(state(slots[1])).toEqual(flat); // settled: no hint on anyone
+  });
+
+  it("a card sinking from its focus carries no hint either", () => {
+    writeSharpHand(true);
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slots = Array.from(container.querySelectorAll<HTMLElement>("[data-fan-slot]"));
+    moveOn(slots[0], 60, 50);
+    frames(1000);
+    expect(slots[0].dataset.focused).toBe("true");
+    moveOn(slots[2], 320, 50); // the focus moves to the last card
+    frames(16);
+    expect(slots[0].dataset.focused).toBe("false");
+    expect(slots[0].querySelector<HTMLElement>(".lift")!.style.transform).not.toMatch(/scale\(1\)$/);
+    expect(state(slots[0])).toEqual(flat);
+  });
+
+  it("switching it on while the card is tilted lays it flat at once", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slot = container.querySelector<HTMLElement>("[data-fan-slot]")!;
+    expect(slot.dataset.sharp).toBeUndefined();
+    moveOn(slot, 100, 50);
+    frames(100);
+    expect(state(slot).tilt).toMatch(/^perspective\(900px\) rotateX\(/);
+    expect(state(slot).hint).toBe("transform");
+
+    act(() => writeSharpHand(true));
+    frames(16);
+    expect(state(slot)).toEqual(flat);
+    const seen = sweep(slot, 30);
+    expect(seen).toEqual(Array(seen.length).fill(flat));
+
+    // and off again is today's fan: the tilt and the hint come back
+    act(() => writeSharpHand(false));
+    moveOn(slot, 30, 150);
+    frames(100);
+    expect(state(slot).tilt).toMatch(/^perspective\(900px\) rotateX\(/);
+    expect(state(slot).hint).toBe("transform");
+  });
+
+  it("?sharpHand=1 in the page address turns it on for the fan", () => {
+    window.history.replaceState({}, "", "/offline?sharpHand=1");
+    resetSharpHandUrlForTests();
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slot = container.querySelector<HTMLElement>("[data-fan-slot]")!;
+    const seen = sweep(slot, 30);
+    expect(slot.dataset.focused).toBe("true");
+    expect(seen).toEqual(Array(seen.length).fill(flat));
+  });
+
+  it("the card being read gives up the slot's drop-shadow filter, and only then", () => {
+    render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((el) => el.textContent ?? "")
+      .join("\n");
+    // (emotion writes the fan's sheet once per variant; every copy must be gated)
+    const rules = css.match(/[^{}]*\{[^{}]*filter:\s*none[^{}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules)
+      expect(rule).toMatch(/\[data-sharp="true"\]\[data-focused="true"\]\s*\{/);
   });
 });
