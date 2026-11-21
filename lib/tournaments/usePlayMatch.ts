@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { roomForMatch, ticketGameHref } from "@/lib/pro/tournamentTicket";
 
-import { getMatch, getMatchTicket, readyForMatch, type Result } from "./api";
+import { getMatch, getMatchTicket, readyForMatch, WRITE_TIMEOUT_TEXT, type Result } from "./api";
 import { currentChecks } from "./matchPage";
 import type { MatchDetail, TicketGrant } from "./types";
 
@@ -41,6 +41,7 @@ export const playErrorMessage = (r: Extract<Result<unknown>, { ok: false }>): st
       if (r.code === "not_running") return "This tournament isn't running.";
       return r.message ? `This match isn't open: ${r.message}.` : "This match isn't open to play.";
     default:
+      if (r.code === "timeout") return WRITE_TIMEOUT_TEXT;
       return r.code === "tournaments_disabled"
         ? "Tournament games aren't available right now."
         : "Couldn't reach the server. Try again.";

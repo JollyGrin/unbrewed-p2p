@@ -116,3 +116,22 @@ it("backs off on repeated errors (doubling, capped at 60s) and resets on success
   await tick(10_000); // success: back to 10s
   expect(get).toHaveBeenCalledTimes(8);
 });
+
+it("reports the match as gone only after two 404s that follow a good load", async () => {
+  get.mockResolvedValue({ ok: true, value: { match: { status: "open" }, tournament: { status: "running" } } });
+  const { result } = renderHook(() => useMatchDetail("s", "m"));
+  await act(async () => {
+    jest.advanceTimersByTime(0);
+  });
+  expect(result.current[2]).toBe(false);
+  get.mockResolvedValue({ ok: false, reason: "not_found" });
+  await act(async () => {
+    jest.advanceTimersByTime(10_000);
+  });
+  expect(result.current[2]).toBe(false);
+  await act(async () => {
+    jest.advanceTimersByTime(10_000);
+  });
+  expect(result.current[2]).toBe(true);
+  expect(result.current[0].status).toBe("ready");
+});

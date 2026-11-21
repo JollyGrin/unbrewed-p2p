@@ -3,7 +3,7 @@ import NextLink from "next/link";
 import { useState } from "react";
 
 import { signInUrl, useAccount } from "@/lib/account/useAccount";
-import { joinTournament, leaveTournament, type TournamentFailure } from "@/lib/tournaments/api";
+import { joinTournament, leaveTournament, WRITE_TIMEOUT_TEXT, type TournamentFailure } from "@/lib/tournaments/api";
 import { useTournament } from "@/lib/tournaments/hooks";
 import { joinState, activeEntries } from "@/lib/tournaments/joinState";
 import { describeTournamentRule } from "@/lib/tournaments/matchup";
@@ -76,13 +76,14 @@ export const JoinPanel = ({
   const userId = status === "signed-in" && account ? account.id : null;
   const state = joinState(t, entries, userId);
 
-  const run = async (fn: () => Promise<{ ok: boolean; reason?: TournamentFailure }>) => {
+  const run = async (fn: () => Promise<{ ok: boolean; reason?: TournamentFailure; code?: string }>) => {
     setBusy(true);
     setError(null);
     const r = await fn();
     setBusy(false);
     // already_joined / already left is the state we wanted: just refresh.
-    if (!r.ok && r.reason !== "already_joined" && r.reason !== "not_found")
+    if (!r.ok && r.code === "timeout") setError(WRITE_TIMEOUT_TEXT);
+    else if (!r.ok && r.reason !== "already_joined" && r.reason !== "not_found")
       setError(JOIN_ERRORS[r.reason ?? "unavailable"] ?? "Couldn't reach the server. Try again.");
     reload();
   };
@@ -204,7 +205,7 @@ export const EventView = ({ slug, justCreated }: { slug: string; justCreated: bo
           {data.status === "not_found" ? "That link doesn't match a tournament. It may have been cancelled." : "Tournaments are unavailable right now. Try again later."}
         </Notice>
         <Flex mt="16px" gap="10px" flexWrap="wrap">
-          {data.status === "unavailable" && <Btn variant="gold" onClick={reload}>Try again</Btn>}
+          <Btn variant="gold" onClick={reload}>Try again</Btn>
           <Btn href="/tournaments" variant="ghost">All tournaments</Btn>
         </Flex>
       </Page>

@@ -36,15 +36,28 @@ it("a slow POST that answers under 10s still succeeds", async () => {
   expect(r.ok).toBe(true);
 });
 
-it("writes are never aborted by the client: a 25s create/ready still lands (no duplicate on retry)", async () => {
-  global.fetch = slowFetch(25_000, { slug: "x", tournament: { slug: "x" } });
+it("a write answering at 60s still succeeds (the ceiling is 90s)", async () => {
+  global.fetch = slowFetch(60_000, { slug: "x", tournament: { slug: "x" } });
   const p = createTournament({} as never);
   const q = readyForMatch("s", "m");
-  await jest.advanceTimersByTimeAsync(25_000);
+  await jest.advanceTimersByTimeAsync(60_000);
   const [a, b] = await Promise.all([p, q]);
   expect(a.ok).toBe(true);
-  expect(b.ok !== undefined).toBe(true);
-  expect((global.fetch as jest.Mock).mock.calls.every(([, init]) => init.signal.aborted === false)).toBe(true);
+  expect(b.ok).toBe(true);
+});
+
+it("a write with no answer at 90s aborts with the 'taking too long' message", async () => {
+  global.fetch = slowFetch(600_000, {});
+  const p = joinTournament("s");
+  await jest.advanceTimersByTimeAsync(89_000);
+  expect((global.fetch as jest.Mock).mock.calls[0][1].signal.aborted).toBe(false);
+  await jest.advanceTimersByTimeAsync(1_000);
+  await expect(p).resolves.toMatchObject({
+    ok: false,
+    reason: "unavailable",
+    code: "timeout",
+    message: expect.stringContaining("taking too long"),
+  });
 });
 
 it("a large GET (replay) gets 30s, then times out as unavailable", async () => {

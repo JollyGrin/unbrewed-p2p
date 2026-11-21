@@ -93,7 +93,7 @@ export const seatHref = (roomId: string | null): string | null =>
 
 export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) => {
   const { status, account } = useAccount();
-  const [detail, reload] = useMatchDetail(slug, matchId);
+  const [detail, reload, gone] = useMatchDetail(slug, matchId);
   const [event, reloadEvent] = useTournament(slug);
   const now = useNow();
   const play = usePlayMatch(slug, matchId, reload);
@@ -120,6 +120,14 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
     );
 
   return (
+    <>
+    {gone && (
+      <Box role="status" data-testid="match-gone-notice" maxW="960px" mx="auto" px="16px" pt="12px" fontFamily="SpaceGrotesk">
+        <Text fontWeight={700}>
+          This match is no longer available. <NextLink href={tournamentPath(slug)}>Back to the tournament</NextLink>
+        </Text>
+      </Box>
+    )}
     <MatchBody
       d={detail.value}
       t={event.status === "ready" ? event.value.tournament : null}
@@ -143,6 +151,7 @@ export const MatchView = ({ slug, matchId }: { slug: string; matchId: string }) 
           : undefined
       }
     />
+    </>
   );
 };
 

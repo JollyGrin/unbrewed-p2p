@@ -7,7 +7,7 @@
  * the form below only decides which rule to send. What a game then looks like
  * is `assignment()`'s job (./matchup).
  */
-import type { AttentionItem, TournamentFailure } from "./api";
+import { WRITE_TIMEOUT_TEXT, type AttentionItem, type TournamentFailure } from "./api";
 import { matchCode } from "./bracket";
 import type { Entry, MapRef, Match, MatchupRule } from "./types";
 
@@ -276,6 +276,7 @@ export const organizerErrorText = (
   status?: string,
 ): string =>
   (r.code === "already_started" && status === "cancelled" ? "This tournament was cancelled." : null) ||
+  (r.code === "timeout" ? WRITE_TIMEOUT_TEXT : null) ||
   (r.code && ERRORS[r.code]) ||
   // round-map refusals arrive as raw api sentences; say them in our own words
   (r.reason === "invalid" && r.message && /round keys|'final' key|roundMaps|round maps/i.test(r.message) ? ROUND_MAPS_COPY : null) ||

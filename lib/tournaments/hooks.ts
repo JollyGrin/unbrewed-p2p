@@ -67,10 +67,14 @@ export const useTournament = (slug: string | null, pollMs = 10_000) => {
   const [loaded, reload] = useLoad<TournamentData>(slug ? () => getTournament(slug) : null, slug ?? "");
   const last = useRef<{ slug: string | null; loaded: Loaded<TournamentData> } | null>(null);
   if (loaded.status === "ready") last.current = { slug, loaded };
-  const state =
-    loaded.status === "unavailable" && last.current?.slug === slug ? last.current.loaded : loaded;
-  const running = state.status === "ready" && state.value.tournament.status === "running";
   const streak = useFailureCount(loaded.status, loaded);
+  const good = last.current?.slug === slug ? last.current.loaded : null;
+  // A failed poll, or a first 404, keeps showing the last good data; the second 404 in a row is final.
+  const state =
+    good && (loaded.status === "unavailable" || (loaded.status === "not_found" && streak.notFound < NOT_FOUND_LIMIT))
+      ? good
+      : loaded;
+  const running = good?.status === "ready" && good.value.tournament.status === "running";
   usePoll(running && streak.notFound < NOT_FOUND_LIMIT, pollMs, streak.failures, reload);
   return [state, reload] as const;
 };
@@ -94,7 +98,9 @@ export const useMatchDetail = (slug: string, matchId: string, pollMs = 10_000) =
         !!state.value.match.cancelled ||
         state.value.tournament.status === "cancelled"));
   usePoll(!done, pollMs, streak.failures, reload);
-  return [state, reload] as const;
+  // The match loaded once, then vanished (two 404s in a row): the data on screen is stale.
+  const gone = streak.notFound >= NOT_FOUND_LIMIT && state.status === "ready";
+  return [state, reload, gone] as const;
 };
 
 /** `Date.now()`, re-read every `ms` — for countdowns. */

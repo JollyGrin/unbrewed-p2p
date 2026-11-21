@@ -69,3 +69,31 @@ it("refreshes at once when the tab becomes visible again; the last-good fallback
   await tick(0);
   expect(result.current[0].status).toBe("unavailable"); // not slug a's data
 });
+
+const nf = { ok: false, reason: "not_found" };
+
+it("a transient 404 on a running event keeps polling and recovers; two 404s stop", async () => {
+  get.mockResolvedValue(data("running"));
+  const { result } = renderHook(() => useTournament("s"));
+  await tick(0);
+  get.mockResolvedValue(nf);
+  await tick(10_000);
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(result.current[0].status).toBe("ready"); // one 404 keeps the last data
+  get.mockResolvedValue(data("running"));
+  await tick(10_000);
+  expect(get).toHaveBeenCalledTimes(3);
+  expect(result.current[0].status).toBe("ready");
+
+  get.mockResolvedValue(nf);
+  await tick(10_000);
+  await tick(10_000);
+  expect(get).toHaveBeenCalledTimes(5);
+  expect(result.current[0].status).toBe("not_found");
+  await tick(60_000);
+  expect(get).toHaveBeenCalledTimes(5);
+
+  get.mockResolvedValue(data("running")); // the retry button
+  await act(async () => result.current[1]());
+  expect(result.current[0].status).toBe("ready");
+});

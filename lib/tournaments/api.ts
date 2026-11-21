@@ -50,6 +50,10 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 /** Large GET bodies (a replay bundle) on a slow mobile link. */
 export const LARGE_GET_TIMEOUT_MS = 30_000;
 
+/** A write that has not answered in this long is given up on; it may still have gone through. */
+export const WRITE_TIMEOUT_MS = 90_000;
+export const WRITE_TIMEOUT_TEXT = "This is taking too long. It may have gone through, reload to check.";
+
 const call = async <T>(
   path: string,
   init: RequestInit | undefined,
@@ -57,12 +61,15 @@ const call = async <T>(
   timeoutMs?: number,
 ): Promise<Result<T>> => {
   const ctl = new AbortController();
-  // Only GETs time out: a write (create, ready, join, override, cancel, start) can
-  // legitimately outlast any limit (the api waits on Discord) and has already
-  // happened server-side by then — aborting it invites a duplicate on retry.
+  // GETs give up after 10 s; a write can legitimately be slow (the api waits on
+  // Discord), so it gets a long ceiling and the caller is told it may have landed.
   const isGet = !init?.method || init.method.toUpperCase() === "GET";
-  const limit = timeoutMs ?? (isGet ? REQUEST_TIMEOUT_MS : null);
-  const timer = limit === null ? undefined : setTimeout(() => ctl.abort(), limit);
+  const limit = timeoutMs ?? (isGet ? REQUEST_TIMEOUT_MS : WRITE_TIMEOUT_MS);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, limit);
   try {
     const res = await fetch(`${API_URL}${path}`, {
       credentials: "include",
@@ -113,9 +120,11 @@ const call = async <T>(
         : {};
     return { ok: false, reason, code, message, ...(roomId ? { roomId } : {}), ...extra };
   } catch {
-    return { ok: false, reason: "unavailable" };
+    return timedOut && !isGet
+      ? { ok: false, reason: "unavailable", code: "timeout", message: WRITE_TIMEOUT_TEXT }
+      : { ok: false, reason: "unavailable" };
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    clearTimeout(timer);
   }
 };
 

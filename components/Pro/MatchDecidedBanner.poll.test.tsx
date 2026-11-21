@@ -94,3 +94,28 @@ it("backs off on errors: the interval doubles per failure (15s -> 30s -> 60s cap
   await tick(15_000);
   expect(get).toHaveBeenCalledTimes(6);
 });
+
+it("a response for an old room that lands after the room changed sets no notice and restarts nothing", async () => {
+  let release: (v: unknown) => void = () => {};
+  const decided = { ok: true, value: { match: { status: "decided", winner: "a", decidedBy: "organizer" }, tournament: { status: "running" }, players: {} } };
+  get.mockImplementationOnce(() => new Promise((res) => (release = res))).mockResolvedValue(open);
+  const ui = (matchId: string) => (
+    <ChakraProvider>
+      <MatchDecidedBanner at={{ slug: "s", matchId }} />
+    </ChakraProvider>
+  );
+  const { rerender, queryByTestId } = render(ui("old"));
+  await tick(0);
+  rerender(ui("new"));
+  await tick(0);
+  const callsBefore = get.mock.calls.length;
+  await act(async () => {
+    release(decided);
+  });
+  await tick(0);
+  expect(queryByTestId("match-decided-banner")).toBeNull();
+  // only the new room polls: one call per interval
+  await tick(15_000);
+  expect(get.mock.calls.length).toBe(callsBefore + 1);
+  expect(get.mock.calls.every(([, m]) => m === "old" || m === "new")).toBe(true);
+});
