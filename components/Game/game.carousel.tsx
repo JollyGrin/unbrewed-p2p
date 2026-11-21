@@ -45,6 +45,7 @@ import {
   trackTilt,
   type TiltTrack,
 } from "./Hand/fanMotion";
+import { useSharpHand } from "@/lib/hand/sharpHand";
 
 const CARD_WIDTH = 150;
 const CARD_HEIGHT = 200;
@@ -228,6 +229,12 @@ export const HandFan: React.FC<CardWrapperProps> = ({
   const dragging = useRef(false);
   const ghost = useRef<GhostSim | null>(null);
   const reduced = useRef(false);
+  /** "Sharp hand cards" (#1712): the card being read is never tilted and
+   * never given a layer hint. Read through a ref by the rAF loop; the change
+   * re-renders the fan, which kicks the loop. */
+  const [sharpHand] = useSharpHand();
+  const sharp = useRef(sharpHand);
+  sharp.current = sharpHand;
   const raf = useRef<number | null>(null);
   const lastFrame = useRef(0);
 
@@ -257,6 +264,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     // The focused card tilts toward the cursor while it moves and lies flat
     // once it rests, so a card being read is not a warped bitmap (#1710).
     const tilting =
+      !sharp.current &&
       !reduced.current &&
       focus != null &&
       h.tilt != null &&
@@ -287,6 +295,8 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         [s.rise, s.vr] = stepSpring(s.rise, s.vr, tRise, dt, LAYOUT);
         [s.tx, s.vtx] = stepSpring(s.tx, s.vtx, tTx, dt, TILT);
         [s.ty, s.vty] = stepSpring(s.ty, s.vty, tTy, dt, TILT);
+        // Sharp hand cards: flat at once, also when switched on mid-tilt.
+        if (sharp.current) s.tx = s.vtx = s.ty = s.vty = 0;
         const still =
           settled(s.f, s.vf, tf, 0.002) &&
           settled(s.spread, s.vs, tSpread, 0.1) &&
@@ -352,7 +362,14 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         // tilted, its text goes soft (#1710). So the layer hint is on only
         // while the card moves, and a flat card has no 3D transform at all:
         // at rest it is painted straight to the page, at its real size.
-        lift.style.willChange = moving ? "transform" : "";
+        // With "Sharp hand cards" on (#1712) the card being read never gets
+        // the hint, not while its springs move either: it is repainted each
+        // frame at its real size instead of being placed as a bitmap. "Being
+        // read" is the focused card and one still sinking from its focus.
+        lift.style.willChange =
+          moving && !(sharp.current && (focused || s.f > 0))
+            ? "transform"
+            : "";
       }
       if (tilt)
         tilt.style.transform =
