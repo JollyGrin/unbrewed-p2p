@@ -1,4 +1,5 @@
 import {
+  Box,
   Flex,
   IconButton,
   Popover,
@@ -9,6 +10,7 @@ import {
   Portal,
   Switch,
   Text,
+  Tooltip,
 } from "@chakra-ui/react";
 import { IoGlassesOutline } from "react-icons/io5";
 
@@ -23,20 +25,25 @@ export const DisplaySettings = () => {
   const [sharpHand, setSharpHand] = useSharpHand();
   return (
     <Popover placement="bottom-end" isLazy>
-      <PopoverTrigger>
-        <IconButton
-          aria-label="Display settings"
-          icon={<IoGlassesOutline size="0.85rem" />}
-          size="xs"
-          minW="1.4rem"
-          h="1.4rem"
-          borderRadius="1rem"
-          bg="rgba(20, 8, 24, 0.55)"
-          color="brand.highlight"
-          _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
-          _active={{ bg: "rgba(20, 8, 24, 0.85)" }}
-        />
-      </PopoverTrigger>
+      {/* The tooltip wraps the trigger: a bare glasses icon is hard to find. */}
+      <Tooltip label="Display settings" placement="bottom-end">
+        <Box display="inline-flex">
+          <PopoverTrigger>
+            <IconButton
+              aria-label="Display settings"
+              icon={<IoGlassesOutline size="0.85rem" />}
+              size="xs"
+              minW="1.4rem"
+              h="1.4rem"
+              borderRadius="1rem"
+              bg="rgba(20, 8, 24, 0.55)"
+              color="brand.highlight"
+              _hover={{ bg: "rgba(20, 8, 24, 0.85)" }}
+              _active={{ bg: "rgba(20, 8, 24, 0.85)" }}
+            />
+          </PopoverTrigger>
+        </Box>
+      </Tooltip>
       <Portal>
         <PopoverContent
           // Above the activity log and Report bug, like the hotseat settings.

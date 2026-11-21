@@ -812,7 +812,6 @@ export const HandFan: React.FC<CardWrapperProps> = ({
               }
               data-dragging={drag != null}
               data-drag-source={dragAt === index}
-              data-sharp={sharpHand || undefined}
               style={fanVars}
             >
               <Box className="hit" />
@@ -1035,15 +1034,6 @@ const FanCard = styled(Box)`
        bottom edge and stay on-screen + clickable (no scale, full size) */
     transform: translateX(-50%)
       translateY(calc(var(--droop) - ${CARD_HEIGHT * FOCUS_LIFT_RATIO}px));
-  }
-
-  /* "Sharp hand cards" (#1712): the card being read also gives up the
-     slot's drop-shadow. Raised above the hand it is drawn over the table's
-     own layers, so Chrome keeps it on a layer of its own whatever we do
-     (reason "Overlap"); without the filter that layer is the plain card at
-     its real size, with nothing left for the compositor to apply to it. */
-  &[data-sharp="true"][data-focused="true"] {
-    filter: none;
   }
 
   /* while a card is being dragged to the table the fan goes quiet */

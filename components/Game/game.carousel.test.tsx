@@ -308,7 +308,6 @@ describe("HandFan with Sharp hand cards on", () => {
     const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
     frames(1000);
     const slot = container.querySelector<HTMLElement>("[data-fan-slot]")!;
-    expect(slot.dataset.sharp).toBe("true");
 
     // from the very first frame: the focus spring (lift, enlarge) is moving
     const seen = sweep(slot);
@@ -355,7 +354,6 @@ describe("HandFan with Sharp hand cards on", () => {
     const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
     frames(1000);
     const slot = container.querySelector<HTMLElement>("[data-fan-slot]")!;
-    expect(slot.dataset.sharp).toBeUndefined();
     moveOn(slot, 100, 50);
     frames(100);
     expect(state(slot).tilt).toMatch(/^perspective\(900px\) rotateX\(/);
@@ -384,17 +382,5 @@ describe("HandFan with Sharp hand cards on", () => {
     const seen = sweep(slot, 30);
     expect(slot.dataset.focused).toBe("true");
     expect(seen).toEqual(Array(seen.length).fill(flat));
-  });
-
-  it("the card being read gives up the slot's drop-shadow filter, and only then", () => {
-    render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
-    const css = Array.from(document.querySelectorAll("style"))
-      .map((el) => el.textContent ?? "")
-      .join("\n");
-    // (emotion writes the fan's sheet once per variant; every copy must be gated)
-    const rules = css.match(/[^{}]*\{[^{}]*filter:\s*none[^{}]*\}/g) ?? [];
-    expect(rules.length).toBeGreaterThan(0);
-    for (const rule of rules)
-      expect(rule).toMatch(/\[data-sharp="true"\]\[data-focused="true"\]\s*\{/);
   });
 });
