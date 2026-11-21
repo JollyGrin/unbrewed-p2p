@@ -24,8 +24,6 @@ export const FOCUS_IN: SpringConfig = { k: 1000, zeta: 1 };
 export const FOCUS_OUT: SpringConfig = { k: 320, zeta: 1 };
 /** Neighbour spread / proximity rise. */
 export const LAYOUT: SpringConfig = { k: 520, zeta: 1 };
-/** Cursor tilt on the focused card: slightly underdamped so it feels physical. */
-export const TILT: SpringConfig = { k: 260, zeta: 0.75 };
 /** Drag ghost following the pointer: tight, tiny lag, no overshoot. */
 export const FOLLOW: SpringConfig = { k: 900, zeta: 0.9 };
 /** Drag ghost sway from horizontal velocity. */
@@ -67,40 +65,6 @@ export const settled = (x: number, v: number, target: number, eps = 0.01) =>
 /** How far the focused card rises and how big it gets (matches the old CSS). */
 export const FOCUS_LIFT_RATIO = 0.55; // of card height
 export const FOCUS_SCALE = 1.85;
-/** Max cursor tilt on the focused card, degrees. */
-export const MAX_TILT = 7;
-/**
- * How long after the cursor last moved the focused card keeps its tilt, ms.
- * Then it eases flat: a tilted card is a warped bitmap, so its text is soft
- * for as long as the tilt is held (issue #1710). Tilt is for motion; a card
- * being read lies flat and is drawn sharp.
- */
-export const TILT_REST_MS = 220;
-/** Whether the cursor moved recently enough for the focused card to tilt. */
-export const tiltActive = (now: number, movedAt: number) =>
-  now - movedAt < TILT_REST_MS;
-/** Travel from where the cursor came to rest that tilts the card again, px. */
-export const TILT_ARM_PX = 6;
-/** The cursor's last move that counts for the tilt: when, and where. */
-export type TiltTrack = { movedAt: number; x: number; y: number } | null;
-/**
- * Take a cursor move into the tilt's track. While the tilt is live every move
- * keeps it live. Once the cursor has rested, a move re-arms the tilt only
- * after TILT_ARM_PX of travel from the rest point: a hand lying on the mouse
- * twitches by a pixel now and then, and that must not rock (and blur) the
- * card being read.
- */
-export const trackTilt = (
-  track: TiltTrack,
-  now: number,
-  x: number,
-  y: number,
-): TiltTrack =>
-  track &&
-  !tiltActive(now, track.movedAt) &&
-  Math.hypot(x - track.x, y - track.y) < TILT_ARM_PX
-    ? track
-    : { movedAt: now, x, y };
 /** Proximity rise of cards near the cursor, px. */
 export const NEIGHBOUR_RISE = 14;
 /** Drag ghost sway: degrees per px/s of horizontal velocity, and its cap. */
