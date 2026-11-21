@@ -14,11 +14,7 @@ import {
   spreadFor,
   stepSpring,
   swayFor,
-  TILT_ARM_PX,
-  TILT_REST_MS,
-  tiltActive,
   toSlotFrame,
-  trackTilt,
 } from "./fanMotion";
 
 const W = 150;
@@ -196,54 +192,5 @@ describe("handCarryOver", () => {
   it("copes with no hand before or after", () => {
     expect(handCarryOver(undefined, [c("A")])).toEqual([-1]);
     expect(handCarryOver([c("A")], undefined)).toEqual([]);
-  });
-});
-
-describe("tiltActive", () => {
-  // A tilted card is a warped bitmap with soft text (#1710): it tilts while
-  // the cursor moves and lies flat, sharp, once the cursor rests on it.
-  it("holds the tilt while the cursor is moving", () => {
-    expect(tiltActive(1000, 1000)).toBe(true);
-    expect(tiltActive(1000 + TILT_REST_MS - 1, 1000)).toBe(true);
-  });
-
-  it("lets go once the cursor has rested", () => {
-    expect(tiltActive(1000 + TILT_REST_MS, 1000)).toBe(false);
-    expect(tiltActive(5000, 0)).toBe(false);
-  });
-
-  it("rests soon enough to read, but not mid-sweep", () => {
-    expect(TILT_REST_MS).toBeGreaterThanOrEqual(100);
-    expect(TILT_REST_MS).toBeLessThanOrEqual(400);
-  });
-});
-
-describe("trackTilt", () => {
-  const rested = { movedAt: 1000, x: 200, y: 300 };
-  const later = 1000 + TILT_REST_MS + 500;
-
-  it("arms on the first move, and keeps a live tilt live on any move", () => {
-    expect(trackTilt(null, 50, 10, 20)).toEqual({ movedAt: 50, x: 10, y: 20 });
-    expect(trackTilt(rested, 1100, 201, 300)).toEqual({ movedAt: 1100, x: 201, y: 300 });
-  });
-
-  it("ignores a twitch of a rested cursor", () => {
-    // a hand lying on the mouse: a pixel here and there must not tilt the card
-    expect(trackTilt(rested, later, 201, 300)).toBe(rested);
-    expect(trackTilt(rested, later, 197, 303)).toBe(rested);
-  });
-
-  it("measures the twitch from the rest point, so jitter does not add up", () => {
-    let t = rested;
-    for (let i = 0; i < 20; i++) t = trackTilt(t, later + i * 400, 200 + (i % 2) * 3, 300)!;
-    expect(t).toBe(rested);
-  });
-
-  it("re-arms once the cursor has really moved", () => {
-    expect(trackTilt(rested, later, 200 + TILT_ARM_PX, 300)).toEqual({
-      movedAt: later,
-      x: 200 + TILT_ARM_PX,
-      y: 300,
-    });
   });
 });
