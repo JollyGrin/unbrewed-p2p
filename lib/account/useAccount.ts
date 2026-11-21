@@ -47,6 +47,9 @@ let state: AccountState = LOADING;
 let probe: Promise<AccountState> | null = null;
 const listeners = new Set<(next: AccountState) => void>();
 
+/** The shared store's status right now, outside React (`loading` until the probe settles). */
+export const getAccountStatus = (): AccountState["status"] => state.status;
+
 const publish = (next: AccountState) => {
   state = next;
   listeners.forEach((listener) => listener(next));
