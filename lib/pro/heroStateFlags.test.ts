@@ -1531,7 +1531,7 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
 });
 
 // Harry Dresden (issue #1718 ↔ engine #1092). Keys verified against harry-dresden.rules.ts
-// @0fd0741a: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
+// @98aac839: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
 describe("Harry Dresden: PYRO FUEGO! shows, the bookkeeping does not, the Rings hold their cards", () => {
   it("DRESDEN_PYRO_FUEGO is a one-sided pill + a board badge on Dresden's own seat only", () => {
     expect(flagChipsFor("harry-dresden", { DRESDEN_PYRO_FUEGO: true })).toEqual([
