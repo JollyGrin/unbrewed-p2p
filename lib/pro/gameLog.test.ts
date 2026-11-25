@@ -1413,6 +1413,26 @@ describe("setup-time sidekick choice (issue #1717 ↔ protocol v42)", () => {
     ]);
   });
 
+  it("stays one line when the option adds fewer cards than the opening hand (deck count drops)", () => {
+    // Shared 25 + an option of 2 = 27 in the deck, five dealt → 25 left (-2), and the
+    // hand grows by five: without the pick gate the self-draw diff said "You drew 5 cards".
+    const hand = ["a/x#1", "a/y#2", "a/z#3", "a/w#4", "a/v#5"];
+    const mouse = fighter({ id: "p1/sidekick-1", owner: "p1", kind: "SIDEKICK", name: "Mouse", space: null, hp: 7, maxHp: 7 });
+    const before = view({ phase: "SETUP", self: { ...view({}).self, hand: [], deckCount: 25 } });
+    const after = view({ phase: "SETUP", fighters: [...view({}).fighters, mouse], self: { ...view({}).self, hand, deckCount: 22 } });
+    const events: GameEvent[] = [chose("p1", "mouse", "Mouse"), { type: "DECK_SHUFFLED", player: "p1" }];
+    expect(enrichLines(diffViews(before, after, label, events), events, ctx()).map((l) => l.text)).toEqual([
+      "You chose Mouse as your sidekick",
+    ]);
+  });
+
+  it("still narrates your own draw when the pick in the batch is somebody else's", () => {
+    const before = view({ self: { ...view({}).self, hand: [], deckCount: 10 } });
+    const after = view({ self: { ...view({}).self, hand: ["a/x#1"], deckCount: 9 } });
+    const events: GameEvent[] = [chose("p2", "murphy", "Karrin Murphy")];
+    expect(diffViews(before, after, label, events).map((l) => l.text)).toContain("You drew 1 card");
+  });
+
   it("reads the chooser's own close batch as one line too", () => {
     const hand = ["a/x#1", "a/y#2", "a/z#3", "a/w#4", "a/v#5"];
     const mouse = fighter({ id: "p1/sidekick-1", owner: "p1", kind: "SIDEKICK", name: "Mouse", space: null, hp: 7, maxHp: 7 });

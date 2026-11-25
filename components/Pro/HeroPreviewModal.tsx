@@ -8,8 +8,8 @@
  * unmatched.cards long before Pro rules do.
  *
  * Token art (issue #260): the hero/sidekick portraits reuse the deck snapshot's
- * `tokenImageUrl` — the SAME field lib/pro/useProCardArt resolves into
- * heroTokenUrl/sidekickTokenUrl for the live board. useProCardArt itself can't
+ * `tokenImageUrl` — the SAME field lib/pro/useProCardArt resolves for the live
+ * board (heroTokenUrl, and `sidekickTokenFor` for sidekicks). useProCardArt itself can't
  * run here: it resolves art by mid-match catalog + instance ids that don't exist
  * before a match starts, whereas useDeckPreview has already fetched the identical
  * snapshot whose hero.tokenImageUrl IS what useProCardArt would return. So we

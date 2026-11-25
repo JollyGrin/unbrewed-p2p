@@ -155,6 +155,8 @@ describe("the sidekick choice, for the seat choosing", () => {
     expect(screen.getByText("SIDEKICK")).toBeInTheDocument();
     expect(screen.queryByText("CHOOSE OPTION")).toBeNull();
     expect(screen.getByText("Choose your sidekick")).toBeInTheDocument();
+    // The engine's `hero:<player>` source is a setup step here, not an ability.
+    expect(screen.queryByText(/'s ability/)).toBeNull();
   });
 
   it("says what each option is: name, HP and reach", async () => {
@@ -190,6 +192,7 @@ describe("the sidekick choice, for everyone else", () => {
     expect(screen.getByText("Opponent is choosing a sidekick")).toBeInTheDocument();
     expect(screen.queryByText("Choose your sidekick")).toBeNull();
     expect(screen.queryByText("opponent is deciding…")).toBeNull();
+    expect(screen.queryByText(/'s ability/)).toBeNull();
     // The viewer's own earlier pick, as the other seat sees it on the same panel.
     expect(screen.getByText("Your sidekick: Mouse (7 HP · Melee)")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Karrin Murphy/ })).toBeNull();

@@ -8169,7 +8169,10 @@ const LiveGame = ({
             noteLine={promptNoteLine}
             previewInstance={promptCardInstance}
             sourceInstance={sourceCardInstance}
-            sourceLabel={sourceLabel}
+            // The engine opens the sidekick choice from a `hero:<player>` scope, which
+            // would print "<hero>'s ability" under it — it is a setup step, not an
+            // ability (issue #1717), so the attribution line is dropped for both seats.
+            sourceLabel={sidekickChoice ? null : sourceLabel}
             resolveCard={resolveCard}
             catalog={view.catalog}
             title={sidekickChoice ? "SIDEKICK" : null}

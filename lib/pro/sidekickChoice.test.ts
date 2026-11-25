@@ -1,5 +1,6 @@
 import type { LegalOption, ViewFighter, ViewPrompt } from "./protocol";
 import {
+  isSidekickChoiceDescription,
   isSidekickChoicePrompt,
   otherSidekickLines,
   sidekickChoiceHeadline,
@@ -63,6 +64,20 @@ describe("isSidekickChoicePrompt", () => {
       isSidekickChoicePrompt(prompt({ description: "Choose one", options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }))
     ).toBe(false);
     expect(isSidekickChoicePrompt(prompt({ description: undefined, options: [] }))).toBe(false);
+  });
+});
+
+describe("isSidekickChoiceDescription (engine PR #1091 wording)", () => {
+  it.each(["Choose your sidekick", "choose your sidekick", "  Choose your sidekick  ", "Choose your sidekick.", "Choose your sidekick!", "Choose your sidekick:", "Choose  your\tsidekick"])(
+    "accepts %j",
+    (d) => {
+      expect(isSidekickChoiceDescription(d)).toBe(true);
+      expect(isSidekickChoicePrompt(prompt({ player: "p2", options: [], description: d }))).toBe(true);
+    }
+  );
+
+  it.each([undefined, "", "Choose a sidekick to move", "Choose your sidekicks to move"])("rejects %j", (d) => {
+    expect(isSidekickChoiceDescription(d)).toBe(false);
   });
 });
 

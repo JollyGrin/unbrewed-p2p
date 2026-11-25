@@ -15,8 +15,26 @@
  */
 import type { LegalOption, PlayerId, PlayerView, ViewFighter, ViewPrompt } from "./protocol";
 
-/** The engine's `description` on the prompt (engine `openSidekickChoicePrompt`). */
+/**
+ * The engine's `description` on the prompt: the literal string engine
+ * `openSidekickChoicePrompt` passes to `openPrompt` (unbrewed-engine PR #1091,
+ * engine/effects.ts). A seat that is not choosing gets no options, so this wording
+ * is how it recognises the prompt; `isSidekickChoiceDescription` tolerates case,
+ * outer whitespace and trailing punctuation so a small copy edit engine-side does
+ * not silently drop the watcher copy back to the generic panel.
+ */
 export const SIDEKICK_CHOICE_DESCRIPTION = "Choose your sidekick";
+
+const normDescription = (s: string): string =>
+  s
+    .trim()
+    .replace(/[\s.!?:…]+$/u, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+/** Does a prompt `description` carry the engine's sidekick-choice wording? */
+export const isSidekickChoiceDescription = (description: string | undefined): boolean =>
+  description !== undefined && normDescription(description) === normDescription(SIDEKICK_CHOICE_DESCRIPTION);
 
 /** What one option says about its sidekick (`LegalOption.data` on this prompt). */
 export interface SidekickOptionData {
@@ -46,7 +64,7 @@ export const sidekickOptionData = (option: LegalOption): SidekickOptionData | nu
  */
 export const isSidekickChoicePrompt = (prompt: ViewPrompt | null | undefined): boolean => {
   if (!prompt || prompt.kind !== "CHOOSE_OPTION") return false;
-  if (prompt.description?.trim().toLowerCase() === SIDEKICK_CHOICE_DESCRIPTION.toLowerCase()) return true;
+  if (isSidekickChoiceDescription(prompt.description)) return true;
   return prompt.options.length >= 2 && prompt.options.every((o) => sidekickOptionData(o) !== null);
 };
 
