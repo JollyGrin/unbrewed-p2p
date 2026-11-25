@@ -1651,7 +1651,7 @@ describe("POMNI (pomni → 1y_5) deck data", () => {
 });
 
 // Harry Dresden (issue #1718 ↔ engine #1092, train feature/dresden). Rows transcribed from
-// data/heroes/harry-dresden.rules.ts @0fd0741a, where Service Pistol is TWO card ids (one
+// data/heroes/harry-dresden.rules.ts @98aac839, where Service Pistol is TWO card ids (one
 // per sidekick) for ONE printed card; the snapshot lists the printed card once.
 describe("Harry Dresden (harry-dresden) deck data", () => {
   const deck = readDeck("harry-dresden");

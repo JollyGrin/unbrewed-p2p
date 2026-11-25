@@ -406,6 +406,12 @@ export const HeroPreviewModal = ({
                       opacity={0.7}
                       mt="0.5rem"
                       fontFamily="SpaceGrotesk"
+                      // Two lines, not one: the author link is one unbreakable
+                      // inline-flex box, so a credit wider than the header line
+                      // (Harry Dresden's "the-unmatched.club community" at 390px)
+                      // was clipped to a bare "by…". A credit that fits one line
+                      // renders exactly as before.
+                      noOfLines={2}
                     />
                   )}
                 </Box>

@@ -183,6 +183,21 @@ describe("HeroPreviewModal — author credit", () => {
     );
   });
 
+  // #1718 follow-up: the link is one unbreakable inline-flex box, so a one-line clamp
+  // cut Harry Dresden's "the-unmatched.club community" credit to "by…" at 390px.
+  it("lets the credit wrap to a second line instead of clipping the author away", () => {
+    openDeck("harry-dresden", "Harry Dresden");
+    const link = screen.getByRole("link", { name: /the-unmatched\.club community's deck/i });
+    expect(link).toHaveAttribute("href", "https://www.the-unmatched.club/c/heroes/harry-dresden-the-dresden-files.2865");
+    const credit = link.closest("p") as HTMLElement;
+    // jsdom drops -webkit-line-clamp from computed style: read the Emotion rules
+    // that apply to the credit's own classes instead.
+    const rules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules].map((r) => r.cssText));
+    const mine = rules.filter((css) => [...credit.classList].some((c) => css.includes(`.${c}`)));
+    const clamp = mine.join(" ").match(/--chakra-line-clamp:\s*(\d+)/);
+    expect(clamp?.[1]).toBe("2");
+  });
+
   it("shows no credit for a served hero with no tile entry", () => {
     openDeck("deck-id", "Some Community Deck");
     expect(screen.queryByText(/^by /)).not.toBeInTheDocument();
