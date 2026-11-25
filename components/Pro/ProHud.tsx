@@ -142,12 +142,6 @@ const flagChipPalette = (on: boolean) =>
     : { bg: "#586A73", color: "#E9F0F3", ring: "rgba(165, 190, 200, 0.45)" };
 
 /**
- * One flag pill, styled in the counter-chip visual family. `key`ed by its state
- * upstream so a mid-game flip (HIGH TIDE <-> LOW TIDE from a "Turn the tide."
- * card) REMOUNTS it and replays the entrance pulse — the flip is noticeable with
- * no manual prev-value bookkeeping.
- */
-/**
  * One card placed on an ongoing scheme (issue #1718, Kinetic Rings): its title and
  * BOOST (the number the scheme's release reads), the full card on hover like every
  * other card on the plate, and a click that opens the pile's card list (the only way
@@ -162,7 +156,11 @@ const SchemePileCard = ({
   label: string;
   onOpen: () => void;
 }) => {
-  const preview = useCardPreview(card ?? null);
+  // Hover only. A focus preview on a card that is also its own button pops on the
+  // click, and again when the pile list closes and hands focus back here, then sticks
+  // until focus moves (CardPreview's own warning). Keyboard users get the full cards
+  // from the list the button opens.
+  const { onFocus: _focusPreview, onBlur: _blurPreview, ...preview } = useCardPreview(card ?? null);
   const boost = card?.boost;
   return (
     <Box
@@ -195,6 +193,12 @@ const SchemePileCard = ({
   );
 };
 
+/**
+ * One flag pill, styled in the counter-chip visual family. `key`ed by its state
+ * upstream so a mid-game flip (HIGH TIDE <-> LOW TIDE from a "Turn the tide."
+ * card) REMOUNTS it and replays the entrance pulse — the flip is noticeable with
+ * no manual prev-value bookkeeping.
+ */
 const FlagChip = ({
   chip,
   on,

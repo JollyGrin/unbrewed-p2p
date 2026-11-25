@@ -320,7 +320,10 @@ export const HeroPreviewModal = ({
   // A deck whose sidekick is chosen at setup (Harry Dresden, #1718) lists every option;
   // its option-tagged cards are only in the deck with that sidekick.
   const sidekickChoices = deck?.sidekickOptions?.length ? deck.sidekickOptions : null;
-  const sharedCards = cards.filter((c) => !c.sidekickOption);
+  // A tag that names no option (a typo, a renamed option) must not make its card
+  // vanish from both lists: it is listed with the shared cards instead.
+  const optionNames = new Set((sidekickChoices ?? []).map((o) => o.name));
+  const sharedCards = cards.filter((c) => !c.sidekickOption || !optionNames.has(c.sidekickOption));
   const ruleCards = (deck?.ruleCards ?? []).filter((r) => r.content?.trim());
   // Printed cards that are NOT in the deck (issue #671) — Boba Fett's SEISMIC
   // CHARGE, which *Slave I* names. Never drawn, so they are listed apart rather

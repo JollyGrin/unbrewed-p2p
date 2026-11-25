@@ -343,4 +343,22 @@ describe("HeroPreviewModal — a chosen sidekick (Harry Dresden)", () => {
     // all 18 printed titles, each exactly once (Service Pistol is in both sets: shared)
     expect(container.querySelectorAll("[data-card-key]")).toHaveLength(18);
   });
+
+  // Review of #1720: a tag that names no option must not drop its card from both lists.
+  it("lists a card whose tag names no option with the shared cards", () => {
+    const typo = JSON.parse(JSON.stringify(dresden)) as DeckImportDataType;
+    typo.cards.find((c) => c.title === "Temple Dog")!.sidekickOption = "Mouse the dog";
+    mockPreview.data = typo;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ChakraProvider>
+          <HeroPreviewModal isOpen onClose={() => {}} deckId="harry-dresden" heroName="Harry Dresden" heroId="harry-dresden" quickStats={{ hp: 17, move: 2, reach: "RANGED" }} />
+        </ChakraProvider>
+      </QueryClientProvider>
+    );
+    expect(screen.getByText("Shared cards (15)")).toBeInTheDocument();
+    expect(screen.getByText("With Mouse (1)")).toBeInTheDocument();
+    expect(document.body.querySelectorAll("[data-card-key]")).toHaveLength(18);
+  });
 });

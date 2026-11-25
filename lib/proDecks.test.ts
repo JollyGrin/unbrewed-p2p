@@ -3,7 +3,8 @@ import path from "path";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { isImportBlocked } from "@/lib/decks/blockedAuthors";
 import { loadProDeck, PRO_DECK_IDS } from "@/lib/proDecks";
-import { EVERGREEN_DECK_IDS, fetchDeckById, PRO_ONLY_DECK_IDS, ProOnlyDeckError } from "@/lib/evergreenDecks";
+import { EVERGREEN_DECK_IDS, fetchDeckById, PRO_ONLY_DECK_IDS, ProOnlyDeckError, proOnlyMessage } from "@/lib/evergreenDecks";
+import { failureReason } from "@/lib/deckAnalytics";
 
 const dir = path.join(process.cwd(), "public/evergreen-decks");
 const snapshot = (id: string): DeckImportType =>
@@ -40,6 +41,14 @@ describe("Pro-only decks stay out of every hand-dealt surface", () => {
   it("refuses it at the one deal-path fetch, with a player-facing reason", async () => {
     await expect(fetchDeckById("harry-dresden")).rejects.toBeInstanceOf(ProOnlyDeckError);
     await expect(fetchDeckById("harry-dresden")).rejects.toThrow("can only be played in Pro");
+  });
+
+  it("says WHY to the player and to analytics, never 'network' / 'try again'", async () => {
+    const err = await fetchDeckById("harry-dresden").catch((e: unknown) => e);
+    expect(proOnlyMessage(err)).toBe("harry-dresden can only be played in Pro: its sidekick is chosen when the game starts");
+    expect(failureReason(err)).toBe("pro_only");
+    // every other failure keeps its generic toast
+    expect(proOnlyMessage(new Error("boom"))).toBeNull();
   });
 
   it("every Pro-only deck is a real evergreen deck with a sidekick choice", () => {

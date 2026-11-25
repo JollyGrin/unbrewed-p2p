@@ -1,8 +1,9 @@
 import "@testing-library/jest-dom";
 import { ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { ProHud } from "./ProHud";
+import { CardPreviewProvider } from "./CardPreview";
 import { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
 import {
   CardInstanceId,
@@ -26,6 +27,11 @@ import {
 jest.mock("@chakra-ui/focus-lock", () => ({
   __esModule: true,
   FocusLock: ({ children }: { children: ReactNode }) => children,
+}));
+
+// the real card measures its text on a canvas, which jsdom hasn't got
+jest.mock("../CardFactory/Card", () => ({
+  Card: ({ card }: { card: { title: string } }) => <div data-testid="card-render">{card.title}</div>,
 }));
 
 jest.mock("../../lib/account/useAccount", () => ({
@@ -191,5 +197,37 @@ describe("Kinetic Rings: the placed cards are drawn on the ongoing scheme", () =
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("Kinetic Rings (placed on the ongoing scheme)");
     expect(dialog.textContent).not.toContain("tucked under hero card");
+  });
+
+  // Review of #1720: a focus preview on a card that is its own button popped on the
+  // click and again when the pile list handed focus back, then stuck. Hover only.
+  it("previews a placed card on hover, never on focus", () => {
+    jest.useFakeTimers();
+    try {
+      render(
+        <ChakraProvider>
+          <CardPreviewProvider>
+            <ProHud
+              view={makeView([dresden("p1", true, ["harry-dresden/temple-dog#2"]), seat("p2", false, "king-kong")], "p1")}
+              status="open"
+              roomId="room-1"
+              resolveCard={(id: CardInstanceId) => (DECK[defOf(id)] as DeckImportCardType) ?? null}
+              resolveHero={() => null}
+              labelFor={(id: CardInstanceId) => DECK[defOf(id)]?.title ?? id}
+            />
+          </CardPreviewProvider>
+        </ChakraProvider>
+      );
+      const previews = () => screen.queryAllByTestId("card-render").filter((n) => n.textContent === "Temple Dog");
+      const chip = screen.getAllByRole("button", { name: /Temple Dog, boost 2/ })[0];
+      fireEvent.focus(chip);
+      act(() => jest.advanceTimersByTime(1000));
+      expect(previews()).toHaveLength(0);
+      fireEvent.mouseEnter(chip);
+      act(() => jest.advanceTimersByTime(1000));
+      expect(previews().length).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

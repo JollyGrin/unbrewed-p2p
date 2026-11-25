@@ -34,13 +34,21 @@ export const EVERGREEN_DECK_IDS = new Set<string>(Object.values(HERO_DECK_IDS));
  */
 export const PRO_ONLY_DECK_IDS: ReadonlySet<string> = new Set(["harry-dresden"]);
 
-/** Thrown by `fetchDeckById` for a Pro-only deck; its message is player-facing. */
+/**
+ * Thrown by `fetchDeckById` for a Pro-only deck. Its message is the toast a
+ * caller shows instead of its generic "try again" line (`proOnlyMessage`);
+ * deck analytics record it as `pro_only` (lib/deckAnalytics `failureReason`).
+ */
 export class ProOnlyDeckError extends Error {
   constructor(id: string) {
     super(`${id} can only be played in Pro: its sidekick is chosen when the game starts`);
     this.name = "ProOnlyDeckError";
   }
 }
+
+/** The player-facing reason when `err` is a Pro-only refusal, else null. */
+export const proOnlyMessage = (err: unknown): string | null =>
+  err instanceof ProOnlyDeckError ? err.message : null;
 
 // The deck-fetch CORS proxy now lives in the engine server (folded in from the
 // standalone unbrewed-api Vercel app): same path, same body, CORS-open for GET.
