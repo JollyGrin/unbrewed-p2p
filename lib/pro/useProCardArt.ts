@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import {
   DeckImportCardType,
+  DeckImportDataType,
   DeckImportHeroType,
   DeckImportRuleCardType,
   DeckImportType,
@@ -427,21 +428,47 @@ export type ResolveHero = (heroId: string) => DeckImportHeroType | null;
 export type ResolveRuleCards = (heroId: string) => DeckImportRuleCardType[];
 /**
  * Board-token portrait art for one fighter, resolved by hero id + kind (HERO vs
- * SIDEKICK). Returns the deck JSON's `tokenImageUrl` for that fighter, or null
- * when the deck has none (converted decks, or a snapshot that failed to load) —
- * the board then draws its initials-only token exactly as before.
+ * SIDEKICK) and, for a sidekick, its name (issue #1717). Returns the deck JSON's
+ * `tokenImageUrl` for that fighter, or null when the deck has none (converted
+ * decks, or a snapshot that failed to load) — the board then draws its
+ * initials-only token exactly as before.
  */
 export type ResolveFighterToken = (
   heroId: string,
-  kind: "HERO" | "SIDEKICK"
+  kind: "HERO" | "SIDEKICK",
+  /** The fighter's `ViewFighter.name`. Only read for a deck with sidekick options. */
+  name?: string
 ) => string | null;
+
+/**
+ * A sidekick's token art (issue #1717 ↔ engine #1087). A deck with ONE sidekick
+ * answers its token whatever the name (unchanged; squad names and casing never
+ * matter). A deck whose player CHOOSES a sidekick (`sidekickOptions`, Harry
+ * Dresden) answers the option whose name matches the fighter's, then the primary
+ * `sidekick` if that is the one named; an unknown name or an option with no token
+ * art is null, so the board draws its initials token instead of another
+ * sidekick's face.
+ */
+export function sidekickTokenFor(
+  deck: Pick<DeckImportDataType, "sidekick" | "sidekickOptions">,
+  name?: string
+): string | null {
+  const options = deck.sidekickOptions ?? [];
+  if (options.length === 0) return deck.sidekick?.tokenImageUrl ?? null;
+  if (!name) return null;
+  const want = norm(name);
+  const match =
+    options.find((o) => norm(o.name ?? "") === want) ??
+    (deck.sidekick && norm(deck.sidekick.name ?? "") === want ? deck.sidekick : undefined);
+  return match?.tokenImageUrl ?? null;
+}
 
 interface HeroArt {
   cards: Record<string, DeckImportCardType>;
   hero: DeckImportHeroType;
   ruleCards: DeckImportRuleCardType[];
   heroTokenUrl: string | null;
-  sidekickTokenUrl: string | null;
+  sidekicks: Pick<DeckImportDataType, "sidekick" | "sidekickOptions">;
 }
 
 /**
@@ -515,7 +542,7 @@ export function useProCardArt(
             hero: deck.deck_data.hero,
             ruleCards: deck.deck_data.ruleCards ?? [],
             heroTokenUrl: deck.deck_data.hero.tokenImageUrl ?? null,
-            sidekickTokenUrl: deck.deck_data.sidekick?.tokenImageUrl ?? null,
+            sidekicks: { sidekick: deck.deck_data.sidekick, sidekickOptions: deck.deck_data.sidekickOptions },
           };
         })
       );
@@ -567,10 +594,10 @@ export function useProCardArt(
   const resolveRuleCards: ResolveRuleCards = (heroId) =>
     data?.[heroId]?.ruleCards ?? [];
 
-  const resolveFighterToken: ResolveFighterToken = (heroId, kind) => {
+  const resolveFighterToken: ResolveFighterToken = (heroId, kind, name) => {
     const art = data?.[heroId];
     if (!art) return null;
-    return (kind === "HERO" ? art.heroTokenUrl : art.sidekickTokenUrl) ?? null;
+    return kind === "HERO" ? art.heroTokenUrl : sidekickTokenFor(art.sidekicks, name);
   };
 
   return {

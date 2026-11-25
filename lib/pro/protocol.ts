@@ -940,7 +940,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1087, {39, 40, 42}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -1097,7 +1097,35 @@
  * render the move chip from it (fall back to the printed move when absent); on a `MOVE_SET`
  * status, mark the chip as modified and show its expiry.
  */
-export const PROTOCOL_VERSION = 40;
+/**
+ * v42 (engine #1087 — setup-time sidekick choice, DSL 0.96.0; first consumer Harry Dresden,
+ * "Choose Mouse or Karrin Murphy as your sidekick at the start of the game"). ADDITIVE: one
+ * `GameEvent` variant. (41 is held by the unmerged `feature/pomni-qol` train — USE_ABILITY;
+ * this number is provisional and whichever train merges second renumbers.)
+ *
+ * - A hero whose deck lets the player choose a sidekick gets, at game start — before the
+ *   mulligan window and before any fighter is placed — one ordinary `CHOOSE_OPTION` prompt
+ *   (`description: "Choose your sidekick"`). One option per sidekick: `id` is an opaque
+ *   option id, `label` the sidekick's name, `data: { name, hp, reach, quantity }`. Until that
+ *   seat answers, its hand is empty, its `deckCount` is the shared cards only and it has no
+ *   sidekick in `fighters`. Seats choose in seat order (p1, then p2, ...), each seeing the
+ *   earlier picks.
+ * - `SIDEKICK_CHOSEN { player, option, name }` — emitted the moment a seat answers, after
+ *   its sidekick figure exists (next view's `fighters`, unchanged shape) and its opening
+ *   hand is dealt (next view's `hand` / `handCount` / `deckCount`). Public to every seat;
+ *   the matching `PROMPT_RESOLVED.optionId` stays masked for other seats as always, so this
+ *   event is the only way an opponent's feed learns the pick. It is followed by the existing
+ *   `DECK_SHUFFLED { player }` (the chosen cards were shuffled in); no `CARD_DRAWN` events.
+ * - Nothing else moves: no action, prompt kind, view field or `LegalOption` shape. A v40
+ *   client renders the prompt with its generic option panel, drops the event and reads every
+ *   other frame as before, so v40 (and v39) stay accepted.
+ *
+ * CLIENT SURFACE (unbrewed-p2p): mirror the variant in `lib/pro/protocol.ts`; feed line
+ * "<player> chose <name> as their sidekick"; optionally show the prompt's `description` as
+ * the panel title; resolve sidekick token art by `ViewFighter.name` when a deck has more than
+ * one possible sidekick.
+ */
+export const PROTOCOL_VERSION = 42;
 export const REMATCH_PROTOCOL_VERSION = 35;
 
 /**
@@ -1379,6 +1407,10 @@ export type GameEvent =
   // DECK_SHUFFLED and CARD_DRAWN batch (card ids redacted for the other seat).
   | { type: "MULLIGAN_TAKEN"; player: PlayerId }
   | { type: "HAND_KEPT"; player: PlayerId }
+  // v42 — setup-time sidekick choice (engine #1087). `player` chose the sidekick option
+  // `option` (an opaque id), whose sidekick is named `name`. Public, unredacted, emitted
+  // the moment that seat answers its "Choose your sidekick" CHOOSE_OPTION prompt.
+  | { type: "SIDEKICK_CHOSEN"; player: PlayerId; option: string; name: string }
   | { type: "TOKEN_PLACED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; origin?: string }
   | { type: "TOKEN_DESTROYED"; token: string; kind: ViewTokenKind; owner: PlayerId; space: SpaceId; reason: "EFFECT" | "ENTERED" | "REPLACED" | "OWNER_ELIMINATED" | "EXPIRED" }
   | { type: "FIGHTER_REVIVED"; fighter: FighterId; space: SpaceId }

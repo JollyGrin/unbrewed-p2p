@@ -85,6 +85,14 @@ export type DeckImportDataType = {
   cards: DeckImportCardType[];
   hero: DeckImportHeroType;
   sidekick: DeckImportSidekickType;
+  /**
+   * Every sidekick the player can CHOOSE between at game start (issue #1717 ↔
+   * engine #1087, protocol v42; Harry Dresden: Mouse or Karrin Murphy). Absent for
+   * the usual one-sidekick deck. Pro reads it only to find a chosen sidekick's
+   * token art by name (useProCardArt `sidekickTokenFor`); `sidekick` stays the
+   * primary entry every other surface reads.
+   */
+  sidekickOptions?: DeckImportSidekickType[];
   name: string;
   ruleCards?: DeckImportRuleCardType[];
   /**

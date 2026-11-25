@@ -526,7 +526,13 @@ export function diffViews(
   // cards: draws and discard-pile growth. Only the viewer's own hand has
   // card identities; other seats expose count deltas.
   const drewSelf = next.self.hand.filter((c) => !prev.self.hand.includes(c)).length;
-  if (drewSelf > 0 && next.self.deckCount < prev.self.deckCount) {
+  // Your own setup-time sidekick pick (v42, issue #1717) deals your opening hand in
+  // the same batch the option's cards are shuffled in. When the option adds fewer
+  // cards than the hand takes, the deck count still drops (e.g. 27 → 25) and this
+  // would print "You drew 5 cards". SIDEKICK_CHOSEN already narrates the pick, and
+  // the opening deal is not a draw (the mulligan path stays quiet the same way).
+  const ownSidekickPick = events.some((e) => e.type === "SIDEKICK_CHOSEN" && e.player === next.you);
+  if (drewSelf > 0 && next.self.deckCount < prev.self.deckCount && !ownSidekickPick) {
     lines.push({ text: `You drew ${drewSelf} card${drewSelf === 1 ? "" : "s"}`, who: "you" });
   }
   // Another seat has no hand identities, so the count comes off the event
@@ -1305,6 +1311,21 @@ export function enrichLines(
         const verb = e.type === "MULLIGAN_TAKEN" ? "mulliganed" : "kept";
         added.push({
           text: `${ctx.seat(e.player)} ${verb} ${mine ? "your" : "their"} opening hand`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+
+      // --- v42 (issue #1717 ↔ engine #1087, setup-time sidekick choice) -------
+      // A seat picked its sidekick (Harry Dresden: Mouse or Karrin Murphy). Public
+      // the moment it is made, and the ONLY way another seat learns it: their
+      // PROMPT_RESOLVED.optionId is masked, and the new figure has no previous
+      // entry for the fighter diff to compare against, so nothing else narrates
+      // it. Seats pick in order, so the next chooser reads this line first.
+      case "SIDEKICK_CHOSEN": {
+        const mine = e.player === ctx.you;
+        added.push({
+          text: `${ctx.seat(e.player)} chose ${e.name} as ${mine ? "your" : "their"} sidekick`,
           who: whoOf(e.player),
         });
         break;

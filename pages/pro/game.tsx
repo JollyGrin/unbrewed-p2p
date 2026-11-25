@@ -112,6 +112,7 @@ import { GameLostScreen } from "@/components/Pro/GameLostScreen";
 import { RevealedHandPanel } from "@/components/Pro/RevealedHandPanel";
 import { actionFallbackLine, batchPhase, batchTurnTag, combatCardsOf, diffViews, enrichLines, seatLabel } from "@/lib/pro/gameLog";
 import { MulliganChoice, isMulliganPrompt, mulliganChoiceOf } from "@/lib/pro/mulligan";
+import { isSidekickChoicePrompt, otherSidekickLines, sidekickChoiceHeadline, sidekickOptionCaption } from "@/lib/pro/sidekickChoice";
 import { RAIL_WIDTH_CSS, TAP_TARGET, boardFitInsetFor, handDecisionKeyFor } from "@/lib/pro/mobileLayout";
 import { effectiveFigureStyle, figureStyleOptions, pieceCredit, pieceForStyle } from "@/lib/pro/figures";
 import { useMinis3dSource } from "@/lib/pro/minis3d/useMinis3dSource";
@@ -423,6 +424,10 @@ const PromptPanel = ({
   sourceLabel,
   resolveCard,
   catalog,
+  title = null,
+  headline = null,
+  optionCaptions = null,
+  waitingText = "opponent is deciding…",
 }: {
   prompt: ViewPrompt;
   you: PlayerView["you"];
@@ -463,10 +468,20 @@ const PromptPanel = ({
   sourceLabel: string | null;
   resolveCard: ResolveCard;
   catalog: Record<string, CardMeta>;
+  /** Panel title in place of the raw prompt kind ("CHOOSE OPTION"); null keeps the kind. */
+  title?: string | null;
+  /** Primary line in place of `prompt.description` (issue #1717: the sidekick choice
+   *  says WHO is choosing to the seats that are only watching). `budgetLine` still wins. */
+  headline?: string | null;
+  /** A second line under an option button's label, by option id (issue #1717: the
+   *  sidekick's HP and reach). */
+  optionCaptions?: Record<string, string> | null;
+  /** What a seat that is not choosing reads; null when `headline` already says it. */
+  waitingText?: string | null;
 }) => (
   <Box bg="brand.surface" border="2px solid" borderColor="brand.accent" borderRadius="0.5rem" p="1rem">
     <Text fontFamily="ArchivoNarrow" fontWeight="bold" mb="0.5rem" color="brand.accent">
-      {prompt.kind.replace(/_/g, " ")}
+      {title ?? prompt.kind.replace(/_/g, " ")}
     </Text>
     {/* v16 (issue #237): the mechanical step description — WHICH effect step is
         resolving on a multi-step card ("Choose a fighter to take 2 damage"). When
@@ -475,10 +490,10 @@ const PromptPanel = ({
         Both shown to chooser and spectator alike. Issue #412: for a CHOOSE_SPACE
         move prompt `budgetLine` (the "Move up to N spaces" budget, or a move-shaped
         fallback) takes the primary line so the step budget is always stated. */}
-    {(budgetLine ?? secretMarkPromptDescription(prompt.description)) ? (
+    {(budgetLine ?? headline ?? secretMarkPromptDescription(prompt.description)) ? (
       <>
         <Text fontSize="0.95rem" fontWeight="bold" mb="0.25rem" color="brand.parchment">
-          {budgetLine ?? secretMarkPromptDescription(prompt.description)}
+          {budgetLine ?? headline ?? secretMarkPromptDescription(prompt.description)}
         </Text>
         {sourceLabel && (
           <Text fontSize="0.75rem" mb="0.5rem" color="brand.parchment" opacity={0.7}>
@@ -554,15 +569,26 @@ const PromptPanel = ({
               textAlign="left"
               onClick={() => onRespond(prompt.promptId, o.id)}
             >
-              {o.label}
+              {optionCaptions?.[o.id] ? (
+                <Flex direction="column" alignItems="flex-start" gap="0.1rem">
+                  <span>{o.label}</span>
+                  <Text as="span" fontSize="0.75rem" fontWeight="normal" opacity={0.85}>
+                    {optionCaptions[o.id]}
+                  </Text>
+                </Flex>
+              ) : (
+                o.label
+              )}
             </Button>
           ))}
         </Flex>
       </>
     ) : (
-      <Text opacity={0.7} fontSize="0.9rem">
-        opponent is deciding…
-      </Text>
+      waitingText && (
+        <Text opacity={0.7} fontSize="0.9rem">
+          {waitingText}
+        </Text>
+      )
     )}
   </Box>
 );
@@ -7034,7 +7060,7 @@ const LiveGame = ({
     const st = ownerTokenState[f.owner];
     if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
     const heroId = ownerHeroIds[f.owner];
-    return heroId ? resolveFighterToken(heroId, f.kind) : null;
+    return heroId ? resolveFighterToken(heroId, f.kind, f.name) : null;
   };
   // Cosmetic rim tier for a hero's board token (issue #613/#615). PURELY
   // DECORATIVE: it rides BESIDE `fighterTokenArt` above rather than inside it,
@@ -7328,7 +7354,23 @@ const LiveGame = ({
   // the SAME static engine label, so the client supplies the running reduction that
   // makes them decidable. Pure and view-shaped: null for every prompt in every other
   // game (see lib/pro/clockTower.ts), so it is computed unconditionally.
-  const promptNoteLine = clockTowerMitigationLine(prompt, view.players, view.you);
+  const sidekickChoice = isSidekickChoicePrompt(prompt) ? prompt : null;
+  const sidekickSeat = (player: PlayerId) => seatLabel(view, player);
+  // issue #1717 — the setup sidekick choice. Picks are sequential and public, so a
+  // later chooser (and anyone watching) is shown the sidekicks other seats already
+  // have; the stats come off the view's own figures, never remembered client-side.
+  const sidekickOthersLine = sidekickChoice
+    ? otherSidekickLines(view, sidekickChoice.player, sidekickSeat).join(" · ") || null
+    : null;
+  const promptNoteLine = clockTowerMitigationLine(prompt, view.players, view.you) ?? sidekickOthersLine;
+  const sidekickOptionCaptions = sidekickChoice
+    ? Object.fromEntries(
+        sidekickChoice.options.flatMap((o) => {
+          const caption = sidekickOptionCaption(o);
+          return caption ? [[o.id, caption] as const] : [];
+        })
+      )
+    : null;
 
   // Prompt attribution (protocol v10, issue #35 / #147 / #151): `prompt.source`
   // names WHAT opened this prompt and is sent to BOTH players — a resolving card
@@ -8127,9 +8169,16 @@ const LiveGame = ({
             noteLine={promptNoteLine}
             previewInstance={promptCardInstance}
             sourceInstance={sourceCardInstance}
-            sourceLabel={sourceLabel}
+            // The engine opens the sidekick choice from a `hero:<player>` scope, which
+            // would print "<hero>'s ability" under it — it is a setup step, not an
+            // ability (issue #1717), so the attribution line is dropped for both seats.
+            sourceLabel={sidekickChoice ? null : sourceLabel}
             resolveCard={resolveCard}
             catalog={view.catalog}
+            title={sidekickChoice ? "SIDEKICK" : null}
+            headline={sidekickChoice ? sidekickChoiceHeadline(sidekickChoice, view.you, sidekickSeat) : null}
+            optionCaptions={sidekickOptionCaptions}
+            waitingText={sidekickChoice ? null : undefined}
           />
         ) : null
       }

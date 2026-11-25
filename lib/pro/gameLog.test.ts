@@ -170,6 +170,8 @@ const ALL_EVENTS: GameEvent[] = [
   { type: "SECRET_MARK_REVEALED", player: "p1", name: "MARK", fighter: "p1/sidekick-2" },
   // v40 (issue #1623 ↔ engine #1053) — an allowlisted new-line event.
   { type: "REACH_CHANGED", fighter: "p1/hero", reach: "RANGED" },
+  // v42 setup-time sidekick choice (issue #1717 ↔ engine #1087) — an allowlisted new-line event.
+  { type: "SIDEKICK_CHOSEN", player: "p1", option: "mouse", name: "Mouse" },
 ];
 
 // The allowlist — event types enrichLines is permitted to turn into new lines.
@@ -206,6 +208,7 @@ const ALLOWLIST = new Set([
   "COMBAT_DEFENDER_CHANGED",
   "SECRET_MARK_ASSIGNED",
   "SECRET_MARK_REVEALED",
+  "SIDEKICK_CHOSEN",
 ]);
 
 describe("enrichLines", () => {
@@ -767,7 +770,7 @@ describe("enrichLines", () => {
       // A discard is an annotation-only type; add it so the roster is exhaustive.
       seen.add("CARD_DISCARDED");
       // Sanity: the allowlist is a subset of what the union offers.
-      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED", "SECRET_MARK_ASSIGNED", "SECRET_MARK_REVEALED", "REACH_CHANGED", "BOOST_RETRIEVED"]).toContain(t);
+      for (const t of ALLOWLIST) expect(["VALUE_MODIFIED", "VALUE_SET", "EFFECT_SCHEDULED", "EFFECT_FIRED", "EFFECT_CANCELED", "COMBAT_VALUE_BREAKDOWN", "DEFENSE_IGNORED", "DAMAGE_PREVENTED", "EXHAUSTION_DAMAGE", "ACTIONS_GAINED", "CARD_RETURNED_TO_HAND", "CARD_SHUFFLED_INTO_DECK", "CARD_REVEALED", "CARD_TUCKED", "CARD_RETURNED_FROM_PILE", "COMBAT_WON_MARKED", "PLAYED_CARD_RETURNED", "SECOND_ATTACK_COMMITTED", "BONUS_ATTACK_STARTED", "BONUS_ATTACK_PASSED", "SUB_ATTACK_INITIATED", "EFFECT_ATTACK_INITIATED", "FIGHTER_MARKED", "FIGHTER_MARKS_CLEARED", "MULLIGAN_TAKEN", "HAND_KEPT", "POSITIONS_SWAPPED", "COMBAT_DEFENDER_CHANGED", "SECRET_MARK_ASSIGNED", "SECRET_MARK_REVEALED", "REACH_CHANGED", "BOOST_RETRIEVED", "SIDEKICK_CHOSEN"]).toContain(t);
     });
   });
 
@@ -1362,6 +1365,83 @@ describe("opening-hand mulligan (issue #622 ↔ protocol v30)", () => {
   it("adds nothing on a server that never opens the window", () => {
     const lines: ProLogLine[] = [{ text: "Turn 1 — your turn", who: "game" }];
     expect(enrichLines(lines, [{ type: "TURN_STARTED", player: "p1", turnNumber: 1 }], ctx())).toEqual(lines);
+  });
+});
+
+describe("setup-time sidekick choice (issue #1717 ↔ protocol v42)", () => {
+  const chose = (player: PlayerId, option: string, name: string): GameEvent => ({
+    type: "SIDEKICK_CHOSEN",
+    player,
+    option,
+    name,
+  });
+  const murphy = fighter({ id: "p2/sidekick-1", owner: "p2", kind: "SIDEKICK", name: "Karrin Murphy", space: null, hp: 5, maxHp: 5, reach: "RANGED" });
+
+  it("names the pick for the seat that made it", () => {
+    expect(enrichLines([], [chose("p1", "mouse", "Mouse")], ctx())).toEqual([
+      { text: "You chose Mouse as your sidekick", who: "you" },
+    ]);
+  });
+
+  it("names the pick for every other seat too — the event is the only place it shows", () => {
+    expect(enrichLines([], [chose("p2", "murphy", "Karrin Murphy")], ctx())).toEqual([
+      { text: "Opponent chose Karrin Murphy as their sidekick", who: "opp" },
+    ]);
+    expect(enrichLines([], [chose("p2", "murphy", "Karrin Murphy")], ctx("p3", (p) => (p === "p3" ? "You" : p.toUpperCase())))).toEqual([
+      { text: "P2 chose Karrin Murphy as their sidekick", who: "opp" },
+    ]);
+  });
+
+  it("is the only line of the close batch the engine sends — the new figure and the dealt hand stay quiet", () => {
+    // Engine #1087: the pick creates the (unplaced) sidekick, shuffles the option's
+    // cards into the deck and deals the opening hand with NO CARD_DRAWN events, then
+    // emits SIDEKICK_CHOSEN and DECK_SHUFFLED. The deck count does not drop (shared
+    // cards in, five out), so neither draw heuristic narrates the deal.
+    const before = view({ phase: "SETUP", opponent: { ...view({}).opponent!, handCount: 0, deckCount: 25 } });
+    const after = view({
+      phase: "SETUP",
+      fighters: [...view({}).fighters, murphy],
+      opponent: { ...view({}).opponent!, handCount: 5, deckCount: 25 },
+    });
+    const events: GameEvent[] = [
+      { type: "PROMPT_RESOLVED", player: "p2", promptId: "p0", optionId: "(hidden)" },
+      chose("p2", "murphy", "Karrin Murphy"),
+      { type: "DECK_SHUFFLED", player: "p2" },
+    ];
+    expect(enrichLines(diffViews(before, after, label, events), events, ctx())).toEqual([
+      { text: "Opponent chose Karrin Murphy as their sidekick", who: "opp" },
+    ]);
+  });
+
+  it("stays one line when the option adds fewer cards than the opening hand (deck count drops)", () => {
+    // Shared 25 + an option of 2 = 27 in the deck, five dealt → 25 left (-2), and the
+    // hand grows by five: without the pick gate the self-draw diff said "You drew 5 cards".
+    const hand = ["a/x#1", "a/y#2", "a/z#3", "a/w#4", "a/v#5"];
+    const mouse = fighter({ id: "p1/sidekick-1", owner: "p1", kind: "SIDEKICK", name: "Mouse", space: null, hp: 7, maxHp: 7 });
+    const before = view({ phase: "SETUP", self: { ...view({}).self, hand: [], deckCount: 25 } });
+    const after = view({ phase: "SETUP", fighters: [...view({}).fighters, mouse], self: { ...view({}).self, hand, deckCount: 22 } });
+    const events: GameEvent[] = [chose("p1", "mouse", "Mouse"), { type: "DECK_SHUFFLED", player: "p1" }];
+    expect(enrichLines(diffViews(before, after, label, events), events, ctx()).map((l) => l.text)).toEqual([
+      "You chose Mouse as your sidekick",
+    ]);
+  });
+
+  it("still narrates your own draw when the pick in the batch is somebody else's", () => {
+    const before = view({ self: { ...view({}).self, hand: [], deckCount: 10 } });
+    const after = view({ self: { ...view({}).self, hand: ["a/x#1"], deckCount: 9 } });
+    const events: GameEvent[] = [chose("p2", "murphy", "Karrin Murphy")];
+    expect(diffViews(before, after, label, events).map((l) => l.text)).toContain("You drew 1 card");
+  });
+
+  it("reads the chooser's own close batch as one line too", () => {
+    const hand = ["a/x#1", "a/y#2", "a/z#3", "a/w#4", "a/v#5"];
+    const mouse = fighter({ id: "p1/sidekick-1", owner: "p1", kind: "SIDEKICK", name: "Mouse", space: null, hp: 7, maxHp: 7 });
+    const before = view({ phase: "SETUP", self: { ...view({}).self, hand: [], deckCount: 25 } });
+    const after = view({ phase: "SETUP", fighters: [...view({}).fighters, mouse], self: { ...view({}).self, hand, deckCount: 25 } });
+    const events: GameEvent[] = [chose("p1", "mouse", "Mouse"), { type: "DECK_SHUFFLED", player: "p1" }];
+    expect(enrichLines(diffViews(before, after, label, events), events, ctx()).map((l) => l.text)).toEqual([
+      "You chose Mouse as your sidekick",
+    ]);
   });
 });
 
