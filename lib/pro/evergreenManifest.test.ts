@@ -11,6 +11,7 @@ import {
   HERO_STATE_FLAGS,
 } from "./heroStateFlags";
 import { POPULAR_DECKS } from "../constants/top-decks";
+import { PRO_ONLY_DECK_IDS } from "../evergreenDecks";
 
 const DECKS_DIR = join(__dirname, "..", "..", "public", "evergreen-decks");
 
@@ -1646,5 +1647,144 @@ describe("POMNI (pomni → 1y_5) deck data", () => {
     for (const u of urls) expect(u).not.toMatch(/\.(png|jpe?g|webp|gif)$/i);
     expect(deck.sourceUrl).toBe(SOURCE);
     expect(deck.user).toBe("Calton_White");
+  });
+});
+
+// Harry Dresden (issue #1718 ↔ engine #1092, train feature/dresden). Rows transcribed from
+// data/heroes/harry-dresden.rules.ts @0fd0741a, where Service Pistol is TWO card ids (one
+// per sidekick) for ONE printed card; the snapshot lists the printed card once.
+describe("Harry Dresden (harry-dresden) deck data", () => {
+  const deck = readDeck("harry-dresden");
+  type Card = {
+    title: string;
+    type: string;
+    value: number | null;
+    boost: number;
+    quantity: number;
+    characterName: string;
+    sidekickOption?: string;
+    imageUrl: string;
+    cardImage?: { url: string };
+  };
+  const cards = deck.deck_data.cards as Card[];
+  const options = deck.deck_data.sidekickOptions as { name: string; hp: number; quantity: number; isRanged: boolean; tokenImageUrl: string }[];
+  const SOURCE = "https://www.the-unmatched.club/c/heroes/harry-dresden-the-dresden-files.2865";
+  const ART = "/evergreen-decks/art/harry-dresden/";
+  // [title, type, value, boost, quantity, printed banner, sidekick option]
+  const ENGINE: [string, string, number, number, number, string, string | undefined][] = [
+    ["Bob's Advice", "scheme", 0, 2, 2, "Dresden", undefined],
+    ["Aparturum", "scheme", 0, 1, 2, "Dresden", undefined],
+    ["Kinetic Rings", "scheme", 0, 1, 1, "Dresden", undefined],
+    ["Shield Bracelet ⭐", "defense", 2, 1, 2, "Dresden", undefined],
+    ["Spellbreaker", "versatile", 2, 2, 2, "Any", undefined],
+    ["Arctis ⭐", "versatile", 2, 1, 2, "Dresden", undefined],
+    ["Forzare ⭐", "versatile", 3, 2, 2, "Any", undefined],
+    ["Confront any Demon or God", "versatile", 3, 2, 2, "Any", undefined],
+    ["Hell's Bells!", "versatile", 4, 2, 2, "Any", undefined],
+    ["Knowledge of the Art", "versatile", 4, 2, 2, "Any", undefined],
+    ["Ventas Fulmino ⭐", "attack", 2, 1, 2, "Dresden", undefined],
+    ["Ventris Cyclis ⭐", "attack", 2, 1, 2, "Dresden", undefined],
+    ["Fuego! ⭐", "attack", 3, 2, 2, "Dresden", undefined],
+    // service-pistol-mouse (HERO) + service-pistol-murphy (ANY), ×1 each: one printed card
+    ["Service Pistol", "attack", 5, 3, 1, "Any", undefined],
+    ["Banishing Roar", "versatile", 3, 2, 2, "Mouse", "Mouse"],
+    ["Temple Dog", "attack", 4, 2, 2, "Mouse", "Mouse"],
+    ["Tiny But Fierce", "versatile", 3, 2, 2, "Murphy", "Karrin Murphy"],
+    ["FN P-90", "attack", 4, 2, 2, "Murphy", "Karrin Murphy"],
+  ];
+  const copies = (list: Card[]) => list.reduce((n, c) => n + c.quantity, 0);
+
+  it("is wired: HERO_DECK_IDS, a lab-tier club tile, a manifest lock, Pro-only", () => {
+    expect(HERO_DECK_IDS["harry-dresden"]).toBe("harry-dresden");
+    expect(EVERGREEN_MANIFEST.find((e) => e.deckId === "harry-dresden")?.heroId).toBe("harry-dresden");
+    expect(POPULAR_DECKS.find((d) => d.id === "harry-dresden")).toMatchObject({
+      lab: true,
+      tier: "lab",
+      original: true,
+      sourceUrl: SOURCE,
+      cardbackUrl: `${ART}cardback.webp`,
+    });
+    expect(PRO_ONLY_DECK_IDS.has("harry-dresden")).toBe(true);
+  });
+
+  it("matches the engine card for card: 18 printed titles, 34 printed copies", () => {
+    expect(cards).toHaveLength(ENGINE.length);
+    expect(copies(cards)).toBe(34);
+    cards.forEach((card, i) => {
+      const [title, type, value, boost, quantity, banner, option] = ENGINE[i];
+      expect(card.title).toBe(title);
+      expect(normalizeType(card.type)).toBe(normalizeType(type));
+      expect(card.value ?? 0).toBe(value);
+      expect(card.boost).toBe(boost);
+      expect(card.quantity).toBe(quantity);
+      expect(card.characterName).toBe(banner);
+      expect(card.sidekickOption).toBe(option);
+    });
+  });
+
+  it("deals 30 with either sidekick: 26 shared + that sidekick's 4", () => {
+    expect(options.map((o) => o.name)).toEqual(["Mouse", "Karrin Murphy"]);
+    const shared = cards.filter((c) => !c.sidekickOption);
+    expect(copies(shared)).toBe(26);
+    for (const o of options) {
+      expect(copies(shared) + copies(cards.filter((c) => c.sidekickOption === o.name))).toBe(30);
+    }
+    // every tag names a real option
+    const names = new Set(options.map((o) => o.name));
+    for (const c of cards) if (c.sidekickOption) expect(names.has(c.sidekickOption)).toBe(true);
+  });
+
+  it("puts ' ⭐' on exactly the six pentacle cards (the engine's titles, R-G7)", () => {
+    expect(cards.filter((c) => c.title.includes("⭐")).map((c) => c.title)).toEqual([
+      "Shield Bracelet ⭐",
+      "Arctis ⭐",
+      "Forzare ⭐",
+      "Ventas Fulmino ⭐",
+      "Ventris Cyclis ⭐",
+      "Fuego! ⭐",
+    ]);
+    // norm() keeps the star, so the art index matches the engine's title
+    expect(norm(" Fuego! ⭐ ")).toBe("fuego! ⭐");
+  });
+
+  it("is Harry Dresden 17/2 ranged, Mouse 7 melee or Karrin Murphy 5 ranged", () => {
+    expect(deck.deck_data.hero).toMatchObject({ name: "Harry Dresden", hp: 17, move: 2, isRanged: true });
+    expect(deck.deck_data.hero.specialAbility).toContain("SOULFIRE");
+    expect(deck.deck_data.sidekick).toMatchObject({ name: "Mouse", hp: 7, quantity: 1, isRanged: false });
+    expect(options).toEqual([
+      expect.objectContaining({ name: "Mouse", hp: 7, quantity: 1, isRanged: false }),
+      expect.objectContaining({ name: "Karrin Murphy", hp: 5, quantity: 1, isRanged: true }),
+    ]);
+  });
+
+  it("ships 18 LOCAL full-card faces, the cardback and three tokens", () => {
+    for (const card of cards) {
+      expect(card.imageUrl).toMatch(/^\/evergreen-decks\/art\/harry-dresden\/[a-z0-9-]+\.webp$/);
+      expect(card.cardImage?.url).toBe(card.imageUrl);
+      expect(existsSync(join(DECKS_DIR, "..", card.imageUrl.replace(/^\//, "")))).toBe(true);
+    }
+    expect(new Set(cards.map((c) => c.imageUrl)).size).toBe(18);
+    const tokens = [deck.deck_data.hero.tokenImageUrl as string, ...options.map((o) => o.tokenImageUrl)];
+    expect(tokens).toEqual([`${ART}token-harry-dresden.webp`, `${ART}token-mouse.webp`, `${ART}token-karrin-murphy.webp`]);
+    for (const url of [deck.deck_data.appearance.cardbackUrl as string, ...tokens]) {
+      expect(existsSync(join(DECKS_DIR, "..", url.replace(/^\//, "")))).toBe(true);
+    }
+  });
+
+  it("leaves NO remote URL in the shipped data but the club page, and credits no person", () => {
+    const urls = (JSON.stringify(deck).match(/https?:\\?\/\\?\/[^"\\ )]+/g) ?? []).map((u) => u.replace(/\\/g, ""));
+    expect([...new Set(urls)]).toEqual([SOURCE]);
+    expect(deck.user).toBe("the-unmatched.club community");
+    expect(POPULAR_DECKS.find((d) => d.id === "harry-dresden")?.author).toBe("the-unmatched.club community");
+  });
+
+  it("locks which cards each sidekick brings: the option tags are in the digest", () => {
+    const base = computeDigest(deck);
+    const retagged = JSON.parse(JSON.stringify(deck));
+    delete retagged.deck_data.cards.find((c: Card) => c.title === "Temple Dog").sidekickOption;
+    expect(computeDigest(retagged)).not.toBe(base);
+    const swapped = JSON.parse(JSON.stringify(deck));
+    swapped.deck_data.sidekickOptions[1].hp = 6;
+    expect(computeDigest(swapped)).not.toBe(base);
   });
 });

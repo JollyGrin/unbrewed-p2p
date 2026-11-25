@@ -98,6 +98,7 @@ import {
   pileDisplayNote,
   pileCardIds,
   pileCreditFor,
+  schemePileFor,
 } from "@/lib/pro/heroStateFlags";
 import { DEFAULT_PLATE_LAYOUT, PlateLayout, PlateSeat, useHudPlates } from "@/lib/pro/useHudPlates";
 import { useCardPreview } from "./CardPreview";
@@ -146,6 +147,54 @@ const flagChipPalette = (on: boolean) =>
  * card) REMOUNTS it and replays the entrance pulse — the flip is noticeable with
  * no manual prev-value bookkeeping.
  */
+/**
+ * One card placed on an ongoing scheme (issue #1718, Kinetic Rings): its title and
+ * BOOST (the number the scheme's release reads), the full card on hover like every
+ * other card on the plate, and a click that opens the pile's card list (the only way
+ * to read it on a phone).
+ */
+const SchemePileCard = ({
+  card,
+  label,
+  onOpen,
+}: {
+  card: ReturnType<ResolveCard>;
+  label: string;
+  onOpen: () => void;
+}) => {
+  const preview = useCardPreview(card ?? null);
+  const boost = card?.boost;
+  return (
+    <Box
+      as="button"
+      type="button"
+      onClick={onOpen}
+      display="inline-flex"
+      alignItems="center"
+      gap="0.25rem"
+      px="0.4rem"
+      py="0.05rem"
+      borderRadius="0.3rem"
+      bg="brand.parchment"
+      color="brand.surfaceDim"
+      fontSize="0.64rem"
+      fontWeight="bold"
+      maxW="9rem"
+      aria-label={`${label}${boost != null ? `, boost ${boost}` : ""}: placed on the ongoing scheme`}
+      {...preview}
+    >
+      <Text as="span" noOfLines={1}>
+        {label}
+      </Text>
+      {boost != null && (
+        <Text as="span" opacity={0.7} sx={{ fontVariantNumeric: "tabular-nums" }} flexShrink={0}>
+          +{boost}
+        </Text>
+      )}
+    </Box>
+  );
+};
+
 const FlagChip = ({
   chip,
   on,
@@ -989,6 +1038,11 @@ export const SeatPlate = ({
   const ongoingSchemeCard = ongoingScheme ? resolveCard(ongoingScheme) : null;
   const ongoingSchemeLabel = ongoingScheme ? labelFor(ongoingScheme) : "";
   const ongoingSchemePreview = useCardPreview(ongoingSchemeCard);
+  // Cards placed ON the ongoing scheme (issue #1718: Harry Dresden's Kinetic Rings hold
+  // up to 2 drawn cards in the public KINETIC pile). Drawn on the scheme's own row, and
+  // counted on the collapsed plate's ONGOING tag, never as a nameplate pill.
+  const schemePile = schemePileFor(ongoingScheme, piles);
+  const schemePileCount = schemePile ? `${schemePile.cards.length}/${schemePile.entry.capacity}` : "";
 
   // Public face-up ongoing scheme (protocol v21). A compact title chip keeps the
   // state visible even when the plate is collapsed; the expanded row names the
@@ -1001,11 +1055,11 @@ export const SeatPlate = ({
       flexShrink={0}
       letterSpacing="0.04em"
       cursor={ongoingSchemeCard ? "help" : "default"}
-      aria-label={`Ongoing scheme: ${ongoingSchemeLabel}`}
+      aria-label={`Ongoing scheme: ${ongoingSchemeLabel}${schemePile ? `, ${schemePileCount} cards placed on it` : ""}`}
       title={ongoingSchemeLabel}
       {...ongoingSchemePreview}
     >
-      ONGOING
+      {schemePile ? `ONGOING · ${schemePileCount}` : "ONGOING"}
     </Tag>
   ) : null;
 
@@ -1157,19 +1211,8 @@ export const SeatPlate = ({
     ) : null;
   const trackTag = track ? <PileTrackTag track={track} /> : null;
 
-  const ongoingSchemeRow = ongoingScheme ? (
-    <Flex
-      alignItems="center"
-      gap="0.35rem"
-      px="0.85rem"
-      py="0.2rem"
-      bg="rgba(109, 76, 141, 0.28)"
-      color="brand.parchment"
-      cursor={ongoingSchemeCard ? "help" : "default"}
-      aria-label={`Ongoing scheme: ${ongoingSchemeLabel}`}
-      title={ongoingSchemeLabel}
-      {...ongoingSchemePreview}
-    >
+  const ongoingSchemeHead = (
+    <>
       <TbWand size="12px" />
       <Text
         fontSize="0.62rem"
@@ -1183,8 +1226,68 @@ export const SeatPlate = ({
       <Text fontSize="0.68rem" fontFamily="SpaceGrotesk" noOfLines={1}>
         {ongoingSchemeLabel}
       </Text>
+    </>
+  );
+  const ongoingSchemeRow = !ongoingScheme ? null : !schemePile ? (
+    <Flex
+      alignItems="center"
+      gap="0.35rem"
+      px="0.85rem"
+      py="0.2rem"
+      bg="rgba(109, 76, 141, 0.28)"
+      color="brand.parchment"
+      cursor={ongoingSchemeCard ? "help" : "default"}
+      aria-label={`Ongoing scheme: ${ongoingSchemeLabel}`}
+      title={ongoingSchemeLabel}
+      {...ongoingSchemePreview}
+    >
+      {ongoingSchemeHead}
     </Flex>
-  ) : null;
+  ) : (
+    // With cards on the scheme the row holds two kinds of hover target, so the scheme's
+    // own preview moves onto its name and each placed card previews itself.
+    <Flex
+      alignItems="center"
+      gap="0.35rem"
+      px="0.85rem"
+      py="0.2rem"
+      bg="rgba(109, 76, 141, 0.28)"
+      color="brand.parchment"
+      flexWrap="wrap"
+      data-testid="scheme-pile-row"
+    >
+      <Flex
+        alignItems="center"
+        gap="0.35rem"
+        minW={0}
+        cursor={ongoingSchemeCard ? "help" : "default"}
+        aria-label={`Ongoing scheme: ${ongoingSchemeLabel}`}
+        title={ongoingSchemeLabel}
+        {...ongoingSchemePreview}
+      >
+        {ongoingSchemeHead}
+      </Flex>
+      <Flex alignItems="center" gap="0.25rem" flexWrap="wrap">
+        {schemePile.cards.map((card, i) => (
+          <SchemePileCard
+            key={`${i}-${card}`}
+            card={resolveCard(card)}
+            label={labelFor(card)}
+            onOpen={() => setOpenPile(schemePile.entry.pile)}
+          />
+        ))}
+        <Text
+          fontSize="0.62rem"
+          fontWeight="bold"
+          opacity={0.8}
+          sx={{ fontVariantNumeric: "tabular-nums" }}
+          aria-label={`${schemePileCount} cards placed on ${schemePile.entry.name}`}
+        >
+          {schemePileCount}
+        </Text>
+      </Flex>
+    </Flex>
+  );
 
   const pipFooter = (
     <PipFooter>

@@ -28,6 +28,7 @@ import { MITIGATION_COUNTER } from "./clockTower";
 import { rangeSpendLineFor } from "./rangePurchase";
 import { spaceLabel } from "./spaceLabel";
 import { trackTuckLine } from "./pileTracks";
+import { schemePileByKey } from "./heroStateFlags";
 
 export interface ProLogLine {
   text: string;
@@ -321,8 +322,20 @@ const COUNTER_KEY_SEP = "\u001f";
  * (1 total)" would land right under the "was the Marked Blip — the Xenomorph emerges"
  * line that already tells the story. Printed on no card, never spendable, and by
  * decision no heroStateFlags.ts row (see useProCardArt.ts).
+ *
+ * Harry Dresden (issue #1718 ↔ engine #1092): `VENTRIS_DAMAGE` tallies the damage his
+ * fighters deal during a Ventris Cyclis combat, for the card's "if you dealt 2 or more
+ * damage", and is removed at the end of that combat. Printed on no card, never
+ * spendable; narrated, it would read "gained 2 VENTRIS_DAMAGE" under every hit.
  */
-const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([MITIGATION_COUNTER, "MAD", "COS", "ITS_ALIVE", "XENO_REVEALS"]);
+const BOOKKEEPING_COUNTERS: ReadonlySet<string> = new Set([
+  MITIGATION_COUNTER,
+  "MAD",
+  "COS",
+  "ITS_ALIVE",
+  "XENO_REVEALS",
+  "VENTRIS_DAMAGE",
+]);
 
 export function counterChangeLines(
   events: GameEvent[],
@@ -1141,6 +1154,17 @@ export function enrichLines(
           break;
         }
         const actor = e.controller ?? e.player;
+        // A card placed ON an ongoing scheme (Harry Dresden's Kinetic Rings, #1718) is
+        // under nobody's hero card; the line names the scheme it went onto.
+        const onScheme = schemePileByKey(e.pile);
+        if (onScheme) {
+          added.push({
+            text: `${ctx.seat(actor)} placed ${ctx.label(e.card)} on ${onScheme.name}`,
+            who: whoOf(actor),
+            cards: [e.card],
+          });
+          break;
+        }
         const under =
           e.player === ctx.you
             ? "your hero card"

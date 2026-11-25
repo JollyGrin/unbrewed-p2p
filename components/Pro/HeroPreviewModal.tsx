@@ -62,7 +62,7 @@ import { keyframes } from "@emotion/react";
 import { GiFootprint, GiHearts } from "@/components/Icons/gi";
 import { TbBow, TbSword } from "react-icons/tb";
 import { CardFace } from "./ProHand";
-import type { DeckImportCardType } from "@/components/DeckPool/deck-import.type";
+import type { DeckImportCardType, DeckImportSidekickType } from "@/components/DeckPool/deck-import.type";
 import { DeckAttribution } from "./DeckAttribution";
 import { CardPreviewProvider } from "./CardPreview";
 import { FighterTokenPortrait } from "./FighterTokenPortrait";
@@ -210,6 +210,34 @@ const CardGrid = ({
   </Box>
 );
 
+/** Printed copies in a card list (the sum of quantities). */
+const copiesOf = (cards: DeckImportCardType[]) => cards.reduce((n, c) => n + c.quantity, 0);
+
+/** One sidekick: token portrait, name, HP, count and reach, then its quote. */
+const SidekickLine = ({ sidekick }: { sidekick: DeckImportSidekickType }) => (
+  <Flex align="center" gap="0.75rem">
+    <FighterTokenPortrait name={sidekick.name} artUrl={sidekick.tokenImageUrl} size="3.25rem" />
+    <Box minW={0}>
+      <Flex align="center" gap="0.5rem" fontSize="0.9rem" flexWrap="wrap">
+        <Text fontWeight="bold">{sidekick.name}</Text>
+        {sidekick.hp !== null && (
+          <Flex align="center" gap="0.25rem">
+            <GiHearts color="#C0392B" size="13px" />
+            <Text>{sidekick.hp}</Text>
+          </Flex>
+        )}
+        {sidekick.quantity !== null && sidekick.quantity > 1 && <Text opacity={0.75}>×{sidekick.quantity}</Text>}
+        {sidekick.isRanged ? <TbBow size="13px" /> : <TbSword size="13px" />}
+      </Flex>
+      {sidekick.quote?.trim() && (
+        <Text mt="0.3rem" fontSize="0.8rem" fontStyle="italic" opacity={0.7} whiteSpace="pre-wrap">
+          {sidekick.quote.trim()}
+        </Text>
+      )}
+    </Box>
+  </Flex>
+);
+
 /** Rounded stat chip grouping the icon + value into a pill next to the name. */
 const StatPill = ({ icon, children }: { icon: ReactNode; children: ReactNode }) => (
   <Flex
@@ -289,6 +317,10 @@ export const HeroPreviewModal = ({
   const hasSidekick = hasFieldedSidekick(sidekick);
 
   const cards = (deck?.cards ?? []).filter((c) => !c.isCharacterCard);
+  // A deck whose sidekick is chosen at setup (Harry Dresden, #1718) lists every option;
+  // its option-tagged cards are only in the deck with that sidekick.
+  const sidekickChoices = deck?.sidekickOptions?.length ? deck.sidekickOptions : null;
+  const sharedCards = cards.filter((c) => !c.sidekickOption);
   const ruleCards = (deck?.ruleCards ?? []).filter((r) => r.content?.trim());
   // Printed cards that are NOT in the deck (issue #671) — Boba Fett's SEISMIC
   // CHARGE, which *Slave I* names. Never drawn, so they are listed apart rather
@@ -436,37 +468,25 @@ export const HeroPreviewModal = ({
               </Reveal>
             )}
 
-            {hasSidekick && (
+            {sidekickChoices ? (
               <Reveal index={1}>
-                <SectionHeading>Sidekick</SectionHeading>
-                <Flex align="center" gap="0.75rem">
-                  <FighterTokenPortrait
-                    name={sidekick!.name}
-                    artUrl={sidekick!.tokenImageUrl}
-                    size="3.25rem"
-                  />
-                  <Box minW={0}>
-                    <Flex align="center" gap="0.5rem" fontSize="0.9rem" flexWrap="wrap">
-                      <Text fontWeight="bold">{sidekick!.name}</Text>
-                      {sidekick!.hp !== null && (
-                        <Flex align="center" gap="0.25rem">
-                          <GiHearts color="#C0392B" size="13px" />
-                          <Text>{sidekick!.hp}</Text>
-                        </Flex>
-                      )}
-                      {sidekick!.quantity !== null && sidekick!.quantity > 1 && (
-                        <Text opacity={0.75}>×{sidekick!.quantity}</Text>
-                      )}
-                      {sidekick!.isRanged ? <TbBow size="13px" /> : <TbSword size="13px" />}
-                    </Flex>
-                    {sidekick!.quote?.trim() && (
-                      <Text mt="0.3rem" fontSize="0.8rem" fontStyle="italic" opacity={0.7} whiteSpace="pre-wrap">
-                        {sidekick!.quote.trim()}
-                      </Text>
-                    )}
-                  </Box>
+                <SectionHeading>Sidekick: choose one</SectionHeading>
+                <Text mb="0.5rem" fontSize="0.72rem" opacity={0.65}>
+                  Picked when the game starts. Only that sidekick&apos;s cards are shuffled in.
+                </Text>
+                <Flex direction="column" gap="0.6rem">
+                  {sidekickChoices.map((option) => (
+                    <SidekickLine key={option.name} sidekick={option} />
+                  ))}
                 </Flex>
               </Reveal>
+            ) : (
+              hasSidekick && (
+                <Reveal index={1}>
+                  <SectionHeading>Sidekick</SectionHeading>
+                  <SidekickLine sidekick={sidekick!} />
+                </Reveal>
+              )
             )}
 
             {deck?.hero.specialAbility?.trim() && (
@@ -494,7 +514,34 @@ export const HeroPreviewModal = ({
               </Reveal>
             )}
 
-            {cards.length > 0 && (
+            {cards.length > 0 && sidekickChoices && (
+              <Reveal index={4}>
+                {/* A chosen-sidekick deck (Harry Dresden) prints more cards than any one
+                    game uses: the shared cards plus ONE option's set. Listed apart so the
+                    preview never reads as a 34-card deck. */}
+                <SectionHeading>Shared cards ({sharedCards.length})</SectionHeading>
+                <Text mb="0.5rem" fontSize="0.72rem" opacity={0.65}>
+                  {`In the deck with either sidekick. Each game's deck is these ${copiesOf(sharedCards)} plus the chosen sidekick's cards.`}
+                </Text>
+                <CardGrid cards={sharedCards} worn={worn} />
+                {sidekickChoices.map((option) => {
+                  const own = cards.filter((c) => c.sidekickOption === option.name);
+                  return own.length === 0 ? null : (
+                    <Box key={option.name} data-testid={`option-cards-${option.name}`}>
+                      <SectionHeading>
+                        With {option.name} ({own.length})
+                      </SectionHeading>
+                      <Text mb="0.5rem" fontSize="0.72rem" opacity={0.65}>
+                        {`Only when ${option.name} is chosen: ${copiesOf(own)} cards, ${copiesOf(sharedCards) + copiesOf(own)} in all.`}
+                      </Text>
+                      <CardGrid cards={own} worn={worn} />
+                    </Box>
+                  );
+                })}
+              </Reveal>
+            )}
+
+            {cards.length > 0 && !sidekickChoices && (
               <Reveal index={4}>
                 <SectionHeading>Cards ({cards.length})</SectionHeading>
                 {/* Legible at rest (Part 2, Ask A): ~8.5rem tiles (hand-card size)

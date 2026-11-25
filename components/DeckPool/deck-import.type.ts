@@ -180,6 +180,13 @@ export type DeckImportCardType = {
    */
   isCharacterCard?: boolean;
   /**
+   * For a deck whose sidekick is chosen at setup (`deck_data.sidekickOptions`,
+   * Harry Dresden): the `name` of the option whose pick puts this card in the
+   * deck. Absent = a shared card, in the deck whichever sidekick is chosen. Part
+   * of the rules lock (scripts/lib/deckManifest.js).
+   */
+  sidekickOption?: string;
+  /**
    * Cosmetic metal-rim tier — the shared bronze/silver/antiqued-gold/iridescent
    * ladder of epic #610, the same four the fighter token wears. CLIENT-RENDER
    * ONLY: never present in deck JSON, never sent over the wire, stamped onto a

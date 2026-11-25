@@ -20,6 +20,8 @@
  * keyed on the deck id rather than the hero id.
  */
 import "@testing-library/jest-dom";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
@@ -278,5 +280,67 @@ describe("HeroPreviewModal — hero_preview_opened (#1512)", () => {
     mockTrack.mockClear();
     open("baba-yaga", "Baba Yaga");
     expect(mockTrack.mock.calls).toEqual([["hero_preview_opened", { hero_id: "baba-yaga" }]]);
+  });
+});
+
+// Harry Dresden (#1718): the first deck whose sidekick is CHOSEN at setup. His snapshot
+// prints 34 copies, but a game deals 30: the shared cards plus ONE sidekick's set. The
+// preview must say so, not list a 34-card deck under one "Cards" heading.
+describe("HeroPreviewModal — a chosen sidekick (Harry Dresden)", () => {
+  const dresden = (
+    JSON.parse(readFileSync(join(process.cwd(), "public/evergreen-decks/harry-dresden.json"), "utf8")) as {
+      deck_data: DeckImportDataType;
+    }
+  ).deck_data;
+
+  afterEach(() => {
+    mockPreview.data = null;
+  });
+
+  const openDresden = () => {
+    mockPreview.data = dresden;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <ChakraProvider>
+          <HeroPreviewModal
+            isOpen
+            onClose={() => {}}
+            deckId="harry-dresden"
+            heroName="Harry Dresden"
+            heroId="harry-dresden"
+            quickStats={{ hp: 17, move: 2, reach: "RANGED" }}
+          />
+        </ChakraProvider>
+      </QueryClientProvider>
+    );
+  };
+
+  it("offers BOTH sidekicks as a choice, each with its own stats", () => {
+    openDresden();
+    expect(screen.getByText("Sidekick: choose one")).toBeInTheDocument();
+    expect(screen.queryByText("Sidekick")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Mouse").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Karrin Murphy").length).toBeGreaterThan(0);
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+  });
+
+  it("lists the shared cards apart from each sidekick's own, and adds each up to 30", () => {
+    openDresden();
+    // the modal renders in a portal, outside the render container
+    const container = document.body;
+    expect(screen.queryByText(/^Cards \(/)).not.toBeInTheDocument();
+    expect(screen.getByText("Shared cards (14)")).toBeInTheDocument();
+    expect(screen.getByText("With Mouse (2)")).toBeInTheDocument();
+    expect(screen.getByText("With Karrin Murphy (2)")).toBeInTheDocument();
+    expect(screen.getByText("Only when Mouse is chosen: 4 cards, 30 in all.")).toBeInTheDocument();
+    expect(screen.getByText("Only when Karrin Murphy is chosen: 4 cards, 30 in all.")).toBeInTheDocument();
+    const keysIn = (testId: string) =>
+      [...container.querySelectorAll(`[data-testid="${testId}"] [data-card-key]`)].map((n) => n.getAttribute("data-card-key"));
+    expect(keysIn("option-cards-Mouse")).toEqual(["banishing roar", "temple dog"]);
+    expect(keysIn("option-cards-Karrin Murphy")).toEqual(["tiny but fierce", "fn p-90"]);
+    // all 18 printed titles, each exactly once (Service Pistol is in both sets: shared)
+    expect(container.querySelectorAll("[data-card-key]")).toHaveLength(18);
   });
 });
