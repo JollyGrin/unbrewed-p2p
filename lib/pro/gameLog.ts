@@ -1310,6 +1310,21 @@ export function enrichLines(
         break;
       }
 
+      // --- v42 (issue #1717 ↔ engine #1087, setup-time sidekick choice) -------
+      // A seat picked its sidekick (Harry Dresden: Mouse or Karrin Murphy). Public
+      // the moment it is made, and the ONLY way another seat learns it: their
+      // PROMPT_RESOLVED.optionId is masked, and the new figure has no previous
+      // entry for the fighter diff to compare against, so nothing else narrates
+      // it. Seats pick in order, so the next chooser reads this line first.
+      case "SIDEKICK_CHOSEN": {
+        const mine = e.player === ctx.you;
+        added.push({
+          text: `${ctx.seat(e.player)} chose ${e.name} as ${mine ? "your" : "their"} sidekick`,
+          who: whoOf(e.player),
+        });
+        break;
+      }
+
       // --- v40 (issue #1623 ↔ engine #1053 / #1057, POMNI) ---------------------
       // A card or hero effect changed a fighter's reach (Reward 1: "Pomni is a ranged
       // fighter"). The view's `reach` already moved, but no diff line reads reach, so

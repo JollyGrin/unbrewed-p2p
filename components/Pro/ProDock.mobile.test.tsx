@@ -435,6 +435,33 @@ describe("ProDock portrait board-pick bar (mobile step 1)", () => {
       expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
     });
 
+    // #1717: the setup sidekick choice and the same seat's mulligan that follows it
+    // both arrive as promptId "p0", so a minimise keyed on the bare id carried over.
+    it("brings the sheet back when the next prompt reuses the id (sidekick choice → mulligan)", () => {
+      const sidekick = { promptId: "p0", player: "p1", kind: "CHOOSE_OPTION", description: "Choose your sidekick", options: [] };
+      const mulligan = { promptId: "p0", player: "p1", kind: "MULLIGAN", options: [] };
+      const setup = (prompt: object) => ({ ...view, phase: "SETUP", prompt }) as unknown as PlayerView;
+      const { rerender } = render(<ProDock {...props({ view: setup(sidekick), hasPrompt: true })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+      expect(screen.getByTestId("pro-mobile-pickbar")).toBeInTheDocument();
+
+      rerender(<ProDock {...props({ view: setup(mulligan), hasPrompt: true })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+      expect(screen.queryByTestId("pro-mobile-pickbar")).toBeNull();
+    });
+
+    it("brings the sheet back when the same id moves to the next seat's sidekick choice", () => {
+      const forSeat = (player: string) =>
+        ({ ...view, phase: "SETUP", prompt: { promptId: "p0", player, kind: "CHOOSE_OPTION", description: "Choose your sidekick", options: [] } }) as unknown as PlayerView;
+      const { rerender } = render(<ProDock {...props({ view: forSeat("p1"), hasPrompt: true })} />);
+      fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+
+      rerender(<ProDock {...props({ view: forSeat("p2"), hasPrompt: true })} />);
+
+      expect(screen.getByTestId("pro-mobile-sheet")).toBeInTheDocument();
+    });
+
     // #874: a prompt-less combat / walk has a constant key ("combat",
     // "stepping"), so one minimise used to collapse every later one.
     it("opens the next combat in full after the last one was minimized", () => {

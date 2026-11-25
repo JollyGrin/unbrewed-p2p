@@ -186,6 +186,37 @@ describe("useTurnReminder", () => {
     expect(result.current.pulse).toEqual({ key: 1, reason: "defense" });
   });
 
+  // Issue #1717: prompt ids are not unique — the engine numbers them off its action
+  // log, so the setup sidekick choice and the mulligan after it are both "p0". A new
+  // prompt that reuses the id is still progress: the wait restarts, and it still fires.
+  it("treats a new prompt that reuses the old one's id as progress, and still nudges for it", () => {
+    const ask = (kind: string, description?: string) =>
+      view({ prompt: { promptId: "p0", player: "p1", kind, description, options: [{ id: "a", label: "A" }] } } as Partial<PlayerView>);
+    const { result, rerender } = renderHook((p: UseTurnReminderOptions) => useTurnReminder(p), {
+      initialProps: props({ view: ask("CHOOSE_OPTION", "Choose your sidekick") }),
+    });
+    act(() => jest.advanceTimersByTime(40_000));
+    rerender(props({ view: ask("CHOOSE_TARGET") }));
+    act(() => jest.advanceTimersByTime(40_000));
+    expect(result.current.pulse).toBeNull(); // the first prompt's wait did not carry over
+
+    act(() => jest.advanceTimersByTime(20_000)); // 60s on the second prompt
+    expect(result.current.pulse).toEqual({ key: 1, reason: "turn" });
+  });
+
+  it("stays quiet through setup prompts (sidekick choice, mulligan) — reminders start with play", () => {
+    const { result } = renderHook((p: UseTurnReminderOptions) => useTurnReminder(p), {
+      initialProps: props({
+        view: view({
+          phase: "SETUP",
+          prompt: { promptId: "p0", player: "p1", kind: "CHOOSE_OPTION", description: "Choose your sidekick", options: [] },
+        } as Partial<PlayerView>),
+      }),
+    });
+    act(() => jest.advanceTimersByTime(FIRST_NUDGE_MS * 3));
+    expect(result.current.pulse).toBeNull();
+  });
+
   // Issue #875: inside this seat's own turn the game can be waiting on the
   // OPPONENT — the reminder must not claim "still your turn" then.
   describe("own turn, but the game waits on the opponent", () => {

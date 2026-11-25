@@ -38,6 +38,7 @@ import { HexId, tableHudBanner, tableHudControls } from "@/lib/pro/tableHud";
 import { TableHudDock } from "@/components/Pro/Table/Hud/TableHudDock";
 import { useDockLayout } from "@/lib/pro/useDockLayout";
 import { isNewCombat } from "@/lib/pro/combatInstance";
+import { promptKeyOf } from "@/lib/pro/promptKey";
 import type { RematchNegotiation } from "@/components/Pro/RematchOfferPanel";
 import { ProPostGame, ProPostGameContext, PANEL_SURFACE } from "@/components/Pro/ProPostGame";
 
@@ -601,7 +602,9 @@ export const ProDock = ({
   const boardPickPrompt = hasPrompt && boardPicks && !combatOpen && !gameOver && !stepping && !mobileHandOpen;
   // Expansion belongs to ONE prompt: the next board-pick prompt starts slim again,
   // even when the server replaces prompt A with prompt B in a single update.
-  const promptKey = view.prompt?.promptId ?? "prompt";
+  // Keyed on promptKeyOf, not the bare id: the sidekick choice and the mulligan that
+  // follows it are both `p0` (issue #1717).
+  const promptKey = view.prompt ? promptKeyOf(view.prompt) : "prompt";
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
   // The two shells whose sheet comes and goes (the rail and the desktop dock
   // are always open) share its rules for when it shows.
@@ -627,7 +630,7 @@ export const ProDock = ({
     combatSerial.current.prev = view.combat;
   }
   const forcedKey =
-    view.prompt?.promptId ??
+    (view.prompt ? promptKeyOf(view.prompt) : null) ??
     (combatOpen
       ? `combat:${combatSerial.current.n}`
       : gameOver

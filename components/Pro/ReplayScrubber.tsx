@@ -388,7 +388,7 @@ const ScrubberBody = ({
             const st = ownerTokenState[f.owner];
             if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
             const heroId = ownerHeroIds[f.owner];
-            return heroId ? resolveFighterToken(heroId, f.kind) : null;
+            return heroId ? resolveFighterToken(heroId, f.kind, f.name) : null;
           }}
           boardObjectOriginName={(t) => originFighter(t)?.name ?? null}
           fighterTokenArt={(f) => {
@@ -397,7 +397,7 @@ const ScrubberBody = ({
             const st = ownerTokenState[f.owner];
             if (f.kind === "HERO" && st?.heroArtUrl) return st.heroArtUrl;
             const heroId = ownerHeroIds[f.owner];
-            return heroId ? resolveFighterToken(heroId, f.kind) : null;
+            return heroId ? resolveFighterToken(heroId, f.kind, f.name) : null;
           }}
           fighterTokenBadge={(f) => ownerTokenState[f.owner]?.badge ?? null}
           // The token rim the seat wore when the match was played (#613/#615),

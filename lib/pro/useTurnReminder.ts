@@ -35,6 +35,7 @@ import {
 } from "./turnReminder";
 import type { PlayerView } from "./protocol";
 import { seatOwesDecision } from "./turnChrome";
+import { promptKeyOf } from "./promptKey";
 
 /** How often the wall clock is re-checked between view changes. Coarser than
  *  the reminder's own thresholds (see turnReminder.ts) on purpose — this only
@@ -106,11 +107,15 @@ function owedReasonOf(view: PlayerView | null, legalActionCount: number): TurnRe
 /** A value that changes whenever the CURRENT ask changes shape without the
  *  reason itself flipping — an action taken, a prompt resolving, a combat
  *  stage advancing. See turnReminder.ts's `progressKey` contract. */
+// The prompt part is `promptKeyOf`, not the bare `promptId`: two different prompts
+// can share an id (issue #1717 — the sidekick choice and the mulligan are both p0),
+// and the second must count as progress, not as the same unanswered ask.
 function progressKeyOf(view: PlayerView, reason: TurnReminderReason): string {
+  const promptKey = view.prompt ? promptKeyOf(view.prompt) : "";
   if (reason === "defense") {
-    return `defense:${view.combat?.stage}:${view.combat?.attacker}:${view.combat?.target}:${view.prompt?.promptId ?? ""}`;
+    return `defense:${view.combat?.stage}:${view.combat?.attacker}:${view.combat?.target}:${promptKey}`;
   }
-  return `turn:${view.turnNumber}:${view.actionsRemaining}:${view.turnPhase}:${view.prompt?.promptId ?? ""}`;
+  return `turn:${view.turnNumber}:${view.actionsRemaining}:${view.turnPhase}:${promptKey}`;
 }
 
 export function useTurnReminder({ view, legalActionCount, enabled, soundOn }: UseTurnReminderOptions): TurnReminderStatus {
