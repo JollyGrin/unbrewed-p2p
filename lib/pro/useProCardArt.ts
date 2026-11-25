@@ -378,6 +378,16 @@ export const HERO_DECK_IDS: Record<string, string> = {
   // public/evergreen-decks/art/1y_5 and drawn full-bleed via cardImage (Kenshiro
   // precedent, same author): never the generated template, never the art pipeline.
   pomni: "1y_5",
+  // Harry Dresden (the-unmatched.club 2865, lab tier; issue #1718 ↔ engine #1092, train
+  // feature/dresden, PROTOCOL 42). Club-only, so the id is unbrewed-minted. The FIRST deck
+  // whose sidekick is chosen at setup (Mouse or Karrin Murphy): the snapshot lists both in
+  // `sidekickOptions`, tags each option's cards with `sidekickOption`, and the board finds
+  // the chosen sidekick's token by name (`sidekickTokenFor`). Its 34 printed copies can't be
+  // dealt by hand, so lib/evergreenDecks.ts keeps it out of every hand-dealt surface. ART:
+  // the club's 18 full-card renders (full-bleed cardImage), the club cover as cardback,
+  // tokens cropped from the club's character images (Mouse, Murphy) and from the Ventris
+  // Cyclis art (Dresden). Uncredited third-party art, licence unresolved (R7): LAB ONLY.
+  "harry-dresden": "harry-dresden",
 };
 
 /**

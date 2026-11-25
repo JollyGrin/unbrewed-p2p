@@ -36,6 +36,7 @@ import {
 import { useAccount } from "@/lib/account/useAccount";
 import { track } from "@/lib/analytics";
 import { useEntryEvent } from "@/lib/growthAnalytics";
+import { proOnlyMessage } from "@/lib/evergreenDecks";
 
 /** Sentinel values for the deck <Select>; local decks use their own id. */
 const CHOICE_REMOTE = "__remote";
@@ -207,7 +208,8 @@ export const JoinPage = () => {
       console.error(err);
       setJoining(false);
       toast.error(
-        "Couldn't reach the game — ask your friend for a fresh link, or connect manually.",
+        proOnlyMessage(err) ??
+          "Couldn't reach the game — ask your friend for a fresh link, or connect manually.",
       );
     }
   };

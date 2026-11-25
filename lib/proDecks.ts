@@ -8,14 +8,19 @@
  * a deck through this cache (see `useBagDecks` / `readStarredDeckFromBag`).
  *
  * Authors who asked not to be importable (Jowee, #790) are filtered here too,
- * so a snapshot that ever lands under such an author can't surface.
+ * so a snapshot that ever lands under such an author can't surface. So are the
+ * Pro-only decks (`PRO_ONLY_DECK_IDS`, #1718): every picker fed from here deals
+ * by hand, which those decks can't be.
  */
 import { useEffect, useState } from "react";
 import type { DeckImportType } from "@/components/DeckPool/deck-import.type";
 import { isImportBlocked } from "@/lib/decks/blockedAuthors";
-import { EVERGREEN_DECK_IDS, fetchDeckById } from "@/lib/evergreenDecks";
+import { EVERGREEN_DECK_IDS, fetchDeckById, PRO_ONLY_DECK_IDS } from "@/lib/evergreenDecks";
 
-export const PRO_DECK_IDS: string[] = [...EVERGREEN_DECK_IDS];
+/** Evergreen decks a hand-dealt surface can use (Pro-only decks left out). */
+const isHandDealable = (id: string) => EVERGREEN_DECK_IDS.has(id) && !PRO_ONLY_DECK_IDS.has(id);
+
+export const PRO_DECK_IDS: string[] = [...EVERGREEN_DECK_IDS].filter(isHandDealable);
 
 const cache = new Map<string, DeckImportType>();
 const failed = new Set<string>();
@@ -27,7 +32,7 @@ export const cachedProDeck = (id: string): DeckImportType | undefined =>
 
 /** One Pro deck by id; undefined for a non-roster id or a failed fetch. */
 export const loadProDeck = (id: string): Promise<DeckImportType | undefined> => {
-  if (!EVERGREEN_DECK_IDS.has(id)) return Promise.resolve(undefined);
+  if (!isHandDealable(id)) return Promise.resolve(undefined);
   const kept = cache.get(id);
   if (kept) return Promise.resolve(kept);
   let pending = inflight.get(id);
@@ -75,7 +80,7 @@ export const useProDeck = (
   id: string,
 ): { deck: DeckImportType | undefined; loading: boolean } => {
   const [, tick] = useState(0);
-  const wanted = EVERGREEN_DECK_IDS.has(id) ? id : "";
+  const wanted = isHandDealable(id) ? id : "";
   const deck = wanted ? cachedProDeck(wanted) : undefined;
   useEffect(() => {
     if (!wanted || cachedProDeck(wanted)) return;

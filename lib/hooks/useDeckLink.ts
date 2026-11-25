@@ -16,6 +16,7 @@ import { DeckRefresh } from "@/lib/deckRefresh";
 import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
 import { useEntryEvent } from "@/lib/growthAnalytics";
 import { LabsSkippedContent } from "@/lib/labs";
+import { proOnlyMessage } from "@/lib/evergreenDecks";
 
 export type HeldDeck = LinkedDeck & {
   /** true when the bag's saved copy is already on the table */
@@ -115,7 +116,7 @@ export const useDeckLink = (
         console.error(err);
         if (isRefresh) toast("Couldn't reach Unmatched Labs, so this is your saved copy");
         else {
-          toast.error("Error fetching deck");
+          toast.error(proOnlyMessage(err) ?? "Error fetching deck");
           trackDeckAddFailed("deeplink", failureReason(err));
         }
       },

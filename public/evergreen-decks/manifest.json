@@ -503,6 +503,18 @@
         "file": "data/heroes/pomni.rules.ts",
         "commit": "41361953"
       }
+    },
+    {
+      "heroId": "harry-dresden",
+      "deckId": "harry-dresden",
+      "version_id": "evergreen-1",
+      "frozenAt": "2026-11-25",
+      "digest": "sha256:c901754c5ed311d334eab7c36eec5c1af4bde3d6abae572abec3f03926c8647f",
+      "rulesVerified": {
+        "repo": "unbrewed-pro-server",
+        "file": "data/heroes/harry-dresden.rules.ts",
+        "commit": "0fd0741a"
+      }
     }
   ]
 }

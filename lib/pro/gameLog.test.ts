@@ -479,6 +479,23 @@ describe("enrichLines", () => {
       ]);
     });
 
+    // Harry Dresden's Kinetic Rings (#1718 ↔ engine #1092): a drawn card placed on the
+    // ongoing scheme is tucked into the public KINETIC pile. It is under nobody's hero card.
+    it("CARD_TUCKED onto the Kinetic Rings names the scheme, not a hero card", () => {
+      const out = enrichLines(
+        [],
+        [
+          { type: "CARD_TUCKED", player: "p1", card: "harry-dresden/temple-dog#2", pile: "KINETIC" },
+          { type: "CARD_TUCKED", player: "p2", card: "harry-dresden/fuego#1", pile: "KINETIC" },
+        ],
+        ctx("p1")
+      );
+      expect(out).toEqual([
+        { text: "You placed temple-dog on Kinetic Rings", who: "you", cards: ["harry-dresden/temple-dog#2"] },
+        { text: "Opponent placed fuego on Kinetic Rings", who: "opp", cards: ["harry-dresden/fuego#1"] },
+      ]);
+    });
+
     // Cross-player tuck (v0.49.0, engine #459 — issue #671). Boba Fett's whole deck
     // is this: `player` is the pile's HOST, `controller` is whose card it is.
     it("CARD_TUCKED credits the CONTROLLER when the bounty lands on someone else", () => {
@@ -2268,6 +2285,20 @@ describe("counterChangeLines suppresses engine bookkeeping counters", () => {
     );
     expect(lines).toEqual([]);
     expect(JSON.stringify(lines)).not.toContain("XENO_REVEALS");
+  });
+
+  it("says nothing about Harry Dresden's VENTRIS_DAMAGE tally (#1718)", () => {
+    // Engine #1092: a hero DAMAGE_DEALT trigger feeds it during a Ventris Cyclis combat,
+    // and COMBAT_END removes it (0 deletes the key).
+    const lines = counterChangeLines(
+      [
+        { type: "COUNTER_CHANGED", player: "p1", name: "VENTRIS_DAMAGE", value: 2 },
+        { type: "COUNTER_CHANGED", player: "p1", name: "VENTRIS_DAMAGE", value: 0 },
+      ] as GameEvent[],
+      () => 0,
+      whoOf
+    );
+    expect(lines).toEqual([]);
   });
 
   it("still narrates the clock itself, and every other counter", () => {

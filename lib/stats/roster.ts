@@ -40,6 +40,7 @@ export const PUBLIC_ROSTER: readonly RosterHero[] = [
   { heroId: "general-grievous", name: "General Grievous" },
   { heroId: "gerry-the-isopod", name: "Gerry the Isopod" },
   { heroId: "gingerbread-man", name: "Gingerbread Man" },
+  { heroId: "harry-dresden", name: "Harry Dresden" },
   { heroId: "hollow-oak-spice", name: "The Hollow Oak" },
   { heroId: "jason-voorhees", name: "Jason Voorhees" },
   { heroId: "kenshiro", name: "Kenshiro" },

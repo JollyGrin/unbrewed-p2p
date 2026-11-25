@@ -147,6 +147,25 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     // Springtrap moves 2 (William moves 3, the deck JSON's printed number).
     stats: { move: 2 },
   },
+  // Harry Dresden (issue #1718 ↔ engine #1092; key verified against harry-dresden.rules.ts
+  // PYRO_FUEGO_FLAG @0fd0741a). ONE-SIDED, like EQUILIBRIUM, and it lives for ONE combat:
+  // the engine latches it in Fuego!'s IMMEDIATELY window when Dresden has less health than
+  // the opposing fighter, and the card is then PYRO FUEGO! (attack 5, "AFTER COMBAT: Move
+  // the opposing fighter up to 2 spaces"). Both faces are printed on the one Fuego! card, so
+  // the card art already shows PYRO FUEGO!; the pill and badge say WHICH face is live.
+  // His other per-combat flag, BOBS_ADVICE_THIS_COMBAT ("only one Bob's Advice per combat"),
+  // is bookkeeping and has no row, by decision: the played card is already on the table.
+  {
+    flag: "DRESDEN_PYRO_FUEGO",
+    heroes: ["harry-dresden"],
+    nameplate: {
+      onLabel: "PYRO FUEGO!",
+      offLabel: "",
+      showWhenAbsent: false,
+      title: "Fuego! is PYRO FUEGO! this combat: attack 5, and after combat move the opposing fighter up to 2 spaces",
+    },
+    token: { on: { icon: "🔥", label: "Pyro", title: "PYRO FUEGO! this combat", bg: "#B3261E", color: "#FFE9C2" } },
+  },
   {
     flag: "DRUID_FORM_BEAR",
     heroes: ["malfurion-stormrage"],
@@ -463,6 +482,54 @@ export const BOUNTY_PILES: { pile: string; name: string }[] = [
   { pile: "BOUNTY_FLAMETHROWER", name: "FLAMETHROWER" },
 ];
 
+/**
+ * Public piles that sit ON an ongoing scheme rather than under a hero card (issue #1718
+ * ↔ engine #1092). Harry Dresden's *Kinetic Rings*: "ONGOING: When you draw a card, you
+ * may place it here. When 2 cards are placed here, you may discard this card to deal
+ * damage … equal to half the total BOOST value of those 2 cards". The engine tucks each
+ * placed card into the seat's public `KINETIC` pile (face up, placement order, at most 2)
+ * while the Rings are that seat's `ongoingScheme`, and empties it when the Rings go.
+ *
+ * Deliberately NOT a HERO_STATE_COUNTERS row: those draw a nameplate pill, and these cards
+ * belong on the scheme. The seat plate's ONGOING row draws them beside the scheme's name
+ * (ProHud), and the pile overlay's title reads the `name` below.
+ *
+ * `scheme` is the CardDef id (an instance id is `<defId>#<n>`), verified against
+ * harry-dresden.rules.ts @0fd0741a, as is `pile` (KINETIC_PILE).
+ */
+export interface SchemePile {
+  scheme: string;
+  pile: string;
+  /** player-facing name of the pile: the scheme's printed title */
+  name: string;
+  /** how many cards the scheme holds when full */
+  capacity: number;
+}
+
+export const SCHEME_PILES: readonly SchemePile[] = [
+  { scheme: "harry-dresden/kinetic-rings", pile: "KINETIC", name: "Kinetic Rings", capacity: 2 },
+];
+
+/** The registry row for a pile key, if it is a scheme pile. */
+export const schemePileByKey = (pile: string): SchemePile | undefined =>
+  SCHEME_PILES.find((e) => e.pile === pile);
+
+/**
+ * The cards placed on a seat's ongoing scheme, or null when that scheme holds none (no
+ * scheme, a scheme with no pile, or an empty pile — the engine prunes an emptied key).
+ */
+export const schemePileFor = (
+  ongoingScheme: CardInstanceId | null | undefined,
+  piles: Record<string, PileEntry[]> | undefined
+): { entry: SchemePile; cards: CardInstanceId[] } | null => {
+  if (!ongoingScheme) return null;
+  const defId = ongoingScheme.split("#")[0];
+  const entry = SCHEME_PILES.find((e) => e.scheme === defId);
+  if (!entry) return null;
+  const cards = pileCardIds(piles?.[entry.pile]);
+  return cards.length > 0 ? { entry, cards } : null;
+};
+
 export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   {
     // Nancy Drew's CLUE economy (issue #420 ↔ engine #225). Engine counter key is
@@ -773,6 +840,8 @@ const foreignReadingApplies = (
 
 /** `table` = every seat's hero id, for the entries that depend on who is playing. */
 export const pileDisplayName = (pile: string, hostHeroId?: string, table?: readonly string[]): string => {
+  const onScheme = schemePileByKey(pile);
+  if (onScheme) return onScheme.name;
   const e = HERO_STATE_COUNTERS.find((x) => x.pile === pile);
   if (!e) return pile;
   if (foreignReadingApplies(e, hostHeroId, table)) return e.foreign!.pileLabel;
@@ -781,7 +850,9 @@ export const pileDisplayName = (pile: string, hostHeroId?: string, table?: reado
 
 /** Where a pile's cards are, for the inspection overlay's title (see `pileNote`). */
 export const pileDisplayNote = (pile: string): string =>
-  HERO_STATE_COUNTERS.find((e) => e.pile === pile)?.pileNote ?? "tucked under hero card";
+  schemePileByKey(pile)
+    ? "placed on the ongoing scheme"
+    : HERO_STATE_COUNTERS.find((e) => e.pile === pile)?.pileNote ?? "tucked under hero card";
 
 /**
  * The card id of a pile entry (protocol v33 / engine #481). An entry is either the
