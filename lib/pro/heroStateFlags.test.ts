@@ -27,6 +27,8 @@ import {
   denyLabel,
   denyChipsFor,
   denyTokenBadgeFor,
+  SCHEME_PILES,
+  schemePileFor,
 } from "./heroStateFlags";
 
 describe("HERO_STATE_FLAGS registry", () => {
@@ -1525,5 +1527,55 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
     // callers that pass no host hero keep the old one-argument reading
     expect(pileDisplayName("TRAINING")).toBe("TRAINING");
     expect(pileDisplayName("BOUNTY_PAYMENT")).toBe("Bounty · PAYMENT");
+  });
+});
+
+// Harry Dresden (issue #1718 ↔ engine #1092). Keys verified against harry-dresden.rules.ts
+// @0fd0741a: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
+describe("Harry Dresden: PYRO FUEGO! shows, the bookkeeping does not, the Rings hold their cards", () => {
+  it("DRESDEN_PYRO_FUEGO is a one-sided pill + a board badge on Dresden's own seat only", () => {
+    expect(flagChipsFor("harry-dresden", { DRESDEN_PYRO_FUEGO: true })).toEqual([
+      expect.objectContaining({ on: true, chip: expect.objectContaining({ onLabel: "PYRO FUEGO!" }) }),
+    ]);
+    expect(fighterTokenBadgeFor("harry-dresden", { DRESDEN_PYRO_FUEGO: true })).toMatchObject({ icon: "🔥", label: "Pyro" });
+    // absent (every other moment of the game): nothing
+    expect(flagChipsFor("harry-dresden", {})).toEqual([]);
+    expect(fighterTokenBadgeFor("harry-dresden", {})).toBeNull();
+    // gated on the hero
+    expect(flagChipsFor("king-kong", { DRESDEN_PYRO_FUEGO: true })).toEqual([]);
+  });
+
+  it("BOBS_ADVICE_THIS_COMBAT and VENTRIS_DAMAGE render on no surface", () => {
+    expect(HERO_STATE_FLAGS.some((e) => e.flag === "BOBS_ADVICE_THIS_COMBAT")).toBe(false);
+    expect(flagChipsFor("harry-dresden", { BOBS_ADVICE_THIS_COMBAT: true })).toEqual([]);
+    expect(fighterTokenStateFor("harry-dresden", { BOBS_ADVICE_THIS_COMBAT: true })).toEqual({ heroArtUrl: null, badge: null });
+    expect(HERO_STATE_COUNTERS.some((e) => e.counter === "VENTRIS_DAMAGE")).toBe(false);
+    expect(counterChipsFor("harry-dresden", { VENTRIS_DAMAGE: 2 })).toEqual([]);
+    expect(fighterTokenCounterBadgeFor("harry-dresden", { VENTRIS_DAMAGE: 2 })).toBeNull();
+  });
+
+  const RINGS = "harry-dresden/kinetic-rings#1";
+  const placed = { KINETIC: ["harry-dresden/temple-dog#2", "harry-dresden/fuego#1"] };
+
+  it("reads the cards placed on the Kinetic Rings while they are the ongoing scheme", () => {
+    expect(SCHEME_PILES).toEqual([{ scheme: "harry-dresden/kinetic-rings", pile: "KINETIC", name: "Kinetic Rings", capacity: 2 }]);
+    expect(schemePileFor(RINGS, placed)).toEqual({ entry: SCHEME_PILES[0], cards: placed.KINETIC });
+    expect(schemePileFor(RINGS, { KINETIC: ["harry-dresden/temple-dog#2"] })?.cards).toHaveLength(1);
+  });
+
+  it("reads nothing with no cards placed, no scheme, or another scheme", () => {
+    expect(schemePileFor(RINGS, {})).toBeNull();
+    expect(schemePileFor(RINGS, undefined)).toBeNull();
+    expect(schemePileFor(null, placed)).toBeNull();
+    expect(schemePileFor("harry-dresden/aparturum#1", placed)).toBeNull();
+  });
+
+  it("KINETIC is never a nameplate pill, and its overlay names the scheme", () => {
+    expect(HERO_STATE_COUNTERS.some((e) => e.pile === "KINETIC")).toBe(false);
+    expect(counterChipsFor("harry-dresden", {}, placed)).toEqual([]);
+    expect(pileDisplayName("KINETIC", "harry-dresden")).toBe("Kinetic Rings");
+    expect(pileDisplayNote("KINETIC")).toBe("placed on the ongoing scheme");
+    // every other pile keeps its reading
+    expect(pileDisplayNote("TRAINING")).toBe("tucked under hero card");
   });
 });

@@ -68,6 +68,9 @@ export const deckAddedProps = (
 export const failureReason = (err: unknown): string | number => {
   if (err instanceof LabsImportError) return err.code;
   if (err instanceof SyntaxError) return "parse_error";
+  // lib/evergreenDecks ProOnlyDeckError (#1718), matched by name: importing it
+  // here would pull the Pro art map into every analytics caller.
+  if (err instanceof Error && err.name === "ProOnlyDeckError") return "pro_only";
   const status =
     (err as { response?: { status?: unknown } } | null)?.response?.status ??
     (err as { status?: unknown } | null)?.status;

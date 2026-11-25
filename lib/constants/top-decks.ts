@@ -1000,4 +1000,22 @@ export const POPULAR_DECKS: PopularDeckMeta[] = [
     cardbackUrl: "/evergreen-decks/art/1y_5/cardback.webp",
     sourceUrl: "https://unmatched.cards/decks/1y_5/versions/NVDqtJ4W-",
   },
+  {
+    // Harry Dresden — the-unmatched.club deck 2865 (issue #1718 ↔ engine #1092, train
+    // feature/dresden). Club-only: `original: true` suppresses the unmatched.cards
+    // deep-link and `sourceUrl` points at the club page. The art is uncredited third-party
+    // work with its licence unresolved (R7), so the deck is LAB ONLY and the tile credits
+    // the club page rather than a person. Tile colour = the cardback's red pentacle.
+    id: "harry-dresden",
+    name: "Harry Dresden",
+    hero: "Harry Dresden",
+    author: "the-unmatched.club community",
+    likes: 0,
+    highlightColour: "#c8202a",
+    lab: true,
+    tier: "lab",
+    original: true,
+    cardbackUrl: "/evergreen-decks/art/harry-dresden/cardback.webp",
+    sourceUrl: "https://www.the-unmatched.club/c/heroes/harry-dresden-the-dresden-files.2865",
+  },
 ];

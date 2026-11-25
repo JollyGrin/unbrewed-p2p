@@ -14,7 +14,7 @@ import { PopularDecks } from "./PopularDecks";
 import { AddImageDeck } from "./ImageDeck";
 import { BagBulkContainer } from "./Bulk";
 import { POPULAR_DECKS } from "@/lib/constants/top-decks";
-import { EVERGREEN_DECK_IDS } from "@/lib/evergreenDecks";
+import { EVERGREEN_DECK_IDS, PRO_ONLY_DECK_IDS } from "@/lib/evergreenDecks";
 
 const mockTrack = jest.fn();
 jest.mock("../../lib/analytics", () => ({
@@ -174,11 +174,13 @@ describe("PopularDecks", () => {
 
     it("shows lab decks with the Lab badge, hides reflavored ones without ?debug", () => {
       wrap(<PopularDecks pushDeck={jest.fn()} setStar={() => {}} />);
-      const lab = POPULAR_DECKS.filter((d) => d.tier === "lab");
+      const lab = POPULAR_DECKS.filter((d) => d.tier === "lab" && !PRO_ONLY_DECK_IDS.has(d.id));
       expect(lab.length).toBeGreaterThanOrEqual(7);
       for (const deck of lab) {
         expect(screen.getByRole("button", { name: `${deck.name} (Pro) (Lab)` })).toBeInTheDocument();
       }
+      // a Pro-only deck (Harry Dresden, #1718: sidekick chosen at setup) can't be dealt here
+      for (const id of PRO_ONLY_DECK_IDS) expect(ids()).not.toContain(id);
       // reflavored decks (the spice remix replaced them) stay out; two of them share a
       // name with their remix, so check by id
       for (const deck of POPULAR_DECKS.filter((d) => d.tier === "reflavored")) {
@@ -190,7 +192,9 @@ describe("PopularDecks", () => {
     it("Pro decks are badged and come first, then the rest by likes", () => {
       wrap(<PopularDecks pushDeck={jest.fn()} setStar={() => {}} />);
       const all = labels();
-      const proCount = POPULAR_DECKS.filter((d) => EVERGREEN_DECK_IDS.has(d.id) && d.tier !== "reflavored").length;
+      const proCount = POPULAR_DECKS.filter(
+        (d) => EVERGREEN_DECK_IDS.has(d.id) && !PRO_ONLY_DECK_IDS.has(d.id) && d.tier !== "reflavored",
+      ).length;
       expect(all.slice(0, proCount).every((l) => l?.includes("(Pro)"))).toBe(true);
       expect(all.slice(proCount).some((l) => l?.includes("(Pro)"))).toBe(false);
       const rest = ids().slice(proCount).map((id) => byId(id).likes);

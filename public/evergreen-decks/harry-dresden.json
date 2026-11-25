@@ -1,0 +1,358 @@
+{
+  "bgg_link": null,
+  "created_on": "2026-11-11T00:00:00+00:00",
+  "deck_first_published_on": "2026-11-11T00:00:00+00:00",
+  "deck_published": true,
+  "deck_data": {
+    "appearance": {
+      "borderColour": "#1c2433",
+      "cardbackUrl": "/evergreen-decks/art/harry-dresden/cardback.webp",
+      "highlightColour": "#c8202a",
+      "isPNP": false,
+      "patternName": ""
+    },
+    "cards": [
+      {
+        "afterText": "",
+        "basicText": "Instead of using Soulfire, you may discard this card to add +2 to the value of your played ⭐ card.\nYou may only play one copy of BOB'S ADVICE per combat.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/bobs-advice.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/bobs-advice.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Bob's Advice",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Draw 1 card. Place Dresden in any space. If any friendly fighters were adjacent to Dresden, you may place those fighters on spaces adjacent to Dresden's new space. Gain 1 action.",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/aparturum.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/aparturum.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Aparturum",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "",
+        "basicText": "Draw 1 card. Gain 1 action.\nONGOING: When you draw a card, you may place it here. When 2 cards are placed here, you may discard this card to deal damage to an adjacent fighter equal to half the total BOOST value of those 2 cards (rounded down). Move that fighter up to 4 spaces.",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/kinetic-rings.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/kinetic-rings.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Kinetic Rings",
+        "type": "scheme",
+        "value": null
+      },
+      {
+        "afterText": "If you won the combat, deal an amount of damage to the opposing fighter equal to their played card's BOOST value.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/shield-bracelet.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/shield-bracelet.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Shield Bracelet ⭐",
+        "type": "defence",
+        "value": 2
+      },
+      {
+        "afterText": "End the turn.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/spellbreaker.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/spellbreaker.webp",
+        "immediateText": "Cancel all effects on your opponent's card.",
+        "quantity": 2,
+        "title": "Spellbreaker",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "If you won the combat, draw 2 cards.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/arctis.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/arctis.webp",
+        "immediateText": "The opposing fighter cannot leave their space for the rest of the turn.",
+        "quantity": 2,
+        "title": "Arctis ⭐",
+        "type": "versatile",
+        "value": 2
+      },
+      {
+        "afterText": "Move the opposing fighter up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/forzare.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/forzare.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Forzare ⭐",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Draw 1 card. Then, if you lost the combat, look at your opponent's hand and choose a card for them to discard.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/confront-any-demon-or-god.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/confront-any-demon-or-god.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Confront any Demon or God",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Choose one option:\n► Dresden recovers 1 health.\n► Move each of your fighters up to 2 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/hells-bells.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/hells-bells.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Hell's Bells!",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "If you won the combat, choose a ⭐ card in your discard pile and add it to your hand.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/knowledge-of-the-art.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/knowledge-of-the-art.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Knowledge of the Art",
+        "type": "versatile",
+        "value": 4
+      },
+      {
+        "afterText": "",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/ventas-fulmino.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "You may choose to make the value of the opposing player's card equal to their card's BOOST value. If you do, it cannot be changed.",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/ventas-fulmino.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Ventas Fulmino ⭐",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "Move a fighter in this combat up to 2 spaces. If you won the combat, instead, move each fighter in your zone up to 2 spaces. If you dealt 2 or more damage, also move each fighter in adjacent zones up to 2 spaces.",
+        "basicText": "",
+        "boost": 1,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/ventris-cyclis.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/ventris-cyclis.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Ventris Cyclis ⭐",
+        "type": "attack",
+        "value": 2
+      },
+      {
+        "afterText": "",
+        "basicText": "This attack is ► PYRO FUEGO! if Dresden has less health than the opposing fighter.\nPYRO FUEGO! ⭐ (attack 5) — AFTER COMBAT: Move the opposing fighter up to 2 spaces.",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/fuego.webp"
+        },
+        "characterName": "Dresden",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/fuego.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "title": "Fuego! ⭐",
+        "type": "attack",
+        "value": 3
+      },
+      {
+        "afterText": "",
+        "basicText": "(Mouse may not play this card.)",
+        "boost": 3,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/service-pistol.webp"
+        },
+        "characterName": "Any",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/service-pistol.webp",
+        "immediateText": "",
+        "quantity": 1,
+        "title": "Service Pistol",
+        "type": "attack",
+        "value": 5
+      },
+      {
+        "afterText": "Your opponent discards a card from their hand matching the type of card they played (attack, defense, or versatile). If they cannot, they reveal their hand to you instead.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/banishing-roar.webp"
+        },
+        "characterName": "Mouse",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/banishing-roar.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "sidekickOption": "Mouse",
+        "title": "Banishing Roar",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "Dresden recovers 1 health.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/temple-dog.webp"
+        },
+        "characterName": "Mouse",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/temple-dog.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "sidekickOption": "Mouse",
+        "title": "Temple Dog",
+        "type": "attack",
+        "value": 4
+      },
+      {
+        "afterText": "You may search your discard pile for a non-versatile attack card and add it to your hand.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/tiny-but-fierce.webp"
+        },
+        "characterName": "Murphy",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/tiny-but-fierce.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "sidekickOption": "Karrin Murphy",
+        "title": "Tiny But Fierce",
+        "type": "versatile",
+        "value": 3
+      },
+      {
+        "afterText": "► COVER FIRE\nCOVER FIRE (attack 2) — AFTER COMBAT: Move Dresden up to 3 spaces.",
+        "basicText": "",
+        "boost": 2,
+        "cardImage": {
+          "url": "/evergreen-decks/art/harry-dresden/fn-p-90.webp"
+        },
+        "characterName": "Murphy",
+        "duringText": "",
+        "imageUrl": "/evergreen-decks/art/harry-dresden/fn-p-90.webp",
+        "immediateText": "",
+        "quantity": 2,
+        "sidekickOption": "Karrin Murphy",
+        "title": "FN P-90",
+        "type": "attack",
+        "value": 4
+      }
+    ],
+    "hero": {
+      "hp": 17,
+      "isRanged": true,
+      "move": 2,
+      "name": "Harry Dresden",
+      "specialAbility": "SOULFIRE\nWhen Dresden plays a card with a ⭐ symbol, DURING COMBAT: You may add +1 or +2 to that card's value by dealing Dresden an equal amount of damage.\nChoose Mouse or Karrin Murphy as your sidekick at the start of the game. Shuffle their cards into your deck.",
+      "tokenImageUrl": "/evergreen-decks/art/harry-dresden/token-harry-dresden.webp"
+    },
+    "name": "Harry Dresden",
+    "sidekick": {
+      "hp": 7,
+      "isRanged": false,
+      "name": "Mouse",
+      "quantity": 1,
+      "quote": "",
+      "tokenImageUrl": "/evergreen-decks/art/harry-dresden/token-mouse.webp"
+    },
+    "sidekickOptions": [
+      {
+        "hp": 7,
+        "isRanged": false,
+        "name": "Mouse",
+        "quantity": 1,
+        "quote": "",
+        "tokenImageUrl": "/evergreen-decks/art/harry-dresden/token-mouse.webp"
+      },
+      {
+        "hp": 5,
+        "isRanged": true,
+        "name": "Karrin Murphy",
+        "quantity": 1,
+        "quote": "",
+        "tokenImageUrl": "/evergreen-decks/art/harry-dresden/token-karrin-murphy.webp"
+      }
+    ]
+  },
+  "family_id": "harry-dresden",
+  "id": "harry-dresden",
+  "liked": false,
+  "likes": 0,
+  "name": "Harry Dresden",
+  "note": "Rules-enforced Pro deck (server hero harry-dresden), mirrored from the-unmatched.club deck 2865 \"Harry Dresden (The Dresden Files)\" (the page is this deck's sourceUrl). Card titles, types, values, boosts, quantities and banners are read off the author's card IMAGES re-uploaded 2026-11-11 (the club's structured JSON is stale) and match the engine's data/heroes/harry-dresden.rules.ts (engine #1092 on feature/dresden). Six titles carry \" ⭐\" (U+2B50) for the pentacle printed beside them — the engine's own spelling, and art matches on the title. The id `harry-dresden` is unbrewed-minted (William Afton precedent). SIDEKICK CHOICE (engine #1091, protocol v42): Dresden picks Mouse (7 HP, melee) or Karrin Murphy (5 HP, ranged) at setup. `sidekick` is Mouse, the first option; `sidekickOptions` lists both, and each card tagged `sidekickOption` is in the game only with that sidekick. 18 printed titles, 34 printed copies: 26 shared + 4 per sidekick, so either game deck is 30. Service Pistol is ONE printed card in both sets (the engine writes it as two card ids, HERO-only with Mouse, ANY with Murphy). This snapshot cannot be dealt by hand (it would deal all 34), so it is kept out of the sandbox, /table and every hand-dealt surface (lib/evergreenDecks.ts PRO_ONLY_DECK_IDS). ART: the 18 faces are the club's full-card renders drawn FULL-BLEED via cardImage, the cardback is the club cover, the Mouse and Karrin Murphy tokens are crops of the club's character images, and the Harry Dresden token is a crop of the Ventris Cyclis card art. The art is uncredited third-party artwork whose licence is unresolved (R7), so the deck stays LAB ONLY; never route it to the art-generation pipeline. Engine serves the hero at tier `lab`.",
+  "published": true,
+  "published_on": "2026-11-11T00:00:00+00:00",
+  "sourceUrl": "https://www.the-unmatched.club/c/heroes/harry-dresden-the-dresden-files.2865",
+  "tags": [],
+  "updated_on": "2026-11-11T00:00:00+00:00",
+  "user": "the-unmatched.club community",
+  "version_id": "evergreen-1",
+  "version_name": "2026-11-11 images"
+}

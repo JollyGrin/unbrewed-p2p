@@ -20,7 +20,7 @@ import {
 } from "@/lib/constants/top-decks";
 // evergreen (Pro rule-enforced) decks resolve from the committed snapshot
 // first; everything else stays live-API-first with snapshot fallback
-import { EVERGREEN_DECK_IDS, fetchDeckById } from "@/lib/evergreenDecks";
+import { EVERGREEN_DECK_IDS, fetchDeckById, PRO_ONLY_DECK_IDS } from "@/lib/evergreenDecks";
 import { frozenAtForDeck } from "@/lib/pro/evergreenManifest";
 import { BagDeckView } from "@/lib/bag/useBag";
 import { failureReason, trackDeckAddFailed } from "@/lib/deckAnalytics";
@@ -54,6 +54,8 @@ export const PopularDecks = (props: {
   const visibleDecks = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return POPULAR_DECKS.filter((deck) => debug || deck.tier !== "reflavored")
+      // a Pro-only deck can't be dealt here (#1718; see PRO_ONLY_DECK_IDS)
+      .filter((deck) => !PRO_ONLY_DECK_IDS.has(deck.id))
       .filter((deck) => shelf === "all" || EVERGREEN_DECK_IDS.has(deck.id))
       .filter(
         (deck) =>
@@ -65,7 +67,10 @@ export const PopularDecks = (props: {
       .sort(byProThenLikes);
   }, [debug, shelf, query]);
   const proCount = POPULAR_DECKS.filter(
-    (deck) => EVERGREEN_DECK_IDS.has(deck.id) && (debug || deck.tier !== "reflavored"),
+    (deck) =>
+      EVERGREEN_DECK_IDS.has(deck.id) &&
+      !PRO_ONLY_DECK_IDS.has(deck.id) &&
+      (debug || deck.tier !== "reflavored"),
   ).length;
 
   const pickDeck = async (meta: PopularDeckMeta) => {

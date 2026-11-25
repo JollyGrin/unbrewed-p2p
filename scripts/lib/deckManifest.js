@@ -19,28 +19,41 @@ const normalizeType = (type) => (type === "defence" ? "defense" : type);
  * boosts/quantities, hero hp/move/reach, sidekick. Everything else
  * (imageUrl, appearance, note, likes, versions, text blocks) is presentation
  * and is dropped here so it can never affect the digest.
+ *
+ * A deck whose sidekick is CHOSEN at setup (Harry Dresden, protocol v42) also
+ * locks its `sidekickOptions` and each card's `sidekickOption` tag: which cards
+ * a pick puts in the deck is rules. Both keys are added only when present, so
+ * every other deck's projection, and its committed digest, is unchanged.
  */
 function projectRules(deckJson) {
   const d = deckJson.deck_data;
+  const sidekickOf = (s) => ({
+    hp: s.hp,
+    quantity: s.quantity,
+    isRanged: s.isRanged,
+  });
   return {
     hero: {
       hp: d.hero.hp,
       move: d.hero.move,
       isRanged: d.hero.isRanged,
     },
-    sidekick: d.sidekick
+    sidekick: d.sidekick ? sidekickOf(d.sidekick) : null,
+    ...(d.sidekickOptions
       ? {
-          hp: d.sidekick.hp,
-          quantity: d.sidekick.quantity,
-          isRanged: d.sidekick.isRanged,
+          sidekickOptions: d.sidekickOptions.map((s) => ({
+            name: s.name,
+            ...sidekickOf(s),
+          })),
         }
-      : null,
+      : {}),
     cards: d.cards.map((c) => ({
       title: c.title,
       type: normalizeType(c.type),
       value: c.value,
       boost: c.boost,
       quantity: c.quantity,
+      ...(c.sidekickOption ? { sidekickOption: c.sidekickOption } : {}),
     })),
   };
 }

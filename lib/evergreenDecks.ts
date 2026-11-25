@@ -20,6 +20,36 @@ import { HERO_DECK_IDS } from "@/lib/pro/useProCardArt";
 
 export const EVERGREEN_DECK_IDS = new Set<string>(Object.values(HERO_DECK_IDS));
 
+/**
+ * Pro-only decks: rules-enforced in Pro, but their snapshot CANNOT be dealt by
+ * hand, so every surface that deals a deck without the rules engine (the
+ * sandbox bag, /table, /connect, invites and deck links, IRL Mode) leaves them
+ * out. Pro reads the snapshot directly (useProCardArt, useDeckPreview) and is
+ * unaffected.
+ *
+ * Harry Dresden (#1718) chooses Mouse or Karrin Murphy at setup and the engine
+ * builds his 30 from that pick. His snapshot lists all 34 printed copies (both
+ * sidekicks' cards), so a hand-dealt game would shuffle the unchosen
+ * sidekick's cards in too.
+ */
+export const PRO_ONLY_DECK_IDS: ReadonlySet<string> = new Set(["harry-dresden"]);
+
+/**
+ * Thrown by `fetchDeckById` for a Pro-only deck. Its message is the toast a
+ * caller shows instead of its generic "try again" line (`proOnlyMessage`);
+ * deck analytics record it as `pro_only` (lib/deckAnalytics `failureReason`).
+ */
+export class ProOnlyDeckError extends Error {
+  constructor(id: string) {
+    super(`${id} can only be played in Pro: its sidekick is chosen when the game starts`);
+    this.name = "ProOnlyDeckError";
+  }
+}
+
+/** The player-facing reason when `err` is a Pro-only refusal, else null. */
+export const proOnlyMessage = (err: unknown): string | null =>
+  err instanceof ProOnlyDeckError ? err.message : null;
+
 // The deck-fetch CORS proxy now lives in the engine server (folded in from the
 // standalone unbrewed-api Vercel app): same path, same body, CORS-open for GET.
 // NEXT_PUBLIC_DECK_API_URL can override for local-engine testing, but note it's
@@ -35,6 +65,8 @@ const fromApi = (id: string) =>
   axios.get<DeckImportType>(DEFAULT_DECK_API + id).then((r) => r.data);
 
 export const fetchDeckById = async (id: string): Promise<DeckImportType> => {
+  // Every caller deals the result by hand (see PRO_ONLY_DECK_IDS).
+  if (PRO_ONLY_DECK_IDS.has(id)) throw new ProOnlyDeckError(id);
   if (EVERGREEN_DECK_IDS.has(id)) {
     try {
       return await fromSnapshot(id);
