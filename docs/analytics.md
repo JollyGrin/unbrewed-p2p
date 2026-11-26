@@ -209,3 +209,32 @@ Every game event carries `mode`: `sandbox` (`/game`, `/connect`), `sandbox-table
 6. **Feature usage:** `cosmetics_equipped`, `collection_opened`, `stats_viewed`, `leaderboard_viewed`, `replay_opened`, settings toggles.
 
 Never per-move or per-WebSocket-message.
+
+## Experiments (#1611)
+Client-side A/B tests, no PostHog feature flags (`advanced_disable_flags` stays `true`). Registry and helpers live in
+`lib/experiments.ts` (not `lib/flags.ts`, which is the beta-features menu).
+- **Registry:** `EXPERIMENTS = { key: { variants: [control, ...], weights?, audience, live } }`. Audiences: `everyone`,
+  `new_pro_player` (no recent Pro hero, no recent Pro room, account store not `signed-in`); checked once, at the first
+  resolution. `live: false` + a deploy is the kill switch: everyone gets the default and nothing is sent.
+- **Assignment:** drawn in the browser with `crypto.getRandomValues` by weight, never from the PostHog id (it changes at
+  login and `reset()`). Only when analytics is available and the notice is `seen`: a visitor who declined is never
+  assigned, and an assigned one who later declines gets the default again.
+- **Storage:** one localStorage key `unbrewed-exp`, `{ [key]: { v: variant | null, at: ISO date, exposed?: true } }`.
+  `v: null` = not eligible, so the decision is made once. Blocked or unparsable storage: default, nothing written.
+- **Event:** `experiment_exposed` {experiment, variant, `$feature/<key>`: variant}, once per browser, sent by
+  `exposeExperiment` where the variant takes effect. The `exposed` mark is set only if `track` accepted the event, so a
+  dropped send is retried on the next exposure. Nothing is sent for `null` or a QA override.
+- **QA param:** `?exp=<key>:<variant>` (comma-separated for several) forces a variant, also in dev builds and with
+  analytics off; not stored, never exposed. Unknown keys/variants are ignored. `exp` is not a kept URL param, so it never
+  reaches PostHog.
+- **Running now:** `first_bot_tier` (`medium` control vs `hard`, audience `new_pro_player`): the three landing links to
+  `VS_BOT_HREF` (Play now chooser, Pro band "Play vs a bot", the "I want to…" card) keep the medium href in the markup;
+  a plain left click by a `hard` browser goes to `/pro/game?vs=ai-hard` instead (`components/LandingPage/landingCtaClick.ts`).
+  `landing_cta_clicked` keeps its `cta` value. Ctrl/cmd/shift/alt or middle clicks open the medium link and expose nothing.
+  Read-out by SQL on `experiment_exposed`, joined to the engine's game events by PostHog person.
+
+**Adding one:** (1) add an entry to `EXPERIMENTS` (key, variants with the control first, audience); (2) where the variant
+takes effect, `const { variant, expose } = useExperiment("key")` (or `exposeExperiment("key")` in a handler), treat
+`null` as the control and call `expose` when the player actually gets the variant; (3) if wanted, create the PostHog
+experiment with the same key, exposure event `experiment_exposed` filtered on `experiment = key`.
+**Ending one:** make the winner the default, delete the entry and the call.

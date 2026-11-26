@@ -11,7 +11,12 @@ import { VS_BOT_HREF } from "./content";
 import { resetGrowthAnalytics } from "../../lib/growthAnalytics";
 
 const track = jest.fn();
-jest.mock("../../lib/analytics", () => ({ track: (...args: unknown[]) => track(...args) }));
+jest.mock("../../lib/analytics", () => ({
+  track: (...args: unknown[]) => track(...args),
+  // The bot links also run the first_bot_tier experiment (#1611): analytics off here, so it stays out.
+  analyticsAvailable: () => false,
+  getConsent: () => "unseen",
+}));
 jest.mock("../Discord", () => ({ FindMatch: () => null, DiscordPresence: () => null }));
 jest.mock("../Account/AccountChip", () => ({ AccountChip: () => null }));
 jest.mock("./ChangelogUpdateDialog", () => ({

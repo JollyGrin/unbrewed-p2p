@@ -25,6 +25,10 @@ const PrivacyPage: React.FC = () => {
         deck names you type, chat text or e-mail addresses.
       </Text>
       <Text mb={3}>
+        We sometimes try two versions of a feature. Which version this browser got is kept in local storage and sent
+        with the analytics; opting out turns this off.
+      </Text>
+      <Text mb={3}>
         <strong>While you are signed in</strong>, analytics are tied to your Unbrewed account id (created when you sign in
         with Discord), including the anonymous history from before you signed in. The analytics profile also stores
         your Discord username, avatar and Discord id. Signing out stops that.
