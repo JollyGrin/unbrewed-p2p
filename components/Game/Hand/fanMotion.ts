@@ -24,8 +24,6 @@ export const FOCUS_IN: SpringConfig = { k: 1000, zeta: 1 };
 export const FOCUS_OUT: SpringConfig = { k: 320, zeta: 1 };
 /** Neighbour spread / proximity rise. */
 export const LAYOUT: SpringConfig = { k: 520, zeta: 1 };
-/** Cursor tilt on the focused card: slightly underdamped so it feels physical. */
-export const TILT: SpringConfig = { k: 260, zeta: 0.75 };
 /** Drag ghost following the pointer: tight, tiny lag, no overshoot. */
 export const FOLLOW: SpringConfig = { k: 900, zeta: 0.9 };
 /** Drag ghost sway from horizontal velocity. */
@@ -67,8 +65,6 @@ export const settled = (x: number, v: number, target: number, eps = 0.01) =>
 /** How far the focused card rises and how big it gets (matches the old CSS). */
 export const FOCUS_LIFT_RATIO = 0.55; // of card height
 export const FOCUS_SCALE = 1.85;
-/** Max cursor tilt on the focused card, degrees. */
-export const MAX_TILT = 7;
 /** Proximity rise of cards near the cursor, px. */
 export const NEIGHBOUR_RISE = 14;
 /** Drag ghost sway: degrees per px/s of horizontal velocity, and its cap. */

@@ -24,10 +24,8 @@ import {
   FOCUS_SCALE,
   FOLLOW,
   LAYOUT,
-  MAX_TILT,
   RETURN,
   SWAY,
-  TILT,
   arrivalStart,
   ghostScaleOnBoard,
   handArrivals,
@@ -112,11 +110,6 @@ type CardSim = {
   /** cursor-proximity rise, px */
   rise: number;
   vr: number;
-  /** cursor tilt, degrees */
-  tx: number;
-  vtx: number;
-  ty: number;
-  vty: number;
   /** arrival: 1 = at its origin (deck button, table token), 0 = in its slot */
   arr: number;
   varr: number;
@@ -143,10 +136,6 @@ const restSim = (): CardSim => ({
   vs: 0,
   rise: 0,
   vr: 0,
-  tx: 0,
-  vtx: 0,
-  ty: 0,
-  vty: 0,
 });
 
 /** Spring state for the drag ghost (screen-space centre, scale, rotation). */
@@ -168,17 +157,15 @@ type GhostSim = {
   home?: { x: number; y: number; rot: number };
 };
 
-const clamp1 = (n: number) => Math.max(-1, Math.min(1, n));
-
 /**
  * Hand of cards fanned in an arc, floating over the board like a
  * physical hand held at the table edge.
  *
  * Hover is cursor-driven, not a fixed CSS pose: the card nearest the cursor
  * springs up (straightened, enlarged), its neighbours slide aside and every
- * card rises a little by its distance to the cursor, and the focused card
- * tilts toward the cursor. All of it runs in one rAF loop writing inline
- * transforms (see fanMotion.ts), so pointing at the hand never re-renders it.
+ * card rises a little by its distance to the cursor. The focused card stays
+ * flat (no cursor tilt), so it is always drawn sharp (#1714). All of it runs
+ * in one rAF loop writing inline transforms (see fanMotion.ts), so pointing at the hand never re-renders it.
  *
  * Cards can be dragged out of the fan and dropped on the board to play
  * them to the table: a fixed-position ghost lifts off from where the card
@@ -209,15 +196,12 @@ export const HandFan: React.FC<CardWrapperProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const slotEls = useRef<(HTMLDivElement | null)[]>([]);
   const liftEls = useRef<(HTMLDivElement | null)[]>([]);
-  const tiltEls = useRef<(HTMLDivElement | null)[]>([]);
   const sims = useRef<CardSim[]>([]);
-  /** cursor over the hand: focused card, x within the fan, tilt coords -1..1 */
-  const hover = useRef<{
-    focus: number | null;
-    x: number | null;
-    u: number;
-    v: number;
-  }>({ focus: null, x: null, u: 0, v: 0 });
+  /** cursor over the hand: focused card, and x within the fan */
+  const hover = useRef<{ focus: number | null; x: number | null }>({
+    focus: null,
+    x: null,
+  });
   /** a drag (or its fly-back) is in progress: the fan goes quiet */
   const dragging = useRef(false);
   const ghost = useRef<GhostSim | null>(null);
@@ -255,8 +239,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       const tf = focused ? 1 : 0;
       const tSpread = spreadFor(i, focus, spacing, CARD_WIDTH);
       const tRise = riseFor(i, px, spacing, CARD_WIDTH);
-      const tTx = focused && !reduced.current ? -h.v * MAX_TILT : 0;
-      const tTy = focused && !reduced.current ? h.u * MAX_TILT : 0;
+      let moving = false;
       if (reduced.current) {
         Object.assign(s, restSim(), { f: tf, spread: tSpread });
       } else {
@@ -269,14 +252,10 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         );
         [s.spread, s.vs] = stepSpring(s.spread, s.vs, tSpread, dt, LAYOUT);
         [s.rise, s.vr] = stepSpring(s.rise, s.vr, tRise, dt, LAYOUT);
-        [s.tx, s.vtx] = stepSpring(s.tx, s.vtx, tTx, dt, TILT);
-        [s.ty, s.vty] = stepSpring(s.ty, s.vty, tTy, dt, TILT);
         const still =
           settled(s.f, s.vf, tf, 0.002) &&
           settled(s.spread, s.vs, tSpread, 0.1) &&
-          settled(s.rise, s.vr, tRise, 0.1) &&
-          settled(s.tx, s.vtx, tTx, 0.05) &&
-          settled(s.ty, s.vty, tTy, 0.05);
+          settled(s.rise, s.vr, tRise, 0.1);
         if (still)
           Object.assign(s, {
             f: tf,
@@ -285,25 +264,23 @@ export const HandFan: React.FC<CardWrapperProps> = ({
             vs: 0,
             rise: tRise,
             vr: 0,
-            tx: tTx,
-            vtx: 0,
-            ty: tTy,
-            vty: 0,
           });
-        else busy = true;
+        else busy = moving = true;
         if (s.arr !== 0) {
           if (s.delay > 0) s.delay -= dt;
           else [s.arr, s.varr] = stepSpring(s.arr, s.varr, 0, dt, ARRIVE);
           if (s.delay <= 0 && settled(s.arr, s.varr, 0, 0.002))
             Object.assign(s, { arr: 0, varr: 0 });
-          else busy = true;
+          else busy = moving = true;
         }
       }
 
       const lift = liftEls.current[i];
-      const tilt = tiltEls.current[i];
       const slot = slotEls.current[i];
-      // Counter-rotate by the focus amount so the card straightens to upright
+      // The lift turns the card to its slot's angle itself (the slot element
+      // is not rotated: a rotated slot is a rotated compositor layer, and an
+      // upright card painted into it comes out resampled, #1710). It then
+      // counter-rotates by the focus amount so the card straightens to upright
       // (edge cards don't pop up tilted/cropped); with the slot's rotation
       // cancelled the rise/scale act in screen space. Adding the droop makes
       // every card converge to the SAME lifted height. The proximity rise
@@ -315,7 +292,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       // slot's own angle and place; the slot (the hit target) never moves.
       const upright = Math.min(1, s.f + Math.max(0, s.arr));
       if (lift) {
-        lift.style.transform = `${
+        lift.style.transform = `rotate(${rotOf(i)}deg) ${
           s.arr !== 0
             ? `translate(${s.ax * s.arr}px, ${s.ay * s.arr}px) `
             : ""
@@ -328,9 +305,16 @@ export const HandFan: React.FC<CardWrapperProps> = ({
           s.fade && s.arr !== 0
             ? String(Math.max(0, Math.min(1, (1 - s.arr) * 4)))
             : "";
+        // A card on its own compositor layer is a bitmap the browser places
+        // with bilinear filtering: off the pixel grid (150px x 1.85 is) its
+        // text goes soft (#1710). So the layer hint is on only while a card
+        // moves, and never on the card being read (#1714): that one is
+        // repainted each frame at its real size instead of being placed as a
+        // bitmap, and it has no 3D transform at any point. "Being read" is
+        // the focused card and one still sinking from its focus.
+        lift.style.willChange =
+          moving && !(focused || s.f > 0) ? "transform" : "";
       }
-      if (tilt)
-        tilt.style.transform = `perspective(900px) rotateX(${s.tx}deg) rotateY(${s.ty}deg)`;
       if (slot) {
         // the card on its way down keeps its height in the stack until it
         // has mostly sunk, instead of dropping behind its neighbours mid-air
@@ -442,7 +426,14 @@ export const HandFan: React.FC<CardWrapperProps> = ({
   useLayoutEffect(() => {
     const was = prevHand.current;
     prevHand.current = { cards: cards?.slice(), deckCount };
-    if (!cards || !motionAllowed()) return;
+    if (!cards) return;
+    if (!motionAllowed()) {
+      // Each card's angle is in its inline transform, which only stepFan
+      // writes: redo it before paint, so a hand that changed size is never
+      // drawn a frame at its old angles.
+      stepFan(0);
+      return;
+    }
     // Springs belong to cards, not to slots: when the hand changed, each
     // card takes its own along to its new place (a card discarded from the
     // left must not pass a neighbour's arrival flight one card over).
@@ -451,10 +442,11 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       if (from.some((j, i) => j !== i)) {
         const old = sims.current;
         sims.current = from.map((j) => (j >= 0 && old[j]) || restSim());
-        // before paint, so no card is drawn a frame in its neighbour's pose
-        stepFan(0);
       }
     }
+    // Before paint, so no card is drawn a frame in its neighbour's pose, or
+    // (the hand changed size) at the angle of the slot it had before.
+    stepFan(0);
     const arrivals = handArrivals(was.cards, cards);
     if (!arrivals.length) return;
     const noted = arrivals.length === 1 ? takeHandArrival() : null;
@@ -535,7 +527,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const clear = () => {
       const h = hover.current;
       if (h.focus == null && h.x == null) return;
-      Object.assign(h, { focus: null, x: null, u: 0, v: 0 });
+      Object.assign(h, { focus: null, x: null });
       kickRef.current();
     };
     const onMove = (ev: PointerEvent) => {
@@ -565,12 +557,6 @@ export const HandFan: React.FC<CardWrapperProps> = ({
         h.focus = pickFocus(x, count, spacing, CARD_WIDTH, h.focus);
       }
       h.x = x;
-      const lift = h.focus != null ? liftEls.current[h.focus] : undefined;
-      if (lift) {
-        const r = lift.getBoundingClientRect();
-        h.u = clamp1((ev.clientX - (r.left + r.width / 2)) / (r.width / 2));
-        h.v = clamp1((ev.clientY - (r.top + r.height / 2)) / (r.height / 2));
-      }
       kickRef.current();
     };
     const onOut = (ev: PointerEvent) => {
@@ -639,7 +625,7 @@ export const HandFan: React.FC<CardWrapperProps> = ({
       };
       dragging.current = true;
       // forget the hover: once the drag ends the cursor is somewhere else
-      Object.assign(hover.current, { focus: null, x: null, u: 0, v: 0 });
+      Object.assign(hover.current, { focus: null, x: null });
       setDrag({ card, index });
       kickRef.current();
     };
@@ -672,7 +658,13 @@ export const HandFan: React.FC<CardWrapperProps> = ({
     const flyBack = () => {
       const g = ghost.current;
       const at = resolveHandIndex(cardsRef.current, card, index);
-      const slot = at >= 0 ? slotEls.current[at] : null;
+      // Home is the card's rest pose, which is the .hit box (the slot itself
+      // is not rotated). Not the lift: that is where the card is drawn right
+      // now, and after a quick cancel it is still sinking from its focus.
+      const slot =
+        at >= 0
+          ? slotEls.current[at]?.querySelector(".hit") ?? slotEls.current[at]
+          : null;
       if (!g || !slot || reduced.current) return finishGhost();
       const r = slot.getBoundingClientRect();
       g.mode = "return";
@@ -748,20 +740,14 @@ export const HandFan: React.FC<CardWrapperProps> = ({
               data-drag-source={dragAt === index}
               style={fanVars}
             >
+              <Box className="hit" />
               <Box
                 className="lift"
                 ref={(el: HTMLDivElement | null) => {
                   liftEls.current[index] = el;
                 }}
               >
-                <Box
-                  className="tilt"
-                  ref={(el: HTMLDivElement | null) => {
-                    tiltEls.current[index] = el;
-                  }}
-                >
-                  <Card card={card} />
-                </Box>
+                <Card card={card} />
               </Box>
               {/* The +(commit) / –(discard) buttons are hidden: playing a
                   card is now drag-to-table, and discard lives in the menu.
@@ -887,41 +873,43 @@ const FanCard = styled(Box)`
   position: absolute;
   width: ${CARD_WIDTH}px;
   height: ${CARD_HEIGHT}px;
-  pointer-events: auto;
+  pointer-events: none;
   /* the fan never scrolls — let pointer drags own touch gestures too */
   touch-action: none;
-  transform-origin: bottom center;
   bottom: var(--droop);
   z-index: var(--z);
-  /* FanCard only rotates and never changes position/size — it is the
-     stationary hit-target, so it never moves out from under the pointer.
-     Which card is focused is decided from the cursor x (HandFan's
-     pointermove), not :hover, so overlapping slots can't fight over it. */
-  transform: rotate(var(--rot));
   filter: drop-shadow(0 4px 8px rgba(20, 8, 24, 0.45));
   transition: opacity 0.15s ease-out;
+
+  /* .hit only rotates and never changes position/size — it is the
+     stationary hit-target, so it never moves out from under the pointer.
+     Which card is focused is decided from the cursor x (HandFan's
+     pointermove), not :hover, so overlapping slots can't fight over it.
+     The slot itself stays unrotated (see stepFan). */
+  .hit {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    transform-origin: bottom center;
+    transform: rotate(var(--rot));
+  }
 
   /* The visual lift/scale/spread lives on an inner layer driven by the rAF
      loop (inline transform, springs — no CSS transition). It ignores the
      pointer, except on the focused card so its enlarged face can be read
-     and grabbed above the hand. */
+     and grabbed above the hand. No will-change here: the loop sets it only
+     while the card moves (see stepFan). */
   .lift {
     width: 100%;
     height: 100%;
     pointer-events: none;
     transform-origin: bottom center;
-    will-change: transform;
+    /* until the loop's first frame */
+    transform: rotate(var(--rot));
   }
   &[data-focused="true"] .lift {
     pointer-events: auto;
     cursor: grab;
-  }
-
-  /* cursor tilt, about the card's centre */
-  .tilt {
-    width: 100%;
-    height: 100%;
-    transform-origin: center;
   }
 
   .actions {
@@ -931,6 +919,7 @@ const FanCard = styled(Box)`
     left: 50%;
     transform: translateX(-50%);
     gap: 0.5rem;
+    pointer-events: auto;
     cursor: pointer;
     user-select: none;
 
@@ -954,9 +943,8 @@ const FanCard = styled(Box)`
   &[data-focused="true"] .actions {
     display: flex;
     /* ride up with the lifted card so the buttons land just below its
-       bottom edge and stay on-screen + clickable (no scale, full size);
-       counter-rotate too so they sit level under the upright card */
-    transform: rotate(calc(-1 * var(--rot))) translateX(-50%)
+       bottom edge and stay on-screen + clickable (no scale, full size) */
+    transform: translateX(-50%)
       translateY(calc(var(--droop) - ${CARD_HEIGHT * FOCUS_LIFT_RATIO}px));
   }
 

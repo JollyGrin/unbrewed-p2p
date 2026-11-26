@@ -148,3 +148,147 @@ describe("resolveHandIndex", () => {
     expect(resolveHandIndex(undefined, ACE, 0)).toBe(-1);
   });
 });
+
+/**
+ * A card on a compositor layer (will-change, or a 3D transform) is a bitmap
+ * the browser resamples: its text is soft while the layer is held (#1710).
+ * So a card that has stopped moving carries neither, and the card being read
+ * (focused, or still sinking from its focus) never does: it has no cursor
+ * tilt and no layer hint on any frame (#1714).
+ */
+describe("HandFan draws the hand sharp", () => {
+  const rect = Element.prototype.getBoundingClientRect;
+  beforeEach(() => {
+    jest.useFakeTimers(); // drives requestAnimationFrame and performance.now
+    Element.prototype.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 150, height: 200, right: 150, bottom: 200 }) as DOMRect;
+  });
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = rect;
+    jest.useRealTimers();
+  });
+
+  /** What could put a card on a layer: the hint, and any 3D transform on the
+   * lift or on anything between it and the card face. */
+  const state = (slot: HTMLElement) => {
+    const lift = slot.querySelector<HTMLElement>(".lift")!;
+    const transforms = [lift, ...Array.from(lift.querySelectorAll<HTMLElement>("*"))]
+      .map((el) => el.style.transform)
+      .join(" ");
+    return {
+      hint: lift.style.willChange,
+      threeD: /perspective|rotateX|rotateY|rotate3d|translateZ|translate3d|matrix3d/.test(transforms),
+    };
+  };
+  const flat = { hint: "", threeD: false };
+  const slotsOf = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>("[data-fan-slot]"));
+  const frames = (ms: number) => act(() => void jest.advanceTimersByTime(ms));
+  const moveOn = (slot: HTMLElement, x: number, y: number) =>
+    act(() => {
+      slot.dispatchEvent(
+        new FakePointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true }),
+      );
+    });
+  /** The cursor sweeps sideways and up and down over the card, a frame at a
+   * time; returns what the card carried on every frame. */
+  const sweep = (slot: HTMLElement, steps = 60) => {
+    const seen = [];
+    for (let k = 0; k < steps; k++) {
+      moveOn(slot, 20 + 110 * Math.abs(Math.sin(k / 6)), 20 + 150 * Math.abs(Math.cos(k / 4)));
+      frames(16);
+      seen.push(state(slot));
+    }
+    return seen;
+  };
+
+  it("a hand at rest has no layer hint and no 3D transform", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    expect(slotsOf(container).map(state)).toEqual(Array(3).fill(flat));
+    // the card turns to its slot's angle itself; the slot is not rotated
+    const lift = container.querySelector<HTMLElement>(".lift")!;
+    expect(lift.style.transform).toMatch(/^rotate\(-4deg\) /);
+  });
+
+  it("the stylesheet never puts a hand card on a layer either", () => {
+    render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((el) => el.textContent ?? "")
+      .join("\n");
+    const lift = css.match(/\.lift\s*\{[^}]*\}/g) ?? [];
+    expect(lift.length).toBeGreaterThan(0); // the rule is there to be read
+    expect(lift.join("\n")).not.toMatch(/will-change/);
+  });
+
+  it("a hand that changes size is at its new angles before the next frame", () => {
+    const props = { functions: fns(jest.fn()) };
+    const { container, rerender } = render(<HandFan cards={[ACE, BOLT, CURE]} {...props} />);
+    frames(1000);
+    // no frame runs between the render and the check
+    rerender(<HandFan cards={[ACE, BOLT]} {...props} />);
+    const angles = Array.from(container.querySelectorAll<HTMLElement>(".lift")).map(
+      (lift) => lift.style.transform.match(/^rotate\((-?[\d.]+)deg\)/)?.[1],
+    );
+    expect(angles).toEqual(["-2", "2"]);
+  });
+
+  it("the focused card has no tilt and no layer hint on any frame while the cursor moves", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slot = slotsOf(container)[0];
+
+    // from the very first frame: the focus spring (lift, enlarge) is moving
+    const seen = sweep(slot);
+    expect(slot.dataset.focused).toBe("true");
+    expect(seen).toEqual(Array(seen.length).fill(flat));
+    // and it did lift and enlarge
+    frames(1000);
+    expect(slot.querySelector<HTMLElement>(".lift")!.style.transform).toMatch(/scale\(1\.85\)$/);
+    expect(state(slot)).toEqual(flat);
+  });
+
+  it("the card face sits straight in the lift: there is no tilt wrapper", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    expect(container.querySelector(".tilt")).toBeNull();
+    const lift = container.querySelector<HTMLElement>(".lift")!;
+    expect(lift.firstElementChild).toBe(screen.getByText("Ace"));
+  });
+
+  it("the rest of the fan keeps moving as before: neighbours spread, with their hint", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slots = slotsOf(container);
+    moveOn(slots[0], 100, 50);
+    frames(32);
+    expect(state(slots[1]).hint).toBe("transform"); // sliding aside
+    expect(state(slots[0])).toEqual(flat);
+    frames(1000);
+    expect(slots[1].querySelector<HTMLElement>(".lift")!.style.transform).toMatch(
+      /translateX\((?!0px)[\d.]+px\)/,
+    );
+    expect(state(slots[1])).toEqual(flat); // settled: no hint on anyone
+  });
+
+  it("a card sinking from its focus carries no hint either", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    const slots = slotsOf(container);
+    moveOn(slots[0], 60, 50);
+    frames(1000);
+    expect(slots[0].dataset.focused).toBe("true");
+    moveOn(slots[2], 320, 50); // the focus moves to the last card
+    frames(16);
+    expect(slots[0].dataset.focused).toBe("false");
+    expect(slots[0].querySelector<HTMLElement>(".lift")!.style.transform).not.toMatch(/scale\(1\)$/);
+    expect(state(slots[0])).toEqual(flat);
+  });
+
+  it("the frame loop stops once the hand has settled under a resting cursor", () => {
+    const { container } = render(<HandFan cards={[ACE, BOLT, CURE]} functions={fns(jest.fn())} />);
+    frames(1000);
+    moveOn(slotsOf(container)[0], 100, 50);
+    frames(3000);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+});
