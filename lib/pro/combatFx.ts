@@ -198,9 +198,10 @@ export function diffCombatCallouts(
  * and combatStrike.ts. A mid-sequence pace change is read fresh each batch
  * (via `paceRef`), so it takes effect on the NEXT callout, not mid-flight.
  */
-export function useCombatCallouts(
-  snapshot: { view: PlayerView; events: GameEvent[] } | null,
-  paceFactor = 1
+export function useCombatCallouts<S extends { view: PlayerView; events: GameEvent[] }>(
+  snapshot: S | null,
+  paceFactor = 1,
+  skipCardCallouts?: (snapshot: S) => boolean
 ): CombatCalloutItem[] {
   const [items, setItems] = useState<CombatCalloutItem[]>([]);
   const prevViewRef = useRef<PlayerView | null>(null);
@@ -212,6 +213,8 @@ export function useCombatCallouts(
   const revealCycleRef = useRef(0);
   const paceRef = useRef(paceFactor);
   paceRef.current = paceFactor;
+  const skipRef = useRef(skipCardCallouts);
+  skipRef.current = skipCardCallouts;
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -222,7 +225,13 @@ export function useCombatCallouts(
     if (!snapshot) return;
     const prev = prevViewRef.current;
     prevViewRef.current = snapshot.view;
-    const callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
+    let callouts = diffCombatCallouts(prev, snapshot.view, snapshot.events);
+    // A batch whose own UI already shows the revealed cards (The Funny One!'s hand
+    // picker, issue #1706) loses its card callouts AT THE SOURCE: dropped before
+    // they are queued, so none can be scheduled and appear late once the player has
+    // answered, and they do not occupy the reveal stagger queue either. Turn /
+    // defend / cancel banners in the same batch are kept.
+    if (skipRef.current?.(snapshot)) callouts = callouts.filter((c) => c.kind !== "reveal" && c.kind !== "effect");
     if (callouts.length === 0) return;
 
     const factor = paceRef.current;

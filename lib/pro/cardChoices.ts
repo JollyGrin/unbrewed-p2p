@@ -27,7 +27,11 @@ export interface CardChoiceGroup {
 }
 
 const cardOf = (action: Action): { type: CardChoiceType; card: CardInstanceId } | null =>
-  action.type in TITLES && "card" in action ? { type: action.type as CardChoiceType, card: action.card } : null;
+  // `typeof`, not `"card" in`: USE_ABILITY (v41) carries an OPTIONAL card that is
+  // a definition id, and it is not a card choice.
+  action.type in TITLES && "card" in action && typeof action.card === "string"
+    ? { type: action.type as CardChoiceType, card: action.card }
+    : null;
 
 export const isCardChoice = (action: Action): boolean => cardOf(action) !== null;
 

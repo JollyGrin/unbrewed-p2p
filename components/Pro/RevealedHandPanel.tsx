@@ -1,5 +1,6 @@
 /**
- * "Revealed: <hero>'s hand" — the last Keen Hearing reveal, kept readable after
+ * "Revealed: <hero>'s hand" — the last hand reveal (Keen Hearing; *The Funny
+ * One!* as the fallback for its in-prompt picker, issue #1691), kept readable after
  * the reveal moment has passed. Renders the SNAPSHOT from `lib/pro/revealedHand`
  * (the cards the reveal event carried, labelled with its turn), never live hand
  * state. Collapsible so it can sit out of the way while planning.

@@ -18,7 +18,7 @@
  * CHOOSE_TARGETs don't carry `data.card` either, so the board-click flow is
  * untouched.
  */
-import type { CardInstanceId, LegalOption, PlayerId, ViewPrompt } from "./protocol";
+import type { CardInstanceId, GameEvent, LegalOption, PlayerId, ViewPrompt } from "./protocol";
 
 export interface CardOption {
   /** the RESPOND_PROMPT option id to send when this card is picked */
@@ -104,4 +104,75 @@ export const revealedPlayerPickOptions = (
     out.push({ id: o.id, instance: card, player: p });
   }
   return out;
+};
+
+/** A "how many?" count prompt that can be answered by picking cards instead. */
+export interface RevealedHandPick {
+  /** the seat whose hand the batch revealed */
+  owner: PlayerId;
+  /** the revealed hand, in reveal order */
+  cards: CardInstanceId[];
+  /** the most cards that can be picked (never more than the hand holds) */
+  max: number;
+  /** count → the RESPOND_PROMPT option id that answers the count prompt with it */
+  countOptions: Record<number, string>;
+}
+
+/** The whole number an option offers via `data.count`, or null. */
+export const optionCount = (o: LegalOption): number | null => {
+  const n = (o.data as { count?: unknown } | undefined)?.count;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : null;
+};
+
+/**
+ * "Look at a hand, choose up to N cards" (issue #1691 — POMNI's *The Funny
+ * One!*). The engine has no multi-select prompt: it asks "how many? 0/1/2"
+ * first (a CHOOSE_OPTION whose options carry `data.count`) and then one
+ * CHOOSE_TARGET per card. When the batch that opened the count prompt revealed
+ * one other seat's WHOLE hand right before it, the count can be answered by
+ * picking the cards themselves, so the caller shows the hand instead of numbers.
+ *
+ * `events` is the STATE batch that opened the prompt; `handCountOf` the current
+ * hand size of a seat. Shape-based, not tied to one card, but strict, because
+ * count prompts and reveals are both common. Returns null — and the prompt keeps
+ * its buttons — unless ALL of these hold:
+ *  - every option is a distinct count;
+ *  - the events directly before this prompt's own PROMPT_OPENED are one unbroken
+ *    run of CARD_REVEALED, all for ONE seat that is not the chooser;
+ *  - that run is the seat's whole hand (as many cards as it holds now);
+ *  - at least one card can be picked.
+ * So a count prompt about the chooser's OWN cards that merely shares a batch with
+ * a deck-top or random reveal (Harmless "Prank" into The Climax, Gingerbread's
+ * 350°, Boba's payment), a discard-N prompt with no reveal, several seats
+ * revealing (Foreshadowing) and a mid-prompt reconnect (no events replayed) all
+ * fall through.
+ */
+export const revealedHandPick = (
+  prompt: ViewPrompt | null,
+  events: readonly GameEvent[],
+  handCountOf: (player: PlayerId) => number | null | undefined,
+): RevealedHandPick | null => {
+  if (!prompt || prompt.kind !== "CHOOSE_OPTION" || prompt.options.length === 0) return null;
+  const countOptions: Record<number, string> = {};
+  for (const o of prompt.options) {
+    const n = optionCount(o);
+    if (n === null || n in countOptions) return null;
+    countOptions[n] = o.id;
+  }
+  const opened = events.findIndex((e) => e.type === "PROMPT_OPENED" && e.promptId === prompt.promptId);
+  if (opened < 0) return null;
+  // The reveal run ending right at the prompt, read backwards.
+  const cards: CardInstanceId[] = [];
+  let owner: PlayerId | null = null;
+  for (let i = opened - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.type !== "CARD_REVEALED") break;
+    // Same `#` guard as optionCardId: an instance id, not a bare def id.
+    if ((owner && e.player !== owner) || !e.card.includes("#") || cards.includes(e.card)) return null;
+    owner = e.player;
+    cards.unshift(e.card);
+  }
+  if (!owner || owner === prompt.player || handCountOf(owner) !== cards.length) return null;
+  const max = Math.min(cards.length, Math.max(...Object.keys(countOptions).map(Number)));
+  return max >= 1 ? { owner, cards, max, countOptions } : null;
 };

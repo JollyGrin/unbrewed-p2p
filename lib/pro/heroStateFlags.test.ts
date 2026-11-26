@@ -1399,7 +1399,8 @@ describe("flagStatOverridesFor — generic over the registry (issue #1535)", () 
 
 // POMNI (issue #1623 ↔ engine #1056). Keys verified against pomni.rules.ts @41361953.
 describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => {
-  const POMNI_FLAGS = ["POMNI_ADV2_ONCE", "POMNI_R2_SNOOZED", "POMNI_R3_SNOOZED", "POMNI_R4_USED"];
+  // The two reward-snooze flags were retired with engine #1080 (Rewards 2 / 3 are buttons).
+  const POMNI_FLAGS = ["POMNI_ADV2_ONCE", "POMNI_R4_USED"];
   const allOn = Object.fromEntries(POMNI_FLAGS.map((f) => [f, true]));
   const midGame = {
     ADV_ACTIVE: ["pomni/adventure-3#1"],
@@ -1409,7 +1410,7 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
     ADV_REWARDS: ["pomni/reward-3#1", "pomni/reward-4#1", "pomni/reward-5#1"],
   };
 
-  it("none of the four POMNI flags renders on any surface", () => {
+  it("none of the POMNI flags renders on any surface", () => {
     for (const flag of POMNI_FLAGS) expect(HERO_STATE_FLAGS.some((e) => e.flag === flag)).toBe(false);
     expect(flagChipsFor("pomni", allOn)).toEqual([]);
     expect(fighterTokenStateFor("pomni", allOn)).toEqual({ heroArtUrl: null, badge: null });
