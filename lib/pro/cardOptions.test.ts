@@ -1,5 +1,5 @@
-import { cardFaceOptions, optionCardId } from "./cardOptions";
-import type { LegalOption, PlayerId, PromptKind, ViewPrompt } from "./protocol";
+import { cardFaceOptions, optionCardId, revealedHandPick } from "./cardOptions";
+import type { GameEvent, LegalOption, PlayerId, PromptKind, ViewPrompt } from "./protocol";
 
 const prompt = (kind: PromptKind, options: LegalOption[]): ViewPrompt => ({
   promptId: "p1",
@@ -175,5 +175,95 @@ describe("revealedPlayerPickOptions (issue #861 — Foreshadowing pick-a-player)
   it("a fighter-target CHOOSE_TARGET (no data.player) keeps its board flow", () => {
     const p = prompt("CHOOSE_TARGET", [{ id: "f1", label: "Cecil", data: { fighter: "f1" } }]);
     expect(revealedPlayerPickOptions(p, [rev("p1", "card_001#1")])).toEqual([]);
+  });
+});
+
+// Issue #1691 — POMNI's *The Funny One!*: reveal the opponent's hand, then
+// "how many? 0/1/2" (CHOOSE_OPTION, data.count), then one CHOOSE_TARGET per card.
+describe("revealedHandPick", () => {
+  const countOpt = (n: number): LegalOption => ({ id: String(n), label: String(n), data: { count: n } });
+  const counts = (...ns: number[]) => prompt("CHOOSE_OPTION", ns.map(countOpt));
+  const shown = (player: PlayerId, card: string): GameEvent => ({ type: "CARD_REVEALED", player, card });
+  const opened: GameEvent = { type: "PROMPT_OPENED", player: "p1", kind: "CHOOSE_OPTION", promptId: "p1" };
+  const marker: GameEvent = { type: "EFFECT_RESOLVING", source: "pomni/the-funny-one#1", window: "IMMEDIATELY", player: "p1" };
+  /** The batch as the engine sends it: marker, the hand, the prompt. */
+  const batch = (...cards: string[]): GameEvent[] => [marker, ...cards.map((c) => shown("p2", c)), opened];
+  /** p2 holds `n` cards; p1 (the chooser) holds 4. */
+  const p2Holds = (n: number) => (p: PlayerId) => (p === "p2" ? n : 4);
+
+  it("fires for a count prompt opened right after one opponent's whole hand was revealed", () => {
+    expect(revealedHandPick(counts(0, 1, 2), batch("pl/hit#2", "pl/hit#3", "pl/plot#1"), p2Holds(3))).toEqual({
+      owner: "p2",
+      cards: ["pl/hit#2", "pl/hit#3", "pl/plot#1"],
+      max: 2,
+      countOptions: { 0: "0", 1: "1", 2: "2" },
+    });
+  });
+
+  it("caps the max at what the engine offers for a 1-card hand", () => {
+    expect(revealedHandPick(counts(0, 1), batch("pl/hit#2"), p2Holds(1))?.max).toBe(1);
+  });
+
+  it("never lets the max exceed the revealed hand", () => {
+    expect(revealedHandPick(counts(0, 1, 2), batch("pl/hit#2"), p2Holds(1))?.max).toBe(1);
+  });
+
+  it("leaves a count prompt with no reveal in its batch as buttons (discard-N, reconnect)", () => {
+    expect(revealedHandPick(counts(0, 1, 2), [opened], p2Holds(3))).toBeNull();
+    expect(revealedHandPick(counts(0, 1, 2), [], p2Holds(3))).toBeNull();
+  });
+
+  // Harmless "Prank" into The Climax: the Narrator (p1) is asked how many of
+  // their OWN cards to discard, in a batch that revealed POMNI's (p2) deck top.
+  it("does not mistake a deck-top reveal before an own-cards count prompt for a hand", () => {
+    const events: GameEvent[] = [
+      shown("p2", "pomni/anxiety#1"),
+      { type: "EFFECT_RESOLVING", source: "pomni/harmless-prank#1", window: "AFTER", player: "p2" },
+      opened,
+    ];
+    expect(revealedHandPick(counts(0, 1, 2, 3, 4), events, p2Holds(5))).toBeNull();
+    // …nor when the reveal happens to sit right before the prompt
+    expect(revealedHandPick(counts(0, 1, 2, 3, 4), [shown("p2", "pomni/anxiety#1"), opened], p2Holds(5))).toBeNull();
+  });
+
+  it("needs the WHOLE hand: a partial or random reveal keeps the buttons", () => {
+    expect(revealedHandPick(counts(0, 1, 2), batch("pl/hit#2", "pl/hit#3"), p2Holds(3))).toBeNull();
+    expect(revealedHandPick(counts(0, 1, 2), batch("pl/hit#2", "pl/hit#3"), () => undefined)).toBeNull();
+  });
+
+  it("needs the reveal to run straight into this prompt", () => {
+    const interrupted: GameEvent[] = [shown("p2", "pl/hit#2"), { type: "TURN_ENDED", player: "p2" }, opened];
+    expect(revealedHandPick(counts(0, 1), interrupted, p2Holds(1))).toBeNull();
+    const otherPrompt: GameEvent[] = [shown("p2", "pl/hit#2"), { ...opened, promptId: "earlier" } as GameEvent];
+    expect(revealedHandPick(counts(0, 1), otherPrompt, p2Holds(1))).toBeNull();
+  });
+
+  it("reads only the run next to the prompt, not an earlier reveal in the batch", () => {
+    const events: GameEvent[] = [shown("p1", "a/top#1"), marker, shown("p2", "pl/hit#2"), opened];
+    expect(revealedHandPick(counts(0, 1), events, p2Holds(1))?.cards).toEqual(["pl/hit#2"]);
+  });
+
+  it("ignores a reveal of the chooser's own cards", () => {
+    expect(revealedHandPick(counts(0, 1, 2), [shown("p1", "pl/hit#2"), opened], () => 1)).toBeNull();
+  });
+
+  it("ignores a run that mixes seats (Foreshadowing's shape)", () => {
+    expect(revealedHandPick(counts(0, 1), [shown("p2", "a/x#1"), shown("p3", "a/y#1"), opened], () => 1)).toBeNull();
+  });
+
+  it("needs EVERY option to be a count", () => {
+    const mixed = prompt("CHOOSE_OPTION", [countOpt(0), countOpt(1), { id: "decline", label: "Decline" }]);
+    expect(revealedHandPick(mixed, batch("pl/hit#2"), p2Holds(1))).toBeNull();
+    const branches = prompt("CHOOSE_OPTION", [{ id: "a", label: "Draw", data: { branch: 0 } }]);
+    expect(revealedHandPick(branches, batch("pl/hit#2"), p2Holds(1))).toBeNull();
+  });
+
+  it("only reads CHOOSE_OPTION prompts", () => {
+    expect(revealedHandPick(prompt("CHOOSE_TARGET", [countOpt(0), countOpt(1)]), batch("pl/hit#2"), p2Holds(1))).toBeNull();
+    expect(revealedHandPick(null, batch("pl/hit#2"), p2Holds(1))).toBeNull();
+  });
+
+  it("has nothing to offer when the only count is 0", () => {
+    expect(revealedHandPick(counts(0), batch("pl/hit#2"), p2Holds(1))).toBeNull();
   });
 });

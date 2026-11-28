@@ -1397,9 +1397,10 @@ describe("flagStatOverridesFor — generic over the registry (issue #1535)", () 
   });
 });
 
-// POMNI (issue #1623 ↔ engine #1056). Keys verified against pomni.rules.ts @41361953.
+// POMNI (issue #1623 ↔ engine #1056). Keys verified against pomni.rules.ts @97649061.
 describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => {
-  const POMNI_FLAGS = ["POMNI_ADV2_ONCE", "POMNI_R2_SNOOZED", "POMNI_R3_SNOOZED", "POMNI_R4_USED"];
+  // The two reward-snooze flags were retired with engine #1080 (Rewards 2 / 3 are buttons).
+  const POMNI_FLAGS = ["POMNI_ADV2_ONCE", "POMNI_R4_USED"];
   const allOn = Object.fromEntries(POMNI_FLAGS.map((f) => [f, true]));
   const midGame = {
     ADV_ACTIVE: ["pomni/adventure-3#1"],
@@ -1409,7 +1410,7 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
     ADV_REWARDS: ["pomni/reward-3#1", "pomni/reward-4#1", "pomni/reward-5#1"],
   };
 
-  it("none of the four POMNI flags renders on any surface", () => {
+  it("none of the POMNI flags renders on any surface", () => {
     for (const flag of POMNI_FLAGS) expect(HERO_STATE_FLAGS.some((e) => e.flag === flag)).toBe(false);
     expect(flagChipsFor("pomni", allOn)).toEqual([]);
     expect(fighterTokenStateFor("pomni", allOn)).toEqual({ heroArtUrl: null, badge: null });
@@ -1531,7 +1532,7 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
 });
 
 // Harry Dresden (issue #1718 ↔ engine #1092). Keys verified against harry-dresden.rules.ts
-// @98aac839: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
+// @97649061: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
 describe("Harry Dresden: PYRO FUEGO! shows, the bookkeeping does not, the Rings hold their cards", () => {
   it("DRESDEN_PYRO_FUEGO is a one-sided pill + a board badge on Dresden's own seat only", () => {
     expect(flagChipsFor("harry-dresden", { DRESDEN_PYRO_FUEGO: true })).toEqual([

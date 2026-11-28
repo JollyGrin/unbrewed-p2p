@@ -20,7 +20,7 @@
  * carry an embedded newline (Adventure 5 a U+00A0 as well), which no editor can be
  * trusted to keep.
  *
- * Pile keys and card ids VERIFIED against `data/heroes/pomni.rules.ts` @41361953
+ * Pile keys and card ids VERIFIED against `data/heroes/pomni.rules.ts` @97649061
  * (engine `feature/pomni`): ADV_PENDING / ADV_ACTIVE / ADV_FLIPPED / ADV_REWARDS /
  * ADV_DONE, the sealed EXILE, and `pomni/adventure-n` / `pomni/reward-n`.
  */

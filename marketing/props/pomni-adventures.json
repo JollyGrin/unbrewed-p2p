@@ -8,7 +8,7 @@
   ],
   "beats": [
     {
-      "front": "Adventure1: YOur new Home",
+      "front": "Adventure1: Your new Home",
       "back": "Reward 1",
       "effect": "reach",
       "caption": "Flip the character card: Pomni turns ranged for the rest of the game."
@@ -21,7 +21,7 @@
       "still": "img/showcase/pomni/reward2.webp"
     },
     {
-      "front": "Adventure 3:night of the living Jax",
+      "front": "Adventure 3:Night of the living Jax",
       "back": "Reward 3",
       "effect": "revive",
       "caption": "Jax went down? Bring him back into the fight, once.",

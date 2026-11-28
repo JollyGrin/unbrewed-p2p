@@ -69,6 +69,12 @@ describe("batchActor", () => {
     expect(batchActor([{ type: "ACTION_SPENT", player: "p2", action: "SCHEME" }])).toBe("p2");
   });
 
+  it("names whoever used a free ability (v41) — no ACTION_SPENT comes with it", () => {
+    expect(
+      batchActor([{ type: "ABILITY_USED", player: "p2", ability: "reward-2", label: "Reward 2", card: "pomni/reward-2" }])
+    ).toBe("p2");
+  });
+
   it("ignores events that merely NAME a player — an opponent's scheme can draw you a card", () => {
     expect(
       batchActor([
@@ -90,6 +96,53 @@ describe("batchActor", () => {
 
   it("returns null when nothing in the batch names an actor", () => {
     expect(batchActor([{ type: "HERO_PLACED", fighter: "p1/hero", space: "s1" }])).toBeNull();
+  });
+
+  // v42 setup-time sidekick choice (issue #1717). SIDEKICK_CHOSEN is NOT an actor event,
+  // and need not be: the engine leads every pick's batch with the chooser's own
+  // PROMPT_RESOLVED. These batches are the real ones from engine 97649061 (a chooser
+  // mirror, mulligan on and off, and a lone chooser in either seat), as the OTHER seat
+  // receives them — PROMPT_RESOLVED keeps its `player`, only `optionId` is masked.
+  describe("the setup sidekick pick credits the seat that chose", () => {
+    const pick = (player: "p1" | "p2", ...tail: GameEvent[]): GameEvent[] => [
+      { type: "PROMPT_RESOLVED", player, promptId: "p0", optionId: "(hidden)" },
+      { type: "SIDEKICK_CHOSEN", player, option: "mouse", name: "Mouse" },
+      { type: "DECK_SHUFFLED", player },
+      ...tail,
+    ];
+    const opens = (player: "p1" | "p2", kind: "CHOOSE_OPTION" | "MULLIGAN"): GameEvent => ({
+      type: "PROMPT_OPENED",
+      player,
+      kind,
+      promptId: "p0",
+    });
+    const placed: GameEvent[] = [
+      { type: "HERO_PLACED", fighter: "p1/hero", space: "s1" },
+      { type: "HERO_PLACED", fighter: "p2/hero", space: "s9" },
+    ];
+
+    it.each([
+      ["p1 picks first, p2 is asked next", pick("p1", opens("p2", "CHOOSE_OPTION")), "p1"],
+      ["p2 picks last, the mulligan opens for p1", pick("p2", opens("p1", "MULLIGAN")), "p2"],
+      ["p2 picks last, no mulligan: heroes are placed", pick("p2", ...placed), "p2"],
+      ["a lone p1 chooser, no mulligan", pick("p1", ...placed), "p1"],
+    ])("%s", (_label, events, chooser) => {
+      expect(batchActor(events)).toBe(chooser);
+    });
+
+    it("so slow mode spotlights an opponent's pick and never holds your own", () => {
+      // p1 watching p2's last pick, nothing left to answer: paced, credited to p2.
+      expect(isPacedBatch({ view: view({ you: "p1", prompt: null }), events: pick("p2", ...placed) })).toBe(true);
+      // p1's own pick, echoed back with p2 now choosing: never held.
+      expect(isPacedBatch({ view: view({ you: "p1", prompt: null }), events: pick("p1", opens("p2", "CHOOSE_OPTION")) })).toBe(false);
+      // p2 is asked next: the batch opens a prompt for them, so it is not held either.
+      const p2Asked = { promptId: "p0", player: "p2", kind: "CHOOSE_OPTION", options: [] } as unknown as PlayerView["prompt"];
+      expect(isPacedBatch({ view: view({ you: "p2", prompt: p2Asked }), events: pick("p1", opens("p2", "CHOOSE_OPTION")) })).toBe(false);
+    });
+
+    it("without the leading PROMPT_RESOLVED nobody is credited — never the wrong seat", () => {
+      expect(batchActor(pick("p2", ...placed).slice(1))).toBeNull();
+    });
   });
 });
 

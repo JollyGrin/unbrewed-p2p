@@ -78,6 +78,7 @@ type ReplayAction = {
   attacker?: string;
   target?: string;
   ability?: string;
+  label?: string;
   promptId?: string;
   optionId?: string;
   attachItem?: boolean;
@@ -106,7 +107,7 @@ const promptLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): stri
   return `${action.player ?? "?"}: choose ${detail}${choice}${source}`;
 };
 
-const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): string => {
+export const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): string => {
   switch (action.type) {
     case "PLACE_SIDEKICK":
       return `${action.player ?? "?"}: place ${fighterLabel(action.fighter ?? "fighter")} at ${spaceLabel(action.space ?? "?")}`;
@@ -144,6 +145,10 @@ const actionLabel = (action: ReplayAction, beforeStep?: ReplayFrameForLog): stri
       return promptLabel(action, beforeStep);
     case "FORFEIT":
       return `${action.player ?? "?"}: forfeit`;
+    case "USE_ABILITY":
+      // A free activated hero ability (v41, engine #1080): the action carries its
+      // own button text ("Reward 2"); the id is the fallback.
+      return `${action.player ?? "?"}: use ${action.label || action.ability || "ability"} (free)`;
     case "USE_ENCOUNTER_ABILITY":
       return `${action.player ?? "?"}: ability ${action.ability ?? "ability"}`;
     default:

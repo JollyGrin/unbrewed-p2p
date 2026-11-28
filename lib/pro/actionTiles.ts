@@ -2,6 +2,10 @@
  * The three core turn actions as big tiles in the phone action sheet (mobile
  * step 2): Maneuver, Scheme and Attack. Every other legal row (items, boosts,
  * ending a move) stays in the plain list under the tiles.
+ *
+ * A free activated hero ability (`USE_ABILITY`, protocol v41) is NOT one of the
+ * three: it costs no action, so it never becomes an action tile. It stands
+ * beside them as a bonus button instead (`abilityActionsOf`).
  */
 import type { Action } from "./protocol";
 
@@ -27,6 +31,12 @@ export function tileKindOf(action: Action): TileKind | null {
       return null;
   }
 }
+
+export type AbilityAction = Extract<Action, { type: "USE_ABILITY" }>;
+
+/** The free abilities on offer, in the server's order: one bonus button each. */
+export const abilityActionsOf = (actions: Action[]): AbilityAction[] =>
+  actions.filter((action): action is AbilityAction => action.type === "USE_ABILITY");
 
 /** Tiles only make sense at the start of an action: with no core action legal
  *  (mid-maneuver, mid-combat) there are none, so the list shows as before. */

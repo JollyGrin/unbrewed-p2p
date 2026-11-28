@@ -18,6 +18,7 @@
  * by screenshots.
  */
 import { tileKindOf } from "./actionTiles";
+import { unknownActionLabel } from "./actionDock";
 import type { Action } from "./protocol";
 import type { ZoomPanInset } from "./useZoomPan";
 import { RAIL_WIDTH } from "./mobileLayout";
@@ -115,7 +116,10 @@ export const hexLabelFor = (action: Action, describe: (a: Action) => string): st
   const kind = tileKindOf(action);
   if (kind) return TILE_LABEL[kind];
   if (action.type === "END_MANEUVER") return "End move";
-  const text = describe(action);
+  // `describe` is the page's; a build that does not know this action type must
+  // still draw a hexagon rather than throw on a missing label (#1693).
+  const described: unknown = describe(action);
+  const text = typeof described === "string" && described ? described : unknownActionLabel(action);
   if (text.length <= HEX_LABEL_MAX) return text;
   // The longest run of whole leading words that fits; a first word longer than
   // the hexagon is cut mid-word, which still says more than nothing.

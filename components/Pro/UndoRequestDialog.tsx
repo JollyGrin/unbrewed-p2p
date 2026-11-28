@@ -44,9 +44,14 @@ const ACTION_LABELS: Record<Action["type"], string> = {
   DISCARD_TO_LIMIT: "a discard",
   RESPOND_PROMPT: "a choice",
   FORFEIT: "a forfeit",
+  // A free activated hero ability (v41, engine #1080): the summary carries the
+  // type only, so the wording stays generic — and says it cost no action.
+  USE_ABILITY: "a free ability",
 };
 
-const labelFor = (type: Action["type"]): string => ACTION_LABELS[type] ?? "an action";
+/** Wording for one rewound action; an unknown type (a newer engine) reads "an action". */
+export const undoActionLabel = (type: Action["type"]): string => ACTION_LABELS[type] ?? "an action";
+const labelFor = undoActionLabel;
 
 export const UndoRequestDialog = ({
   isOpen,
