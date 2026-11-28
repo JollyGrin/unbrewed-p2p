@@ -940,7 +940,7 @@
 /**
  * CLIENT-ONLY ADDITION (p2p #880, revised #1201): `REMATCH_PROTOCOL_VERSION` is the
  * lowest version the rematch negotiation (v35, above) needs — the client's gate for
- * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1080, {40, 41}; since #1087, {40, 41, 42}), so every bind is at
+ * offering it. Since engine #754 the server accepts only {35, 36} (since #755, {36, 37}; since #918, {37, 38}; since #894, {38, 39}; since #1053, {39, 40}; since #1080, {40, 41}; feature/dresden's #1087 took {39, 40, 42}; since #1097 merged the two, {40, 41, 42}), so every bind is at
  * `PROTOCOL_VERSION` and is rematch-capable; the old "bind at 34, upgrade to 35" dance in
  * lib/pro/wireVersion.ts is gone. Keep this export when re-syncing the file.
  */
@@ -1139,7 +1139,8 @@
 /**
  * v42 (engine #1087 — setup-time sidekick choice, DSL 0.96.0; first consumer Harry Dresden,
  * "Choose Mouse or Karrin Murphy as your sidekick at the start of the game"). ADDITIVE: one
- * `GameEvent` variant. (Numbered after v41 / USE_ABILITY, above.)
+ * `GameEvent` variant. (Built against v40; v41 — USE_ABILITY, above — reached main first, so
+ * this is 42 and sits on top of it: a v42 server speaks every v41 shape, USE_ABILITY included.)
  *
  * - A hero whose deck lets the player choose a sidekick gets, at game start — before the
  *   mulligan window and before any fighter is placed — one ordinary `CHOOSE_OPTION` prompt
@@ -1154,9 +1155,10 @@
  *   the matching `PROMPT_RESOLVED.optionId` stays masked for other seats as always, so this
  *   event is the only way an opponent's feed learns the pick. It is followed by the existing
  *   `DECK_SHUFFLED { player }` (the chosen cards were shuffled in); no `CARD_DRAWN` events.
- * - Nothing else moves: no action, prompt kind, view field or `LegalOption` shape. A v40
- *   or v41 client renders the prompt with its generic option panel, drops the event and reads
- *   every other frame as before, so v40 and v41 stay accepted.
+ * - Nothing else moves: no action, prompt kind, view field or `LegalOption` shape. A v41 or
+ *   v40 client renders the prompt with its generic option panel, drops the event and reads
+ *   every other frame as before, so v41 and v40 stay accepted (v39 rolls off). A v41 socket
+ *   still gets `USE_ABILITY` in full; only a v40 socket has it stripped (rule above).
  *
  * CLIENT SURFACE (unbrewed-p2p): mirror the variant in `lib/pro/protocol.ts`; feed line
  * "<player> chose <name> as their sidekick"; optionally show the prompt's `description` as

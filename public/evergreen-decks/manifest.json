@@ -501,7 +501,7 @@
       "rulesVerified": {
         "repo": "unbrewed-pro-server",
         "file": "data/heroes/pomni.rules.ts",
-        "commit": "41361953"
+        "commit": "97649061"
       }
     },
     {
@@ -513,7 +513,7 @@
       "rulesVerified": {
         "repo": "unbrewed-pro-server",
         "file": "data/heroes/harry-dresden.rules.ts",
-        "commit": "98aac839"
+        "commit": "97649061"
       }
     }
   ]

@@ -148,7 +148,7 @@ export const HERO_STATE_FLAGS: HeroStateFlag[] = [
     stats: { move: 2 },
   },
   // Harry Dresden (issue #1718 ↔ engine #1092; key verified against harry-dresden.rules.ts
-  // PYRO_FUEGO_FLAG @98aac839). ONE-SIDED, like EQUILIBRIUM, and it lives for ONE combat:
+  // PYRO_FUEGO_FLAG @97649061). ONE-SIDED, like EQUILIBRIUM, and it lives for ONE combat:
   // the engine latches it in Fuego!'s IMMEDIATELY window when Dresden has less health than
   // the opposing fighter, and the card is then PYRO FUEGO! (attack 5, "AFTER COMBAT: Move
   // the opposing fighter up to 2 spaces"). Both faces are printed on the one Fuego! card, so
@@ -495,7 +495,7 @@ export const BOUNTY_PILES: { pile: string; name: string }[] = [
  * (ProHud), and the pile overlay's title reads the `name` below.
  *
  * `scheme` is the CardDef id (an instance id is `<defId>#<n>`), verified against
- * harry-dresden.rules.ts @98aac839, as is `pile` (KINETIC_PILE).
+ * harry-dresden.rules.ts @97649061, as is `pile` (KINETIC_PILE).
  */
 export interface SchemePile {
   scheme: string;
@@ -731,7 +731,7 @@ export const HERO_STATE_COUNTERS: HeroStateCounter[] = [
   },
   // -------------------------------------------------------------------------
   // POMNI (issue #1623 ↔ engine #1056, PAIRED with the engine's `feature/pomni`).
-  // Pile keys VERIFIED against data/heroes/pomni.rules.ts @41361953.
+  // Pile keys VERIFIED against data/heroes/pomni.rules.ts @97649061.
   //
   // The deck's five ADV_* piles ARE its Adventure track, and the track is not a
   // count: it is drawn by its own plate row from the PILE_TRACKS registry

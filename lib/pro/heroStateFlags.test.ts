@@ -1397,7 +1397,7 @@ describe("flagStatOverridesFor — generic over the registry (issue #1535)", () 
   });
 });
 
-// POMNI (issue #1623 ↔ engine #1056). Keys verified against pomni.rules.ts @41361953.
+// POMNI (issue #1623 ↔ engine #1056). Keys verified against pomni.rules.ts @97649061.
 describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => {
   // The two reward-snooze flags were retired with engine #1080 (Rewards 2 / 3 are buttons).
   const POMNI_FLAGS = ["POMNI_ADV2_ONCE", "POMNI_R4_USED"];
@@ -1532,7 +1532,7 @@ describe("POMNI: bookkeeping stays hidden, EXILE says whose doing it is", () => 
 });
 
 // Harry Dresden (issue #1718 ↔ engine #1092). Keys verified against harry-dresden.rules.ts
-// @98aac839: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
+// @97649061: PYRO_FUEGO_FLAG, BOBS_ADVICE_FLAG, KINETIC_PILE, VENTRIS_DAMAGE_COUNTER.
 describe("Harry Dresden: PYRO FUEGO! shows, the bookkeeping does not, the Rings hold their cards", () => {
   it("DRESDEN_PYRO_FUEGO is a one-sided pill + a board badge on Dresden's own seat only", () => {
     expect(flagChipsFor("harry-dresden", { DRESDEN_PYRO_FUEGO: true })).toEqual([

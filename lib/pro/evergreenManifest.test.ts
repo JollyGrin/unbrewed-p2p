@@ -1541,7 +1541,7 @@ describe("William Afton (william-afton) deck data", () => {
 });
 
 // POMNI (issue #1623 ↔ engine #1056, train feature/pomni). The 12 main-deck rows and the
-// ten Adventure / Reward faces are transcribed from data/heroes/pomni.rules.ts @41361953.
+// ten Adventure / Reward faces are transcribed from data/heroes/pomni.rules.ts @97649061.
 describe("POMNI (pomni → 1y_5) deck data", () => {
   const deck = readDeck("1y_5");
   type Card = { title: string; type: string; value: number | null; boost: number; quantity: number; characterName: string; imageUrl: string; basicText: string; cardImage?: { url: string } };
@@ -1653,7 +1653,7 @@ describe("POMNI (pomni → 1y_5) deck data", () => {
 });
 
 // Harry Dresden (issue #1718 ↔ engine #1092, train feature/dresden). Rows transcribed from
-// data/heroes/harry-dresden.rules.ts @98aac839, where Service Pistol is TWO card ids (one
+// data/heroes/harry-dresden.rules.ts @97649061, where Service Pistol is TWO card ids (one
 // per sidekick) for ONE printed card; the snapshot lists the printed card once.
 describe("Harry Dresden (harry-dresden) deck data", () => {
   const deck = readDeck("harry-dresden");

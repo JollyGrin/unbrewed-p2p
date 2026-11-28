@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("wireVersion", () => {
-  // #1201: an engine accepts only a narrow version window ({40, 41} since #1080, {40, 41, 42} since #1087) — every bind is at PROTOCOL_VERSION, whatever was learned.
+  // #1201: an engine accepts only a narrow version window ({40, 41} since #1080, {40, 41, 42} since #1097) — every bind is at PROTOCOL_VERSION, whatever was learned.
   it("always binds at PROTOCOL_VERSION, never the old v34 fallback", () => {
     expect(wireVersionFor(URL_A)).toBe(PROTOCOL_VERSION);
     rememberEngineVersion(URL_A, 35);
